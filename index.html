@@ -3505,10 +3505,14 @@ async function saveToGoogleDriveInner(){
 // كصورة بتاب جديد، حتى نشوف بالظبط شو الصورة الملتقطة قبل ما تنحط جوا صفحة الـ PDF. هيك منعرف
 // هل المشكلة بالالتقاط نفسه (html2canvas) ولا بتحويلها لصفحة A4 (jsPDF) - افتحي الكونسول (F12)
 // واكتبي: __debugPdfCapture()  وبعتيلي سكرين شوت من التاب الجديد يلي رح يفتح + أي أرقام تطلع بالكونسول.
-// فيك كمان تكتبي __debugPdfCapture(false) لتجربة وضع الالتقاط العادي (بدون foreignObjectRendering)
-// - شوفي الملاحظة 3 تحت.
-window.__debugPdfCapture = async function(useForeignObject){
-  if(useForeignObject === undefined) useForeignObject = true;
+// فيك كمان تكتبي __debugPdfCapture(false) لتجربة وضع الالتقاط العادي (بدون foreignObjectRendering)،
+// أو __debugPdfCapture({scale:1}) أو أي خيارات تانية عشوائية حتى نجرب حلول بسرعة بدون ما ننتظر
+// ملف جديد كل مرة - شوفي الملاحظة 3 تحت لتفاصيل كيف بتشتغل.
+window.__debugPdfCapture = async function(opts){
+  let overrides;
+  if(opts === undefined) overrides = {};
+  else if(typeof opts === 'boolean') overrides = { foreignObjectRendering: opts };
+  else overrides = opts;
   const wasMobileMode = document.body.classList.contains('mode-mobile');
   document.body.classList.remove('mode-mobile');
   document.body.classList.add('pdf-capturing');
@@ -3519,15 +3523,17 @@ window.__debugPdfCapture = async function(useForeignObject){
   const pageEl = document.querySelector('.page');
   const rect = pageEl.getBoundingClientRect();
   // ملاحظة 3: على شاشة موبايل ضيقة (مثلاً 399px) والصفحة .page عرضها 900px (أوسع من الشاشة
-  // الحقيقية)، لاحظنا إنو الالتقاط عم يقص جزء من عرض الصفحة - غالبًا لأنو المتصفح ما عم يرسم/يلتقط
-  // الجزء يلي برا حدود الشاشة الفعلية. windowWidth/windowHeight بتقول لـ html2canvas يتعامل مع
-  // الصفحة وكأنها بعرض/طول محددين بغض النظر عن حجم الشاشة الحقيقية - هاد المفروض يحل القص.
-  const html2canvasOpts = {
-    scale: 2, useCORS: true, foreignObjectRendering: useForeignObject,
+  // الحقيقية)، لاحظنا إنو الالتقاط عم يقص جزء من عرض الصفحة. windowWidth/windowHeight هون
+  // كديفولت (فيك تلغيهم بتمرير windowWidth:undefined ضمن opts لو بدك تجربي بدونهم)، وفيك تعدلي أي
+  // خيار تاني (scale, foreignObjectRendering, windowWidth...) بتمرير object، مثلاً:
+  // __debugPdfCapture({scale:1})  أو  __debugPdfCapture({windowWidth:1800})
+  const defaults = {
+    scale: 2, useCORS: true, foreignObjectRendering: true,
     scrollX: 0, scrollY: 0,
     windowWidth: Math.ceil(pageEl.scrollWidth || rect.width || 900),
     windowHeight: Math.ceil(pageEl.scrollHeight || rect.height || 1200)
   };
+  const html2canvasOpts = Object.assign({}, defaults, overrides);
   console.log('[Debug] .page rect:', rect, '| devicePixelRatio:', window.devicePixelRatio, '| innerWidth:', window.innerWidth, '| scrollX/Y:', window.scrollX, window.scrollY, '| html2canvas options:', html2canvasOpts);
   let canvas;
   try{
@@ -3554,7 +3560,7 @@ window.__debugPdfCapture = async function(useForeignObject){
     if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
   }
   if(!canvas){ console.error('[Debug] ما نجحنا ناخد canvas إطلاقاً - شوفي فوق إذا في خطأ تاني بالكونسول.'); return null; }
-  console.log('[Debug] canvas size:', canvas.width, 'x', canvas.height, '| ratio canvas/page-css-width:', (canvas.width / rect.width).toFixed(2));
+  console.log('[Debug] canvas size:', canvas.width, 'x', canvas.height, '| width ratio:', (canvas.width / rect.width).toFixed(2), '| height ratio:', (canvas.height / rect.height).toFixed(2));
   const dataUrl = canvas.toDataURL('image/png');
   const w = window.open();
   if(w){ w.document.write('<title>PDF capture debug</title><body style="margin:0;background:#888"><img src="' + dataUrl + '" style="max-width:100%;display:block;margin:0 auto;background:#fff"></body>'); }
