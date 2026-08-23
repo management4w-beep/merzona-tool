@@ -1118,6 +1118,7 @@
   <h1>MERZONA · QUOTATION GENERATOR</h1>
   <button class="primary" onclick="doPrint()">🖨️ Print</button>
   <button id="driveSaveBtn" class="primary" onclick="saveToGoogleDrive(event)">☁️ حفظ لجوجل درايف</button>
+  <button id="quotationUndoBtn" onclick="undoQuotation()" disabled title="تراجع عن آخر تعديل بعرض السعر (البنود، الأسعار، بيانات العميل...)">↩️ تراجع</button>
   <button class="primary" style="margin-left:0;" onclick="openDesignerFromToolbar()">🎨 صمّم النوافذ والأبواب</button>
   <button type="button" class="toolbar-more-btn" onclick="toggleToolbarMore(event)">☰ المزيد</button>
   <div class="toolbar-more-menu" id="toolbarMoreMenu">
@@ -1131,6 +1132,7 @@
     <button class="mode-switch-btn" onclick="showModeChooser()">📱💻 Switch layout</button>
     <button onclick="toggleItemsManager()">🗂️ Manage Items</button>
     <button class="primary" style="margin-left:0;" onclick="window.openCameraOverlay()">📷 كاميرا</button>
+    <button class="danger" style="margin-left:0;" onclick="deleteQuotationFromDrive()" title="بيحذف مجلد عرض السعر هيدا (بكل ملفاته) من جوجل درايف - بينحط بسلة المهملات، فيك تسترجعه خلال 30 يوم لو غلطتي">🗑️ حذف عرض السعر</button>
   </div>
 </div>
 
@@ -2956,6 +2958,111 @@ function applyFullQuotationData(data){
   }catch(e){ console.error('applyFullQuotationData failed', e); }
 }
 
+/* ================= تراجع (Undo) لعرض السعر =================
+   نفس فكرة أداة تصميم النوافذ والأبواب (historyStack من لقطات JSON) بس مطبقة على كامل عرض
+   السعر - منستخدم captureFullQuotationData/applyFullQuotationData الموجودين أصلًا (نفس اللي
+   بيستخدمهم "افتح بآخر نسخة") كأداة أخذ اللقطة والاسترجاع، بدل ما نعيد اختراعهم.
+   منراقب التغييرات بطريقتين حتى نلتقط كل شي بدون ما نحتاج نلمس كل زر إضافة/حذف صف بالملف:
+   - MutationObserver عالبنية (إضافة/حذف صفوف - كتير منها بتستخدم .remove() مباشرة بدون فنكشن معينة)
+   - مستمع input/change مفوّض (تعديل قيم الخانات) - كلاهما بيجدولوا لقطة بعد وقفة قصيرة (debounce)
+   حتى ما ناخد لقطة معلّقة نص كتابة، وحتى ما ناخد لقطة لكل حرف يكتبه المستخدم. */
+let quotationHistoryStack = [];
+const QUOTATION_MAX_HISTORY = 30;
+let quotationHistoryDebounceTimer = null;
+let lastQuotationSnapshotJson = null;
+let quotationUndoInProgress = false;
+
+function pushQuotationHistorySnapshotNow(){
+  if(quotationUndoInProgress) return;
+  try{
+    const snap = JSON.stringify(captureFullQuotationData());
+    if(snap === lastQuotationSnapshotJson) return; // ما تغيّر شي فعليًا (مثلاً focus/blur بدون تعديل)
+    if(lastQuotationSnapshotJson !== null){
+      quotationHistoryStack.push(lastQuotationSnapshotJson);
+      if(quotationHistoryStack.length > QUOTATION_MAX_HISTORY) quotationHistoryStack.shift();
+    }
+    lastQuotationSnapshotJson = snap;
+    updateQuotationUndoButton();
+  }catch(e){ /* ما منكسر التطبيق لو فشلت اللقطة لأي سبب */ }
+}
+
+function scheduleQuotationHistorySnapshot(){
+  if(quotationUndoInProgress) return;
+  clearTimeout(quotationHistoryDebounceTimer);
+  quotationHistoryDebounceTimer = setTimeout(pushQuotationHistorySnapshotNow, 700);
+}
+
+function undoQuotation(){
+  if(!quotationHistoryStack.length) return;
+  quotationUndoInProgress = true;
+  clearTimeout(quotationHistoryDebounceTimer);
+  try{
+    const prevJson = quotationHistoryStack.pop();
+    applyFullQuotationData(JSON.parse(prevJson));
+    lastQuotationSnapshotJson = prevJson;
+  }catch(e){ console.error('[تراجع عرض السعر] فشل:', e); }
+  updateQuotationUndoButton();
+  // منسمح بجدولة لقطات جديدة تاني بس بعد ما تخلص كل ردود فعل الاسترجاع (renumber/recalc) وتهدى الصفحة
+  setTimeout(()=>{ quotationUndoInProgress = false; }, 100);
+}
+window.undoQuotation = undoQuotation;
+
+function updateQuotationUndoButton(){
+  const btn = document.getElementById('quotationUndoBtn');
+  if(!btn) return;
+  btn.disabled = quotationHistoryStack.length === 0;
+  btn.textContent = quotationHistoryStack.length ? `↩️ تراجع (${quotationHistoryStack.length})` : '↩️ تراجع';
+}
+
+(function setupQuotationHistoryWatchers(){
+  const pageEl = document.getElementById('page');
+  if(!pageEl) return;
+  pageEl.addEventListener('input', scheduleQuotationHistorySnapshot, true);
+  pageEl.addEventListener('change', scheduleQuotationHistorySnapshot, true);
+  const observer = new MutationObserver(()=> scheduleQuotationHistorySnapshot());
+  observer.observe(pageEl, { childList:true, subtree:true });
+  // لقطة أولى (بعد تيك واحد حتى تخلص بيانات seedDefaults/التحميل القديم تتطبق) - هاي بتصير الأساس
+  // (baseline) يلي أول تعديل حقيقي بعدها بيصير أول عنصر فعلي بلائحة التراجع.
+  setTimeout(pushQuotationHistorySnapshotNow, 500);
+})();
+
+/* ================= حذف عرض سعر من جوجل درايف ================= */
+async function deleteQuotationFromDrive(){
+  const refRaw = (document.getElementById('m-ref').value || '').trim();
+  if(!refRaw){ alert('ما في رقم مرجعي مكتوب بعد - افتحي أو ابدئي عرض سعر أول.'); return; }
+  const refSafe = refRaw.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-\u0600-\u06FF]+/g,'_') || 'Merzona-Quotation';
+  const year = getYearFromReference(refRaw);
+  if(!confirm('متأكدة إنك بدك تحذفي عرض السعر "'+refRaw+'" (سنة '+year+')؟\n\nرح ينحط بسلة مهملات جوجل درايف - فيك تسترجعيه من هناك خلال 30 يوم لو غلطتي، بس رح يختفي من الداشبورد فورًا.')) return;
+
+  const btn = document.querySelector('[onclick="deleteQuotationFromDrive()"]');
+  const origLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نحذف...'; }
+  try{
+    const token = await getGoogleAccessToken(false); // كبسة يدوية - مسموح نافذة موافقة لو احتاجت
+    const yearFolderId = await findYearFolderIfExists(year, token);
+    if(!yearFolderId){ alert('ما لقينا مجلد سنة '+year+' أصلاً بجوجل درايف - يمكن هالعرض ما انحفظ لجوجل درايف قط.'); return; }
+    const q = encodeURIComponent(`name = '${refSafe.replace(/'/g,"\\'")}' and '${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+      headers: { Authorization: 'Bearer ' + token }
+    }, 15000);
+    const data = await res.json();
+    const folder = data.files && data.files[0];
+    if(!folder){ alert('ما لقينا مجلد عرض السعر هيدا بجوجل درايف (يمكن كان محذوف أصلاً، أو الاسم اختلف عن الرقم المرجعي).'); return; }
+    await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${folder.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trashed: true })
+    }, 15000);
+    alert('✅ تم نقل عرض السعر "'+refRaw+'" لسلة مهملات جوجل درايف.\nرح يختفي من الداشبورد تلقائيًا بأول مزامنة، ورقمو المرجعي رح يصير متاح للاستخدام من جديد بعرض السعر الجاي.');
+  }catch(e){
+    console.error('[حذف عرض السعر] فشل:', e);
+    alert('صار خطأ أثناء الحذف:\n'+(e && e.message ? e.message : e));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = origLabel || '🗑️ حذف عرض السعر'; }
+  }
+}
+window.deleteQuotationFromDrive = deleteQuotationFromDrive;
+
 function buildBakedHtmlSnapshot(){
   // Bake current values into the HTML attributes/content so a reopened file shows them.
   document.querySelectorAll('input').forEach(el=>{
@@ -3097,18 +3204,28 @@ async function autoSuggestNextReference(){
       headers: { Authorization: 'Bearer ' + token }
     }, 15000);
     const data = await res.json();
-    let maxSeq = null;
+    let minSeq = null, maxSeq = null;
+    const seqSet = new Set();
     (data.files || []).forEach(f=>{
       const digits = (f.name.match(/\d+/g) || []).join('');
       const m = digits.match(/^\d{2}0(\d+)$/);
       if(m){
         const seq = parseInt(m[1], 10);
+        seqSet.add(seq);
+        if(minSeq === null || seq < minSeq) minSeq = seq;
         if(maxSeq === null || seq > maxSeq) maxSeq = seq;
       }
     });
     if(maxSeq === null) return; // ما لقينا أي رقم مرجعي مفهوم داخل مجلد السنة
 
-    const nextSeq = maxSeq + 1;
+    // منلاقي أصغر رقم متاح (فجوة) بين أصغر وأكبر رقم مستخدم فعليًا - مثلاً لو 210 انحذف وباقي
+    // الأرقام موجودة (...209, 211...)، أول عرض سعر جديد ياخد 210 تلقائيًا بدل ما يقفز لـ 212.
+    // إذا ما في فجوات (تسلسل كامل بدون نقص)، منرجع لنفس السلوك القديم: أكبر رقم + 1.
+    let nextSeq = null;
+    for(let s = minSeq; s <= maxSeq; s++){
+      if(!seqSet.has(s)){ nextSeq = s; break; }
+    }
+    if(nextSeq === null) nextSeq = maxSeq + 1;
     const nextSeqStr = String(nextSeq).padStart(3, '0');
     if(refInput.value.trim() === defaultVal.trim()){ // نتأكد تاني إنو المستخدم ما كتب شي بالفترة يلي استغرقتها العملية
       refInput.value = `M-Q-${yy}0${nextSeqStr}`;
