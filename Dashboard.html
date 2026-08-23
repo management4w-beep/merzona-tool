@@ -2254,11 +2254,24 @@ showSyncBannerIfNeeded();
 // أول ما تفتح لوحة التحكم: محاولة مزامنة صامتة (بدون ما تفرض نافذة تسجيل دخول)
 // بتنجح تلقائيًا وبهدوء لو سبق ووافق حدا من نفس المتصفح قبل هيك (بضغطة وحدة على "🔄 مزامنة الفريق")
 // ولو نجحت الصامتة (يعني كان أصلًا متصل)، منخبّي التنبيه فورًا لأنو ما في داعي له.
-setTimeout(()=>{ driveSyncPullAndMerge(true).then(ok=>{ if(ok) hideSyncBanner(true); }); }, 900);
+setTimeout(()=>{ driveSyncPullAndMerge(true).then(ok=>{ if(ok) hideSyncBanner(true); maybeAutoReconcile(); }); }, 900);
 // وبعدين، كل مرة يرجع المستخدم لهالتبويب (بعد ما كان بتبويب/تطبيق تاني) منعيد محاولة مزامنة صامتة
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible'){ driveSyncPullAndMerge(true); }
+  if(document.visibilityState === 'visible'){ driveSyncPullAndMerge(true); maybeAutoReconcile(); }
 });
+
+// المطابقة الكاملة مع جوجل درايف (إضافة عروض أسعار جديدة اتحفظت، وحذف يلي انمسح مجلده) بتصير
+// جزء تلقائي من المزامنة العادية هلق - المستخدم ما عاد لازم يدوس زر "🔍 طابق مع جوجل درايف الآن"
+// كل مرة. بس منحدد سقف زمني (١٠ دقايق) حتى ما نكتر طلبات جوجل درايف لو المستخدم بيرجع عالتبويب
+// كتير بفترة قصيرة - الزر اليدوي لسا موجود لو حدا بدو يفرض مطابقة فورية بدون ما يستنى.
+const RECONCILE_AUTO_INTERVAL_MS = 10 * 60 * 1000;
+function maybeAutoReconcile(){
+  try{
+    const last = parseInt(localStorage.getItem('merzona_last_reconcile_at') || '0', 10);
+    if(Date.now() - last < RECONCILE_AUTO_INTERVAL_MS) return;
+  }catch(e){}
+  reconcileWithDrive(true);
+}
 
 /* ================= فتح عرض سعر قديم بآخر نسخة من الأداة =================
    المشكلة: كل عرض سعر محفوظ لجوجل درايف هو نسخة HTML كاملة "مخبوزة" - فيها كود الأداة نفسه
@@ -2566,7 +2579,11 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
       total: totalGuess || 0,
       duration: null, payDown:null, payAlu:null, payGlass:null, payFin:null,
       url: linkFile ? ('https://drive.google.com/file/d/'+linkFile.id+'/view') : null,
-      source: 'drive-scan'
+      source: 'drive-scan',
+      // اسم مجلد جوجل درايف الفعلي (ممكن يختلف شوي عن ref لو الرقم المرجعي تغيّر بعد إنشاء المجلد) -
+      // محفوظ هون تحديدًا حتى نقدر نتأكد لاحقًا هل هالمجلد لسا موجود فعليًا بجوجل درايف (شوف
+      // pruneDeletedDiscoveredQuotations تحت) أو انحذف، بدل ما نعتمد على ref يلي ممكن يكون تغيّر.
+      refFolderName: refFolderName
     };
   }catch(e){
     console.warn('[مطابقة الملفات] تعذّر فحص مجلد', refFolderName, e);
@@ -2574,18 +2591,47 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
   }
 }
 
+// بتشيل من المخزن المحلي (discovered) وبتشيل من DATA بالذاكرة أي عرض سعر كان "مكتشف" (source:
+// drive-scan) قبل هيك بس مجلده انحذف فعليًا من جوجل درايف - هيك المستخدم لما يحذف مجلد يدويًا،
+// عرض السعر بيختفي من الداشبورد لحاله بأول مطابقة، بدون ما يحتاج يدور عليه ويحذفه يدويًا مرتين.
+// ملاحظة: منمس فقط عناصر source:'drive-scan' - لائحة DATA الأصلية (المكتوبة يدويًا بالملف) ما
+// إلها بالضرورة مجلد مطابق بجوجل درايف، فما بنلمسها هون خالص.
+function pruneDeletedDiscoveredQuotations(refEntries){
+  const liveFolderNames = new Set(refEntries.map(e=>e.refFolderName));
+  const discovered = loadDiscoveredQuotations();
+  let removed = 0;
+  Object.keys(discovered).forEach(key=>{
+    const d = discovered[key];
+    if(!d || d.source !== 'drive-scan') return;
+    const folderName = d.refFolderName || d.ref; // عناصر قديمة اتكشفت قبل إضافة refFolderName بترجع لـ ref كحل احتياطي
+    if(!liveFolderNames.has(folderName)){
+      delete discovered[key];
+      const idx = DATA.findIndex(x=> stripRefSpaces(x.ref) === stripRefSpaces(d.ref));
+      if(idx !== -1) DATA.splice(idx, 1);
+      removed++;
+    }
+  });
+  if(removed>0) saveDiscoveredQuotations(discovered);
+  return removed;
+}
+
 let reconcileInProgress = false;
-async function reconcileWithDrive(){
+// silent=true: تشغيل تلقائي بالخلفية (جزء من المزامنة العادية) - بدون نافذة موافقة جوجل جبرية،
+// بدون تعطيل الزر، وبفشل هادئ (console.warn بس) لو صار أي خطأ. silent=false: كبسة يدوية من
+// المستخدم على زر "🔍 طابق مع جوجل درايف الآن" - نفس السلوك القديم بالضبط.
+async function reconcileWithDrive(silent){
   if(reconcileInProgress) return;
   reconcileInProgress = true;
   const statusEl = document.getElementById('reconcileStatus');
   const btn = document.getElementById('reconcileBtn');
-  const setStatus = t=>{ if(statusEl) statusEl.textContent = t; };
-  if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نفحص...'; }
+  const setStatus = t=>{ if(statusEl && !silent) statusEl.textContent = t; };
+  if(!silent && btn){ btn.disabled = true; btn.textContent = '⏳ عم نفحص...'; }
   setStatus('عم نجيب لائحة مجلدات عروض الأسعار من جوجل درايف...');
   try{
-    const token = await getDashGoogleAccessToken(false); // كبسة يدوية - مسموح نافذة موافقة لو أول مرة
+    const token = await getDashGoogleAccessToken(!!silent); // يدوي = مسموح نافذة موافقة، تلقائي = صامت بس
     const refEntries = await scanDriveFolderForYearRefs(token);
+
+    const removedCount = pruneDeletedDiscoveredQuotations(refEntries);
 
     const existingRefs = new Set(DATA.map(d=>d.ref));
     const discovered = loadDiscoveredQuotations();
@@ -2605,17 +2651,21 @@ async function reconcileWithDrive(){
     }
     saveDiscoveredQuotations(discovered);
     const mergedNow = mergeDiscoveredIntoData();
-    render();
-    setStatus('✅ خلصنا! ضفنا '+addedCount+' عرض سعر جديد (من أصل '+refEntries.length+' مجلد بجوجل درايف) - '+mergedNow+' منهم ظاهرين هلق بالداشبورد.');
+    if(addedCount>0 || removedCount>0) render();
+    setStatus('✅ خلصنا! ضفنا '+addedCount+' عرض سعر جديد وحذفنا '+removedCount+' اتحذف مجلده من جوجل درايف (من أصل '+refEntries.length+' مجلد) - '+mergedNow+' منهم ظاهرين هلق بالداشبورد.');
+    localStorage.setItem('merzona_last_reconcile_at', String(Date.now()));
   }catch(err){
-    console.error('[مطابقة الملفات] فشلت:', err);
-    setStatus('⚠️ صار خطأ: '+(err && err.message ? err.message : err)+' - تأكد إنك مربوط بجوجل درايف (🔄 مزامنة الفريق) وجرب تاني.');
+    if(silent){ console.warn('[مطابقة الملفات] فشلت المطابقة التلقائية بالخلفية:', err && err.message); }
+    else{
+      console.error('[مطابقة الملفات] فشلت:', err);
+      setStatus('⚠️ صار خطأ: '+(err && err.message ? err.message : err)+' - تأكد إنك مربوط بجوجل درايف (🔄 مزامنة الفريق) وجرب تاني.');
+    }
   } finally {
     reconcileInProgress = false;
-    if(btn){ btn.disabled = false; btn.textContent = '🔍 طابق مع جوجل درايف الآن'; }
+    if(!silent && btn){ btn.disabled = false; btn.textContent = '🔍 طابق مع جوجل درايف الآن'; }
   }
 }
-document.getElementById('reconcileBtn').addEventListener('click', reconcileWithDrive);
+document.getElementById('reconcileBtn').addEventListener('click', ()=> reconcileWithDrive(false));
 
 // زر الشاشة الكاملة لعرض السعر - بيغطي كل الصفحة (نفس الزر بيرجّع الوضع العادي)
 function setQuotationFullscreen(on){
