@@ -3210,9 +3210,10 @@ async function saveToGoogleDrive(evt){
     if(driveSaveCancelled) return; // المستخدم كان ألغى يدويًا - ما منعرض أي نتيجة متأخرة
     resetBtn(); // نرجّع الزر لطبيعته فورًا قبل ما نعرض رسالة النجاح، حتى ما يضل الزر معلّق وراء نافذة الـ alert
     console.log('[Drive Save] نجح -', new Date().toLocaleTimeString());
-    // إرسال إشعار واتساب لمجموعة Tasks - بالخلفية وبدون ما ينتظره المستخدم، وبدون ما يأثر على نجاح الحفظ
-    sendQuotationToWhatsApp().catch(e=> console.warn('[WhatsApp] تعذّر إرسال إشعار المجموعة (الحفظ لجوجل درايف نجح رغم هيك):', e));
-    alert('تم الحفظ لجوجل درايف بنجاح ✅\n' + (result || ''));
+    // إرسال إشعار واتساب لمجموعة Tasks - بالخلفية وبدون ما ينتظره المستخدم، وبدون ما يأثر على نجاح الحفظ.
+    // منبعت نفس ملف الـ PDF يلي تخزّن بجوجل درايف عشان ينرفق مباشرة مع الرسالة.
+    sendQuotationToWhatsApp(result && result.pdfBlob, result && result.refSafe).catch(e=> console.warn('[WhatsApp] تعذّر إرسال إشعار المجموعة (الحفظ لجوجل درايف نجح رغم هيك):', e));
+    alert('تم الحفظ لجوجل درايف بنجاح ✅\n' + ((result && result.summary) || ''));
   }catch(err){
     window.removeEventListener('focus', onFocusReturn);
     if(driveSaveCancelled) return; // المستخدم كان ألغى يدويًا - ما منعرض رسالة خطأ لعملية هو نفسه ألغاها
@@ -3222,10 +3223,25 @@ async function saveToGoogleDrive(evt){
   }
 }
 
+// تحويل Blob (ملف PDF هون) لنص base64 حتى نقدر نبعته جوا جسم طلب JSON عادي - مقسّم لأجزاء صغيرة
+// حتى ما تنكسر مع ملفات كبيرة نسبيًا (String.fromCharCode.apply عندها حد أقصى لعدد الوسائط).
+async function blobToBase64(blob){
+  const buf = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for(let i=0; i<bytes.length; i+=chunkSize){
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunkSize));
+  }
+  return btoa(binary);
+}
+
 // جامعة بيانات عرض السعر (المرجع/العميل/الإمارة/الموبايل/البنود مع سعر المتر) وبعتها
-// لسيرفر جسر الواتساب (whatsapp-server) حتى توصل تلقائيًا لمجموعة "Tasks".
+// لسيرفر جسر الواتساب (whatsapp-server) حتى توصل تلقائيًا لمجموعة "Tasks"، مع إرفاق نفس
+// ملف الـ PDF يلي اتحفظ بجوجل درايف (إذا انمرر). تجميع البنود المتكررة وحذف المقاسات من
+// الرسالة بيصير على السيرفر (server.js) مش هون - هون بس منجمع ونبعت البيانات الخام.
 // لا تكسر عملية الحفظ لجوجل درايف أبدًا حتى لو فشلت - بترجع فقط بصمت وتسجّل تحذير بالـ console.
-async function sendQuotationToWhatsApp(){
+async function sendQuotationToWhatsApp(pdfBlob, refSafe){
   if(!WHATSAPP_NOTIFY_URL) return; // السيرفر لسا مش معرّف - الميزة معطّلة
   const ref = (document.getElementById('m-ref').value || '').trim();
   const clientName = (document.getElementById('m-client').value || '').trim();
@@ -3239,8 +3255,6 @@ async function sendQuotationToWhatsApp(){
     if(!name) return;
     items.push({
       name,
-      width: (tr.querySelector('.w-input')?.value || '').trim(),
-      height: (tr.querySelector('.h-input')?.value || '').trim(),
       qty: (tr.querySelector('.qty-input')?.value || '').trim(),
       pricePerM2: (tr.querySelector('.price')?.value || '').trim(),
       lineTotal: (tr.querySelector('.line-total')?.value || '').trim()
@@ -3250,10 +3264,16 @@ async function sendQuotationToWhatsApp(){
 
   const grandTotal = (document.getElementById('sum-grand')?.textContent || '').trim();
 
+  let pdfBase64 = null;
+  if(pdfBlob){
+    try{ pdfBase64 = await blobToBase64(pdfBlob); }
+    catch(e){ console.warn('[WhatsApp] تعذّر تجهيز ملف PDF للإرفاق - رح تنبعت الرسالة بدون مرفق:', e); }
+  }
+
   const resp = await fetch(WHATSAPP_NOTIFY_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': WHATSAPP_NOTIFY_TOKEN },
-    body: JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal })
+    body: JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal, pdfBase64, pdfFilename: (refSafe || ref || 'quotation') + '.pdf' })
   });
   if(!resp.ok) throw new Error('WhatsApp notify failed: HTTP ' + resp.status);
 }
@@ -3292,11 +3312,20 @@ async function saveToGoogleDriveInner(){
     const pageEl = document.querySelector('.page');
     let pdfBlob;
     try{
+      // ملاحظة: شلنا x/y/windowWidth/width من إعدادات html2canvas تحت - لأنه لما تكون
+      // foreignObjectRendering:true مفعّلة (لازمة حتى النص العربي يظهر صح بالـ PDF)، مكتبة
+      // html2canvas ما بتبني نسخة افتراضية بعرض windowWidth متل الوضع العادي، وإنما بتلتقط
+      // من إحداثيات الصفحة الحقيقية زي ما هيي عالشاشة - فلما الصفحة كانت أعرض من 900px (مثلاً
+      // شاشة كمبيوتر عريضة)، عنصر .page كان يطلع بمنتصف الشاشة (مش عند x=0)، وبالتالي الالتقاط
+      // بإحداثيات x:0,y:0,width:900 كان يقص أول جزء ويلتقط قص من نص المحتوى بدل الصفحة كاملة -
+      // هيدا بالضبط سبب مشكلة "الهوامش/حجم الصفحة عشوائي" يلي كانت عم تصير بالـ PDF. حذف هالإعدادات
+      // بيخلي html2canvas يلتقط عنصر .page بذاته بحدوده الحقيقية (يلي محصور أصلاً بـ 900px عبر CSS
+      // .pdf-capturing فوق) بغض النظر عن مكانه أو عرض الشاشة.
       pdfBlob = await html2pdf().from(pageEl).set({
         margin: 0,
         filename: refSafe + '.pdf',
         image: { type:'jpeg', quality:0.98 },
-        html2canvas: { scale:2, useCORS:true, foreignObjectRendering:true, scrollX:0, scrollY:0, x:0, y:0, windowWidth:900, width:900 },
+        html2canvas: { scale:2, useCORS:true, foreignObjectRendering:true, scrollX:0, scrollY:0 },
         jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
         pagebreak: { mode: ['css','legacy'] }
       }).outputPdf('blob');
@@ -3307,7 +3336,7 @@ async function saveToGoogleDriveInner(){
     }
     await uploadFileToDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
 
-    return 'مجلد: ' + year + ' / ' + refSafe;
+    return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe };
 }
 
 
