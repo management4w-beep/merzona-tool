@@ -3518,17 +3518,23 @@ window.__debugPdfCapture = async function(){
   console.log('[Debug] .page rect:', rect, '| devicePixelRatio:', window.devicePixelRatio, '| innerWidth:', window.innerWidth, '| scrollX/Y:', window.scrollX, window.scrollY);
   let canvas;
   try{
-    // ملاحظة: html2canvas مش متوفرة كمتغير عام (global) لحالها جوا حزمة html2pdf.bundle.min.js -
+    // ملاحظة 1: html2canvas مش متوفرة كمتغير عام (global) لحالها جوا حزمة html2pdf.bundle.min.js -
     // هيدا سبب خطأ "html2canvas is not defined" يلي طلع أول مرة. الطريقة الصح نستخدم نفس
     // سلسلة html2pdf() الرسمية ونوقف عند خطوة toCanvas() قبل ما تتحول لصفحة PDF - هيك منضمن
     // نفس بالظبط الكود يلي عملية الحفظ الحقيقية بتستخدمه.
-    await html2pdf().set({
+    // ملاحظة 2: .then(c => canvas = c) طلع ما بيشتغل - مكتبة html2pdf.js داخليًا بتخزن نتيجة toCanvas()
+    // بـ worker.prop.canvas (تأثير جانبي) وما بترجعها كقيمة للـ .then() العادي، فكانت canvas دايمًا
+    // undefined بصمت بدون أي خطأ. الطريقة الصح موثقة رسميًا: ننتظر الـ worker نفسه، وبعدين نقرأ
+    // worker.prop.canvas مباشرة.
+    const worker = html2pdf().set({
       margin: 0,
       image: { type:'jpeg', quality:0.98 },
       html2canvas: { scale:2, useCORS:true, foreignObjectRendering:true, scrollX:0, scrollY:0 },
       jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
       pagebreak: { mode: ['css','legacy'] }
-    }).from(pageEl).toCanvas().then(function(c){ canvas = c; });
+    }).from(pageEl).toCanvas();
+    await worker;
+    canvas = worker.prop && worker.prop.canvas;
   } finally {
     document.body.classList.remove('pdf-capturing');
     if(wasMobileMode) document.body.classList.add('mode-mobile');
