@@ -13,6 +13,52 @@
   var POLL_MS = 4000;
   var REVALIDATE_MS = 5 * 60 * 1000; // كل قد ايش نتأكد من السيرفر إنو الجهاز المعتمد لسا مسموح (يلتقط أي إلغاء وصول بسرعة معقولة حتى لو الصفحة ضلت مفتوحة)
 
+  // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
+  // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
+  // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
+  var CURRENT_VERSION = '2026-08-23.1';
+  var TOOL_KEY = 'dashboard';
+  var VERSION_URL = 'version.json';
+  var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
+  var VERSION_CHECK_TIMEOUT_MS = 4000;
+
+  function checkForUpdate(onDone){
+    var bust = Date.now() + '-' + Math.random().toString(16).slice(2);
+    var settled = false;
+    var timer = setTimeout(function(){ if(!settled){ settled = true; onDone(); } }, VERSION_CHECK_TIMEOUT_MS);
+    fetch(VERSION_URL + '?_=' + bust, { cache: 'no-store' })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        if(settled) return; settled = true; clearTimeout(timer);
+        var remoteVersion = data && data[TOOL_KEY];
+        if(!remoteVersion || remoteVersion === CURRENT_VERSION){
+          try{ sessionStorage.removeItem(RELOAD_GUARD_KEY); }catch(e){}
+          onDone();
+          return;
+        }
+        // في نسخة أحدث منشورة على جيت هاب من يلي المتصفح فاتحها حاليًا - منعمل reload بس مع رابط
+        // مختلف (cache-busting) حتى نجبر المتصفح ياخد نسخة الملف الجديدة فعليًا من الشبكة مباشرة،
+        // بدل ما يكتفي بالنسخة القديمة المخزنة عندو محليًا.
+        var guard = null;
+        try{ guard = JSON.parse(sessionStorage.getItem(RELOAD_GUARD_KEY) || 'null'); }catch(e){}
+        if(guard && guard.version === remoteVersion && (Date.now() - guard.at) < 60000){
+          // جربنا نحدّث لهاي النسخة قبل شوي وما زبط (يمكن لسا عم تنتشر على سيرفرات جيت هاب) - منكمل
+          // بالنسخة الحالية حتى ما تعلق الأداة بحلقة تحديث متكررة، ومنعاود نحاول بعد شوي من جديد.
+          onDone();
+          return;
+        }
+        try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
+        location.replace(location.pathname + '?_cb=' + bust + (location.hash || ''));
+      })
+      .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); onDone(); } });
+  }
+
+  function showCheckingUpdate(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:13px;color:#9aa0aa">🔄 جاري التحقق من آخر نسخة...</div>';
+  }
+
   function getDeviceToken(){
     var t = null;
     try{ t = localStorage.getItem(DEVICE_KEY); }catch(e){}
@@ -73,7 +119,7 @@
     box.innerHTML =
       '<div style="font-size:18px;font-weight:700;margin-bottom:6px">أداة ميرزونا محمية</div>' +
       '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اكتب اسمك واطلب الدخول - رح توصل موافقة الإدارة على الواتس اب</div>' +
-      '<input id="mz-gate-name" type="text" placeholder="اسمك" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-gate-name" type="text" placeholder="اسمك" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
       '<button id="mz-gate-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">طلب الدخول</button>' +
       '<div id="mz-gate-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
     var btn = box.querySelector('#mz-gate-btn');
@@ -82,10 +128,13 @@
     function submit(){
       var name = (nameInput.value || '').trim();
       btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+      // منبعت نفس القيمة المكتوبة كـ adminToken كمان مع الاسم - السيرفر بتجاهلها إذا مش نفس
+      // كلمة سر المالك بالضبط، وبيوافق فورًا بدون انتظار الواتس اب إذا كانت مطابقة. هيك صاحبة
+      // الأداة فيها تكتب كلمة السر مكان الاسم وتفتح مباشرة، بدون الحاجة لرابط #owner= الخاص.
       api('/access/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceToken: deviceToken, name: name })
+        body: JSON.stringify({ deviceToken: deviceToken, name: name, adminToken: name })
       }).then(function(r){
         if(r.status === 'approved'){
           try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
@@ -193,7 +242,11 @@
     });
   }
 
-  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+  function boot(){
+    showCheckingUpdate();
+    checkForUpdate(init);
+  }
+  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); } else { boot(); }
 })();
 </script>
 <!-- ===== MERZONA ACCESS GATE - END ===== -->
