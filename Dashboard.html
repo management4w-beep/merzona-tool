@@ -725,13 +725,14 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <div id="backupOverlay">
         <div class="backup-modal">
           <h3>📦 نسخة احتياطية من بيانات النظام</h3>
-          <p>كل معلومات العقود وجداول الدفعات والمشاريع وأسماء الزبائن يللي بتضيفها محفوظة على هالمتصفح بس (مش جوا الملفات). نزّل نسخة احتياطية بين فترة وفترة (خصوصاً قبل أي تحديث للأداة) حتى تضمن ما تضيع، وتقدر تسترجعها لو صار أي شي.</p>
+          <p>كل معلومات العقود وجداول الدفعات والمشاريع وأسماء الزبائن يللي بتضيفها محفوظة على هالمتصفح بس (مش جوا الملفات). الأداة هلق بتاخد نسخة احتياطية تلقائيًا (أول ما تفتحي الداشبورد، وبعدين كل شوي طول ما هي مفتوحة) وبتحفظها بمجلد جوجل درايف المخصص لهيك، وبتستبدل نفس الملف بالمجلد بدل ما تصنع ملف جديد كل مرة. فيك كمان تضغطي الزر تحت لحفظ نسخة فورية بأي وقت.</p>
           <div class="backup-actions">
-            <button type="button" class="primary" id="backupDownloadBtn">⬇️ تحميل نسخة احتياطية الآن</button>
+            <button type="button" class="primary" id="backupDownloadBtn">☁️ حفظ نسخة احتياطية الآن بجوجل درايف</button>
             <button type="button" id="backupRestoreTriggerBtn">⬆️ استعادة من نسخة احتياطية</button>
             <input type="file" id="backupRestoreFile" accept=".json" style="display:none;">
           </div>
           <div id="backupStatus"></div>
+          <div style="font-size:11.5px;color:var(--muted);margin-top:4px;">آخر نسخة تلقائية: <span id="lastAutoBackupAt">—</span></div>
           <hr style="margin:18px 0;border:none;border-top:1px solid var(--line);">
           <h3>🔍 مطابقة عروض الأسعار مع جوجل درايف</h3>
           <p>هاي بتفحص كل مجلدات عروض الأسعار المحفوظة فعليًا بجوجل درايف، وأي عرض سعر (قديم أو جديد) مش ظاهر بلائحة الداشبورد بتضيفه تلقائيًا. محتاجة تكون مربوط بجوجل درايف (🔄 مزامنة الفريق)، وممكن ياخد شوي وقت حسب عدد الملفات.</p>
@@ -1957,28 +1958,110 @@ document.getElementById('backupTabBtn').addEventListener('click', openBackupModa
 document.getElementById('backupCloseBtn').addEventListener('click', closeBackupModal);
 document.getElementById('backupOverlay').addEventListener('click', (e)=>{ if(e.target.id==='backupOverlay') closeBackupModal(); });
 
-function downloadBackup(){
+function buildBackupPayload(){
   const data = {};
   let count = 0;
   BACKUP_KEYS.forEach(k=>{
     const v = localStorage.getItem(k);
     if(v != null){ data[k] = v; count++; }
   });
-  const payload = { schema:'merzona-backup-v1', exportedAt: new Date().toISOString(), data };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const now = new Date();
-  const stamp = now.getFullYear()+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0');
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'merzona-backup-'+stamp+'.json';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(()=>URL.revokeObjectURL(url), 2000);
-  document.getElementById('backupStatus').textContent = '✅ تم تحميل نسخة احتياطية فيها '+count+' قسم بيانات.';
+  return { payload: { schema:'merzona-backup-v1', exportedAt: new Date().toISOString(), data }, count: count };
 }
-document.getElementById('backupDownloadBtn').addEventListener('click', downloadBackup);
+
+// ===== نسخة احتياطية تلقائية بمجلد جوجل درايف مخصص (بدل التحميل لمجلد التنزيلات) =====
+// المجلد حددته حمدي بنفسها: https://drive.google.com/open?id=1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy
+// كل نسخة احتياطية (تلقائية أو يدوية) بتستبدل نفس الملف داخل هالمجلد - ما بتصنع ملف جديد كل مرة.
+const AUTO_BACKUP_FOLDER_ID = '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy';
+const AUTO_BACKUP_FILE_NAME = 'merzona-backup-auto.json';
+let cachedAutoBackupFileId = localStorage.getItem('merzona_auto_backup_file_id') || null;
+
+async function getOrCreateAutoBackupFileId(token){
+  if(cachedAutoBackupFileId) return cachedAutoBackupFileId;
+  const q = encodeURIComponent(`name = '${AUTO_BACKUP_FILE_NAME}' and '${AUTO_BACKUP_FOLDER_ID}' in parents and trashed = false`);
+  const searchRes = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: 'Bearer ' + token }
+  }, 15000);
+  const searchData = await searchRes.json();
+  if(searchData.files && searchData.files.length){
+    cachedAutoBackupFileId = searchData.files[0].id;
+  } else {
+    const metadata = { name: AUTO_BACKUP_FILE_NAME, parents: [AUTO_BACKUP_FOLDER_ID], mimeType: 'application/json' };
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], {type:'application/json'}));
+    form.append('file', new Blob([JSON.stringify({schema:'merzona-backup-v1'})], {type:'application/json'}));
+    const createRes = await dashFetchWithTimeout('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+      body: form
+    }, 15000);
+    const createData = await createRes.json();
+    cachedAutoBackupFileId = createData.id;
+  }
+  if(cachedAutoBackupFileId) localStorage.setItem('merzona_auto_backup_file_id', cachedAutoBackupFileId);
+  return cachedAutoBackupFileId;
+}
+
+async function uploadAutoBackupToDrive(token, dataObj){
+  const fileId = await getOrCreateAutoBackupFileId(token);
+  const res = await dashFetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(dataObj)
+  }, 20000);
+  if(res.status === 404){ cachedAutoBackupFileId = null; localStorage.removeItem('merzona_auto_backup_file_id'); throw new Error('drive-file-missing'); }
+  if(!res.ok) throw new Error('drive-upload-failed-'+res.status);
+}
+
+function updateLastAutoBackupLabel(){
+  const el = document.getElementById('lastAutoBackupAt');
+  if(!el) return;
+  let last = 0;
+  try{ last = parseInt(localStorage.getItem('merzona_last_auto_backup_at') || '0', 10); }catch(e){}
+  if(!last){ el.textContent = '—'; return; }
+  el.textContent = new Date(last).toLocaleString('ar');
+}
+
+async function runAutoBackup(silent, showFeedback){
+  if(showFeedback){
+    const btn = document.getElementById('backupDownloadBtn');
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نحفظ...'; }
+  }
+  try{
+    const token = await getDashGoogleAccessToken(silent);
+    const built = buildBackupPayload();
+    await uploadAutoBackupToDrive(token, built.payload);
+    try{ localStorage.setItem('merzona_last_auto_backup_at', String(Date.now())); }catch(e){}
+    updateLastAutoBackupLabel();
+    if(showFeedback){
+      document.getElementById('backupStatus').textContent = '✅ انحفظت نسخة احتياطية بمجلد جوجل درايف المخصص (' + built.count + ' قسم بيانات).';
+    }
+    return true;
+  }catch(e){
+    console.warn('[نسخة احتياطية] فشلت:', e);
+    if(showFeedback){
+      document.getElementById('backupStatus').textContent = '⚠️ ما قدرنا نحفظ النسخة الاحتياطية بجوجل درايف - تأكدي إنك مربوطة بجوجل درايف (🔄 مزامنة الفريق) وجربي كمان مرة. (' + (e && e.message ? e.message : e) + ')';
+    }
+    return false;
+  } finally {
+    if(showFeedback){
+      const btn = document.getElementById('backupDownloadBtn');
+      if(btn){ btn.disabled = false; btn.textContent = '☁️ حفظ نسخة احتياطية الآن بجوجل درايف'; }
+    }
+  }
+}
+document.getElementById('backupDownloadBtn').addEventListener('click', ()=> runAutoBackup(false, true));
+updateLastAutoBackupLabel();
+
+// نسخة احتياطية تلقائية دورية طول ما الداشبورد مفتوحة عند حمدي، بدون ما تحتاج تدوس أي زر -
+// بسقف زمني (٢٠ دقيقة) حتى ما نكتر طلبات جوجل درايف لو التبويب ضل مفتوح كتير أو رجعت لتبويبه كتير.
+const AUTO_BACKUP_INTERVAL_MS = 20 * 60 * 1000;
+function maybeAutoBackup(){
+  try{
+    const last = parseInt(localStorage.getItem('merzona_last_auto_backup_at') || '0', 10);
+    if(Date.now() - last < AUTO_BACKUP_INTERVAL_MS) return;
+  }catch(e){}
+  runAutoBackup(true, false);
+}
 
 document.getElementById('backupRestoreTriggerBtn').addEventListener('click', ()=>{
   document.getElementById('backupRestoreFile').click();
@@ -2307,11 +2390,14 @@ showSyncBannerIfNeeded();
 // أول ما تفتح لوحة التحكم: محاولة مزامنة صامتة (بدون ما تفرض نافذة تسجيل دخول)
 // بتنجح تلقائيًا وبهدوء لو سبق ووافق حدا من نفس المتصفح قبل هيك (بضغطة وحدة على "🔄 مزامنة الفريق")
 // ولو نجحت الصامتة (يعني كان أصلًا متصل)، منخبّي التنبيه فورًا لأنو ما في داعي له.
-setTimeout(()=>{ driveSyncPullAndMerge(true).then(ok=>{ if(ok) hideSyncBanner(true); maybeAutoReconcile(); }); }, 900);
+setTimeout(()=>{ driveSyncPullAndMerge(true).then(ok=>{ if(ok) hideSyncBanner(true); maybeAutoReconcile(); maybeAutoBackup(); }); }, 900);
 // وبعدين، كل مرة يرجع المستخدم لهالتبويب (بعد ما كان بتبويب/تطبيق تاني) منعيد محاولة مزامنة صامتة
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible'){ driveSyncPullAndMerge(true); maybeAutoReconcile(); }
+  if(document.visibilityState === 'visible'){ driveSyncPullAndMerge(true); maybeAutoReconcile(); maybeAutoBackup(); }
 });
+// وحتى لو ضل نفس التبويب مفتوح بدون ما تتغير رؤيته (مثلاً شاشة مكتب دايمًا ظاهرة)، منتأكد بشكل
+// دوري كمان بمؤقّت مباشر - maybeAutoBackup فيها سقف زمني داخلي فما رح تتكرر أكتر من اللازم.
+setInterval(maybeAutoBackup, AUTO_BACKUP_INTERVAL_MS);
 
 // المطابقة الكاملة مع جوجل درايف (إضافة عروض أسعار جديدة اتحفظت، وحذف يلي انمسح مجلده) بتصير
 // جزء تلقائي من المزامنة العادية هلق - المستخدم ما عاد لازم يدوس زر "🔍 طابق مع جوجل درايف الآن"
