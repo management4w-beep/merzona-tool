@@ -13,6 +13,52 @@
   var POLL_MS = 4000;
   var REVALIDATE_MS = 5 * 60 * 1000; // كل قد ايش نتأكد من السيرفر إنو الجهاز المعتمد لسا مسموح (يلتقط أي إلغاء وصول بسرعة معقولة حتى لو الصفحة ضلت مفتوحة)
 
+  // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
+  // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
+  // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
+  var CURRENT_VERSION = '2026-08-23.1';
+  var TOOL_KEY = 'index';
+  var VERSION_URL = 'version.json';
+  var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
+  var VERSION_CHECK_TIMEOUT_MS = 4000;
+
+  function checkForUpdate(onDone){
+    var bust = Date.now() + '-' + Math.random().toString(16).slice(2);
+    var settled = false;
+    var timer = setTimeout(function(){ if(!settled){ settled = true; onDone(); } }, VERSION_CHECK_TIMEOUT_MS);
+    fetch(VERSION_URL + '?_=' + bust, { cache: 'no-store' })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        if(settled) return; settled = true; clearTimeout(timer);
+        var remoteVersion = data && data[TOOL_KEY];
+        if(!remoteVersion || remoteVersion === CURRENT_VERSION){
+          try{ sessionStorage.removeItem(RELOAD_GUARD_KEY); }catch(e){}
+          onDone();
+          return;
+        }
+        // في نسخة أحدث منشورة على جيت هاب من يلي المتصفح فاتحها حاليًا - منعمل reload بس مع رابط
+        // مختلف (cache-busting) حتى نجبر المتصفح ياخد نسخة الملف الجديدة فعليًا من الشبكة مباشرة،
+        // بدل ما يكتفي بالنسخة القديمة المخزنة عندو محليًا.
+        var guard = null;
+        try{ guard = JSON.parse(sessionStorage.getItem(RELOAD_GUARD_KEY) || 'null'); }catch(e){}
+        if(guard && guard.version === remoteVersion && (Date.now() - guard.at) < 60000){
+          // جربنا نحدّث لهاي النسخة قبل شوي وما زبط (يمكن لسا عم تنتشر على سيرفرات جيت هاب) - منكمل
+          // بالنسخة الحالية حتى ما تعلق الأداة بحلقة تحديث متكررة، ومنعاود نحاول بعد شوي من جديد.
+          onDone();
+          return;
+        }
+        try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
+        location.replace(location.pathname + '?_cb=' + bust + (location.hash || ''));
+      })
+      .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); onDone(); } });
+  }
+
+  function showCheckingUpdate(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:13px;color:#9aa0aa">🔄 جاري التحقق من آخر نسخة...</div>';
+  }
+
   function getDeviceToken(){
     var t = null;
     try{ t = localStorage.getItem(DEVICE_KEY); }catch(e){}
@@ -73,7 +119,7 @@
     box.innerHTML =
       '<div style="font-size:18px;font-weight:700;margin-bottom:6px">أداة ميرزونا محمية</div>' +
       '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اكتب اسمك واطلب الدخول - رح توصل موافقة الإدارة على الواتس اب</div>' +
-      '<input id="mz-gate-name" type="text" placeholder="اسمك" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-gate-name" type="text" placeholder="اسمك" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
       '<button id="mz-gate-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">طلب الدخول</button>' +
       '<div id="mz-gate-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
     var btn = box.querySelector('#mz-gate-btn');
@@ -82,10 +128,13 @@
     function submit(){
       var name = (nameInput.value || '').trim();
       btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+      // منبعت نفس القيمة المكتوبة كـ adminToken كمان مع الاسم - السيرفر بتجاهلها إذا مش نفس
+      // كلمة سر المالك بالضبط، وبيوافق فورًا بدون انتظار الواتس اب إذا كانت مطابقة. هيك صاحبة
+      // الأداة فيها تكتب كلمة السر مكان الاسم وتفتح مباشرة، بدون الحاجة لرابط #owner= الخاص.
       api('/access/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceToken: deviceToken, name: name })
+        body: JSON.stringify({ deviceToken: deviceToken, name: name, adminToken: name })
       }).then(function(r){
         if(r.status === 'approved'){
           try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
@@ -193,7 +242,11 @@
     });
   }
 
-  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+  function boot(){
+    showCheckingUpdate();
+    checkForUpdate(init);
+  }
+  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); } else { boot(); }
 })();
 </script>
 <!-- ===== MERZONA ACCESS GATE - END ===== -->
@@ -241,13 +294,6 @@
     border-radius:0 0 8px 8px;
     box-shadow:0 2px 8px rgba(0,0,0,0.08);
   }
-  .toolbar h1{
-    font-family:'DM Serif Text','Georgia','Times New Roman',serif;
-    font-size:15px;
-    color:var(--muted);
-    margin:0 14px 0 0;
-    font-weight:600;
-  }
   .import-status{
     max-width:900px;
     margin:0 auto 12px auto;
@@ -276,7 +322,6 @@
     background:var(--aux1);
     color:#fff;
     border-color:var(--aux1);
-    margin-left:auto;
   }
   button.primary:hover{background:#0c6da3;}
   button.small{
@@ -565,30 +610,30 @@
   .mode-card .label{ font-size:14px; font-weight:bold; color:var(--main); }
   .mode-switch-btn{ font-size:11px; padding:6px 10px; }
 
-  /* أزرار الأدوات الثانوية (استيراد، إدارة البنود، إلخ) - عالكمبيوتر بتظهر عادي بالصف مع باقي الأزرار،
-     وبوضعية الموبايل بتنطوي جوا قائمة "☰ المزيد" (شوف قواعد body.mode-mobile تحت) */
-  .toolbar-more-btn{ display:none; }
-  .toolbar-more-menu{ display:contents; }
-
-  /* ---------- Mobile mode layout ---------- */
-  body.mode-mobile{ padding:8px; }
-  body.mode-mobile .page{ padding:14px 12px; max-width:100%; }
-  body.mode-mobile .toolbar{ position:sticky; top:0; z-index:20; background:#eef1f4; padding-bottom:8px; }
-  body.mode-mobile .toolbar h1{ width:100%; margin-bottom:6px; }
-  body.mode-mobile button{ font-size:14px; padding:10px 14px; }
-  body.mode-mobile .toolbar-more-btn{
-    display:inline-flex; align-items:center; font-size:14px; padding:10px 14px;
-    background:#fff; border:1px solid var(--muted); border-radius:6px; color:var(--ink); cursor:pointer;
+  /* أزرار الأدوات الثانوية (استيراد، إدارة البنود، إلخ) - بتنطوي جوا قائمة "☰ المزيد" المنسدلة
+     بكل أوضاع العرض (كمبيوتر وموبايل) حتى الشريط يضل صف واحد مرتب وما ياخد مساحة كبيرة من الصفحة */
+  .toolbar-more-btn{
+    display:inline-flex; align-items:center; gap:4px; font-size:12.5px; padding:7px 12px;
+    background:#fff; border:1px solid var(--aux1); border-radius:5px; color:var(--main); cursor:pointer;
+    margin-inline-start:auto;
   }
-  body.mode-mobile .toolbar-more-menu{
+  .toolbar-more-btn:hover{ background:#f0f5fb; }
+  .toolbar-more-menu{
     display:none;
     position:absolute; top:100%; inset-inline-end:8px; margin-top:6px;
     flex-direction:column; gap:8px; align-items:stretch;
     background:#fff; border:1px solid #d8dce1; border-radius:10px;
     box-shadow:0 8px 24px rgba(0,0,0,0.18); padding:10px; min-width:230px; z-index:40;
   }
-  body.mode-mobile .toolbar-more-menu.open{ display:flex; }
-  body.mode-mobile .toolbar-more-menu button{ width:100%; margin:0; }
+  .toolbar-more-menu.open{ display:flex; }
+  .toolbar-more-menu button{ width:100%; margin:0 !important; }
+
+  /* ---------- Mobile mode layout ---------- */
+  body.mode-mobile{ padding:8px; }
+  body.mode-mobile .page{ padding:14px 12px; max-width:100%; }
+  body.mode-mobile .toolbar{ position:sticky; top:0; z-index:20; background:#eef1f4; padding-bottom:8px; }
+  body.mode-mobile button{ font-size:14px; padding:10px 14px; }
+  body.mode-mobile .toolbar-more-btn{ font-size:14px; padding:10px 14px; }
   body.mode-mobile input, body.mode-mobile textarea{ font-size:15px; padding:8px; }
   body.mode-mobile .top{ flex-direction:row; align-items:flex-start; flex-wrap:wrap; gap:14px; }
   body.mode-mobile .bi-row,
@@ -1115,11 +1160,10 @@
 </div>
 
 <div class="toolbar" id="mainToolbar">
-  <h1>MERZONA · QUOTATION GENERATOR</h1>
   <button class="primary" onclick="doPrint()">🖨️ Print</button>
   <button id="driveSaveBtn" class="primary" onclick="saveToGoogleDrive(event)">☁️ حفظ لجوجل درايف</button>
   <button id="quotationUndoBtn" onclick="undoQuotation()" disabled title="تراجع عن آخر تعديل بعرض السعر (البنود، الأسعار، بيانات العميل...)">↩️ تراجع</button>
-  <button class="primary" style="margin-left:0;" onclick="openDesignerFromToolbar()">🎨 صمّم النوافذ والأبواب</button>
+  <button class="primary" onclick="openDesignerFromToolbar()">🎨 صمّم النوافذ والأبواب</button>
   <button type="button" class="toolbar-more-btn" onclick="toggleToolbarMore(event)">☰ المزيد</button>
   <div class="toolbar-more-menu" id="toolbarMoreMenu">
     <button class="primary" onclick="printQuotationAndSketch()" title="يطبع عرض السعر أولاً ثم رسمة/سكتش كل البنود بنفس ملف الطباعة">🖨️📐 طباعة عرض السعر + السكتش</button>
@@ -1131,8 +1175,8 @@
     <button onclick="resetAll()">Reset form</button>
     <button class="mode-switch-btn" onclick="showModeChooser()">📱💻 Switch layout</button>
     <button onclick="toggleItemsManager()">🗂️ Manage Items</button>
-    <button class="primary" style="margin-left:0;" onclick="window.openCameraOverlay()">📷 كاميرا</button>
-    <button class="danger" style="margin-left:0;" onclick="deleteQuotationFromDrive()" title="بيحذف مجلد عرض السعر هيدا (بكل ملفاته) من جوجل درايف - بينحط بسلة المهملات، فيك تسترجعه خلال 30 يوم لو غلطتي">🗑️ حذف عرض السعر</button>
+    <button class="primary" onclick="window.openCameraOverlay()">📷 كاميرا</button>
+    <button class="danger" onclick="deleteQuotationFromDrive()" title="بيحذف مجلد عرض السعر هيدا (بكل ملفاته) من جوجل درايف - بينحط بسلة المهملات، فيك تسترجعه خلال 30 يوم لو غلطتي">🗑️ حذف عرض السعر</button>
   </div>
 </div>
 
