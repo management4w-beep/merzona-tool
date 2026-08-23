@@ -3339,7 +3339,37 @@ async function saveToGoogleDriveInner(){
     return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe };
 }
 
-
+// ===== أداة تشخيص مؤقتة (مو جزء من الميزة نفسها) =====
+// بتاخد نفس لقطة html2canvas يلي بتستخدمها عملية الحفظ، بس بدون تحويلها لـ PDF - وبتفتحها
+// كصورة بتاب جديد، حتى نشوف بالظبط شو الصورة الملتقطة قبل ما تنحط جوا صفحة الـ PDF. هيك منعرف
+// هل المشكلة بالالتقاط نفسه (html2canvas) ولا بتحويلها لصفحة A4 (jsPDF) - افتحي الكونسول (F12)
+// واكتبي: __debugPdfCapture()  وبعتيلي سكرين شوت من التاب الجديد يلي رح يفتح + أي أرقام تطلع بالكونسول.
+window.__debugPdfCapture = async function(){
+  const wasMobileMode = document.body.classList.contains('mode-mobile');
+  document.body.classList.remove('mode-mobile');
+  document.body.classList.add('pdf-capturing');
+  if(document.fonts && document.fonts.ready) await document.fonts.ready;
+  await new Promise(r => setTimeout(r, 150));
+  window.scrollTo(0, 0);
+  if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
+  const pageEl = document.querySelector('.page');
+  const rect = pageEl.getBoundingClientRect();
+  console.log('[Debug] .page rect:', rect, '| devicePixelRatio:', window.devicePixelRatio, '| innerWidth:', window.innerWidth, '| scrollX/Y:', window.scrollX, window.scrollY);
+  let canvas;
+  try{
+    canvas = await html2canvas(pageEl, { scale:2, useCORS:true, foreignObjectRendering:true, scrollX:0, scrollY:0 });
+  } finally {
+    document.body.classList.remove('pdf-capturing');
+    if(wasMobileMode) document.body.classList.add('mode-mobile');
+    if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
+  }
+  console.log('[Debug] canvas size:', canvas.width, 'x', canvas.height);
+  const dataUrl = canvas.toDataURL('image/png');
+  const w = window.open();
+  if(w){ w.document.write('<title>PDF capture debug</title><body style="margin:0;background:#888"><img src="' + dataUrl + '" style="max-width:100%;display:block;margin:0 auto;background:#fff"></body>'); }
+  else { console.warn('[Debug] المتصفح منع فتح تاب جديد (popup) - اسمحيلو من إعدادات المتصفح وجربي تاني.'); }
+  return { rect, canvasWidth: canvas.width, canvasHeight: canvas.height, devicePixelRatio: window.devicePixelRatio };
+};
 
 populateItemsDatalist();
 // إذا لوحة التحكم طلبت تحميل عرض سعر قديم بالنسخة الحالية من الأداة (زر "🔓 افتح بآخر نسخة")، البيانات
