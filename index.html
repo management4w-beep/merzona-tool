@@ -1,6 +1,202 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8">
+<!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
+<style id="mz-gate-style">body{display:none!important;}</style>
+<script>
+(function(){
+  // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
+  var ACCESS_SERVER_URL = 'https://merzona-server-production.up.railway.app';
+
+  var DEVICE_KEY = 'merzona-device-token';
+  var STATUS_KEY = 'merzona-access-status';
+  var POLL_MS = 4000;
+  var REVALIDATE_MS = 5 * 60 * 1000; // كل قد ايش نتأكد من السيرفر إنو الجهاز المعتمد لسا مسموح (يلتقط أي إلغاء وصول بسرعة معقولة حتى لو الصفحة ضلت مفتوحة)
+
+  function getDeviceToken(){
+    var t = null;
+    try{ t = localStorage.getItem(DEVICE_KEY); }catch(e){}
+    if(!t){
+      t = (crypto.randomUUID ? crypto.randomUUID() : ('dev-' + Date.now() + '-' + Math.random().toString(16).slice(2)));
+      try{ localStorage.setItem(DEVICE_KEY, t); }catch(e){}
+    }
+    return t;
+  }
+
+  function reveal(){
+    var st = document.getElementById('mz-gate-style'); if(st) st.remove();
+    var ov = document.getElementById('mz-gate-overlay'); if(ov) ov.remove();
+  }
+
+  function getOwnerTokenFromHash(){
+    var m = /[#&]owner=([^&]+)/.exec(location.hash);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function clearOwnerHash(){
+    if(location.hash.indexOf('owner=') !== -1){
+      try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    }
+  }
+
+  function api(path, opts){
+    return fetch(ACCESS_SERVER_URL + path, opts).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  function buildOverlayShell(){
+    var existing = document.getElementById('mz-gate-overlay');
+    if(existing) return existing;
+    var overlay = document.createElement('div');
+    overlay.id = 'mz-gate-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:#0f1115;color:#eee;display:flex;align-items:center;justify-content:center;z-index:2147483647;font-family:Tahoma,Arial,sans-serif;direction:rtl;';
+    var box = document.createElement('div');
+    box.className = 'mz-gate-box';
+    box.style.cssText = 'background:#1b1e24;padding:32px 28px;border-radius:12px;max-width:340px;width:90%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)';
+    overlay.appendChild(box);
+    document.documentElement.appendChild(overlay);
+    return overlay;
+  }
+
+  function showMisconfigured(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:16px;font-weight:700;margin-bottom:10px">نظام الدخول مش جاهز بعد</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">تواصل مع الإدارة لتفعيل رابط سيرفر الموافقات.</div>';
+  }
+
+  function showRequestForm(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">أداة ميرزونا محمية</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اكتب اسمك واطلب الدخول - رح توصل موافقة الإدارة على الواتس اب</div>' +
+      '<input id="mz-gate-name" type="text" placeholder="اسمك" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-gate-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">طلب الدخول</button>' +
+      '<div id="mz-gate-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-gate-btn');
+    var nameInput = box.querySelector('#mz-gate-name');
+    var err = box.querySelector('#mz-gate-err');
+    function submit(){
+      var name = (nameInput.value || '').trim();
+      btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+      api('/access/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, name: name })
+      }).then(function(r){
+        if(r.status === 'approved'){
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          reveal();
+        } else {
+          showWaiting(deviceToken);
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'طلب الدخول';
+        err.textContent = 'تعذر الاتصال بسيرفر الموافقات - جرب كمان شوي';
+      });
+    }
+    btn.addEventListener('click', submit);
+    nameInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ nameInput.focus(); }, 50);
+  }
+
+  function showWaiting(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">بانتظار موافقة الإدارة ⏳</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">وصل طلبك - الصفحة رح تفتح تلقائيًا أول ما توافق الإدارة</div>';
+    var poll = setInterval(function(){
+      api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+        if(r.status === 'approved'){
+          clearInterval(poll);
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          reveal();
+        } else if(r.status === 'denied' || r.status === 'revoked'){
+          clearInterval(poll);
+          try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
+          showRejected();
+        }
+      }).catch(function(){ /* السيرفر مش متاح مؤقتًا - منستمر نحاول بصمت */ });
+    }, POLL_MS);
+  }
+
+  function showRejected(){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px;color:#e0554f">ما توفرت الموافقة</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">تواصل مع الإدارة، أو جرب تطلب دخول من جديد</div>' +
+      '<button id="mz-gate-retry" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">حاول من جديد</button>';
+    box.querySelector('#mz-gate-retry').addEventListener('click', function(){ location.reload(); });
+  }
+
+  function init(){
+    var deviceToken = getDeviceToken();
+    var ownerToken = getOwnerTokenFromHash();
+
+    var cachedStatus = null;
+    try{ cachedStatus = localStorage.getItem(STATUS_KEY); }catch(e){}
+
+    if(!ACCESS_SERVER_URL){
+      if(cachedStatus === 'approved'){ reveal(); return; }
+      showMisconfigured();
+      return;
+    }
+
+    if(ownerToken){
+      api('/access/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, name: 'Owner', adminToken: ownerToken })
+      }).then(function(r){
+        clearOwnerHash();
+        if(r.status === 'approved'){
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          reveal();
+        } else {
+          showRequestForm(deviceToken);
+        }
+      }).catch(function(){ clearOwnerHash(); showRequestForm(deviceToken); });
+      return;
+    }
+
+    if(cachedStatus === 'approved'){
+      reveal(); // نفتح فورًا (تفاؤلي)، وبنتأكد بالخلفية بشكل دوري إذا لسا الموافقة سارية
+      function revalidate(){
+        api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+          if(r.status !== 'approved'){
+            try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
+            location.reload();
+          }
+        }).catch(function(){});
+      }
+      revalidate();
+      setInterval(revalidate, REVALIDATE_MS);
+      return;
+    }
+
+    api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+      if(r.status === 'approved'){
+        try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+        reveal();
+      } else if(r.status === 'pending'){
+        showWaiting(deviceToken);
+      } else {
+        showRequestForm(deviceToken);
+      }
+    }).catch(function(){
+      showRequestForm(deviceToken);
+    });
+  }
+
+  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();
+</script>
+<!-- ===== MERZONA ACCESS GATE - END ===== -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>M-Q-260</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -532,6 +728,23 @@
   }
   .print-controls{ display:flex; align-items:center; gap:8px; }
   .print-controls select{ width:auto; padding:8px 10px; font-size:12px; }
+
+  /* زر طي/فرد ترويسة رسّام النوافذ والأبواب - يظهر بوضعية الموبايل بس، حتى مساحة الرسم تكبر */
+  #wdOverlay .wd-header-toggle{ display:none; width:100%; justify-content:center; order:99; }
+  body.mode-mobile #wdOverlay .wd-header-toggle{ display:flex; }
+  #wdOverlay .wd-header-toggle button{
+    background: var(--wd-panel); border:1px solid var(--wd-line-soft); color: var(--wd-cyan);
+    border-radius:20px; padding:5px 18px; font-size:12px; cursor:pointer;
+    font-family: var(--wd-font-ui); font-weight:700;
+  }
+  body.mode-mobile #wdOverlay.wd-header-collapsed header.wd-top .title-wrap,
+  body.mode-mobile #wdOverlay.wd-header-collapsed header.wd-top .wd-action-controls,
+  body.mode-mobile #wdOverlay.wd-header-collapsed header.wd-top .print-controls{
+    display:none !important;
+  }
+  body.mode-mobile #wdOverlay.wd-header-collapsed header.wd-top{
+    padding:4px 0 6px; margin-bottom:8px;
+  }
 
   .layout{
     display: grid;
@@ -2793,6 +3006,11 @@ const GOOGLE_CLIENT_ID = '575144277793-dgh7oslo72umva7cb37rpa82tman9vfm.apps.goo
 const DRIVE_ROOT_FOLDER_ID = '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D'; // نفس مجلدك الرئيسي يلي بعتّهولي رابطه
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 
+// ⚠️ سيرفر إشعارات واتساب (اختياري) - بيبعت أوتوماتيك عرض السعر لمجموعة "Tasks" عند كل حفظ.
+// اتركهم فاضيين/كما هم حتى تجهز سيرفر whatsapp-server (شوف README.md جواه) - قبل هيك هاد الشي معطّل تلقائيًا.
+const WHATSAPP_NOTIFY_URL = 'https://merzona-server-production.up.railway.app/send-quotation';
+const WHATSAPP_NOTIFY_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky'; // نفس AUTH_TOKEN يلي حطيته بمتغيرات البيئة تبع السيرفر
+
 let googleAccessToken = null;
 let googleTokenClient = null;
 
@@ -2992,6 +3210,8 @@ async function saveToGoogleDrive(evt){
     if(driveSaveCancelled) return; // المستخدم كان ألغى يدويًا - ما منعرض أي نتيجة متأخرة
     resetBtn(); // نرجّع الزر لطبيعته فورًا قبل ما نعرض رسالة النجاح، حتى ما يضل الزر معلّق وراء نافذة الـ alert
     console.log('[Drive Save] نجح -', new Date().toLocaleTimeString());
+    // إرسال إشعار واتساب لمجموعة Tasks - بالخلفية وبدون ما ينتظره المستخدم، وبدون ما يأثر على نجاح الحفظ
+    sendQuotationToWhatsApp().catch(e=> console.warn('[WhatsApp] تعذّر إرسال إشعار المجموعة (الحفظ لجوجل درايف نجح رغم هيك):', e));
     alert('تم الحفظ لجوجل درايف بنجاح ✅\n' + (result || ''));
   }catch(err){
     window.removeEventListener('focus', onFocusReturn);
@@ -3000,6 +3220,42 @@ async function saveToGoogleDrive(evt){
     console.error('[Drive Save] فشل:', err);
     alert('صار خطأ أثناء الحفظ لجوجل درايف:\n' + (err && err.message ? err.message : err));
   }
+}
+
+// جامعة بيانات عرض السعر (المرجع/العميل/الإمارة/الموبايل/البنود مع سعر المتر) وبعتها
+// لسيرفر جسر الواتساب (whatsapp-server) حتى توصل تلقائيًا لمجموعة "Tasks".
+// لا تكسر عملية الحفظ لجوجل درايف أبدًا حتى لو فشلت - بترجع فقط بصمت وتسجّل تحذير بالـ console.
+async function sendQuotationToWhatsApp(){
+  if(!WHATSAPP_NOTIFY_URL) return; // السيرفر لسا مش معرّف - الميزة معطّلة
+  const ref = (document.getElementById('m-ref').value || '').trim();
+  const clientName = (document.getElementById('m-client').value || '').trim();
+  const location = (document.getElementById('m-location').value || '').trim();
+  const mobile = (document.getElementById('m-number').value || '').trim();
+
+  const items = [];
+  document.querySelectorAll('#qty-rows tr').forEach(tr=>{
+    const nameEl = tr.querySelector('.item-input');
+    const name = nameEl ? nameEl.value.trim() : '';
+    if(!name) return;
+    items.push({
+      name,
+      width: (tr.querySelector('.w-input')?.value || '').trim(),
+      height: (tr.querySelector('.h-input')?.value || '').trim(),
+      qty: (tr.querySelector('.qty-input')?.value || '').trim(),
+      pricePerM2: (tr.querySelector('.price')?.value || '').trim(),
+      lineTotal: (tr.querySelector('.line-total')?.value || '').trim()
+    });
+  });
+  if(!items.length) return; // ما في بنود فعلية بعد - ما في داعي نبعت رسالة فاضية
+
+  const grandTotal = (document.getElementById('sum-grand')?.textContent || '').trim();
+
+  const resp = await fetch(WHATSAPP_NOTIFY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': WHATSAPP_NOTIFY_TOKEN },
+    body: JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal })
+  });
+  if(!resp.ok) throw new Error('WhatsApp notify failed: HTTP ' + resp.status);
 }
 
 async function saveToGoogleDriveInner(){
@@ -3123,8 +3379,34 @@ function openDesignerFromToolbar(){
     return { uid, itemName, w, h, refCode, savedDesign };
   });
   window.WD.loadFromRows(rowData);
-  document.getElementById('wdOverlay').style.display = 'block';
+  const overlay = document.getElementById('wdOverlay');
+  overlay.style.display = 'block';
+  // بوضعية الموبايل، منطوي الترويسة تلقائيًا أول ما تنفتح الأداة حتى مساحة الرسم تكون أكبر -
+  // إلا إذا المستخدم كان فرداها يدويًا قبل هيك (بمتصفحه) وبدنا نتذكرله اختياره.
+  if(document.body.classList.contains('mode-mobile')){
+    let pref = null;
+    try{ pref = localStorage.getItem('merzona-wd-header-collapsed'); }catch(e){}
+    const collapsed = pref === null ? true : pref === '1';
+    setWdHeaderCollapsed(collapsed);
+  } else {
+    setWdHeaderCollapsed(false);
+  }
   window.scrollTo(0,0);
+}
+
+function setWdHeaderCollapsed(collapsed){
+  const overlay = document.getElementById('wdOverlay');
+  const btn = document.getElementById('wdHeaderToggleBtn');
+  if(!overlay || !btn) return;
+  overlay.classList.toggle('wd-header-collapsed', collapsed);
+  btn.textContent = collapsed ? '▼ إظهار الترويسة والأدوات' : '▲ اخفاء الترويسة والأدوات';
+}
+
+function toggleWdHeader(){
+  const overlay = document.getElementById('wdOverlay');
+  const collapsed = !overlay.classList.contains('wd-header-collapsed');
+  setWdHeaderCollapsed(collapsed);
+  try{ localStorage.setItem('merzona-wd-header-collapsed', collapsed ? '1' : '0'); }catch(e){}
 }
 
 window.wdApplyBack = function(results){
@@ -3200,6 +3482,7 @@ window.wdApplyBack = function(results){
       <button class="printBtn" onclick="open3DPreview()">🧊 عرض ثري دي</button>
       <button class="printBtn" onclick="openPurchasingOverlay()">🛒 المشتريات</button>
     </div>
+    <div class="wd-header-toggle"><button id="wdHeaderToggleBtn" onclick="toggleWdHeader()" type="button">▼ إظهار الترويسة والأدوات</button></div>
   </header>
 
   <div class="layout">
