@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-23.1';
+  var CURRENT_VERSION = '2026-08-24.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2670,16 +2670,23 @@ mergeDiscoveredIntoData();
 
 // يرجع كل زوج (سنة، مجلد عرض سعر) موجود فعليًا بجوجل درايف - فحص مستوى واحد بس تحت كل مجلد سنة
 // (منتجاهل أي مجلد فرعي زيادة متل "عقود مرفقة" لأنو هاي جوا مجلد العرض نفسه، مش مستوى السنة/العرض)
+// 🔧 2026-08-24: قبل هيك، لو فحص مجلد سنة وحدة فشل (مثلاً هفوة اتصال مؤقتة عالموبايل)، الدالة كانت
+// ترجّع [] لهاي السنة بصمت (catch بس بتسجّل تحذير بالـ console) بدون ما توري إنه في مشكلة - وبعدين
+// pruneDeletedDiscoveredQuotations() كانت تعتبر كل عروض أسعار هاي السنة "محذوفة من جوجل درايف" رغم
+// إنها موجودة فعليًا، وتشيلهم من الداشبورد! هيك بالضبط كان بيصير "الداشبورد بيرجع متل ما كان" بعد
+// أول مطابقة تلقائية بالخلفية تصادف فيها هفوة اتصال. هلق منرجّع كمان علم hadErrors حتى نقدر نمنع
+// الحذف (prune) لما يكون الفحص ناقص، بدل ما نمسح بيانات صحيحة اعتمادًا على فحص غير مكتمل.
 async function scanDriveFolderForYearRefs(token){
   const rootChildren = await listDriveFolderChildren(token, DRIVE_ROOT_FOLDER_ID_DASH);
   const yearFolders = rootChildren.filter(f=> f.mimeType==='application/vnd.google-apps.folder' && /^\d{4}$/.test(f.name));
+  let hadErrors = false;
   const nested = await Promise.all(yearFolders.map(yf=>
     listDriveFolderChildren(token, yf.id).then(children=>
       children.filter(f=>f.mimeType==='application/vnd.google-apps.folder')
         .map(f=>({year: yf.name, refFolderId: f.id, refFolderName: f.name}))
-    ).catch(e=>{ console.warn('[مطابقة الملفات] تعذّر فحص مجلد سنة', yf.name, e); return []; })
+    ).catch(e=>{ console.warn('[مطابقة الملفات] تعذّر فحص مجلد سنة', yf.name, e); hadErrors = true; return []; })
   ));
-  return nested.flat();
+  return { entries: nested.flat(), hadErrors };
 }
 
 // من جوا مجلد عرض سعر وحد، منجرب نستخرج أكبر قد ممكن من المعلومات (اسم الزبون، الرقم، التاريخ،
@@ -2768,9 +2775,11 @@ async function reconcileWithDrive(silent){
   setStatus('عم نجيب لائحة مجلدات عروض الأسعار من جوجل درايف...');
   try{
     const token = await getDashGoogleAccessToken(!!silent); // يدوي = مسموح نافذة موافقة، تلقائي = صامت بس
-    const refEntries = await scanDriveFolderForYearRefs(token);
-
-    const removedCount = pruneDeletedDiscoveredQuotations(refEntries);
+    const scanResult = await scanDriveFolderForYearRefs(token);
+    const refEntries = scanResult.entries;
+    // ما منحذف (prune) أي عرض سعر "مكتشف" إلا إذا كنا متأكدين إنه فحص كل مجلدات السنين نجح بالكامل -
+    // فحص ناقص (هفوة اتصال بسنة وحدة مثلاً) ما لازم يعتبر إنه عروض أسعار صحيحة صارت محذوفة من جوجل درايف.
+    const removedCount = scanResult.hadErrors ? 0 : pruneDeletedDiscoveredQuotations(refEntries);
 
     const existingRefs = new Set(DATA.map(d=>d.ref));
     const discovered = loadDiscoveredQuotations();
@@ -2791,7 +2800,8 @@ async function reconcileWithDrive(silent){
     saveDiscoveredQuotations(discovered);
     const mergedNow = mergeDiscoveredIntoData();
     if(addedCount>0 || removedCount>0) render();
-    setStatus('✅ خلصنا! ضفنا '+addedCount+' عرض سعر جديد وحذفنا '+removedCount+' اتحذف مجلده من جوجل درايف (من أصل '+refEntries.length+' مجلد) - '+mergedNow+' منهم ظاهرين هلق بالداشبورد.');
+    const incompleteNote = scanResult.hadErrors ? ' ⚠️ (الفحص كان ناقص - تعذّر الوصول لمجلد سنة وحدة أو أكتر، جرّب المطابقة تاني بعد شوي)' : '';
+    setStatus('✅ خلصنا! ضفنا '+addedCount+' عرض سعر جديد وحذفنا '+removedCount+' اتحذف مجلده من جوجل درايف (من أصل '+refEntries.length+' مجلد) - '+mergedNow+' منهم ظاهرين هلق بالداشبورد.'+incompleteNote);
     localStorage.setItem('merzona_last_reconcile_at', String(Date.now()));
   }catch(err){
     if(silent){ console.warn('[مطابقة الملفات] فشلت المطابقة التلقائية بالخلفية:', err && err.message); }
