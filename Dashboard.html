@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-24.1';
+  var CURRENT_VERSION = '2026-08-24.2';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2659,9 +2659,16 @@ function mergeDiscoveredIntoData(){
     const cleanRef = stripRefSpaces(d.ref);
     if(!cleanRef) return;
     if(d.ref !== cleanRef) d.ref = cleanRef;
-    if(!DATA.some(x=>stripRefSpaces(x.ref)===cleanRef)){
+    const existingMatch = DATA.find(x=>stripRefSpaces(x.ref)===cleanRef);
+    if(!existingMatch){
       DATA.push(d);
       added++;
+    } else {
+      // 🔧 2026-08-24 (تشخيص مؤقت): لو عرض سعر مكتشف حديثًا من جوجل درايف ما انضاف لأنو لقينا شبيه
+      // له موجود أصلاً بـ DATA، منسجل بالكونسول القيمتين بالضبط - هيك نقدر نشوف هل في اختلاف تنسيق
+      // خفي (مسافة، حرف مختلف، إلخ) بين الاثنين سبب المشكلة يلي صاحبة الأداة بتشتكي منها ("عرض سعر
+      // جديد ما بيضاف للداشبورد رغم إنه موجود فعليًا بجوجل درايف").
+      console.warn('[مطابقة الملفات] عرض السعر "'+d.ref+'" (من جوجل درايف) ما انضاف - لقينا شبيه له موجود أصلاً بالداشبورد باسم "'+existingMatch.ref+'"', {discovered: d, existingInData: existingMatch});
     }
   });
   return added;
