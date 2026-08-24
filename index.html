@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-23.1';
+  var CURRENT_VERSION = '2026-08-24.1';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -3471,6 +3471,9 @@ async function saveToGoogleDriveInner(){
     window.scrollTo(0, 0); // نصفّر أي انزياح Scroll قبل الالتقاط - أهم شي مع صفحة RTL حتى ما ينلقط جزء بس من الصفحة
     applyElevationPrintGrouping();
     const pageEl = document.querySelector('.page');
+    const pageRectForPdf = pageEl.getBoundingClientRect();
+    const pdfTargetWidthPx = Math.ceil(pageEl.scrollWidth || pageRectForPdf.width || 900);
+    const pdfTargetWidthMm = (pdfTargetWidthPx * 25.4 / 96).toFixed(3) + 'mm';
     let pdfBlob;
     try{
       // ملاحظة: شلنا x/y/windowWidth/width من إعدادات html2canvas تحت - لأنه لما تكون
@@ -3482,14 +3485,32 @@ async function saveToGoogleDriveInner(){
       // هيدا بالضبط سبب مشكلة "الهوامش/حجم الصفحة عشوائي" يلي كانت عم تصير بالـ PDF. حذف هالإعدادات
       // بيخلي html2canvas يلتقط عنصر .page بذاته بحدوده الحقيقية (يلي محصور أصلاً بـ 900px عبر CSS
       // .pdf-capturing فوق) بغض النظر عن مكانه أو عرض الشاشة.
-      pdfBlob = await html2pdf().from(pageEl).set({
+      //
+      // ⚠️ إصلاح حاسم إضافي (2026-08-24) - هاد السبب الحقيقي لمشكلة "القص عالطرف" يلي كانت تصير خصوصًا
+      // عالموبايل: مكتبة html2pdf.js نفسها، بخطوتها الداخلية toContainer()، كانت عم تفرض عرض الحاوية
+      // المستنسخة (يلي بتاخد منها html2canvas الصورة) = عرض صفحة PDF الفعلي بالمم (210مم لصفحة A4 ≈
+      // 794px شاشة عادية) - بغض النظر عن عرض .page الحقيقي (900px). يعني صفحتنا الأوسع من A4 كانت
+      // تنحط جوا حاوية أضيق منها فعليًا، فينقص/يتقصّ الجزء يلي زايد عن 794px، بغض النظر عن أي إعداد
+      // scale/windowWidth أو عرض الشاشة (هيك تأكدنا بعد تشخيص طويل عبر __debugPdfContainer()).
+      // الحل: بعد ما نوصل لخطوة toContainer()، منصحح عرض الحاوية يدويًا لعرض .page الحقيقي - بوحدة
+      // "مم" (مش بكسل) حتى تضل نسبة بكسل-لكل-مم يلي المكتبة بتحسب عليها تقسيم الصفحات صحيحة. jsPDF
+      // بعدين بخطوة إضافة الصورة عالصفحة (addImage) هو يلي بيصغّر الصورة الملتقطة الكاملة لتناسب عرض
+      // A4 القياسي - فالمحتوى بيطلع كامل بدون قص، والصفحة النهائية لسا A4 قياسي متل ما هي.
+      const worker = html2pdf().from(pageEl).set({
         margin: 0,
         filename: refSafe + '.pdf',
         image: { type:'jpeg', quality:0.98 },
         html2canvas: { scale:2, useCORS:true, foreignObjectRendering:true, scrollX:0, scrollY:0 },
         jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
         pagebreak: { mode: ['css','legacy'] }
-      }).outputPdf('blob');
+      });
+      await worker.toContainer();
+      const pdfContainer = worker.prop && worker.prop.container;
+      if(pdfContainer){
+        pdfContainer.style.width = pdfTargetWidthMm;
+        pdfContainer.style.maxWidth = 'none';
+      }
+      pdfBlob = await worker.toCanvas().toPdf().outputPdf('blob');
     } finally {
       document.body.classList.remove('pdf-capturing');
       if(wasMobileMode) document.body.classList.add('mode-mobile');
