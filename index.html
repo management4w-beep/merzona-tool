@@ -3512,21 +3512,37 @@ window.__debugPdfCapture = async function(opts){
   let overrides;
   if(opts === undefined) overrides = {};
   else if(typeof opts === 'boolean') overrides = { foreignObjectRendering: opts };
-  else overrides = opts;
+  else overrides = Object.assign({}, opts);
+  // forceViewportWidth مش خيار من خيارات html2canvas - هاد خيار خاص فينا: بيفرض عرض معين مباشرة
+  // على عنصري html وbody أنفسهم (مش بس meta viewport، لأنو جربنا هيك قبل وما أثر - المتصفح ما بيعيد
+  // قراءة الـ meta tag بعد ما الصفحة تحمّل أصلاً) - تجربة لمعرفة هل هيدا هو سبب القص الحقيقي.
+  const forceViewportWidth = overrides.forceViewportWidth;
+  delete overrides.forceViewportWidth;
   const wasMobileMode = document.body.classList.contains('mode-mobile');
   document.body.classList.remove('mode-mobile');
   document.body.classList.add('pdf-capturing');
+  const htmlEl = document.documentElement;
+  const origHtmlWidth = htmlEl.style.width, origHtmlOverflowX = htmlEl.style.overflowX;
+  const origBodyWidth = document.body.style.width, origBodyOverflowX = document.body.style.overflowX;
+  if(forceViewportWidth){
+    htmlEl.style.width = forceViewportWidth + 'px';
+    htmlEl.style.overflowX = 'visible';
+    document.body.style.width = forceViewportWidth + 'px';
+    document.body.style.overflowX = 'visible';
+  }
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
   await new Promise(r => setTimeout(r, 150));
   window.scrollTo(0, 0);
   if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
   const pageEl = document.querySelector('.page');
   const rect = pageEl.getBoundingClientRect();
+  console.log('[Debug] بعد فرض العرض - innerWidth:', window.innerWidth, '| html.clientWidth:', htmlEl.clientWidth, '| body.clientWidth:', document.body.clientWidth, '| body.scrollWidth:', document.body.scrollWidth);
   // ملاحظة 3: على شاشة موبايل ضيقة (مثلاً 399px) والصفحة .page عرضها 900px (أوسع من الشاشة
   // الحقيقية)، لاحظنا إنو الالتقاط عم يقص جزء من عرض الصفحة. windowWidth/windowHeight هون
   // كديفولت (فيك تلغيهم بتمرير windowWidth:undefined ضمن opts لو بدك تجربي بدونهم)، وفيك تعدلي أي
   // خيار تاني (scale, foreignObjectRendering, windowWidth...) بتمرير object، مثلاً:
-  // __debugPdfCapture({scale:1})  أو  __debugPdfCapture({windowWidth:1800})
+  // __debugPdfCapture({scale:1})  أو  __debugPdfCapture({windowWidth:1800})  أو
+  // __debugPdfCapture({forceViewportWidth:900})
   const defaults = {
     scale: 2, useCORS: true, foreignObjectRendering: true,
     scrollX: 0, scrollY: 0,
@@ -3562,6 +3578,12 @@ window.__debugPdfCapture = async function(opts){
     document.body.classList.remove('pdf-capturing');
     if(wasMobileMode) document.body.classList.add('mode-mobile');
     if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
+    if(forceViewportWidth){
+      htmlEl.style.width = origHtmlWidth;
+      htmlEl.style.overflowX = origHtmlOverflowX;
+      document.body.style.width = origBodyWidth;
+      document.body.style.overflowX = origBodyOverflowX;
+    }
   }
   if(!canvas){ console.error('[Debug] ما نجحنا ناخد canvas إطلاقاً - شوفي فوق إذا في خطأ تاني بالكونسول.'); return null; }
   console.log('[Debug] canvas size:', canvas.width, 'x', canvas.height, '| width ratio:', (canvas.width / rect.width).toFixed(2), '| height ratio:', (canvas.height / rect.height).toFixed(2));
