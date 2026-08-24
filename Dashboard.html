@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-24.2';
+  var CURRENT_VERSION = '2026-08-24.3';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2673,7 +2673,16 @@ function mergeDiscoveredIntoData(){
   });
   return added;
 }
-mergeDiscoveredIntoData();
+// 🔧 2026-08-24 (تشخيص مؤقت): بنسجل هون بالكونسول، فور تحميل الصفحة، شو بالضبط موجود بمخزن
+// "العروض المكتشفة" محليًا (localStorage) وكم منهم انضاف فعليًا لـDATA - حتى نعرف هل المشكلة إنه
+// البيانات نفسها بتختفي من التخزين المحلي بين الجلسات (فيرجع الفارغ هون)، أو إنها موجودة بالتخزين
+// المحلي بس مش عم تنعرض لسبب تاني (رح يطلع عدد أكبر من صفر هون بس صفر بالجدول).
+(function(){
+  let rawDiscoveredCount = 0;
+  try{ rawDiscoveredCount = Object.keys(JSON.parse(localStorage.getItem(DISCOVERED_QUOTATIONS_KEY) || '{}')).length; }catch(e){}
+  const mergedAtLoad = mergeDiscoveredIntoData();
+  console.log('[تشخيص] عند تحميل الصفحة: عدد العروض المخزّنة محليًا (discovered) = '+rawDiscoveredCount+' | عدد يلي انضاف فعليًا لـDATA هلق = '+mergedAtLoad+' | إجمالي DATA بعد الدمج = '+DATA.length);
+})();
 
 // يرجع كل زوج (سنة، مجلد عرض سعر) موجود فعليًا بجوجل درايف - فحص مستوى واحد بس تحت كل مجلد سنة
 // (منتجاهل أي مجلد فرعي زيادة متل "عقود مرفقة" لأنو هاي جوا مجلد العرض نفسه، مش مستوى السنة/العرض)
