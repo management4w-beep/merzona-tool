@@ -3724,6 +3724,65 @@ window.__debugPdfFix = async function(opts){
   return { liveRect, canvasWidth: canvas.width, canvasHeight: canvas.height };
 };
 
+// ===== __debugPdfFull() - اختبار PDF حقيقي كامل (مش مجرد صورة) =====
+// لاحظنا إنو الصورة يلي فتحت من __debugPdfFix() طلعت كاملة وصح - بس لما حولتيها إنتِ يدويًا لـ PDF
+// (على الأغلب عبر "طباعة/حفظ كـ PDF" من المتصفح نفسه)، صار تداخل بين الصفحات. هاد على الأغلب مش
+// مشكلة بكودنا - هو تحديدًا لأنو المتصفح لما بيطبع صورة طويلة جدًا لملف PDF بنفسه (مش عن طريق
+// html2pdf.js) بيقسمها بطريقته الخاصة يلي ما بتراعي حدود المحتوى. هاي الدالة بتعمل الاختبار الصح:
+// بتكمل نفس مسار المكتبة html2pdf.js بالكامل (لحد إنتاج ملف PDF حقيقي عبر outputPdf('blob'))، بس
+// بعد ما نصحح عرض الحاوية - وهالمرة منستخدم "مم" مش "بكسل" حتى تضل نسبة بكسل-لكل-مم يلي المكتبة
+// بتحسب عليها تقسيم الصفحات ثابتة وصحيحة (كانت العلاقة قبل التصحيح: 794px = 210mm، فلو غيرنا العرض
+// لبكسلات بس بدون تحويلها لنفس وحدة "مم"، ممكن حسبة توزيع الصفحات تختل).
+window.__debugPdfFull = async function(opts){
+  const overrides = Object.assign({}, opts || {});
+  const wasMobileMode = document.body.classList.contains('mode-mobile');
+  document.body.classList.remove('mode-mobile');
+  document.body.classList.add('pdf-capturing');
+  if(document.fonts && document.fonts.ready) await document.fonts.ready;
+  await new Promise(r => setTimeout(r, 150));
+  window.scrollTo(0, 0);
+  if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
+  const pageEl = document.querySelector('.page');
+  const liveRect = pageEl.getBoundingClientRect();
+  const targetWidthPx = Math.ceil(pageEl.scrollWidth || liveRect.width || 900);
+  const targetWidthMm = (targetWidthPx * 25.4 / 96).toFixed(3) + 'mm';
+  const html2canvasOpts = Object.assign({
+    scale: 2, useCORS: true, foreignObjectRendering: true, scrollX: 0, scrollY: 0
+  }, overrides);
+  let worker, container, pdfBlob;
+  try{
+    worker = html2pdf().from(pageEl).set({
+      margin: 0,
+      filename: 'debug-test.pdf',
+      image: { type:'jpeg', quality:0.98 },
+      html2canvas: html2canvasOpts,
+      jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
+      pagebreak: { mode: ['css','legacy'] }
+    });
+    await worker.toContainer();
+    container = worker.prop && worker.prop.container;
+    if(container){
+      console.log('[Debug] عرض الحاوية قبل التصحيح:', container.style.width);
+      container.style.width = targetWidthMm;
+      container.style.maxWidth = 'none';
+      console.log('[Debug] عرض الحاوية بعد التصحيح (بوحدة مم حتى تضل نسبة بكسل-لكل-مم صحيحة):', container.style.width, '| clientWidth:', container.clientWidth);
+    } else {
+      console.warn('[Debug] ما لقينا container - رح نكمل بدون تصحيح.');
+    }
+    pdfBlob = await worker.toCanvas().toPdf().outputPdf('blob');
+  } finally {
+    document.body.classList.remove('pdf-capturing');
+    if(wasMobileMode) document.body.classList.add('mode-mobile');
+    if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
+  }
+  if(!pdfBlob){ console.error('[Debug] ما نجحنا ناخد PDF.'); return null; }
+  console.log('[Debug] PDF جاهز - رح يفتح بتاب جديد (مش صورة هالمرة، ملف PDF حقيقي فيه تقسيم صفحات حقيقي). حجم الملف:', (pdfBlob.size/1024).toFixed(0) + 'KB');
+  const blobUrl = URL.createObjectURL(pdfBlob);
+  const w = window.open(blobUrl, '_blank');
+  if(!w){ console.warn('[Debug] المتصفح منع فتح تاب جديد (popup) - اسمحيلو من إعدادات المتصفح وجربي تاني.'); }
+  return { liveRect, pdfSizeKB: (pdfBlob.size/1024).toFixed(0) };
+};
+
 populateItemsDatalist();
 // إذا لوحة التحكم طلبت تحميل عرض سعر قديم بالنسخة الحالية من الأداة (زر "🔓 افتح بآخر نسخة")، البيانات
 // بتوصل هون عبر مفتاح localStorage مشترك (نفس الأصل management4w-beep.github.io/merzona-tool/).
