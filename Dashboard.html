@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.2';
+  var CURRENT_VERSION = '2026-08-28.3';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -3100,21 +3100,8 @@ async function reconcileWithDrive(silent){
     for(let i=0;i<toCheck.length;i+=BATCH){
       const batch = toCheck.slice(i, i+BATCH);
       const results = await Promise.all(batch.map(e=> extractQuotationSummaryFromFolder(token, e)));
-      // 🔧 2026-08-28 (تشخيص مؤقت): بنسجّل بالضبط شو رجع الاستخراج لكل رقم مرجعي كان محتاج تحديث
-      // (معاد استخدامه) - حتى نقدر نشوف هل الاستخراج نفسو رجع بيانات فاضية، أو رجع null (فشل)،
-      // أو رجع بيانات صحيحة بس ما انطبقت صح على DATA بعدين. منشيلها بعد ما نحل المشكلة نهائيًا.
-      batch.forEach((e,idx)=>{
-        if(staleReused.indexOf(e) !== -1){
-          console.info('[مطابقة الملفات][تشخيص] نتيجة إعادة الجلب لـ"'+e.refFolderName+'" (id المجلد: '+e.refFolderId+'):', results[idx]);
-        }
-      });
       results.filter(Boolean).forEach(r=>{ discovered[r.ref] = r; addedCount++; });
       setStatus('عم نجيب التفاصيل... ('+Math.min(i+BATCH, toCheck.length)+'/'+toCheck.length+')');
-    }
-    if(staleReused.length>0){
-      staleReused.forEach(e=>{
-        console.info('[مطابقة الملفات][تشخيص] discovered["'+e.refFolderName+'"] بعد التحديث (قبل الحفظ):', discovered[e.refFolderName]);
-      });
     }
 
     // 🔧 2026-08-25: تصحيح تلقائي لعروض أسعار مكتشفة سابقًا انحفظت بقيمة إجمالية غلط (7 بالضبط) -
@@ -3143,12 +3130,6 @@ async function reconcileWithDrive(silent){
 
     saveDiscoveredQuotations(discovered);
     const mergedNow = mergeDiscoveredIntoData();
-    if(staleReused.length>0){
-      staleReused.forEach(e=>{
-        const finalRow = DATA.find(x=>stripRefSpaces(x.ref)===stripRefSpaces(e.refFolderName));
-        console.info('[مطابقة الملفات][تشخيص] صف DATA النهائي لـ"'+e.refFolderName+'" (source: '+(finalRow&&finalRow.source)+'):', finalRow);
-      });
-    }
     if(addedCount>0 || removedCount>0 || repairedCount>0) render();
     // 🔧 2026-08-25: لو انحذف عرض سعر (لأنو مجلده انمسح فعليًا من جوجل درايف)، لازم نرفع النسخة
     // المصححة لملف المزامنة المشترك فورًا (مو نستنى 2.5 ثانية زي العادة عبر scheduleDriveSyncPush).
