@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.2';
+  var CURRENT_VERSION = '2026-08-25.3';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2107,7 +2107,7 @@ document.getElementById('backupRestoreFile').addEventListener('change', (e)=>{
    شي موجود عندي محليًا بطابع أحدث (هيك ما تضيع أي معلومة أدخلها حدا للتو). وقت الرفع لدرايف:
    منرفع نسخة كاملة مطابقة لكل شي عندي محليًا (فمنطقيًا لو حدا حذف شي فعليًا، الحذف بينعكس
    بالنسخة المشتركة بعد أول رفع). */
-const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides'];
+const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones'];
 const SYNC_FILE_NAME = 'merzona-sync-data.json';
 const DASH_TOKEN_CACHE_KEY = 'merzona_dash_gtoken_v1';
 let dashGoogleAccessToken = null;
@@ -2168,30 +2168,45 @@ function markSyncDirty(storageKey, obj){
   }
 }
 
+function mergeOneSyncKey(key, remoteData){
+  let localObj;
+  try{ localObj = JSON.parse(localStorage.getItem(key) || '{}'); }catch(e){ localObj = {}; }
+  const localTs = loadSyncTs(key);
+  const remoteObj = (remoteData && remoteData[key]) || {};
+  const remoteTs = (remoteData && remoteData[key+'__ts']) || {};
+  const isDiscoveredKey = key === DISCOVERED_QUOTATIONS_KEY;
+  const discoveredTombstones = isDiscoveredKey ? loadDiscoveredTombstones() : null;
+  let keyChanged = false;
+  Object.keys(remoteObj).forEach(rk=>{
+    if(isDiscoveredKey && discoveredTombstones[rk]) return; // متروك عمدًا - ما منرجّعه من نسخة قديمة
+    const rt = remoteTs[rk] || 0;
+    const lt = localTs[rk] || 0;
+    if(!(rk in localObj) || rt > lt){
+      localObj[rk] = remoteObj[rk];
+      localTs[rk] = Math.max(rt, lt);
+      keyChanged = true;
+    }
+  });
+  if(keyChanged){
+    localStorage.setItem(key, JSON.stringify(localObj));
+    saveSyncTs(key, localTs);
+    syncPrevSnapshot[key] = snapshotOfObj(localObj);
+  }
+  return keyChanged;
+}
 function mergeRemoteIntoLocal(remoteData){
   let anyChanged = false;
+  // 🔧 2026-08-25: "شواهد قبر" لعروض أسعار مكتشفة انحذفت عمدًا (لأنو مجلدها انمسح فعليًا من جوجل
+  // درايف). لازم نستثنيها هون - وإلا أي حذف كان بيرجع تلقائيًا لحاله بأول مزامنة (سحب أو حتى رفع،
+  // لأنو driveSyncPushNow نفسه بيعمل mergeRemoteIntoLocal قبل ما يرفع) طول ما نسخة جوجل درايف
+  // المشتركة لسا ما وصلها تحديث الحذف - وهاد بالضبط كان بيصير كل مرة بغض النظر عن التوقيت.
+  // منعالج مفتاح شواهد القبر أولاً وقبل أي مفتاح تاني - حتى لو كانت هاي أول مزامنة على جهاز شاف
+  // التو خبر الحذف (شاهد القبر) من جهاز تاني بنفس اللحظة يلي وصلته فيها نسخة عرض السعر القديمة،
+  // منضمن الشاهد يوصل ويطبّق قبل ما نمرّ على مفتاح عروض الأسعار المكتشفة بنفس الجولة.
+  if(mergeOneSyncKey(DISCOVERED_TOMBSTONES_KEY, remoteData)) anyChanged = true;
   SYNC_KEYS.forEach(key=>{
-    let localObj;
-    try{ localObj = JSON.parse(localStorage.getItem(key) || '{}'); }catch(e){ localObj = {}; }
-    const localTs = loadSyncTs(key);
-    const remoteObj = (remoteData && remoteData[key]) || {};
-    const remoteTs = (remoteData && remoteData[key+'__ts']) || {};
-    let keyChanged = false;
-    Object.keys(remoteObj).forEach(rk=>{
-      const rt = remoteTs[rk] || 0;
-      const lt = localTs[rk] || 0;
-      if(!(rk in localObj) || rt > lt){
-        localObj[rk] = remoteObj[rk];
-        localTs[rk] = Math.max(rt, lt);
-        keyChanged = true;
-      }
-    });
-    if(keyChanged){
-      localStorage.setItem(key, JSON.stringify(localObj));
-      saveSyncTs(key, localTs);
-      syncPrevSnapshot[key] = snapshotOfObj(localObj);
-      anyChanged = true;
-    }
+    if(key === DISCOVERED_TOMBSTONES_KEY) return; // اتعالج فوق أصلاً
+    if(mergeOneSyncKey(key, remoteData)) anyChanged = true;
   });
   return anyChanged;
 }
@@ -2727,6 +2742,17 @@ function saveDiscoveredQuotations(obj){
   try{ localStorage.setItem(DISCOVERED_QUOTATIONS_KEY, JSON.stringify(obj)); markSyncDirty(DISCOVERED_QUOTATIONS_KEY, obj); return true; }
   catch(e){ console.error('saveDiscoveredQuotations failed', e); return false; }
 }
+// 🔧 2026-08-25: "شواهد قبر" (tombstones) لعروض أسعار "مكتشفة" انحذفت عمدًا (مجلدها انمسح فعليًا
+// من جوجل درايف) - سجل دائم (ما بينحذف لحاله) بيمنع مزامنة الفريق (سحب أو رفع) من ترجيع نفس
+// العرض من نسخة قديمة لسا موجودة عند جهاز/نسخة تانية لجوجل درايف ما وصلها تحديث الحذف بعد.
+const DISCOVERED_TOMBSTONES_KEY = 'merzona_discovered_deleted_tombstones';
+function loadDiscoveredTombstones(){
+  try{ return JSON.parse(localStorage.getItem(DISCOVERED_TOMBSTONES_KEY) || '{}'); }catch(e){ return {}; }
+}
+function saveDiscoveredTombstones(obj){
+  try{ localStorage.setItem(DISCOVERED_TOMBSTONES_KEY, JSON.stringify(obj)); markSyncDirty(DISCOVERED_TOMBSTONES_KEY, obj); return true; }
+  catch(e){ console.error('saveDiscoveredTombstones failed', e); return false; }
+}
 function mergeDiscoveredIntoData(){
   const discovered = loadDiscoveredQuotations();
   let added = 0;
@@ -2850,6 +2876,7 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
 function pruneDeletedDiscoveredQuotations(refEntries){
   const liveFolderNames = new Set(refEntries.map(e=>e.refFolderName));
   const discovered = loadDiscoveredQuotations();
+  const tombstones = loadDiscoveredTombstones();
   let removed = 0;
   Object.keys(discovered).forEach(key=>{
     const d = discovered[key];
@@ -2857,12 +2884,15 @@ function pruneDeletedDiscoveredQuotations(refEntries){
     const folderName = d.refFolderName || d.ref; // عناصر قديمة اتكشفت قبل إضافة refFolderName بترجع لـ ref كحل احتياطي
     if(!liveFolderNames.has(folderName)){
       delete discovered[key];
+      // 🔧 2026-08-25: نسجل شاهد قبر حتى مزامنة الفريق (سحب أو رفع) ما ترجّع هالعرض من نسخة قديمة
+      // لسا موجودة بجوجل درايف عند جهاز/جلسة تانية ما وصلها تحديث الحذف بعد.
+      tombstones[key] = Date.now();
       const idx = DATA.findIndex(x=> stripRefSpaces(x.ref) === stripRefSpaces(d.ref));
       if(idx !== -1) DATA.splice(idx, 1);
       removed++;
     }
   });
-  if(removed>0) saveDiscoveredQuotations(discovered);
+  if(removed>0){ saveDiscoveredQuotations(discovered); saveDiscoveredTombstones(tombstones); }
   return removed;
 }
 
