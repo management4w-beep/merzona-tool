@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.6';
+  var CURRENT_VERSION = '2026-08-25.7';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -3715,14 +3715,23 @@ async function saveToGoogleDriveInner(){
       // بالكامل. الحل الأدق: بدل ما نحسب نظريًا، منفحص فعليًا بكسلات اللقطة الملتقطة (canvas) نفسها
       // ومنلاقي بالضبط وين آخر بكسل فيه محتوى حقيقي (مش أبيض فاضي) - وهيك منقص (crop) بدقة الحافة
       // الحقيقية للمحتوى، بغض النظر عن أي افتراض نظري عن عرض النافذة أو نسبة التكبير.
+      // ⚠️ تعديل إضافي (2026-08-25 - نسخة .7) - القص السابق كان دقيق بإيجاد حافة المحتوى، بس هامش
+      // الأمان كان ضيق جدًا (3%+20px) فكان أحيانًا يقص آخر عمودين من جدول الكميات (سعر المتر٢/الإجمالي)
+      // وقيم صندوق البيانات - يعني كان عم يقص أرقام حقيقية مهمة للزبون. القرار: قص المحتوى الحقيقي
+      // (أرقام/أسعار) أسوأ بكثير من ترك شوي هامش أبيض زايد، فصرنا نتعامل مع القص كإجراء احتياطي فقط
+      // لحالة "مشكلة كبيرة وواضحة" (محتوى محصور بجزء صغير من اللقطة)، مش كتصحيح دقيق لكل حالة:
+      // 1) ما منقص أبدًا إذا الحافة المكتشفة ٩٠٪ أو أكثر من عرض اللقطة - هيدي حالة طبيعية (فيها هامش
+      //    أبيض طبيعي بس) وأي قص هون خطر أكتر ما هو مفيد.
+      // 2) لما فعلاً نقص، منستخدم هامش أمان كبير (15% + 100px) وما بنسمح للقص إنو ينزل تحت 85% من
+      //    العرض الأصلي بأي حال - حتى لو الفحص أخطأ بتقدير الحافة.
       const rawCanvas = worker.prop && worker.prop.canvas;
       if(rawCanvas && rawCanvas.width > 0 && rawCanvas.height > 0){
         let contentRightEdgePx = null;
         try{
           const ctx = rawCanvas.getContext('2d');
           const w = rawCanvas.width, h = rawCanvas.height;
-          const rowStride = Math.max(1, Math.floor(h / 500)); // نفحص ~500 سطر موزعين على كامل ارتفاع اللقطة
-          const colStride = Math.max(1, Math.floor(w / 2500)); // وبكل سطر منفحص لغاية ~2500 نقطة
+          const rowStride = Math.max(1, Math.floor(h / 1500)); // كثافة فحص أعلى من السابق (كانت 500 سطر، صارت ~1500)
+          const colStride = Math.max(1, Math.floor(w / 4000)); // وكثافة أعلى بالعرض كمان (كانت 2500، صارت ~4000)
           let maxX = 0;
           for(let y = 0; y < h; y += rowStride){
             const row = ctx.getImageData(0, y, w, 1).data;
@@ -3738,11 +3747,16 @@ async function saveToGoogleDriveInner(){
         }catch(e){
           console.warn('[PDF Debug] تعذّر فحص بكسلات اللقطة (على الأغلب مشكلة CORS/tainted canvas):', e);
         }
-        console.log('[PDF Debug] rawCanvas:', rawCanvas.width + 'x' + rawCanvas.height, '| contentRightEdgePx:', contentRightEdgePx, '| نسبة المحتوى الحالية:', contentRightEdgePx ? (contentRightEdgePx / rawCanvas.width * 100).toFixed(1) + '%' : 'غير معروفة');
+        const edgeRatio = contentRightEdgePx ? (contentRightEdgePx / rawCanvas.width) : null;
+        console.log('[PDF Debug] rawCanvas:', rawCanvas.width + 'x' + rawCanvas.height, '| contentRightEdgePx:', contentRightEdgePx, '| نسبة المحتوى الحالية:', edgeRatio ? (edgeRatio * 100).toFixed(1) + '%' : 'غير معروفة');
         // لازم نلاقي حافة معقولة (مش صغيرة جدًا، حتى لو صار خطأ بالفحص ما نقص الصفحة لعدم وجودها)
         const MIN_SANE_EDGE_PX = 200;
-        if(contentRightEdgePx && contentRightEdgePx >= MIN_SANE_EDGE_PX){
-          const cropWidthPx = Math.min(rawCanvas.width, Math.ceil(contentRightEdgePx * 1.03) + 20); // هامش أمان بسيط يحافظ على الحاشية اليمنى الطبيعية لـ.page
+        const CROP_TRIGGER_RATIO = 0.90; // ما منفكر بالقص أصلًا إلا إذا المحتوى أقل من 90% من عرض اللقطة
+        const CROP_FLOOR_RATIO = 0.85; // وحتى لو قصينا، ما بننزل أبدًا تحت 85% من العرض الأصلي
+        if(contentRightEdgePx && contentRightEdgePx >= MIN_SANE_EDGE_PX && edgeRatio !== null && edgeRatio < CROP_TRIGGER_RATIO){
+          const generousEdgePx = Math.ceil(contentRightEdgePx * 1.15) + 100; // هامش أمان كبير (15% + 100px) بدل 3%+20px القديم
+          const floorPx = Math.ceil(rawCanvas.width * CROP_FLOOR_RATIO);
+          const cropWidthPx = Math.min(rawCanvas.width, Math.max(generousEdgePx, floorPx));
           if(cropWidthPx > 0 && cropWidthPx < rawCanvas.width){
             const croppedCanvas = document.createElement('canvas');
             croppedCanvas.width = cropWidthPx;
@@ -3750,12 +3764,12 @@ async function saveToGoogleDriveInner(){
             const cctx = croppedCanvas.getContext('2d');
             cctx.drawImage(rawCanvas, 0, 0, cropWidthPx, rawCanvas.height, 0, 0, cropWidthPx, rawCanvas.height);
             worker.prop.canvas = croppedCanvas;
-            console.log('[PDF Debug] تم قص اللقطة (crop) من', rawCanvas.width, 'إلى', cropWidthPx, 'بكسل بناءً على فحص البكسلات الفعلي');
+            console.log('[PDF Debug] تم قص اللقطة (crop) من', rawCanvas.width, 'إلى', cropWidthPx, 'بكسل (هامش أمان كبير + حد أدنى 85% من العرض الأصلي)');
           } else {
             console.log('[PDF Debug] ما احتجنا قص اللقطة (كانت أصلاً بالعرض الصحيح أو أضيق)');
           }
         } else {
-          console.log('[PDF Debug] ما قدرنا نحدد حافة محتوى موثوقة - تركنا اللقطة متل ما هي بدون قص لتفادي أي تلف بالمحتوى');
+          console.log('[PDF Debug] ما في مؤشر واضح على مشكلة حقيقية (المحتوى يغطي 90% أو أكثر من اللقطة، أو ما قدرنا نحدد حافة موثوقة) - تركنا اللقطة كاملة بدون قص لتفادي أي قص لأرقام/محتوى حقيقي');
         }
       }
 
