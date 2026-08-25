@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.4';
+  var CURRENT_VERSION = '2026-08-25.5';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -3699,7 +3699,45 @@ async function saveToGoogleDriveInner(){
         pdfContainer.style.width = pdfTargetWidthMm;
         pdfContainer.style.maxWidth = 'none';
       }
-      pdfBlob = await worker.toCanvas().toPdf().outputPdf('blob');
+      await worker.toCanvas();
+
+      // ⚠️ إصلاح حاسم (2026-08-25) - مشكلة "المحتوى محصور بعمود ضيق يسار الصفحة والباقي فاضي":
+      // تأكدنا (بعد تحليل ملف PDF فعلي بعثه الزبون بالبكسل) إنو المحتوى دايمًا ملتصق بأقصى يسار
+      // الصفحة وبياخد ~36% من عرضها بس، بغض النظر عن عدد البنود (صار نفس الشي حتى لما الزبون ضاف
+      // مواد كتير) - يعني المشكلة مش متعلقة بقلة المحتوى إطلاقًا متل ما كنا نظرّياً افترضنا قبل.
+      // السبب الحقيقي: مكتبة html2canvas بوضعية foreignObjectRendering:true (لازمة حتى النص العربي
+      // يظهر صح بالـ PDF - هاد قرار سابق مقصود وما لازم نرجع فيه) بتتجاهل تمامًا أي إعداد
+      // windowWidth/windowHeight نمرره، وبدل هيك بتستخدم عرض نافذة متصفح المستخدم الفعلي
+      // (window.innerWidth) كعرض للقطة الملتقطة بأكملها - بغض النظر عن عرض عنصر .page الحقيقي
+      // (900px دايمًا). يعني لو المستخدم فاتح المتصفح على شاشة كمبيوتر عريضة (مثلاً 2500px)، اللقطة
+      // بتطلع بعرض 2500px تقريبًا وفيها محتوى .page (900px بس) ملتصق يسارها والباقي فاضي بالكامل -
+      // وبما إنو خطوة addImage عند jsPDF بتمدد اللقطة الكاملة (بعرضها الفاضي وكلو) لتغطي عرض صفحة
+      // A4 كامل، المحتوى الحقيقي بيضل محصور بعمود ضيق والباقي يطلع فاضي بالـ PDF النهائي - بالظبط
+      // متل ما شفنا. الحل: بما إنو خطوة الالتقاط نفسها ما فينا نتحكم بعرضها (html2canvas بتتجاهل
+      // إعداداتنا بهالوضعية)، منقص (crop) اللقطة يدويًا بعد الالتقاط - ناخد بس الجزء اليساري يلي
+      // فيه محتوى .page الحقيقي (بعرض pdfTargetWidthPx محسوب بنفس نسبة تكبير اللقطة الفعلية)
+      // ونرمي الباقي الفاضي - قبل ما نكمل لخطوة toPdf(). هيك منضمن المحتوى ياخد عرض الصفحة كامل
+      // بغض النظر عن عرض نافذة متصفح المستخدم (كمبيوتر عريض أو ضيق أو موبايل).
+      const rawCanvas = worker.prop && worker.prop.canvas;
+      if(rawCanvas && rawCanvas.width > 0){
+        const liveViewportWidthPx = document.documentElement.clientWidth || window.innerWidth || pdfTargetWidthPx;
+        const captureScale = rawCanvas.width / liveViewportWidthPx;
+        const cropWidthPx = Math.min(rawCanvas.width, Math.round(pdfTargetWidthPx * captureScale));
+        console.log('[PDF Debug] rawCanvas:', rawCanvas.width + 'x' + rawCanvas.height, '| liveViewportWidthPx:', liveViewportWidthPx, '| captureScale:', captureScale.toFixed(3), '| pdfTargetWidthPx:', pdfTargetWidthPx, '| cropWidthPx:', cropWidthPx);
+        if(cropWidthPx > 0 && cropWidthPx < rawCanvas.width){
+          const croppedCanvas = document.createElement('canvas');
+          croppedCanvas.width = cropWidthPx;
+          croppedCanvas.height = rawCanvas.height;
+          const ctx = croppedCanvas.getContext('2d');
+          ctx.drawImage(rawCanvas, 0, 0, cropWidthPx, rawCanvas.height, 0, 0, cropWidthPx, rawCanvas.height);
+          worker.prop.canvas = croppedCanvas;
+          console.log('[PDF Debug] تم قص اللقطة (crop) من', rawCanvas.width, 'إلى', cropWidthPx, 'بكسل');
+        } else {
+          console.log('[PDF Debug] ما احتجنا قص اللقطة (كانت أصلاً بالعرض الصحيح أو أضيق)');
+        }
+      }
+
+      pdfBlob = await worker.toPdf().outputPdf('blob');
     } finally {
       document.body.classList.remove('pdf-capturing');
       if(wasMobileMode) document.body.classList.add('mode-mobile');
