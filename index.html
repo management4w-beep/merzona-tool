@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.12';
+  var CURRENT_VERSION = '2026-08-25.14';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -593,6 +593,21 @@
     color:var(--muted);
   }
   .client-sign-box.csb-signed .csb-hint{ color:#1a7a3a; font-weight:600; }
+  /* 🔧 2026-08-25: زر "نسخ رابط التوقيع" - يظهر بس على الشاشة وقت التحرير، حتى تقدري تنسخي رابط
+     التوقيع وتبعتيه كنص عادي بواتساب (رابط نصي بيصير قابل للضغط تلقائيًا بواتساب، بعكس رمز QR
+     جوا ملف PDF المسطّح) - مفيد للزبون يللي عندو موبايل واحد بس وما بيقدر يمسح QR من نفس شاشته. */
+  .sign-link-copy-wrap{ margin-top:4px; }
+  .sign-link-copy-btn{
+    font-family:'Inter','Segoe UI',sans-serif;
+    font-size:10.5px;
+    padding:4px 10px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:#f4f4f4;
+    color:#333;
+    cursor:pointer;
+  }
+  .sign-link-copy-btn:hover{ background:#e8e8e8; }
   .contact-strip{
     margin-top:22px;
     padding-top:8px;
@@ -686,6 +701,7 @@
     .import-status{display:none !important;}
     .mode-chooser{display:none !important;}
     .items-manager{display:none !important;}
+    .sign-link-copy-wrap{display:none !important;}
     body.wd-printing .page{ display:none !important; }
     body.mode-mobile .bi-row, body.mode-mobile .notes-item{ grid-template-columns:1fr 1fr !important; gap:10px !important; }
     body.mode-mobile .pay-row{ grid-template-columns:1.5fr 90px 1.5fr 26px !important; }
@@ -726,6 +742,7 @@
   body.pdf-capturing .import-status{display:none !important;}
   body.pdf-capturing .mode-chooser{display:none !important;}
   body.pdf-capturing .items-manager{display:none !important;}
+  body.pdf-capturing .sign-link-copy-wrap{display:none !important;}
   /* عرض ثابت صارم بحجم A4 (900px) بدل max-width - وقص أي محتوى داخلي بيحاول يتمدد أعرض من الصفحة، حتى ما ينزاح شي عن حدود الورقة وقت الالتقاط */
   body.pdf-capturing .page{box-shadow:none !important; padding:14px 18px !important; width:900px !important; max-width:900px !important; min-width:900px !important; overflow-x:hidden !important; box-sizing:border-box !important;}
   body.pdf-capturing .page *{ max-width:100% !important; box-sizing:border-box !important; }
@@ -1539,6 +1556,9 @@
         توقيع الزبون<br>Client Signature<br>
         <div class="client-sign-box" id="client-sign-box">
           <div style="height:110px;"></div>
+        </div>
+        <div class="sign-link-copy-wrap">
+          <button type="button" id="copySignLinkBtn" class="sign-link-copy-btn" onclick="copySignLink()">📋 نسخ رابط التوقيع (لواتساب)</button>
         </div>
       </div>
     </div>
@@ -3280,6 +3300,50 @@ function renderClientSignBox(){
 }
 window.renderClientSignBox = renderClientSignBox;
 
+// 🔧 2026-08-25: ملف الـPDF المصدّر صورة مسطّحة - رمز QR والرابط جواه مش قابلين للضغط أبدًا (لا
+// تصوير ولا كوبي)، فالزبون يللي عندو موبايل واحد بس ما بيقدر يمسح QR من نفس شاشة موبايلو. هالزر
+// (ظاهر بس بشاشة التحرير، مش جوا PDF) بينسخ نفس رابط التوقيع لحافظة الجهاز، حتى تقدري تلصقيه
+// كنص عادي برسالة واتساب منفصلة للزبون - رابط نصي بواتساب بيصير قابل للضغط تلقائيًا لحاله.
+async function copySignLink(){
+  const btn = document.getElementById('copySignLinkBtn');
+  const origText = btn ? btn.textContent : null;
+  const ref = (document.getElementById('m-ref')?.value || '').trim().replace(/\s+/g,'');
+  if(!ref){
+    alert('لازم تكتبي الرقم المرجعي أول قبل ما تنسخي رابط التوقيع.');
+    return;
+  }
+  try{
+    const token = ensureSignToken(ref);
+    const url = buildSignUrl(ref, token);
+    let copied = false;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){ copied = false; }
+    }
+    if(!copied){
+      // احتياطي لو الحافظة الحديثة مش متوفرة (مثلاً صفحة مفتوحة من ملف محلي بدون https)
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try{ document.execCommand('copy'); copied = true; }catch(e){ copied = false; }
+      document.body.removeChild(ta);
+    }
+    if(copied){
+      if(btn){ btn.textContent = '✅ انتسخ الرابط'; setTimeout(()=>{ if(btn) btn.textContent = origText; }, 2200); }
+    } else {
+      prompt('تعذّر النسخ التلقائي - انسخي الرابط يدويًا من هون:', url);
+    }
+  }catch(e){
+    console.error('[نسخ رابط التوقيع] فشل:', e);
+    alert('صار خطأ وإحنا عم نجهّز رابط التوقيع.');
+    if(btn) btn.textContent = origText;
+  }
+}
+window.copySignLink = copySignLink;
+
 // 🔧 2026-08-24: خدمة توكن جوجل درايف الجديدة عالسيرفر - بترجع توكن دخول جاهز لجوجل درايف بدون
 // ما تحتاج تفتح ولا نافذة موافقة أبدًا (لا أول مرة ولا كل ساعة)، طول ما حمدي ربط السيرفر بحسابه
 // مرة وحدة من /drive-auth/start. نفس التوكن السري تبع بقية السيرفر (AUTH_TOKEN فوق).
@@ -3692,8 +3756,42 @@ async function saveToGoogleDriveInner(){
     }
     console.log('[PDF Debug] عرض النافذة بعد توسيع الـ viewport:', 'innerWidth=' + window.innerWidth, '| documentElement.clientWidth=' + document.documentElement.clientWidth, '| الهدف:', pdfTargetWidthPx);
 
+    // ⚠️ إصلاح جذري لمشكلة تقسيم الصفحات (2026-08-25 - نسخة .13) - لقينا السبب الحقيقي أخيرًا: إضافة
+    // pagebreak الخاصة بمكتبة html2pdf.js بتحسب المسافة الفارغة اللازمة لدفع كل عنصر فيه class
+    // "page-break-before" (جدول الكميات وقسم الدفعات) لبداية صفحة جديدة، وهالحساب بيصير أوتوماتيكيًا
+    // كخطوة داخلية فور ما toContainer() تخلص - أي *قبل* ما توصلنا فرصة نصحح عرض/موقع حاوية الالتقاط
+    // pdfContainer تحت (إصلاح نسخة .10) - فبيتحسب بمقاييس مختلفة تمامًا عن يلي رح تنلتقط فيها الصفحة
+    // فعليًا، فبتطلع المسافات المحسوبة غلط (قريبة من صفر أحيانًا، فما بيظهر أي فاصل صفحة إطلاقًا -
+    // وهيدا بالضبط يفسّر ليش "page2-header" وجدول الكميات كانوا يطلعوا مباشرة بنص صفحة 1 بدل ما
+    // يبلشوا بصفحة جديدة نضيفة). الحل الجذري: منحسب ومنركّب المسافة الفارغة اللازمة إحنا بأنفسنا،
+    // مباشرة على .page الحقيقية (يلي أصلاً بعرضها النهائي 900px بهالمرحلة لأنو body.pdf-capturing
+    // مفعّلة من فوق، فالحساب مضمون الدقة) - قبل ما نعطيها لمكتبة html2pdf.js إطلاقًا، وبعدين منعطّل
+    // خاصية "قبل" التلقائية بس لهالعنصرين تحديدًا (منشيل كلاس page-break-before وقتيًا) حتى ما
+    // تتكرر/تتعارض مع اللي ركّبناه إحنا. منرجّع كل شي متل ما كان بالـfinally تحت.
+    const onePageHeightPx = pdfTargetWidthPx * (297 / 210); // نسبة صفحة A4 (ارتفاع/عرض) - قيمة ثابتة مضمونة، ما بتعتمد على أي حساب داخلي بمكتبة html2pdf.js
+    const manualPageBreakEls = Array.from(pageEl.querySelectorAll('.page-break-before'));
+    const manualPageBreakSpacers = [];
+
     let pdfBlob;
     try{
+      try{
+        const pageTopPx = pageEl.getBoundingClientRect().top;
+        manualPageBreakEls.forEach(el=>{
+          const elTop = el.getBoundingClientRect().top - pageTopPx;
+          const posInPage = ((elTop % onePageHeightPx) + onePageHeightPx) % onePageHeightPx;
+          if(posInPage > 1){ // هامش خطأ بسيط (أقل من 1px) قبل ما نعتبره فعلًا محتاج فاصل
+            const neededPad = onePageHeightPx - posInPage;
+            const spacer = document.createElement('div');
+            spacer.setAttribute('data-pdf-manual-spacer', '1');
+            spacer.style.cssText = 'display:block; height:' + neededPad.toFixed(2) + 'px; width:100%;';
+            el.parentNode.insertBefore(spacer, el);
+            manualPageBreakSpacers.push(spacer);
+          }
+          el.classList.remove('page-break-before'); // منعًا لتكرار الفاصل من مكتبة html2pdf.js نفسها
+        });
+        console.log('[PDF Debug] فواصل الصفحات اليدوية: ارتفاع الصفحة =', onePageHeightPx.toFixed(1) + 'px', '| عدد الفواصل المركّبة =', manualPageBreakSpacers.length);
+      }catch(e){ console.warn('[PDF Debug] تعذّر حساب فواصل الصفحات اليدوية (رح تعتمد الصفحة على حساب html2pdf.js الافتراضي):', e); }
+
       // ملاحظة: شلنا x/y/windowWidth/width من إعدادات html2canvas تحت - لأنه لما تكون
       // foreignObjectRendering:true مفعّلة (لازمة حتى النص العربي يظهر صح بالـ PDF)، مكتبة
       // html2canvas ما بتبني نسخة افتراضية بعرض windowWidth متل الوضع العادي، وإنما بتلتقط
@@ -3834,6 +3932,9 @@ async function saveToGoogleDriveInner(){
 
       pdfBlob = await worker.toPdf().outputPdf('blob');
     } finally {
+      // نرجّع .page الحقيقية لحالتها الأصلية قبل الالتقاط - نشيل الفواصل اليدوية ونرجّع الكلاس
+      manualPageBreakSpacers.forEach(sp=>{ if(sp.parentNode) sp.parentNode.removeChild(sp); });
+      manualPageBreakEls.forEach(el=>{ el.classList.add('page-break-before'); });
       document.body.classList.remove('pdf-capturing');
       if(wasMobileMode) document.body.classList.add('mode-mobile');
       revertElevationPrintGrouping();
