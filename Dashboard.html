@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-24.7';
+  var CURRENT_VERSION = '2026-08-24.9';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2109,8 +2109,32 @@ document.getElementById('backupRestoreFile').addEventListener('change', (e)=>{
    بالنسخة المشتركة بعد أول رفع). */
 const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides'];
 const SYNC_FILE_NAME = 'merzona-sync-data.json';
+const DASH_TOKEN_CACHE_KEY = 'merzona_dash_gtoken_v1';
 let dashGoogleAccessToken = null;
+let dashGoogleAccessTokenExpiresAt = 0;
 let dashGoogleTokenClient = null;
+let dashTokenInFlight = null;
+// عند تحميل الصفحة: نجرب نسترجع توكن جوجل سابق لسا صالح من التخزين المحلي (localStorage) بدل ما
+// نبلش من الصفر كل مرة. توكن جوجل صالح لمدة ساعة تقريبًا (3600 ثانية) - فلو فتحت/سكرت الداشبورد
+// أكتر من مرة بنفس الساعة، رح تلاقي حالك متصل ومتزامن فورًا بدون أي كبسة أو نافذة إطلاقًا.
+(function loadCachedDashToken(){
+  try{
+    const raw = localStorage.getItem(DASH_TOKEN_CACHE_KEY);
+    if(!raw) return;
+    const cached = JSON.parse(raw);
+    if(cached && cached.token && cached.expiresAt && (cached.expiresAt - 60000) > Date.now()){
+      dashGoogleAccessToken = cached.token;
+      dashGoogleAccessTokenExpiresAt = cached.expiresAt;
+    } else {
+      localStorage.removeItem(DASH_TOKEN_CACHE_KEY);
+    }
+  }catch(e){}
+})();
+function saveCachedDashToken(token, expiresInSec){
+  dashGoogleAccessToken = token;
+  dashGoogleAccessTokenExpiresAt = Date.now() + ((expiresInSec || 3600) * 1000);
+  try{ localStorage.setItem(DASH_TOKEN_CACHE_KEY, JSON.stringify({ token: token, expiresAt: dashGoogleAccessTokenExpiresAt })); }catch(e){}
+}
 let syncPrevSnapshot = {};
 function snapshotOfObj(obj){
   const s = {};
@@ -2181,46 +2205,73 @@ function buildLocalSyncPayload(){
   return payload;
 }
 
+// بتسأل خدمة توكن جوجل درايف الجديدة عالسيرفر (بدل ما نفتح نافذة جوجل بالمتصفح) - بترجع توكن جاهز
+// فورًا بدون أي نافذة أو كبسة إطلاقًا، طول ما حمدي ربط السيرفر بحسابه مرة وحدة. بترجع null بهدوء
+// (بدون ما ترمي خطأ) لو السيرفر مش مربوط بعد أو مش متاح مؤقتًا - وقتها منكمل بالطريقة القديمة تحت.
+async function fetchDashDriveTokenFromServer(){
+  const controller = new AbortController();
+  const timer = setTimeout(()=> controller.abort(), 8000);
+  try{
+    const res = await fetch(DASH_DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(DASH_SERVER_AUTH_TOKEN), { signal: controller.signal });
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(!data || !data.access_token) return null;
+    return data;
+  }catch(e){ return null; }
+  finally{ clearTimeout(timer); }
+}
+
 function getDashGoogleAccessToken(silent){
-  return new Promise((resolve, reject)=>{
-    if(dashGoogleAccessToken){ resolve(dashGoogleAccessToken); return; }
-    if(!window.google || !google.accounts || !google.accounts.oauth2){
-      reject(new Error('google-not-ready')); return;
+  // توكن محفوظ ولسا صالح (من كبسة سابقة أو من السيرفر) - منرجعه فورًا بدون أي محاولة دخول جديدة.
+  if(dashGoogleAccessToken && (dashGoogleAccessTokenExpiresAt - 60000) > Date.now()){
+    return Promise.resolve(dashGoogleAccessToken);
+  }
+  // في طلب دخول شغال أصلًا بالخلفية (من نظام تاني، متل المزامنة والمطابقة والنسخة الاحتياطية يلي
+  // بتصير كلها سوا) - منستنى نتيجته بدل ما نبلش طلب ثاني بالتوازي (كانت هاي بالضبط سبب ظهور كم
+  // محاولة "Failed to open popup" بنفس اللحظة بالكونسول - كل نظام كان يطلب توكن لحاله).
+  if(dashTokenInFlight) return dashTokenInFlight;
+
+  dashTokenInFlight = (async ()=>{
+    // 🔧 2026-08-24: أول محاولة هلق هي خدمة السيرفر - ما بتحتاج ولا نافذة ولا كبسة إطلاقًا (لا أول
+    // مرة ولا كل ساعة). لو نجحت، خلصنا بدون ما نلمس مكتبة جوجل بالمتصفح نهائيًا.
+    const fromServer = await fetchDashDriveTokenFromServer();
+    if(fromServer){
+      saveCachedDashToken(fromServer.access_token, fromServer.expires_in);
+      return dashGoogleAccessToken;
     }
-    if(!dashGoogleTokenClient){
-      dashGoogleTokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID_DASH,
-        scope: DRIVE_SCOPE_DASH,
-        callback: (resp)=>{
-          if(resp.error){ reject(new Error(resp.error)); return; }
-          dashGoogleAccessToken = resp.access_token;
-          resolve(dashGoogleAccessToken);
-        }
-      });
-    }
-    dashGoogleTokenClient.callback = (resp)=>{
-      if(resp.error){ reject(new Error(resp.error)); return; }
-      dashGoogleAccessToken = resp.access_token;
-      resolve(dashGoogleAccessToken);
-    };
-    // prompt:'none' = محاولة صامتة حقيقية بدون أي نافذة إطلاقًا (بتنجح بهدوء لو فيه جلسة/موافقة سابقة،
-    // وبتفشل فورًا وبهدوء لو لأ). prompt:'' = طلب صريح (لما تضغط زر "🔄 مزامنة الفريق" بنفسك).
-    // 🔧 2026-08-24: كان الاتنين (المزامنة التلقائية الصامتة عند فتح الصفحة، وضغطة الزر اليدوية) عم
-    // يستخدموا نفس prompt:'' - وهاد كان بيخلي محاولة المزامنة التلقائية (اللي بتصير لحالها 900ms بعد
-    // ما تفتح الداشبورد، بدون أي ضغطة منك) تحاول تفتح نافذة popup فعليًا، والمتصفح بيمنعها غالبًا لأنها
-    // ما انفتحت نتيجة ضغطة مستخدم مباشرة - فكانت تفشل بصمت وتضطرك تضغط "مزامنة" بإيدك حتى تفتح نافذة
-    // موافقة حقيقية (ضغطة مستخدم = مسموحة للمتصفح). هلق فرّقنا: صامت = 'none' (بينجح بهدوء تلقائيًا
-    // أول ما تفتح الصفحة لو سبق ووافقت قبل هيك، بدون أي ضغطة أو نافذة)، صريح = '' (لما تضغط الزر بنفسك).
-    dashGoogleTokenClient.requestAccessToken({ prompt: silent ? 'none' : '' });
-    // 🔧 2026-08-24: لقينا السبب الحقيقي لمشكلة "سجل عروض الأسعار بيرجع متل ما كان" - كل عمليات
-    // الخلفية الصامتة (سحب المزامنة، المطابقة التلقائية، النسخة الاحتياطية التلقائية) كانت فاشلة
-    // بـ"silent-timeout" بالكونسول - يعني ما كانت توصل حتى تاخد توكن جوجل بالوقت القصير (2.5 ثانية)
-    // قبل ما تنتهي المهلة، خصوصًا عالموبايل. رفعناها لـ6 ثواني (نفس تصليح index.html) حتى تنجح.
-    const timeoutMs = silent ? 6000 : 60000;
-    setTimeout(()=>{
-      if(!dashGoogleAccessToken) reject(new Error(silent ? 'silent-timeout' : 'consent-timeout'));
-    }, timeoutMs);
-  });
+    // احتياطي: السيرفر مش مربوط بعد أو مش متاح مؤقتًا - نرجع للطريقة القديمة (نافذة جوجل بالمتصفح).
+    return await new Promise((resolve, reject)=>{
+      if(!window.google || !google.accounts || !google.accounts.oauth2){
+        reject(new Error('google-not-ready')); return;
+      }
+      if(!dashGoogleTokenClient){
+        dashGoogleTokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID_DASH,
+          scope: DRIVE_SCOPE_DASH,
+          callback: (resp)=>{
+            if(resp.error){ reject(new Error(resp.error)); return; }
+            saveCachedDashToken(resp.access_token, resp.expires_in);
+            resolve(dashGoogleAccessToken);
+          }
+        });
+      }
+      dashGoogleTokenClient.callback = (resp)=>{
+        if(resp.error){ reject(new Error(resp.error)); return; }
+        saveCachedDashToken(resp.access_token, resp.expires_in);
+        resolve(dashGoogleAccessToken);
+      };
+      // prompt:'none' = محاولة صامتة (صفحة بتفتح لحالها بدون كبسة منك) - prompt:'' = طلب صريح (كبستها بنفسك).
+      // ملاحظة: المتصفح بيمنع فتح أي نافذة جوجل نهائيًا إذا الطلب ما كان نتيجة كبسة حقيقية منك - بغض
+      // النظر عن قيمة prompt - لهيك هاد المسار احتياطي بس هلق، والمسار الأساسي فوق (خدمة السيرفر).
+      dashGoogleTokenClient.requestAccessToken({ prompt: silent ? 'none' : '' });
+      const timeoutMs = silent ? 6000 : 60000;
+      setTimeout(()=>{
+        if(!dashGoogleAccessToken || (dashGoogleAccessTokenExpiresAt - 60000) <= Date.now()) reject(new Error(silent ? 'silent-timeout' : 'consent-timeout'));
+      }, timeoutMs);
+    });
+  })().finally(()=>{ dashTokenInFlight = null; });
+
+  return dashTokenInFlight;
 }
 
 async function dashFetchWithTimeout(url, options, timeoutMs){
@@ -2235,6 +2286,12 @@ async function dashFetchWithTimeout(url, options, timeoutMs){
 const GOOGLE_CLIENT_ID_DASH = '575144277793-dgh7oslo72umva7cb37rpa82tman9vfm.apps.googleusercontent.com';
 const DRIVE_ROOT_FOLDER_ID_DASH = '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D';
 const DRIVE_SCOPE_DASH = 'https://www.googleapis.com/auth/drive';
+// 🔧 2026-08-24: خدمة توكن جوجل درايف الجديدة عالسيرفر - بترجع توكن دخول جاهز لجوجل درايف بدون
+// ما تحتاج تفتح ولا نافذة موافقة أبدًا (لا أول مرة ولا كل ساعة)، طول ما حمدي ربط السيرفر بحسابه
+// مرة وحدة من /drive-auth/start. نفس AUTH_TOKEN تبع بقية السيرفر (مطابق لـWHATSAPP_NOTIFY_TOKEN
+// جوا Quotation_Generator.html).
+const DASH_DRIVE_TOKEN_URL = 'https://merzona-server-production.up.railway.app/drive-token';
+const DASH_SERVER_AUTH_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky';
 
 let cachedSyncFileId = localStorage.getItem('merzona_sync_file_id') || null;
 async function getOrCreateSyncFileId(token){
@@ -2381,6 +2438,11 @@ function connectToTeamSync(){
     if(ok){
       localStorage.setItem('merzona_sync_connected', '1');
       hideSyncBanner(true);
+      // 🔧 2026-08-24: التوكن يلي أخدناه بهالكبسة هلق محفوظ ومتوفر مباشرة لمدة ساعة تقريبًا - منستخدمه
+      // فورًا لتشغيل باقي عمليات المزامنة (مطابقة الملفات مع جوجل درايف + النسخة الاحتياطية) بنفس
+      // اللحظة، بدل ما تضطر تضغط زر لكل وحدة فيهن لحالها - كبسة وحدة هلق بتشغّل كل شي سوا.
+      reconcileWithDrive(true);
+      maybeAutoBackup();
     }
   });
 }

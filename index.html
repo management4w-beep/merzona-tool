@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-24.5';
+  var CURRENT_VERSION = '2026-08-24.7';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -3173,9 +3173,37 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 // اتركهم فاضيين/كما هم حتى تجهز سيرفر whatsapp-server (شوف README.md جواه) - قبل هيك هاد الشي معطّل تلقائيًا.
 const WHATSAPP_NOTIFY_URL = 'https://merzona-server-production.up.railway.app/send-quotation';
 const WHATSAPP_NOTIFY_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky'; // نفس AUTH_TOKEN يلي حطيته بمتغيرات البيئة تبع السيرفر
+// 🔧 2026-08-24: خدمة توكن جوجل درايف الجديدة عالسيرفر - بترجع توكن دخول جاهز لجوجل درايف بدون
+// ما تحتاج تفتح ولا نافذة موافقة أبدًا (لا أول مرة ولا كل ساعة)، طول ما حمدي ربط السيرفر بحسابه
+// مرة وحدة من /drive-auth/start. نفس التوكن السري تبع بقية السيرفر (AUTH_TOKEN فوق).
+const DRIVE_TOKEN_URL = 'https://merzona-server-production.up.railway.app/drive-token';
 
+const GOOGLE_TOKEN_CACHE_KEY = 'merzona_index_gtoken_v1';
 let googleAccessToken = null;
+let googleAccessTokenExpiresAt = 0;
 let googleTokenClient = null;
+let googleTokenInFlight = null;
+// عند تحميل الصفحة: نجرب نسترجع توكن جوجل سابق لسا صالح من التخزين المحلي (localStorage) بدل ما
+// نبلش من الصفر كل مرة. توكن جوجل صالح لمدة ساعة تقريبًا (3600 ثانية) - فلو فتحت/سكرت الأداة
+// أكتر من مرة بنفس الساعة، رح يشتغل اقتراح الرقم المرجعي والحفظ لجوجل درايف فورًا بدون أي كبسة.
+(function loadCachedGoogleToken(){
+  try{
+    const raw = localStorage.getItem(GOOGLE_TOKEN_CACHE_KEY);
+    if(!raw) return;
+    const cached = JSON.parse(raw);
+    if(cached && cached.token && cached.expiresAt && (cached.expiresAt - 60000) > Date.now()){
+      googleAccessToken = cached.token;
+      googleAccessTokenExpiresAt = cached.expiresAt;
+    } else {
+      localStorage.removeItem(GOOGLE_TOKEN_CACHE_KEY);
+    }
+  }catch(e){}
+})();
+function saveCachedGoogleToken(token, expiresInSec){
+  googleAccessToken = token;
+  googleAccessTokenExpiresAt = Date.now() + ((expiresInSec || 3600) * 1000);
+  try{ localStorage.setItem(GOOGLE_TOKEN_CACHE_KEY, JSON.stringify({ token: token, expiresAt: googleAccessTokenExpiresAt })); }catch(e){}
+}
 
 function getYearFromReference(refRaw){
   // الصيغة المعتمدة: M-Q-YY0### (مثلاً 260205 = سنة 26 (2026) + صفر ثابت + تسلسل 205)
@@ -3185,50 +3213,75 @@ function getYearFromReference(refRaw){
   return String(new Date().getFullYear()); // احتياطي لو الصيغة مختلفة
 }
 
+// بتسأل خدمة توكن جوجل درايف الجديدة عالسيرفر (بدل ما نفتح نافذة جوجل بالمتصفح) - بترجع توكن جاهز
+// فورًا بدون أي نافذة أو كبسة إطلاقًا، طول ما حمدي ربط السيرفر بحسابه مرة وحدة. بترجع null بهدوء
+// (بدون ما ترمي خطأ) لو السيرفر مش مربوط بعد أو مش متاح مؤقتًا - وقتها منكمل بالطريقة القديمة تحت.
+async function fetchDriveTokenFromServer(){
+  const controller = new AbortController();
+  const timer = setTimeout(()=> controller.abort(), 8000);
+  try{
+    const res = await fetch(DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(WHATSAPP_NOTIFY_TOKEN), { signal: controller.signal });
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(!data || !data.access_token) return null;
+    return data;
+  }catch(e){ return null; }
+  finally{ clearTimeout(timer); }
+}
+
 function getGoogleAccessToken(silent){
-  return new Promise((resolve, reject)=>{
-    if(GOOGLE_CLIENT_ID.startsWith('ضيف_')){
-      reject(new Error('لسا ما ضفت الـ Google Client ID بالكود - دوّر على GOOGLE_CLIENT_ID جوا الملف وحطه.'));
-      return;
+  if(GOOGLE_CLIENT_ID.startsWith('ضيف_')){
+    return Promise.reject(new Error('لسا ما ضفت الـ Google Client ID بالكود - دوّر على GOOGLE_CLIENT_ID جوا الملف وحطه.'));
+  }
+  // توكن محفوظ ولسا صالح (من كبسة سابقة أو من السيرفر) - منرجعه فورًا بدون أي محاولة دخول جديدة.
+  if(googleAccessToken && (googleAccessTokenExpiresAt - 60000) > Date.now()){
+    return Promise.resolve(googleAccessToken);
+  }
+  // في طلب دخول شغال أصلًا بالخلفية - منستنى نتيجته بدل ما نبلش طلب ثاني بالتوازي.
+  if(googleTokenInFlight) return googleTokenInFlight;
+
+  googleTokenInFlight = (async ()=>{
+    // 🔧 2026-08-24: أول محاولة هلق هي خدمة السيرفر - ما بتحتاج ولا نافذة ولا كبسة إطلاقًا (لا أول
+    // مرة ولا كل ساعة). لو نجحت، خلصنا بدون ما نلمس مكتبة جوجل بالمتصفح نهائيًا.
+    const fromServer = await fetchDriveTokenFromServer();
+    if(fromServer){
+      saveCachedGoogleToken(fromServer.access_token, fromServer.expires_in);
+      return googleAccessToken;
     }
-    if(googleAccessToken){ resolve(googleAccessToken); return; }
-    if(!window.google || !google.accounts || !google.accounts.oauth2){
-      reject(new Error(silent ? 'silent-not-ready' : 'مكتبة جوجل ما تحمّلت لسا - تأكد إنك متصل بالإنترنت وجرّب تاني بعد كم ثانية.'));
-      return;
-    }
-    if(!googleTokenClient){
-      googleTokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: DRIVE_SCOPE,
-        callback: (resp)=>{
-          if(resp.error){ reject(new Error(resp.error)); return; }
-          googleAccessToken = resp.access_token;
-          resolve(googleAccessToken);
-        }
-      });
-    }
-    googleTokenClient.callback = (resp)=>{
-      if(resp.error){ reject(new Error(resp.error)); return; }
-      googleAccessToken = resp.access_token;
-      resolve(googleAccessToken);
-    };
-    // prompt:'none' = محاولة صامتة حقيقية بدون أي نافذة إطلاقًا (بتنجح بهدوء لو فيه جلسة/موافقة سابقة،
-    // وبتفشل فورًا وبهدوء لو لأ - بدون ما تحاول تفتح أي نافذة popup أصلًا).
-    // prompt:'' = طلب صريح (لما المستخدم يضغط زر بنفسه) بنسيب جوجل يقرر أخف واجهة ممكنة.
-    // 🔧 2026-08-24: كان الاتنين (الصامت والصريح) عم يستخدموا نفس prompt:'' - وهاد كان بيخلي المحاولات
-    // الصامتة التلقائية (اللي بتصير بدون أي ضغطة من المستخدم، متل اقتراح الرقم المرجعي عند فتح الصفحة)
-    // تحاول تفتح نافذة popup فعليًا، والمتصفح غالبًا بيمنعها لأنها ما انفتحت نتيجة ضغطة مستخدم مباشرة -
-    // فكانت تفشل بصمت بعد ما تستنى المهلة كاملة (6 ثواني) بدل ما تفشل فورًا أو تنجح بهدوء. هلق فرّقنا:
-    // صامت = 'none' (فورًا بينجح أو بيفشل، بدون أي نافذة أبدًا)، صريح = '' (يفتح أخف واجهة إذا احتاج).
-    googleTokenClient.requestAccessToken({ prompt: silent ? 'none' : '' });
-    // 🔧 2026-08-24: رفعنا مهلة المحاولة الصامتة من 2.5 لـ6 ثواني - على شبكة موبايل أبطأ كانت
-    // كتير مرات ما توصل تخلّص طلب التوكن الصامت (اقتراح الرقم المرجعي التلقائي) بالوقت القصير القديم،
-    // فكانت ترجع فاشلة بصمت وتسيب خانة المرجع بدون اقتراح تلقائي - رغم إنه كان ممكن ينجح لو أعطيناه شوي وقت زيادة.
-    const timeoutMs = silent ? 6000 : 60000; // مهلة أطول للطلب الصريح (وقت كافي يسجل دخول)، وأقصر للمحاولة الصامتة - وأقصر من مهلة الحفظ الخارجية (100 ثانية) حتى ما تتعارض المهلتين
-    setTimeout(()=>{
-      if(!googleAccessToken) reject(new Error(silent ? 'silent-timeout' : 'ما تم تسجيل الدخول خلال مهلة معقولة - يمكن نافذة تسجيل الدخول انسدّت أو ما اتكمّلت. جرّب تاني.'));
-    }, timeoutMs);
-  });
+    // احتياطي: السيرفر مش مربوط بعد أو مش متاح مؤقتًا - نرجع للطريقة القديمة (نافذة جوجل بالمتصفح).
+    return await new Promise((resolve, reject)=>{
+      if(!window.google || !google.accounts || !google.accounts.oauth2){
+        reject(new Error(silent ? 'silent-not-ready' : 'مكتبة جوجل ما تحمّلت لسا - تأكد إنك متصل بالإنترنت وجرّب تاني بعد كم ثانية.'));
+        return;
+      }
+      if(!googleTokenClient){
+        googleTokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: DRIVE_SCOPE,
+          callback: (resp)=>{
+            if(resp.error){ reject(new Error(resp.error)); return; }
+            saveCachedGoogleToken(resp.access_token, resp.expires_in);
+            resolve(googleAccessToken);
+          }
+        });
+      }
+      googleTokenClient.callback = (resp)=>{
+        if(resp.error){ reject(new Error(resp.error)); return; }
+        saveCachedGoogleToken(resp.access_token, resp.expires_in);
+        resolve(googleAccessToken);
+      };
+      // prompt:'none' = محاولة صامتة (صفحة بتفتح لحالها بدون كبسة منك) - prompt:'' = طلب صريح (كبستها بنفسك).
+      // ملاحظة: المتصفح بيمنع فتح أي نافذة جوجل نهائيًا إذا الطلب ما كان نتيجة كبسة حقيقية منك - بغض
+      // النظر عن قيمة prompt - لهيك هاد المسار احتياطي بس هلق، والمسار الأساسي فوق (خدمة السيرفر).
+      googleTokenClient.requestAccessToken({ prompt: silent ? 'none' : '' });
+      const timeoutMs = silent ? 6000 : 60000;
+      setTimeout(()=>{
+        if(!googleAccessToken || (googleAccessTokenExpiresAt - 60000) <= Date.now()) reject(new Error(silent ? 'silent-timeout' : 'ما تم تسجيل الدخول خلال مهلة معقولة - يمكن نافذة تسجيل الدخول انسدّت أو ما اتكمّلت. جرّب تاني.'));
+      }, timeoutMs);
+    });
+  })().finally(()=>{ googleTokenInFlight = null; });
+
+  return googleTokenInFlight;
 }
 
 async function fetchWithTimeout(url, options, timeoutMs){
