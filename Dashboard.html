@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.6';
+  var CURRENT_VERSION = '2026-08-27.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -829,6 +829,8 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <span class="year-chip" data-year="2025">2025</span>
       <span class="year-chip" data-year="2024">2024</span>
       <button id="exportBtn" class="export-btn">⬇ تصدير CSV</button>
+      <button id="uploadQuotationBtn" class="export-btn" style="background:var(--aux1);color:#fff;">⬆️ رفع عرض سعر</button>
+      <input type="file" id="uploadQuotationFileInput" accept=".html,text/html" style="display:none;">
       <span class="count-note" id="rowCountNote">198 عرض</span>
     </div>
     <div class="table-wrap">
@@ -915,6 +917,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <table>
           <thead>
             <tr>
+              <th></th>
               <th>الرقم المرجعي</th>
               <th>الزبون</th>
               <th>عدد الدفعات</th>
@@ -1482,6 +1485,14 @@ function init(){
   });
   document.getElementById('searchBox').addEventListener('input', render);
   document.getElementById('exportBtn').addEventListener('click', exportCSV);
+  document.getElementById('uploadQuotationBtn').addEventListener('click', ()=>{
+    document.getElementById('uploadQuotationFileInput').click();
+  });
+  document.getElementById('uploadQuotationFileInput').addEventListener('change', (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(file) uploadQuotationFromFile(file);
+    e.target.value = '';
+  });
   document.querySelectorAll('thead th[data-key]').forEach(th=>{
     th.addEventListener('click', ()=>{
       const key = th.dataset.key;
@@ -1549,6 +1560,9 @@ function render(){
       ? '<a href="'+d.url+'" rel="noopener" class="ref-badge open-in-app-link" data-ref="'+d.ref+'" style="text-decoration:none;">'+d.ref+' ↗</a>'
       : '<span class="ref-badge">'+d.ref+'</span>';
     const openLatestBtn = '<button class="open-latest-btn" data-ref="'+d.ref+'" title="افتح هالعرض بآخر نسخة من الأداة (مع كل التصليحات الجديدة) - محتاج يكون مربوط بجوجل درايف" style="margin-inline-start:6px;font-size:11px;padding:2px 6px;border-radius:5px;border:1px solid var(--aux1);color:var(--aux1);background:#fff;cursor:pointer;">🔓 آخر نسخة</button>';
+    // 🆕 زر "تحويل لعقد" - بيسجّل عرض السعر هاد كعقد بتبويب "العقود" (لو مش مسجّل أصلًا) وبيوديك
+    // مباشرة لهيك، حتى تكمّل عليه جدول الدفعات و/أو تجيب رابط التوقيع الإلكتروني له.
+    const convertToContractBtn = '<button class="convert-to-contract-btn" data-ref="'+d.ref+'" title="حوّل عرض السعر هاد لعقد (بيسجّله بتبويب العقود وبيوديك لهناك)" style="margin-inline-start:6px;font-size:11px;padding:2px 6px;border-radius:5px;border:1px solid var(--main);color:var(--main);background:#fff;cursor:pointer;">📝 تحويل لعقد</button>';
     const waLink = toWaLink(d.phone);
     const phoneCell = waLink
       ? '<a href="'+waLink+'" target="_blank" rel="noopener" class="wa-link">'+d.phone+' <span class="wa-icon">💬</span></a>'
@@ -1560,7 +1574,7 @@ function render(){
     const deleteBtn = '<button class="delete-quotation-btn" data-ref="'+d.ref+'" title="حذف عرض السعر هاد نهائيًا (بينقل مجلده لسلة المحذوفات بجوجل درايف)" style="font-size:14px;line-height:1;padding:4px 7px;border-radius:6px;border:1px solid var(--danger);color:var(--danger);background:#fff;cursor:pointer;">🗑️</button>';
     tr.innerHTML =
       '<td style="text-align:center;">'+deleteBtn+'</td>'+
-      '<td><span class="year-tag">'+d.year+'</span>'+refCell+openLatestBtn+'</td>'+
+      '<td><span class="year-tag">'+d.year+'</span>'+refCell+openLatestBtn+convertToContractBtn+'</td>'+
       '<td><span class="client-edit" data-ref="'+d.ref+'" title="اضغط لتعديل اسم الزبون" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+clientName+'</span></td>'+
       '<td dir="ltr" style="text-align:right">'+phoneCell+'</td>'+
       '<td class="num">'+fmt(d.total)+'</td>';
@@ -1578,6 +1592,13 @@ function render(){
       e.preventDefault();
       e.stopPropagation();
       openQuotationWithLatestTool(btn.dataset.ref);
+    });
+  });
+  tbody.querySelectorAll('.convert-to-contract-btn').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      convertQuotationToContract(btn.dataset.ref);
     });
   });
   // الكبسة العادية عالمرجع نفسه (مو بس زر "آخر نسخة") لازم تفتح جوا الأداة كمان - نفس آلية الزر
@@ -2550,7 +2571,7 @@ function extractDriveFileIdFromUrl(url){
 }
 
 async function getDriveFileMetadata(token, fileId){
-  const res = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,parents`, {
+  const res = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,parents,trashed`, {
     headers: { Authorization: 'Bearer ' + token }
   }, 15000);
   if(!res.ok) throw new Error('drive-metadata-failed-'+res.status);
@@ -2722,6 +2743,13 @@ async function resolveQuotationSourceData(token, ref, driveUrl){
   if(directId){
     try{
       const meta = await getDriveFileMetadata(token, directId);
+      // 🔧 2026-08-27: ملف جوجل درايف بسلة المهملات بيضل قابل للوصول والتحميل بالـAPI لمدة 30 يوم
+      // (نفس آلية الاسترجاع) - فلو الرابط المباشر المحفوظ (من صف قديم بالداشبورد) بيشاور عالملف
+      // القديم يلي انحذف (يدويًا من جوجل درايف مباشرة مثلاً، من برا الأداة)، وانعاد استخدام نفس
+      // الرقم المرجعي لعرض سعر جديد بالكامل، كنا بنرجع بيانات الملف القديم المحذوف (يمكن فاضي أصلًا)
+      // بدل ما نروح ندوّر عالمجلد الصحيح الجديد بالاسم. منرمي هون قصدًا حتى نقع بالـcatch تحت
+      // ونرجع نبحث بالاسم من الصفر (أدق مصدر - نفس آلية زر "تحويل لعقد" بالضبط).
+      if(meta.trashed) throw new Error('direct-file-is-trashed');
       if(meta.name && meta.name.endsWith('-data.json')){
         const text = await downloadDriveFileText(token, directId);
         return JSON.parse(text);
@@ -2802,6 +2830,42 @@ async function openQuotationWithLatestTool(ref){
 }
 window.openQuotationWithLatestTool = openQuotationWithLatestTool;
 
+/* ================= رفع عرض سعر قديم (ملف HTML محفوظ يدويًا) للنظام =================
+   حالة نادرة: عرض سعر تم الشغل عليه وحفظه كملف HTML على الجهاز، بس ما انحفظ أبدًا بجوجل درايف
+   (مثلاً الإنترنت قطع، أو المستخدم نسي يحفظ) - وبعدين رقمه المرجعي انستخدم من عرض سعر تاني.
+   هالزر بيسمح نرفع هيك ملف مباشرة من الجهاز، ومنستخدم بالضبط نفس آلية "🔓 آخر نسخة" (localStorage
+   + فتح أداة عروض الأسعار) - بس بدل ما نجيب البيانات من جوجل درايف، منقرأها من الملف المرفوع.
+   منفرّغ الرقم المرجعي دايمًا للقيمة الافتراضية الحالية حتى تقترح الأداة رقم جديد غير مستخدم
+   تلقائيًا (نفس آلية عرض سعر جديد) - والمستخدم لسا فاضي يغيّرها يدويًا قبل الحفظ لو بدو رقم معيّن. */
+async function uploadQuotationFromFile(file){
+  if(!file) return;
+  const btn = document.getElementById('uploadQuotationBtn');
+  const origText = btn ? btn.textContent : null;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳...'; }
+  try{
+    const text = await file.text();
+    const data = extractQuotationDataFromHtmlText(text);
+    const hasAnyField = data.fields && Object.keys(data.fields).some(k => (data.fields[k]||'').toString().trim() !== '');
+    const hasAnyRow = (data.rows && Object.keys(data.rows).some(k => (data.rows[k]||'').toString().trim() !== '')) || (data.qtyRowsHtml||'').trim() !== '';
+    if(!hasAnyField && !hasAnyRow){
+      alert('ما قدرت ألاقي بيانات عرض سعر بهالملف. تأكد إنك رفعت نسخة "عرض سعر" محفوظة بصيغة HTML من الأداة.');
+      return;
+    }
+    const yy = new Date().getFullYear().toString().slice(-2);
+    if(!data.fields) data.fields = {};
+    data.fields['m-ref'] = `M-Q-${yy}0`;
+    localStorage.setItem('merzona-pending-load', JSON.stringify(data));
+    localStorage.setItem('merzona_sync_connected', '1');
+    openQuotationWithFreshLoad();
+  }catch(e){
+    console.error('[رفع عرض سعر] فشل:', e);
+    alert('تعذّر قراءة الملف: ' + (e && e.message ? e.message : 'خطأ غير معروف'));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = origText || '⬆️ رفع عرض سعر'; }
+  }
+}
+window.uploadQuotationFromFile = uploadQuotationFromFile;
+
 /* ================= مطابقة عروض الأسعار مع جوجل درايف =================
    لائحة DATA فوق ثابتة ومكتوبة يدويًا جوا الملف - مش متجدّدة تلقائيًا كل ما ينحفظ عرض سعر جديد
    لجوجل درايف. هيك صار عندنا عروض أسعار (قديمة وجديدة) موجودة فعليًا بجوجل درايف بس مش ظاهرة
@@ -2843,12 +2907,19 @@ function mergeDiscoveredIntoData(){
     if(!existingMatch){
       DATA.push(d);
       added++;
+    } else if(existingMatch.source === 'drive-scan'){
+      // 🔧 2026-08-27: جذر باغ خطير - رقم مرجعي انحذف عرضه القديم (يدويًا من جوجل درايف مباشرة، من
+      // برا الأداة - سلة المهملات، مش عبر زر الحذف بالأداة) وانعاد استخدامه بعدين لعرض سعر جديد
+      // بالكامل. الصف الموجود أصلاً هون جايي هو نفسه من فحص جوجل درايف سابقًا (source:'drive-scan')
+      // - مش صف أصلي مكتوب يدويًا بالكود (هيك النوع نعرفه بالتأكد من source، وهو الوحيد المسموح
+      // نلمسه هون) - فمسموح تمامًا نحدّثه بأحدث بيانات مكتشفة (العميل، الهاتف، القيمة، الرابط...)
+      // بدل ما نجمّده للأبد ونضل عم نطلع بيانات عرض السعر القديم (يمكن كان فاضي أصلًا) حتى لو عرض
+      // السعر الجديد الكامل موجود فعليًا بجوجل درايف بنفس الرقم المرجعي.
+      Object.assign(existingMatch, d);
     } else {
-      // 🔧 2026-08-24 (تشخيص مؤقت): لو عرض سعر مكتشف حديثًا من جوجل درايف ما انضاف لأنو لقينا شبيه
-      // له موجود أصلاً بـ DATA، منسجل بالكونسول القيمتين بالضبط - هيك نقدر نشوف هل في اختلاف تنسيق
-      // خفي (مسافة، حرف مختلف، إلخ) بين الاثنين سبب المشكلة يلي صاحبة الأداة بتشتكي منها ("عرض سعر
-      // جديد ما بيضاف للداشبورد رغم إنه موجود فعليًا بجوجل درايف").
-      console.warn('[مطابقة الملفات] عرض السعر "'+d.ref+'" (من جوجل درايف) ما انضاف - لقينا شبيه له موجود أصلاً بالداشبورد باسم "'+existingMatch.ref+'"', {discovered: d, existingInData: existingMatch});
+      // صف أصلي مكتوب يدويًا بالكود (بدون source:'drive-scan') - ما منلمسه إطلاقًا حتى ما نخسر أي
+      // تصحيح يدوي فيه، بس منسجل تحذير بالكونسول للتشخيص لو احتجنا نراجعه لاحقًا.
+      console.warn('[مطابقة الملفات] عرض السعر "'+d.ref+'" (من جوجل درايف) ما انضاف - لقينا صف أصلي (غير مكتشف) موجود أصلاً بالداشبورد باسم "'+existingMatch.ref+'"', {discovered: d, existingInData: existingMatch});
     }
   });
   return added;
@@ -3989,7 +4060,7 @@ function renderContractsList(){
   const tbody = document.getElementById('contractsListBody');
   const refs = Object.keys(contracts).sort();
   if(refs.length===0){
-    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:16px;">مافي عقود مسجّلة بعد</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">مافي عقود مسجّلة بعد</td></tr>';
     return;
   }
   tbody.innerHTML = refs.map(ref=>{
@@ -4000,6 +4071,7 @@ function renderContractsList(){
     const totalPayCount = tables.reduce((s,t)=>s+t.payments.length, 0);
     const countLabel = tables.length>1 ? (totalPayCount+' ('+tables.length+' جداول)') : String(totalPayCount);
     return '<tr style="cursor:pointer;" data-ref="'+ref+'">'+
+      '<td><button type="button" class="copy-sign-link-btn" data-sign-ref="'+ref+'" title="انسخ رابط التوقيع الإلكتروني حتى تبعتيه للزبون - بيوقّع بأصبعه وبيتحط توقيعه عالملف تلقائيًا" style="font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--aux1);color:var(--aux1);background:#fff;cursor:pointer;white-space:nowrap;">✍️ توقيع إلكتروني</button></td>'+
       '<td><span class="ref-badge">'+ref+'</span></td>'+
       '<td>'+c.client+'</td>'+
       '<td>'+countLabel+'</td>'+
@@ -4016,6 +4088,13 @@ function renderContractsList(){
       input.value = d ? (d.ref+' — '+getClientName(d)) : currentContractRef;
       input.dispatchEvent(new Event('input'));
       window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  tbody.querySelectorAll('.copy-sign-link-btn').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      copyContractSignLink(btn.dataset.signRef, btn);
     });
   });
   tbody.querySelectorAll('[data-del-contract]').forEach(span=>{
@@ -4045,6 +4124,151 @@ function renderContractsList(){
     });
   });
   renderExpectedPayments();
+}
+
+/* ---------- تحويل عرض سعر لعقد + رابط التوقيع الإلكتروني (مدمجة بتبويب العقود الموجود) ---------- */
+
+// زر "📝 تحويل لعقد" بجدول عروض الأسعار الرئيسي - بيسجّل عرض السعر هاد كعقد بتبويب "العقود" (لو
+// مش مسجّل أصلًا كعقد) وبيوديك مباشرة لهناك مع تحديده، حتى تكمّل عليه (جدول الدفعات، أو تجيب
+// رابط التوقيع الإلكتروني له مباشرة من زر "✍️ توقيع إلكتروني").
+function convertQuotationToContract(ref){
+  if(!ref) return;
+  const contracts = loadContracts();
+  if(!contracts[ref]){
+    contracts[ref] = { client: getClientNameByRef(ref), paymentTables: [], createdAt: todayISO() };
+    saveContracts(contracts);
+  }
+  showContractsView();
+  currentContractRef = ref;
+  const d = DATA.find(x=>x.ref===ref);
+  const input = document.getElementById('contractRefInput');
+  input.value = d ? (d.ref+' — '+getClientName(d)) : ref;
+  input.dispatchEvent(new Event('input'));
+  window.scrollTo({top:0, behavior:'smooth'});
+  // 🆕 2026-08-26: بالخلفية (بدون ما نأخر التنقّل لتبويب العقود): منغيّر عنوان المستند من
+  // "Quotation" لـ"Agreement / عقد" مباشرة بملف عرض السعر على جوجل درايف - حتى يظهر العنوان
+  // الجديد تلقائيًا بأي فتح/طباعة/PDF جاي لنفس العرض. لو فشلت (مثلاً مش مسجّل دخول بجوجل هلق) ما
+  // منزعج المستخدم بتنبيه بالخلفية - بس منسجّل بالكونسول، وفيه يجرب زر "✍️ توقيع إلكتروني" بعدين
+  // يلي بيطلب تسجيل دخول جوجل عادي لو لازم.
+  (async ()=>{
+    try{
+      const token = await getDashGoogleAccessToken(true);
+      const renamed = await renameQuotationTitleToAgreement(token, ref);
+      if(renamed) console.info('[تحويل لعقد] ✅ تم تغيير عنوان المستند لـ"'+CONTRACT_DOC_TITLE+'" بملف عرض السعر على جوجل درايف - المرجع:', ref);
+    }catch(e){
+      console.warn('[تحويل لعقد] تعذّر تغيير عنوان المستند لـ"Agreement" تلقائيًا (ممكن تحتاج تسجيل دخول جوجل - جرّب زر "✍️ توقيع إلكتروني" لتسجيل الدخول):', e);
+    }
+  })();
+}
+
+// طلب حمدي (2026-08-26): لما نحوّل عرض سعر لعقد، لازم كمان كلمة "Quotation" اللي فوق بالمستند
+// (حقل m-title بأداة عروض الأسعار، صفحة 1 وصفحة 2 مع بعض - متزامنين تلقائيًا بالأداة نفسها) تتغيّر
+// تلقائيًا لـ"Agreement / عقد". منكتبها مباشرة بملف بيانات العرض على جوجل درايف (نفس آلية رمز
+// التوقيع فوق) - وقت ما تنفتح الأداة بعدين على نفس المرجع (فتح مباشر أو "🔓 آخر نسخة")، بتحمّل
+// القيمة الجديدة تلقائيًا زي أي حقل تاني محفوظ (نفس آلية applyFullQuotationData بالأداة الأساسية).
+const CONTRACT_DOC_TITLE = 'Agreement / عقد';
+async function renameQuotationTitleToAgreement(token, ref){
+  const found = await findQuotationDataJsonFile(token, ref);
+  if(!found) return false; // عقد يدوي (بدون عرض سعر مسجّل رقميًا بالنظام) - مافي مستند نغيّر عنوانه أصلًا
+  const text = await downloadDriveFileText(token, found.fileId);
+  let data;
+  try{ data = JSON.parse(text); }catch(e){ return false; }
+  data.fields = data.fields || {};
+  if(data.fields['m-title'] === CONTRACT_DOC_TITLE) return true; // انغيّر أصلًا من قبل - ما في داعي نكتب بالمكرر
+  data.fields['m-title'] = CONTRACT_DOC_TITLE;
+  const res = await dashFetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${found.fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }, 20000);
+  if(!res.ok) throw new Error('drive-update-failed-'+res.status);
+  return true;
+}
+
+// نفس رابط صفحة التوقيع (sign.html) المستعملة بأداة عروض الأسعار الأساسية - لازم يبقى نفس الرابط
+// بالضبط بالأداتين، وإلا أي رابط سبق وانبعت للزبون بينكسر.
+const SIGN_BASE_URL = 'https://management4w-beep.github.io/merzona-tool/sign.html';
+function generateSignTokenDash(){
+  const arr = new Uint8Array(16);
+  (window.crypto || window.msCrypto).getRandomValues(arr);
+  return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function buildSignUrlDash(ref, token){
+  return SIGN_BASE_URL + '?ref=' + encodeURIComponent(ref) + '&t=' + encodeURIComponent(token);
+}
+
+// السيرفر بيتحقق فقط من signToken المخزّن جوا ملف بيانات عرض السعر (<ref>-data.json) بجوجل درايف
+// - مش من أي رمز محلي بالمتصفح - فلازم نلاقي هالملف بالضبط جوا مجلد عرض السعر ونقرأ منه مباشرة.
+async function findQuotationDataJsonFile(token, ref){
+  const folderId = await findQuotationFolderId(token, ref);
+  if(!folderId) return null;
+  const children = await listDriveFolderChildren(token, folderId);
+  const jsonFile = children.find(f=> f.name.endsWith('-data.json'));
+  if(!jsonFile) return null;
+  return { folderId: folderId, fileId: jsonFile.id };
+}
+
+// بيرجع (وبيولّد لو لازم) نفس رمز التوقيع (signToken) المخزّن بملف بيانات عرض السعر بجوجل درايف -
+// لو ما كان موجود أصلًا (عرض سعر قديم من قبل ميزة التوقيع الإلكتروني)، منولّد وحدة جديدة ومنكتبها
+// فورًا عالملف حتى تضل ثابتة لأي محاولة جاية (ومطابقة لأي رابط رح ننسخه هلق).
+async function ensureContractSignToken(token, ref){
+  const found = await findQuotationDataJsonFile(token, ref);
+  if(!found) throw new Error('quotation-data-file-not-found');
+  const text = await downloadDriveFileText(token, found.fileId);
+  let data;
+  try{ data = JSON.parse(text); }catch(e){ throw new Error('quotation-data-parse-failed'); }
+  if(data && data.signToken) return data.signToken;
+  const newToken = generateSignTokenDash();
+  data = data || {};
+  data.signToken = newToken;
+  const res = await dashFetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${found.fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  }, 20000);
+  if(!res.ok) throw new Error('drive-update-failed-'+res.status);
+  return newToken;
+}
+
+// زر "✍️ توقيع إلكتروني" بلائحة العقود المسجّلة - بيجيب (أو يولّد) رابط صفحة التوقيع الإلكتروني
+// الصحيح لهالعقد وبينسخه لحافظة الجهاز، حتى تبعتيه مباشرة للزبون (واتساب مثلاً) بوقّع فيه بأصبعه.
+async function copyContractSignLink(ref, btnEl){
+  if(!ref) return;
+  const origHtml = btnEl ? btnEl.innerHTML : null;
+  if(btnEl){ btnEl.disabled = true; btnEl.innerHTML = '⏳'; }
+  try{
+    const token = await getDashGoogleAccessToken();
+    const signToken = await ensureContractSignToken(token, ref);
+    const url = buildSignUrlDash(ref, signToken);
+    let copied = false;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){ copied = false; }
+    }
+    if(!copied){
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try{ document.execCommand('copy'); copied = true; }catch(e){ copied = false; }
+      document.body.removeChild(ta);
+    }
+    if(copied){
+      if(btnEl) btnEl.innerHTML = '✅ انسخ الرابط';
+    } else {
+      prompt('تعذّر النسخ التلقائي - انسخ رابط التوقيع يدويًا:', url);
+    }
+  }catch(e){
+    console.error('[توقيع إلكتروني] تعذّر جلب رابط التوقيع:', e);
+    let msg = 'تعذّر جلب رابط التوقيع. تأكد إنك مسجّل دخول بجوجل وجرب كمان مرة.';
+    if(e && e.message === 'quotation-data-file-not-found') msg = 'ما لقينا ملف بيانات عرض السعر (ref-data.json) بجوجل درايف لهالعقد - تأكد إنو عرض السعر انحفظ لجوجل درايف من الأداة الأساسية أول (زر ☁️ حفظ لجوجل درايف)، وبعدين جرّب كمان مرة.';
+    alert('⚠️ ' + msg);
+  }
+  if(btnEl){
+    setTimeout(()=>{ btnEl.disabled = false; btnEl.innerHTML = origHtml; }, 1800);
+  }
 }
 
 /* ---------- شهادة إنجاز وتسليم الأعمال (مخالصة) لكل عقد ---------- */
