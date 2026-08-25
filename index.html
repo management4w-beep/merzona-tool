@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.9';
+  var CURRENT_VERSION = '2026-08-25.10';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -3724,9 +3724,29 @@ async function saveToGoogleDriveInner(){
       });
       await worker.toContainer();
       const pdfContainer = worker.prop && worker.prop.container;
+      // ⚠️ إصلاح جذري جديد (2026-08-25 - نسخة .10) - هلق عندنا دليل قاطع من لوغ html2canvas الداخلي
+      // نفسه (ظهر بالكونسول الحقيقي): "ForeignObject renderer initialized (900x4049 at 292.5,0)"
+      // - يعني منطقة الالتقاط كانت بعرض صحيح (900) بس بإزاحة أفقية 292.5px عن حافة الشاشة اليسرى!
+      // وهاد بالضبط تفسير الرقم (1500-900)/2≈300 - قريب جدًا من 292.5 - أي إنو حاوية html2pdf
+      // (pdfContainer) كانت عم تنرسم بمنتصف الشاشة (centered) بدل ما تكون ملتصقة بأقصى اليسار،
+      // رغم إنو وسّعناها لعرض .page الصحيح. لما html2canvas بيبني الـ SVG/foreignObject حسب موقع
+      // الحاوية الحقيقي عالشاشة (292.5 لحد 1192.5px)، وبعدين بيرسم النتيجة عكانفاس يبلّش من 0 -
+      // أي محتوى داخل الحاوية نفسها غير متوقع لهاد الإزاحة كان عم يترسم بمكان مختلف عن المتوقع
+      // ضمن السطح المرسوم عليه - وهيك المحتوى الفعلي كان عم يطلع محشور بجزء صغير بس من اللقطة.
+      // الحل: نلزّق (pin) الحاوية بأقصى الزاوية العلوية اليسار (left:0/top:0) ونصفّر أي margin أو
+      // transform ممكن يكون عم يوسّطها، بغض النظر عن عرض شاشة المتصفح - هيك بتضل بنفس المكان دايمًا.
       if(pdfContainer){
         pdfContainer.style.width = pdfTargetWidthMm;
         pdfContainer.style.maxWidth = 'none';
+        pdfContainer.style.left = '0px';
+        pdfContainer.style.right = 'auto';
+        pdfContainer.style.top = '0px';
+        pdfContainer.style.margin = '0';
+        pdfContainer.style.transform = 'none';
+        try{
+          const rectAfterPin = pdfContainer.getBoundingClientRect();
+          console.log('[PDF Debug] موقع حاوية الالتقاط (pdfContainer) بعد التثبيت بالزاوية اليسار:', 'left=' + rectAfterPin.left, '| top=' + rectAfterPin.top, '| width=' + rectAfterPin.width);
+        }catch(e){}
       }
       await worker.toCanvas();
 
