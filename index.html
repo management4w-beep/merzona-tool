@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.1';
+  var CURRENT_VERSION = '2026-08-25.2';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -563,6 +563,33 @@
     font-family:'DM Serif Text','Georgia','Times New Roman',serif;
     color:var(--muted);
   }
+  .client-sign-box{
+    min-height:110px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+  }
+  .client-sign-box img{
+    width:78px;
+    height:78px;
+    display:block;
+  }
+  .client-sign-box .csb-hint{
+    font-family:'Inter','Segoe UI',sans-serif;
+    font-size:10.5px;
+    line-height:1.4;
+    color:var(--muted);
+  }
+  .client-sign-box .csb-link{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    word-break:break-all;
+    color:var(--main,#A15C1E);
+    text-decoration:none;
+  }
+  .client-sign-box.csb-signed .csb-hint{ color:#1a7a3a; font-weight:600; }
   .contact-strip{
     margin-top:22px;
     padding-top:8px;
@@ -1145,6 +1172,7 @@
 </style>
 <script src="https://accounts.google.com/gsi/client" async="" defer=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style id="googleidentityservice_button_styles">.qJTHM{-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;color:#202124;direction:ltr;-webkit-touch-callout:none;font-family:Roboto-Regular,arial,sans-serif;-webkit-font-smoothing:antialiased;font-weight:400;margin:0;overflow:hidden;-webkit-text-size-adjust:100%}.ynRLnc{left:-9999px;position:absolute;top:-9999px}.L6cTce{display:none}.bltWBb{overflow-wrap:break-word;word-break:break-word}.hSRGPd{color:#1a73e8;cursor:pointer;font-weight:500;text-decoration:none}.Bz112c-W3lGp{height:16px;width:16px}.Bz112c-E3DyYd{height:20px;width:20px}.Bz112c-r9oPif{height:24px;width:24px}.Bz112c-u2z5K{height:36px;width:36px}.Bz112c-uaxL4e{border-radius:10px}.LgbsSe-Bz112c{display:block}.S9gUrf-YoZ4jf{border:none;margin:0;padding:0}.S9gUrf-YoZ4jf *{border:none;margin:0;padding:0}.fFW7wc-ibnC6b>.aZ2wEe>div{border-color:#4285f4}.P1ekSe-ZMv3u{-webkit-transition:height .2s linear;transition:height .2s linear}.P1ekSe-ZMv3u>div:first-child{background-color:#1a73e8!important;-webkit-transition:width .3s linear;transition:width .3s linear}.P1ekSe-ZMv3u>div:nth-child(2){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.P1ekSe-ZMv3u>div:nth-child(3){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.haAclf{display:inline-block}.nsm7Bb-HzV7m-LgbsSe{border-radius:4px;box-sizing:border-box;-webkit-transition:background-color .218s,border-color .218s;transition:background-color .218s,border-color .218s;-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;-webkit-appearance:none;background-color:#fff;background-image:none;border:1px solid #dadce0;color:#3c4043;cursor:pointer;font-family:Google Sans,arial,sans-serif;font-size:.875rem;height:40px;letter-spacing:.25px;outline:none;overflow:hidden;padding:0 12px;position:relative;text-align:center;vertical-align:middle;white-space:nowrap;width:auto}@media screen and (-ms-high-contrast:active){.nsm7Bb-HzV7m-LgbsSe{border:2px solid windowText;color:windowText}}@media screen and (preferes-contrast:more){.nsm7Bb-HzV7m-LgbsSe{color:#000}}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe{font-size:.875rem;height:32px;letter-spacing:.25px;padding:0 10px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe{font-size:.6875rem;height:20px;letter-spacing:.3px;padding:0 8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe{padding:0;width:40px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe{width:32px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe{width:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK{border-radius:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.pSzOP-SxQuSe{border-radius:16px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.purZT-SxQuSe{border-radius:10px}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc{border:1px solid #8e918f;background-color:#131314;color:#e3e3e3}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc{border:none;color:#fff}.nsm7Bb-HzV7m-LgbsSe.MFS4be-v3pZbf-Ia7Qfc{background-color:#1a73e8}.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{background-color:#202124;color:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{color:#fff}}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:18px;margin-right:8px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:14px;min-width:14px;width:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:10px;min-width:10px;width:10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin-left:8px;margin-right:-4px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:10px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:4px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:3px;border-bottom-left-radius:3px;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;-webkit-box-align:center;-webkit-align-items:center;align-items:center;background-color:#fff;height:36px;margin-left:-10px;margin-right:12px;min-width:36px;width:36px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c,.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:28px;margin-left:-8px;margin-right:10px;min-width:28px;width:28px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:16px;margin-left:-6px;margin-right:8px;min-width:16px;width:16px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:3px;margin-left:2px;margin-right:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:8px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-bN97Pc-sM5MNb{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;-webkit-flex-direction:row;-webkit-box-orient:horizontal;-webkit-box-direction:normal;flex-direction:row;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;-webkit-flex-wrap:nowrap;flex-wrap:nowrap;height:100%;position:relative;width:100%}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX{-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:1;-webkit-box-flex:1;flex-grow:1;font-family:Google Sans,arial,sans-serif;font-weight:500;overflow:hidden;text-overflow:ellipsis;vertical-align:top}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-weight:300}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:0;-webkit-box-flex:0;flex-grow:0}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-MJoBVe{-webkit-transition:background-color .218s;transition:background-color .218s;bottom:0;left:0;position:absolute;right:0;top:0}.nsm7Bb-HzV7m-LgbsSe:focus,.nsm7Bb-HzV7m-LgbsSe:hover{box-shadow:none;border-color:rgb(210,227,252);outline:none}.nsm7Bb-HzV7m-LgbsSe:focus-within{outline:2px solid #00639b;border-color:transparent}.nsm7Bb-HzV7m-LgbsSe:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.08)}.nsm7Bb-HzV7m-LgbsSe:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.1)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.08)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.12)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.24)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.32)}.nsm7Bb-HzV7m-LgbsSe .n1UuX-DkfjY{border-radius:50%;display:-webkit-box;display:-webkit-flex;display:flex;height:20px;margin-left:-4px;margin-right:8px;min-width:20px;width:20px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-family:Roboto;font-size:12px;text-align:left}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .fmcmS,.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .ssJRIf{overflow:hidden;text-overflow:ellipsis}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;color:#5f6368;fill:#5f6368;font-size:11px;font-weight:400}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.i5vt6e-to915-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#c4c7c5;fill:#c4c7c5}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#e8eaed;fill:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff,.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#000;fill:#000}}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .Bz112c{height:18px;margin:-3px -3px -3px 2px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:0;border-bottom-left-radius:0;border-top-right-radius:3px;border-bottom-right-radius:3px;margin-left:12px;margin-right:-10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.L5Fo6c-sM5MNb{border:0;display:block;left:0;position:relative;top:0}.L5Fo6c-bF1uUb{border-radius:4px;bottom:0;cursor:pointer;left:0;position:absolute;right:0;top:0}.L5Fo6c-bF1uUb:focus{border:none;outline:none}sentinel{}</style><style id="dynamicPageStyle">@page{ size: 210mm 297mm; margin: 12mm; }</style></head>
 <body data-prefilled="1" class="">
 
@@ -1506,7 +1534,9 @@
       </div>
       <div class="stamp-area" style="flex:1;">
         توقيع الزبون<br>Client Signature<br>
-        <div style="height:110px;"></div>
+        <div class="client-sign-box" id="client-sign-box">
+          <div style="height:110px;"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -2862,6 +2892,7 @@ function syncPage2Header(){
   let titleVal = refVal || 'Merzona-Quotation';
   if(clientVal) titleVal += ' - ' + clientVal;
   document.title = titleVal;
+  if(typeof renderClientSignBox === 'function') renderClientSignBox();
 }
 
 function validateBeforePrint(){
@@ -2977,6 +3008,9 @@ function captureFullQuotationData(){
   // كانت ممكن تلتقط رقم غلط تمامًا لو صادف نص "AED" جنب رقم بمكان تاني بالصفحة (مثلاً بالغلط جوا
   // ترميز base64 لصورة الشعار). هلق بنحط الرقم الصحيح هون صراحة، فالداشبورد بياخده مباشرة بدون تخمين.
   try{ data.grandTotal = parseFloat((document.getElementById('sum-grand')?.textContent || '0').replace(/,/g,'')) || 0; }catch(e){}
+  // رمز التوقيع الإلكتروني تبع هالعرض - لازم يترافق مع بيانات العرض المحفوظة عالدرايف حتى
+  // يقدر سيرفر الواتساب (whatsapp-server) يتحقق منه لما الزبون يفتح رابط التوقيع.
+  try{ data.signToken = ensureSignToken(data.fields['m-ref']); }catch(e){}
   return data;
 }
 
@@ -2998,6 +3032,9 @@ function applyFullQuotationData(data){
       // منشيلها هون كمان حتى ما ترجع تتخزن/تتقارن بمسافة من جديد.
       const refEl = document.getElementById('m-ref');
       if(refEl && refEl.value) refEl.value = refEl.value.replace(/\s+/g,'');
+      // منستعمل بالضبط نفس رمز التوقيع الإلكتروني المحفوظ مع هالعرض (لو موجود) - مش نولّد رمز
+      // جديد - وإلا أي رابط توقيع سبق وانبعت للزبون من نسخة سابقة بينكسر.
+      try{ if(refEl && refEl.value && data.signToken) ensureSignToken(refEl.value, data.signToken); }catch(e){}
     }
     if(data.rows){
       Object.keys(data.rows).forEach(cid=>{
@@ -3178,6 +3215,67 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 // اتركهم فاضيين/كما هم حتى تجهز سيرفر whatsapp-server (شوف README.md جواه) - قبل هيك هاد الشي معطّل تلقائيًا.
 const WHATSAPP_NOTIFY_URL = 'https://merzona-server-production.up.railway.app/send-quotation';
 const WHATSAPP_NOTIFY_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky'; // نفس AUTH_TOKEN يلي حطيته بمتغيرات البيئة تبع السيرفر
+
+/* ================= التوقيع الإلكتروني للزبون =================
+   بدل الصندوق الفاضي يلي كان تحت "توقيع الزبون" (كان لازم طباعة ورقية وتوقيع بالقلم)، هلق
+   منولّد لكل عرض سعر رمز QR + رابط قصير بيوصل لصفحة توقيع إلكتروني مستقلة (sign.html) عامة
+   (بدون تسجيل دخول - الزبون مش موظف عنده حساب جوجل مربوط بالأداة). الرمز نفسه ("signToken")
+   بيتولّد مرة وحدة بس لكل رقم مرجعي ومنخزنه محليًا + جوا ملف بيانات العرض (-data.json) عالدرايف،
+   حتى لو انفتح نفس العرض من جهاز/متصفح تاني بعدين، يضل نفس رابط التوقيع يلي صار مبعوت للزبون شغال. */
+const SIGN_BASE_URL = 'https://management4w-beep.github.io/merzona-tool/sign.html';
+const SIGN_TOKENS_KEY = 'merzona_sign_tokens_v1';
+function loadSignTokens(){ try{ return JSON.parse(localStorage.getItem(SIGN_TOKENS_KEY) || '{}'); }catch(e){ return {}; } }
+function saveSignTokens(obj){ try{ localStorage.setItem(SIGN_TOKENS_KEY, JSON.stringify(obj)); }catch(e){} }
+function generateSignToken(){
+  const arr = new Uint8Array(16);
+  (window.crypto || window.msCrypto).getRandomValues(arr);
+  return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+// existingToken (اختياري): لما نكون عم نحمّل عرض سعر محفوظ سابقًا (من -data.json)، لازم نستعمل
+// بالضبط نفس الرمز المخزّن معه - مش نولّد رمز جديد - وإلا أي رابط توقيع سبق وانبعت للزبون بينكسر.
+function ensureSignToken(ref, existingToken){
+  if(!ref) return '';
+  const tokens = loadSignTokens();
+  if(existingToken){
+    if(tokens[ref] !== existingToken){ tokens[ref] = existingToken; saveSignTokens(tokens); }
+    return existingToken;
+  }
+  if(tokens[ref]) return tokens[ref];
+  const t = generateSignToken();
+  tokens[ref] = t;
+  saveSignTokens(tokens);
+  return t;
+}
+function buildSignUrl(ref, token){
+  return SIGN_BASE_URL + '?ref=' + encodeURIComponent(ref) + '&t=' + encodeURIComponent(token);
+}
+// بيرسم صندوق QR/الرابط تحت "توقيع الزبون" - بيتنادى عند أي تغيير على الرقم المرجعي، وقبل
+// الطباعة/تصدير PDF، حتى تنضمن ظاهرة صح بكل الحالات (شاشة، طباعة، ملف PDF المحفوظ/المبعوت).
+function renderClientSignBox(){
+  const box = document.getElementById('client-sign-box');
+  if(!box) return;
+  const ref = (document.getElementById('m-ref')?.value || '').trim().replace(/\s+/g,'');
+  if(!ref || typeof qrcode === 'undefined'){
+    box.classList.remove('csb-signed');
+    box.innerHTML = '<div style="height:110px;"></div>';
+    return;
+  }
+  const token = ensureSignToken(ref);
+  const url = buildSignUrl(ref, token);
+  let dataUrl = '';
+  try{
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    dataUrl = qr.createDataURL(4, 0);
+  }catch(e){ console.warn('[توقيع إلكتروني] تعذّر توليد رمز QR:', e); }
+  box.innerHTML =
+    (dataUrl ? '<img src="'+dataUrl+'" alt="QR">' : '') +
+    '<div class="csb-hint">📲 اضغط أو امسح للتوقيع الإلكتروني<br>Tap or scan to sign electronically</div>' +
+    '<a class="csb-link" href="'+url+'" target="_blank" rel="noopener">'+url+'</a>';
+}
+window.renderClientSignBox = renderClientSignBox;
+
 // 🔧 2026-08-24: خدمة توكن جوجل درايف الجديدة عالسيرفر - بترجع توكن دخول جاهز لجوجل درايف بدون
 // ما تحتاج تفتح ولا نافذة موافقة أبدًا (لا أول مرة ولا كل ساعة)، طول ما حمدي ربط السيرفر بحسابه
 // مرة وحدة من /drive-auth/start. نفس التوكن السري تبع بقية السيرفر (AUTH_TOKEN فوق).
@@ -3525,6 +3623,7 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe){
 }
 
 async function saveToGoogleDriveInner(){
+    if(typeof renderClientSignBox === 'function') renderClientSignBox(); // نضمن إنو صندوق QR/رابط التوقيع محدّث قبل التقاط PDF
     const token = await getGoogleAccessToken();
     const refRaw = (document.getElementById('m-ref').value || 'Merzona-Quotation').trim();
     const refSafe = refRaw.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-\u0600-\u06FF]+/g,'_') || 'Merzona-Quotation';

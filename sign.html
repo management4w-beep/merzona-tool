@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>توقيع إلكتروني - Merzona</title>
+<style>
+  :root{
+    --accent:#A15C1E;
+    --ink:#1a1a2e;
+    --muted:#6b6b6b;
+    --line:#d8d8d8;
+    --paper:#ffffff;
+    --bg:#eef1f4;
+    --ok:#1a7a3a;
+    --danger:#c0392b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    padding:18px 14px 40px;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Segoe UI','Tahoma','Inter',Arial,sans-serif;
+    font-size:15px;
+    line-height:1.6;
+  }
+  .card{
+    max-width:520px;
+    margin:0 auto;
+    background:var(--paper);
+    border-radius:12px;
+    box-shadow:0 4px 18px rgba(0,0,0,0.08);
+    padding:22px 20px;
+  }
+  .brand{
+    text-align:center;
+    margin-bottom:18px;
+  }
+  .brand h1{
+    font-size:19px;
+    margin:0 0 4px;
+    color:var(--accent);
+  }
+  .brand p{
+    margin:0;
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .state{ display:none; }
+  .state.show{ display:block; }
+  .center{ text-align:center; }
+  .spinner{
+    width:34px; height:34px;
+    border:3px solid #eee;
+    border-top-color:var(--accent);
+    border-radius:50%;
+    margin:20px auto;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .summary{
+    background:#faf6ef;
+    border:1px solid #e8dcc8;
+    border-radius:8px;
+    padding:12px 14px;
+    margin-bottom:16px;
+    font-size:13.5px;
+  }
+  .summary div{ display:flex; justify-content:space-between; padding:3px 0; }
+  .summary .k{ color:var(--muted); }
+  .summary .v{ font-weight:600; }
+  label.field{
+    display:block;
+    font-size:12.5px;
+    color:var(--muted);
+    margin:14px 0 6px;
+  }
+  input[type=text]{
+    width:100%;
+    padding:10px 12px;
+    font-size:15px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-family:inherit;
+    background:#fff;
+    color:var(--ink);
+  }
+  input[type=text]:focus{ outline:2px solid var(--accent); outline-offset:1px; }
+  .sig-wrap{
+    position:relative;
+    border:1.5px dashed var(--line);
+    border-radius:8px;
+    margin-top:6px;
+    background:#fff;
+    overflow:hidden;
+  }
+  #sigCanvas{
+    width:100%;
+    height:160px;
+    display:block;
+    touch-action:none;
+    cursor:crosshair;
+  }
+  .sig-hint{
+    position:absolute;
+    top:50%; left:0; right:0;
+    transform:translateY(-50%);
+    text-align:center;
+    color:#c6c6c6;
+    font-size:13px;
+    pointer-events:none;
+  }
+  .sig-actions{
+    display:flex;
+    justify-content:flex-end;
+    margin-top:6px;
+  }
+  .link-btn{
+    background:none;
+    border:none;
+    color:var(--accent);
+    font-size:12.5px;
+    cursor:pointer;
+    padding:4px 6px;
+    font-family:inherit;
+  }
+  .agree-row{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    margin-top:16px;
+    font-size:12.5px;
+    color:var(--muted);
+  }
+  .agree-row input{ margin-top:3px; flex-shrink:0; }
+  .primary-btn{
+    width:100%;
+    margin-top:18px;
+    padding:13px;
+    font-size:15px;
+    font-weight:600;
+    border:none;
+    border-radius:8px;
+    background:var(--accent);
+    color:#fff;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .primary-btn:disabled{
+    background:#d8c6b5;
+    cursor:not-allowed;
+  }
+  .secondary-btn{
+    display:inline-block;
+    margin-top:14px;
+    padding:11px 18px;
+    font-size:14px;
+    font-weight:600;
+    border:1.5px solid var(--accent);
+    border-radius:8px;
+    background:#fff;
+    color:var(--accent);
+    cursor:pointer;
+    text-decoration:none;
+    font-family:inherit;
+  }
+  .err-text{
+    color:var(--danger);
+    font-size:13.5px;
+    margin-top:8px;
+  }
+  .ok-icon, .warn-icon{
+    font-size:40px;
+    margin-bottom:6px;
+  }
+  .fine-print{
+    font-size:11px;
+    color:#aaa;
+    text-align:center;
+    margin-top:20px;
+  }
+  h2.state-title{
+    font-size:16.5px;
+    margin:4px 0 10px;
+    text-align:center;
+  }
+  p.state-sub{
+    font-size:13.5px;
+    color:var(--muted);
+    text-align:center;
+    margin:0 0 14px;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">
+    <h1>Merzona</h1>
+    <p>توقيع إلكتروني للعقد &nbsp;|&nbsp; Electronic Contract Signing</p>
+  </div>
+
+  <!-- 1) جاري التحميل -->
+  <div class="state show" id="state-loading">
+    <div class="spinner"></div>
+    <p class="center" style="color:var(--muted);font-size:13.5px;">جاري تحميل بيانات العرض...<br>Loading quotation details...</p>
+  </div>
+
+  <!-- 2) خطأ -->
+  <div class="state" id="state-error">
+    <div class="center">
+      <div class="warn-icon">⚠️</div>
+      <h2 class="state-title" id="error-title">تعذّر فتح رابط التوقيع</h2>
+      <p class="state-sub" id="error-sub">Could not open this signing link</p>
+      <p class="err-text" id="error-detail"></p>
+    </div>
+  </div>
+
+  <!-- 3) موقّع مسبقًا -->
+  <div class="state" id="state-already">
+    <div class="center">
+      <div class="ok-icon">✅</div>
+      <h2 class="state-title">تم توقيع هذا العقد مسبقًا</h2>
+      <p class="state-sub">This contract has already been signed</p>
+      <div class="summary" id="already-summary"></div>
+      <a class="secondary-btn" id="already-download-btn" href="#" target="_blank" rel="noopener">⬇️ تحميل نسخة العقد الموقّع<br><span style="font-size:11px;font-weight:400;">Download the signed contract</span></a>
+    </div>
+  </div>
+
+  <!-- 4) نموذج التوقيع -->
+  <div class="state" id="state-form">
+    <h2 class="state-title">مراجعة وتوقيع العقد</h2>
+    <p class="state-sub">Review &amp; sign the contract</p>
+    <div class="summary" id="form-summary"></div>
+
+    <label class="field">الاسم الكامل / Full name</label>
+    <input type="text" id="signerNameInput" placeholder="اكتب اسمك الكامل هون...">
+
+    <label class="field">التوقيع / Signature</label>
+    <div class="sig-wrap">
+      <canvas id="sigCanvas"></canvas>
+      <div class="sig-hint" id="sigHint">وقّع هنا بإصبعك أو الماوس<br>Sign here with your finger or mouse</div>
+    </div>
+    <div class="sig-actions">
+      <button type="button" class="link-btn" id="clearSigBtn">🗑️ مسح التوقيع / Clear</button>
+    </div>
+
+    <label class="agree-row">
+      <input type="checkbox" id="agreeCheckbox">
+      <span>أوافق على جميع الشروط والأحكام والبنود الواردة في عرض السعر المرفق، ويُعتبر توقيعي هذا ملزمًا قانونيًا.<br>I agree to all terms, conditions and items in the attached quotation. This signature is legally binding.</span>
+    </label>
+
+    <button type="button" class="primary-btn" id="submitBtn" disabled>✅ تأكيد التوقيع / Confirm Signature</button>
+    <p class="err-text center" id="submit-error" style="display:none;"></p>
+  </div>
+
+  <!-- 5) نجاح -->
+  <div class="state" id="state-success">
+    <div class="center">
+      <div class="ok-icon">✅</div>
+      <h2 class="state-title">تم التوقيع بنجاح</h2>
+      <p class="state-sub">Signed successfully</p>
+      <p style="font-size:13px;color:var(--muted);">تم حفظ نسخة موقّعة من العقد وإرسالها لفريق Merzona.<br>A signed copy has been saved and sent to the Merzona team.</p>
+      <a class="secondary-btn" id="success-download-btn" href="#" target="_blank" rel="noopener">⬇️ تحميل نسخة العقد الموقّع<br><span style="font-size:11px;font-weight:400;">Download the signed contract</span></a>
+    </div>
+  </div>
+
+  <div class="fine-print">Merzona for Aluminum &amp; Glass Works</div>
+</div>
+
+<script>
+const API_BASE = 'https://merzona-server-production.up.railway.app';
+
+function qs(name){
+  return new URLSearchParams(window.location.search).get(name) || '';
+}
+const REF = (qs('ref') || '').trim();
+const TOKEN = (qs('t') || '').trim();
+
+function showState(id){
+  document.querySelectorAll('.state').forEach(el=> el.classList.remove('show'));
+  document.getElementById(id).classList.add('show');
+}
+function showError(title, sub, detail){
+  document.getElementById('error-title').textContent = title;
+  document.getElementById('error-sub').textContent = sub;
+  document.getElementById('error-detail').textContent = detail || '';
+  showState('state-error');
+}
+function fmtMoney(n){
+  const num = Number(n) || 0;
+  return num.toLocaleString('en-US', {maximumFractionDigits:2}) + ' AED';
+}
+
+async function fetchWithTimeout(url, options, timeoutMs){
+  const controller = new AbortController();
+  const timer = setTimeout(()=> controller.abort(), timeoutMs || 15000);
+  try{
+    return await fetch(url, Object.assign({}, options, {signal: controller.signal}));
+  } finally { clearTimeout(timer); }
+}
+
+function renderSummaryHtml(client, total){
+  return '<div><span class="k">رقم مرجعي / Reference</span><span class="v">'+escapeHtml(REF)+'</span></div>'+
+    '<div><span class="k">العميل / Client</span><span class="v">'+escapeHtml(client || '-')+'</span></div>'+
+    '<div><span class="k">الإجمالي / Total</span><span class="v">'+fmtMoney(total)+'</span></div>';
+}
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadInfo(){
+  if(!REF || !TOKEN){
+    showError('رابط غير صالح', 'Invalid link', 'الرابط ناقص معلومات - تأكد إنك فاتح الرابط كامل من الرسالة/الملف الأصلي.');
+    return;
+  }
+  try{
+    const res = await fetchWithTimeout(API_BASE + '/sign/' + encodeURIComponent(REF) + '?t=' + encodeURIComponent(TOKEN), {}, 15000);
+    const data = await res.json().catch(()=> ({}));
+    if(!res.ok || !data.ok){
+      handleApiError(res.status, data && data.error);
+      return;
+    }
+    if(data.signed){
+      document.getElementById('already-summary').innerHTML = renderSummaryHtml(data.client, data.total) +
+        '<div><span class="k">تاريخ التوقيع / Signed at</span><span class="v">'+escapeHtml(new Date(data.signedAt).toLocaleString('en-GB'))+'</span></div>'+
+        '<div><span class="k">الموقّع / Signed by</span><span class="v">'+escapeHtml(data.signerName || '-')+'</span></div>';
+      document.getElementById('already-download-btn').href = API_BASE + '/sign/' + encodeURIComponent(REF) + '/pdf?t=' + encodeURIComponent(TOKEN);
+      showState('state-already');
+      return;
+    }
+    document.getElementById('form-summary').innerHTML = renderSummaryHtml(data.client, data.total);
+    showState('state-form');
+    initSignaturePad();
+  }catch(e){
+    showError('تعذّر الاتصال بالسيرفر', 'Could not reach the server', 'تأكد من اتصالك بالإنترنت وحاول تاني بعد شوي. Check your internet connection and try again shortly.');
+  }
+}
+
+function handleApiError(status, err){
+  if(status === 404 || err === 'not-found'){
+    showError('ما لقينا عرض السعر', 'Quotation not found', 'يمكن الرابط قديم أو غير صحيح - تأكد من فتح آخر نسخة من العرض المرسل إليك.');
+  } else if(status === 401 || err === 'invalid-token'){
+    showError('رابط التوقيع غير صالح', 'Invalid signing link', 'هالرابط مش مطابق لهالعرض - تواصل مع Merzona للحصول على رابط صحيح.');
+  } else if(status === 503 || err === 'not-linked-yet'){
+    showError('الخدمة غير متاحة مؤقتًا', 'Service temporarily unavailable', 'حاول بعد شوي، أو تواصل مع Merzona.');
+  } else if(err === 'quotation-pdf-missing'){
+    showError('نسخة العرض الأصلية ناقصة', 'Original quotation file missing', 'تواصل مع Merzona لإعادة إرسال العرض.');
+  } else {
+    showError('صار خطأ غير متوقع', 'Unexpected error', 'حاول تاني بعد شوي، أو تواصل مع Merzona إذا استمرت المشكلة.');
+  }
+}
+
+/* ---------- لوحة التوقيع (رسم باليد) ---------- */
+let sigCtx, hasInk = false;
+function initSignaturePad(){
+  const canvas = document.getElementById('sigCanvas');
+  sigCtx = canvas.getContext('2d');
+  const hint = document.getElementById('sigHint');
+
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, rect.width * ratio);
+    canvas.height = Math.max(1, rect.height * ratio);
+    sigCtx.scale(ratio, ratio);
+    sigCtx.lineWidth = 2.4;
+    sigCtx.lineCap = 'round';
+    sigCtx.lineJoin = 'round';
+    sigCtx.strokeStyle = '#1a1a2e';
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  let drawing = false, lastX = 0, lastY = 0;
+  function pos(e){
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+  canvas.addEventListener('pointerdown', e=>{
+    drawing = true;
+    hasInk = true;
+    hint.style.display = 'none';
+    const p = pos(e);
+    lastX = p.x; lastY = p.y;
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+    updateSubmitState();
+  });
+  canvas.addEventListener('pointermove', e=>{
+    if(!drawing) return;
+    const p = pos(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(lastX, lastY);
+    sigCtx.lineTo(p.x, p.y);
+    sigCtx.stroke();
+    lastX = p.x; lastY = p.y;
+  });
+  window.addEventListener('pointerup', ()=>{ drawing = false; });
+  window.addEventListener('pointercancel', ()=>{ drawing = false; });
+
+  document.getElementById('clearSigBtn').addEventListener('click', ()=>{
+    sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+    hasInk = false;
+    hint.style.display = '';
+    updateSubmitState();
+  });
+
+  document.getElementById('signerNameInput').addEventListener('input', updateSubmitState);
+  document.getElementById('agreeCheckbox').addEventListener('change', updateSubmitState);
+  document.getElementById('submitBtn').addEventListener('click', submitSignature);
+}
+
+function updateSubmitState(){
+  const nameOk = document.getElementById('signerNameInput').value.trim().length > 0;
+  const agreeOk = document.getElementById('agreeCheckbox').checked;
+  document.getElementById('submitBtn').disabled = !(nameOk && agreeOk && hasInk);
+}
+
+async function submitSignature(){
+  const btn = document.getElementById('submitBtn');
+  const errEl = document.getElementById('submit-error');
+  errEl.style.display = 'none';
+  const signerName = document.getElementById('signerNameInput').value.trim();
+  const canvas = document.getElementById('sigCanvas');
+  if(!signerName || !hasInk || !document.getElementById('agreeCheckbox').checked) return;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ جاري الحفظ... / Saving...';
+  try{
+    const signatureDataUrl = canvas.toDataURL('image/png');
+    const res = await fetchWithTimeout(API_BASE + '/sign/' + encodeURIComponent(REF), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ t: TOKEN, signerName, signatureDataUrl, agree: true })
+    }, 45000);
+    const data = await res.json().catch(()=> ({}));
+    if(!res.ok || !data.ok){
+      handleSubmitError(res.status, data && data.error);
+      btn.disabled = false;
+      btn.textContent = '✅ تأكيد التوقيع / Confirm Signature';
+      return;
+    }
+    const downloadUrl = API_BASE + data.downloadUrl;
+    document.getElementById('success-download-btn').href = downloadUrl;
+    showState('state-success');
+  }catch(e){
+    errEl.textContent = 'تعذّر الاتصال بالسيرفر - تأكد من اتصالك بالإنترنت وحاول تاني. Could not reach the server - check your connection and try again.';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '✅ تأكيد التوقيع / Confirm Signature';
+  }
+}
+
+function handleSubmitError(status, err){
+  const errEl = document.getElementById('submit-error');
+  let msg = 'صار خطأ غير متوقع - حاول تاني. Unexpected error - please try again.';
+  if(status === 401 || err === 'invalid-token') msg = 'رابط التوقيع غير صالح. Invalid signing link.';
+  else if(err === 'quotation-pdf-missing') msg = 'نسخة العرض الأصلية ناقصة - تواصل مع Merzona. Original quotation file missing - contact Merzona.';
+  else if(status === 429 || err === 'rate-limit') msg = 'محاولات كتيرة بوقت قصير - جرب بعد شوي. Too many attempts - try again shortly.';
+  errEl.textContent = msg;
+  errEl.style.display = 'block';
+}
+
+loadInfo();
+</script>
+</body>
+</html>
