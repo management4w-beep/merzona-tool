@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.1';
+  var CURRENT_VERSION = '2026-08-25.2';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2930,6 +2930,14 @@ async function reconcileWithDrive(silent){
     saveDiscoveredQuotations(discovered);
     const mergedNow = mergeDiscoveredIntoData();
     if(addedCount>0 || removedCount>0 || repairedCount>0) render();
+    // 🔧 2026-08-25: لو انحذف عرض سعر (لأنو مجلده انمسح فعليًا من جوجل درايف)، لازم نرفع النسخة
+    // المصححة لملف المزامنة المشترك فورًا (مو نستنى 2.5 ثانية زي العادة عبر scheduleDriveSyncPush).
+    // السبب: لو المستخدم سكر الصفحة بسرعة بعد الحذف قبل ما يخلص الرفع المؤجل، بأول فتح جديد للصفحة
+    // المزامنة التلقائية بتسحب النسخة القديمة (يلي لسا فيها العرض المحذوف) من جوجل درايف وترجعه من
+    // جديد للداشبورد - بالضبط مشكلة "العرض المحذوف بيرجع بعد ما بسكر وبفتح الصفحة" يلي واجهها حمدي.
+    if(removedCount>0){
+      try{ await driveSyncPushNow(); }catch(e){ console.warn('[مطابقة الملفات] تعذّر رفع تصحيح الحذف فورًا:', e); }
+    }
     const incompleteNote = scanResult.hadErrors ? ' ⚠️ (الفحص كان ناقص - تعذّر الوصول لمجلد سنة وحدة أو أكتر، جرّب المطابقة تاني بعد شوي)' : '';
     const repairedNote = repairedCount>0 ? ' وصلّحنا '+repairedCount+' عرض سعر كانت قيمته الإجمالية غلط.' : '';
     setStatus('✅ خلصنا! ضفنا '+addedCount+' عرض سعر جديد وحذفنا '+removedCount+' اتحذف مجلده من جوجل درايف (من أصل '+refEntries.length+' مجلد) - '+mergedNow+' منهم ظاهرين هلق بالداشبورد.'+repairedNote+incompleteNote);
