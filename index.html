@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.5';
+  var CURRENT_VERSION = '2026-08-25.6';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -3702,38 +3702,60 @@ async function saveToGoogleDriveInner(){
       await worker.toCanvas();
 
       // ⚠️ إصلاح حاسم (2026-08-25) - مشكلة "المحتوى محصور بعمود ضيق يسار الصفحة والباقي فاضي":
-      // تأكدنا (بعد تحليل ملف PDF فعلي بعثه الزبون بالبكسل) إنو المحتوى دايمًا ملتصق بأقصى يسار
-      // الصفحة وبياخد ~36% من عرضها بس، بغض النظر عن عدد البنود (صار نفس الشي حتى لما الزبون ضاف
-      // مواد كتير) - يعني المشكلة مش متعلقة بقلة المحتوى إطلاقًا متل ما كنا نظرّياً افترضنا قبل.
-      // السبب الحقيقي: مكتبة html2canvas بوضعية foreignObjectRendering:true (لازمة حتى النص العربي
-      // يظهر صح بالـ PDF - هاد قرار سابق مقصود وما لازم نرجع فيه) بتتجاهل تمامًا أي إعداد
-      // windowWidth/windowHeight نمرره، وبدل هيك بتستخدم عرض نافذة متصفح المستخدم الفعلي
-      // (window.innerWidth) كعرض للقطة الملتقطة بأكملها - بغض النظر عن عرض عنصر .page الحقيقي
-      // (900px دايمًا). يعني لو المستخدم فاتح المتصفح على شاشة كمبيوتر عريضة (مثلاً 2500px)، اللقطة
-      // بتطلع بعرض 2500px تقريبًا وفيها محتوى .page (900px بس) ملتصق يسارها والباقي فاضي بالكامل -
-      // وبما إنو خطوة addImage عند jsPDF بتمدد اللقطة الكاملة (بعرضها الفاضي وكلو) لتغطي عرض صفحة
-      // A4 كامل، المحتوى الحقيقي بيضل محصور بعمود ضيق والباقي يطلع فاضي بالـ PDF النهائي - بالظبط
-      // متل ما شفنا. الحل: بما إنو خطوة الالتقاط نفسها ما فينا نتحكم بعرضها (html2canvas بتتجاهل
-      // إعداداتنا بهالوضعية)، منقص (crop) اللقطة يدويًا بعد الالتقاط - ناخد بس الجزء اليساري يلي
-      // فيه محتوى .page الحقيقي (بعرض pdfTargetWidthPx محسوب بنفس نسبة تكبير اللقطة الفعلية)
-      // ونرمي الباقي الفاضي - قبل ما نكمل لخطوة toPdf(). هيك منضمن المحتوى ياخد عرض الصفحة كامل
-      // بغض النظر عن عرض نافذة متصفح المستخدم (كمبيوتر عريض أو ضيق أو موبايل).
+      // تأكدنا (بعد تحليل ملف PDF فعلي بعثه الزبون بالبكسل مرتين) إنو المحتوى دايمًا ملتصق بأقصى
+      // يسار الصفحة وبياخد جزء بس من عرضها (36% بالتجربة الأولى، 58.5% بالتجربة التانية) - نسبة
+      // بتختلف حسب عرض نافذة متصفح الزبون وقت الحفظ. السبب: مكتبة html2canvas بوضعية
+      // foreignObjectRendering:true (لازمة حتى النص العربي يظهر صح بالـ PDF - قرار سابق مقصود وما
+      // لازم نرجع فيه) بتتجاهل أي إعداد windowWidth نمرره وبتستخدم عرض نافذة المتصفح الفعلي كعرض
+      // للقطة الملتقطة بأكملها، بغض النظر عن عرض عنصر .page الحقيقي (900px دايمًا) - فمحتوى الصفحة
+      // بيطلع ملتصق يسار اللقطة والباقي (يمين اللقطة) فاضي، وبما إنو jsPDF بيمدد اللقطة كاملة
+      // (بفراغها) لتغطي عرض صفحة A4، المحتوى بيضل محصور بعمود ضيق بالـ PDF النهائي.
+      // أول محاولة إصلاح (حسبنا نسبة القص نظريًا من عرض نافذة المتصفح) قلّلت المشكلة بس ما حلّتها
+      // بالكامل (طلعت النسبة تتحسن من 36% لـ58.5% بس مش لـ100%) - يعني الحساب النظري مش دقيق
+      // بالكامل. الحل الأدق: بدل ما نحسب نظريًا، منفحص فعليًا بكسلات اللقطة الملتقطة (canvas) نفسها
+      // ومنلاقي بالضبط وين آخر بكسل فيه محتوى حقيقي (مش أبيض فاضي) - وهيك منقص (crop) بدقة الحافة
+      // الحقيقية للمحتوى، بغض النظر عن أي افتراض نظري عن عرض النافذة أو نسبة التكبير.
       const rawCanvas = worker.prop && worker.prop.canvas;
-      if(rawCanvas && rawCanvas.width > 0){
-        const liveViewportWidthPx = document.documentElement.clientWidth || window.innerWidth || pdfTargetWidthPx;
-        const captureScale = rawCanvas.width / liveViewportWidthPx;
-        const cropWidthPx = Math.min(rawCanvas.width, Math.round(pdfTargetWidthPx * captureScale));
-        console.log('[PDF Debug] rawCanvas:', rawCanvas.width + 'x' + rawCanvas.height, '| liveViewportWidthPx:', liveViewportWidthPx, '| captureScale:', captureScale.toFixed(3), '| pdfTargetWidthPx:', pdfTargetWidthPx, '| cropWidthPx:', cropWidthPx);
-        if(cropWidthPx > 0 && cropWidthPx < rawCanvas.width){
-          const croppedCanvas = document.createElement('canvas');
-          croppedCanvas.width = cropWidthPx;
-          croppedCanvas.height = rawCanvas.height;
-          const ctx = croppedCanvas.getContext('2d');
-          ctx.drawImage(rawCanvas, 0, 0, cropWidthPx, rawCanvas.height, 0, 0, cropWidthPx, rawCanvas.height);
-          worker.prop.canvas = croppedCanvas;
-          console.log('[PDF Debug] تم قص اللقطة (crop) من', rawCanvas.width, 'إلى', cropWidthPx, 'بكسل');
+      if(rawCanvas && rawCanvas.width > 0 && rawCanvas.height > 0){
+        let contentRightEdgePx = null;
+        try{
+          const ctx = rawCanvas.getContext('2d');
+          const w = rawCanvas.width, h = rawCanvas.height;
+          const rowStride = Math.max(1, Math.floor(h / 500)); // نفحص ~500 سطر موزعين على كامل ارتفاع اللقطة
+          const colStride = Math.max(1, Math.floor(w / 2500)); // وبكل سطر منفحص لغاية ~2500 نقطة
+          let maxX = 0;
+          for(let y = 0; y < h; y += rowStride){
+            const row = ctx.getImageData(0, y, w, 1).data;
+            for(let x = w - 1; x >= 0; x -= colStride){
+              const i = x * 4;
+              if(row[i] < 250 || row[i+1] < 250 || row[i+2] < 250){
+                if(x > maxX) maxX = x;
+                break; // أول بكسل ملوّن من اليمين لهالسطر - كفاية، منكمل للسطر يلي بعده
+              }
+            }
+          }
+          contentRightEdgePx = maxX;
+        }catch(e){
+          console.warn('[PDF Debug] تعذّر فحص بكسلات اللقطة (على الأغلب مشكلة CORS/tainted canvas):', e);
+        }
+        console.log('[PDF Debug] rawCanvas:', rawCanvas.width + 'x' + rawCanvas.height, '| contentRightEdgePx:', contentRightEdgePx, '| نسبة المحتوى الحالية:', contentRightEdgePx ? (contentRightEdgePx / rawCanvas.width * 100).toFixed(1) + '%' : 'غير معروفة');
+        // لازم نلاقي حافة معقولة (مش صغيرة جدًا، حتى لو صار خطأ بالفحص ما نقص الصفحة لعدم وجودها)
+        const MIN_SANE_EDGE_PX = 200;
+        if(contentRightEdgePx && contentRightEdgePx >= MIN_SANE_EDGE_PX){
+          const cropWidthPx = Math.min(rawCanvas.width, Math.ceil(contentRightEdgePx * 1.03) + 20); // هامش أمان بسيط يحافظ على الحاشية اليمنى الطبيعية لـ.page
+          if(cropWidthPx > 0 && cropWidthPx < rawCanvas.width){
+            const croppedCanvas = document.createElement('canvas');
+            croppedCanvas.width = cropWidthPx;
+            croppedCanvas.height = rawCanvas.height;
+            const cctx = croppedCanvas.getContext('2d');
+            cctx.drawImage(rawCanvas, 0, 0, cropWidthPx, rawCanvas.height, 0, 0, cropWidthPx, rawCanvas.height);
+            worker.prop.canvas = croppedCanvas;
+            console.log('[PDF Debug] تم قص اللقطة (crop) من', rawCanvas.width, 'إلى', cropWidthPx, 'بكسل بناءً على فحص البكسلات الفعلي');
+          } else {
+            console.log('[PDF Debug] ما احتجنا قص اللقطة (كانت أصلاً بالعرض الصحيح أو أضيق)');
+          }
         } else {
-          console.log('[PDF Debug] ما احتجنا قص اللقطة (كانت أصلاً بالعرض الصحيح أو أضيق)');
+          console.log('[PDF Debug] ما قدرنا نحدد حافة محتوى موثوقة - تركنا اللقطة متل ما هي بدون قص لتفادي أي تلف بالمحتوى');
         }
       }
 
