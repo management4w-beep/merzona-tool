@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.5';
+  var CURRENT_VERSION = '2026-08-25.6';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -835,6 +835,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <table>
         <thead>
           <tr>
+            <th style="width:34px;"></th>
             <th data-key="ref">الرقم المرجعي <span class="arrow" data-arrow="ref">▼</span></th>
             <th data-key="client">الزبون <span class="arrow" data-arrow="client"></span></th>
             <th data-key="phone">الهاتف <span class="arrow" data-arrow="phone"></span></th>
@@ -1553,12 +1554,24 @@ function render(){
       ? '<a href="'+waLink+'" target="_blank" rel="noopener" class="wa-link">'+d.phone+' <span class="wa-icon">💬</span></a>'
       : '<span>'+d.phone+'</span>';
     const clientName = overrides[d.ref] || d.client;
+    // 🗑️ زر حذف عرض السعر (2026-08-25) - عمود جديد بأقصى يمين الجدول (أول عمود بترتيب DOM، وبما
+    // إنو الصفحة كلها RTL هيك بيطلع بأقصى اليمين فعليًا) - حتى يقدر حمدي يحذف عرض سعر من السجل
+    // مباشرة بدون ما يضطر يفتحه أو يروح لجوجل درايف يدويًا.
+    const deleteBtn = '<button class="delete-quotation-btn" data-ref="'+d.ref+'" title="حذف عرض السعر هاد نهائيًا (بينقل مجلده لسلة المحذوفات بجوجل درايف)" style="font-size:14px;line-height:1;padding:4px 7px;border-radius:6px;border:1px solid var(--danger);color:var(--danger);background:#fff;cursor:pointer;">🗑️</button>';
     tr.innerHTML =
+      '<td style="text-align:center;">'+deleteBtn+'</td>'+
       '<td><span class="year-tag">'+d.year+'</span>'+refCell+openLatestBtn+'</td>'+
       '<td><span class="client-edit" data-ref="'+d.ref+'" title="اضغط لتعديل اسم الزبون" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+clientName+'</span></td>'+
       '<td dir="ltr" style="text-align:right">'+phoneCell+'</td>'+
       '<td class="num">'+fmt(d.total)+'</td>';
     tbody.appendChild(tr);
+  });
+  tbody.querySelectorAll('.delete-quotation-btn').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      deleteQuotationByRef(btn.dataset.ref, btn);
+    });
   });
   tbody.querySelectorAll('.open-latest-btn').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
@@ -2612,6 +2625,56 @@ async function findQuotationFolderId(token, ref){
   const refFiles = await listDriveFolderChildren(token, yearFolder.id);
   const refFolder = refFiles.find(f=> f.mimeType==='application/vnd.google-apps.folder' && f.name===refSafe);
   return refFolder ? refFolder.id : null;
+}
+
+// 🗑️ حذف عرض سعر من السجل (2026-08-25) - زر "🗑️" الجديد بأقصى يمين كل صف بجدول "سجل العروض".
+// ما بيحذف حذف نهائي (permanent) - بينقل مجلد عرض السعر بجوجل درايف لسلة المحذوفات (trashed:true)،
+// يعني قابل للاسترجاع من جوجل درايف لو صار غلط بالضغط. وبعد النقل بينشيل السطر من سجل الداشبورد
+// (وبيسجل "شاهد قبر" حتى مزامنة الفريق ما ترجعه من نسخة قديمة عند جهاز تاني) وبيحدّث الجدول فورًا.
+async function deleteQuotationByRef(ref, btnEl){
+  const clientLabel = getClientNameByRef(ref);
+  const confirmMsg = 'متأكد إنك بدك تحذف عرض السعر "'+ref+'"'+(clientLabel && clientLabel!=='—' ? ' ('+clientLabel+')' : '')+'؟\n\nمجلده بجوجل درايف رح ينتقل لسلة المحذوفات (قابل للاسترجاع من جوجل درايف لو غلطت)، وبينشال من هالسجل فورًا.';
+  if(!confirm(confirmMsg)) return;
+
+  const originalHtml = btnEl ? btnEl.innerHTML : null;
+  if(btnEl){ btnEl.disabled = true; btnEl.innerHTML = '⏳'; }
+  try{
+    const token = await getDashGoogleAccessToken(false);
+    const folderId = await findQuotationFolderId(token, ref);
+    if(folderId){
+      const res = await dashFetchWithTimeout('https://www.googleapis.com/drive/v3/files/'+folderId, {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer '+token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trashed: true })
+      }, 20000);
+      if(!res.ok){
+        const errText = await res.text().catch(()=>'');
+        throw new Error('فشل نقل المجلد لسلة المحذوفات (HTTP '+res.status+'): '+errText);
+      }
+    }
+    // ما لقينا مجلد بجوجل درايف (يمكن انحذف يدويًا من قبل) - منكمل ونشيله من السجل المحلي بس، مش مشكلة.
+
+    const cleanRef = stripRefSpaces(ref);
+    const idx = DATA.findIndex(x=> stripRefSpaces(x.ref)===cleanRef);
+    if(idx !== -1) DATA.splice(idx, 1);
+
+    const discovered = loadDiscoveredQuotations();
+    let discoveredChanged = false;
+    Object.keys(discovered).forEach(key=>{
+      if(discovered[key] && stripRefSpaces(discovered[key].ref)===cleanRef){ delete discovered[key]; discoveredChanged = true; }
+    });
+    if(discoveredChanged) saveDiscoveredQuotations(discovered);
+
+    const tombstones = loadDiscoveredTombstones();
+    tombstones[cleanRef] = Date.now();
+    saveDiscoveredTombstones(tombstones);
+
+    render();
+  }catch(e){
+    console.error('[حذف عرض سعر] فشل:', e);
+    alert('تعذّر حذف عرض السعر: '+(e && e.message ? e.message : 'خطأ غير معروف') + '\n\nتأكد إنك مسجّل دخول بجوجل وجرب كمان مرة.');
+    if(btnEl){ btnEl.disabled = false; btnEl.innerHTML = originalHtml; }
+  }
 }
 
 function pickPreferredQuotationFile(files){
