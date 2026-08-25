@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-26.3';
+  var CURRENT_VERSION = '2026-08-27.1';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -3759,10 +3759,17 @@ async function saveToGoogleDriveInner(){
 
     // نسخة بيانات خفيفة (JSON بس، بدون كود) - هاي يلي بتخلي "افتح بآخر نسخة" من لوحة التحكم يشتغل بسرعة ودقة
     // مباشرة من غير ما يحتاج يحلّل نسخة HTML كاملة، ومع أي تصليح مستقبلي عالأداة هيك بيطبّق تلقائيًا.
+    // 🔧 2026-08-27: محتفظين بمرجع لنفس كائن البيانات (quotationFullDataForSignBox) ومعرّف الملف
+    // (quotationDataJsonFileId) يلي هلق اتحفظ - حتى نقدر لاحقًا (بعد ما نحسب موقع صندوق توقيع الزبون
+    // أثناء تجهيز الـPDF تحت) نضيفه لنفس الكائن ونرفعه فوق نفس الملف (PATCH) بدل ما ننشئ ملف تاني.
+    let quotationFullDataForSignBox = null;
+    let quotationDataJsonFileId = null;
     try{
       const fullData = captureFullQuotationData();
+      quotationFullDataForSignBox = fullData;
       const dataBlob = new Blob([JSON.stringify(fullData)], {type:'application/json'});
-      await uploadFileToDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
+      const dataUploadResult = await uploadFileToDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
+      quotationDataJsonFileId = dataUploadResult && dataUploadResult.id;
     }catch(e){ console.warn('تعذّر حفظ ملف بيانات JSON الإضافي (مش عائق - نسخة HTML اتحفظت تمام):', e); }
 
     // نسخة PDF من صفحة عرض السعر - نفعّل شكل الطباعة النضيف ونستنى تحميل الخطوط قبل الالتقاط
@@ -3819,6 +3826,7 @@ async function saveToGoogleDriveInner(){
     const manualPageBreakEls = Array.from(pageEl.querySelectorAll('.page-break-before'));
     const manualPageBreakSpacers = [];
     let signLinkRectForPdf = null; // 🔍 موقع زر "اضغط للتوقيع" بالنسبة لـ.page - منستخدمه بعدين لإضافة رابط PDF حقيقي فوق مكانه
+    let signBoxRectForPdf = null; // 🔍 2026-08-27: موقع صندوق "توقيع الزبون" (client-sign-box) بالنسبة لـ.page - منحفظه بملف بيانات العرض (-data.json)، حتى سيرفر الواتساب يقدر يرسم توقيع الزبون الحقيقي فوق نفس المكان بالضبط لما يوقّع لاحقًا
 
     let pdfBlob;
     try{
@@ -3863,6 +3871,28 @@ async function saveToGoogleDriveInner(){
             console.warn('[PDF Debug] ما لقينا زر "اضغط للتوقيع" (openSignLinkBtn) بالـDOM - رح يطلع الـPDF من غير رابط قابل للضغط.');
           }
         }catch(e){ console.warn('[PDF Debug] تعذّر قياس موقع زر التوقيع:', e); signLinkRectForPdf = null; }
+        // 🔧 2026-08-27: نفس فكرة قياس موقع زر التوقيع فوق، بس هلق لصندوق "توقيع الزبون" نفسه
+        // (client-sign-box) - حتى نحفظ مكانه بالضبط بملف بيانات العرض، وسيرفر الواتساب يقدر يرسم
+        // توقيع الزبون الحقيقي فوقه لما يوقّع لاحقًا (بدل ما يضيف صفحة شهادة منفصلة بس بآخر الملف).
+        try{
+          const boxEl = document.getElementById('client-sign-box');
+          if(boxEl){
+            const boxRect = boxEl.getBoundingClientRect();
+            const boxTopInPageFlow = boxRect.top - pageTopPx;
+            const boxPageIndex = Math.floor(boxTopInPageFlow / onePageHeightPx); // 0-index - نفس ترقيم pdf-lib بالسيرفر بالضبط
+            const boxTopWithinPdfPage = boxTopInPageFlow - (boxPageIndex * onePageHeightPx);
+            signBoxRectForPdf = {
+              pageIndex: boxPageIndex,
+              topPx: boxTopWithinPdfPage,
+              leftPx: boxRect.left - pageEl.getBoundingClientRect().left,
+              widthPx: boxRect.width,
+              heightPx: boxRect.height
+            };
+            console.log('[PDF Debug] موقع صندوق توقيع الزبون داخل PDF:', signBoxRectForPdf);
+          } else {
+            console.warn('[PDF Debug] ما لقينا صندوق توقيع الزبون (client-sign-box) بالـDOM - رح يطلع العقد بدون موقع محفوظ للتوقيع الإلكتروني.');
+          }
+        }catch(e){ console.warn('[PDF Debug] تعذّر قياس موقع صندوق توقيع الزبون:', e); signBoxRectForPdf = null; }
       }catch(e){ console.warn('[PDF Debug] تعذّر حساب فواصل الصفحات اليدوية (رح تعتمد الصفحة على حساب html2pdf.js الافتراضي):', e); }
 
       // ملاحظة: شلنا x/y/windowWidth/width من إعدادات html2canvas تحت - لأنه لما تكون
@@ -4032,6 +4062,36 @@ async function saveToGoogleDriveInner(){
           }
         }
       }catch(e){ console.warn('[PDF Debug] تعذّر إضافة رابط قابل للضغط فوق زر التوقيع (الـPDF رح يكمل يتحفظ عادي بدون الرابط):', e); }
+
+      // 🆕 2026-08-27: منحوّل موقع صندوق "توقيع الزبون" (بالبكسل) لمليمتر (نفس تحويل رابط التوقيع
+      // فوق بالضبط) ومنحفظه بملف بيانات العرض (-data.json) عالدرايف (PATCH فوق نفس الملف يلي
+      // اتحفظ قبل شوي، مش ملف جديد) - حتى لما الزبون يوقّع لاحقًا (يوم أو أسبوع بعدين، مش هلق)،
+      // سيرفر الواتساب يقدر يرسم صورة توقيعه الحقيقية فوق نفس المكان بالضبط على ملف الـPDF الأصلي
+      // (طلب حمدي: "بدي التوقيع بالضبط فوق صندوق Client Signature الأصلي")، بدل ما يضيف صفحة شهادة
+      // منفصلة بس بآخر الملف. فشل هالخطوة مش عائق أبدًا - العرض نفسه بيضل محفوظ تمام، وبس لو صار
+      // فشل هون، سيرفر الواتساب رح يرجع تلقائيًا للطريقة القديمة (صفحة شهادة ملحقة) وقت التوقيع.
+      try{
+        if(signBoxRectForPdf && quotationFullDataForSignBox && quotationDataJsonFileId){
+          const mmPerPxBox = 210 / pdfTargetWidthPx;
+          const pdfObjForBox = worker.prop && worker.prop.pdf;
+          const totalPagesForBox = (pdfObjForBox && typeof pdfObjForBox.getNumberOfPages === 'function') ? pdfObjForBox.getNumberOfPages() : 1;
+          quotationFullDataForSignBox.signBoxRect = {
+            pageIndex: Math.min(signBoxRectForPdf.pageIndex, totalPagesForBox - 1), // 0-index - نفس ترقيم pdf-lib بالسيرفر
+            xMm: signBoxRectForPdf.leftPx * mmPerPxBox,
+            yMm: signBoxRectForPdf.topPx * mmPerPxBox,
+            wMm: signBoxRectForPdf.widthPx * mmPerPxBox,
+            hMm: signBoxRectForPdf.heightPx * mmPerPxBox
+          };
+          const updatedDataBlob = new Blob([JSON.stringify(quotationFullDataForSignBox)], {type:'application/json'});
+          await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${quotationDataJsonFileId}?uploadType=media`, {
+            method: 'PATCH',
+            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: updatedDataBlob
+          }, 20000);
+          console.log('[PDF Debug] ✅ تم حفظ موقع صندوق توقيع الزبون (مم) بملف بيانات العرض:', quotationFullDataForSignBox.signBoxRect);
+        }
+      }catch(e){ console.warn('[PDF Debug] تعذّر حفظ موقع صندوق توقيع الزبون بملف البيانات (مش عائق - العرض اتحفظ تمام، بس التوقيع الإلكتروني لاحقًا رح يرجع للطريقة الاحتياطية - صفحة شهادة ملحقة):', e); }
+
       pdfBlob = await worker.outputPdf('blob');
     } finally {
       // نرجّع .page الحقيقية لحالتها الأصلية قبل الالتقاط - نشيل الفواصل اليدوية ونرجّع الكلاس
