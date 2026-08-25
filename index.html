@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.7';
+  var CURRENT_VERSION = '2026-08-25.8';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -3663,6 +3663,31 @@ async function saveToGoogleDriveInner(){
     const pageRectForPdf = pageEl.getBoundingClientRect();
     const pdfTargetWidthPx = Math.ceil(pageEl.scrollWidth || pageRectForPdf.width || 900);
     const pdfTargetWidthMm = (pdfTargetWidthPx * 25.4 / 96).toFixed(3) + 'mm';
+
+    // ⚠️ إصلاح جذري جديد (2026-08-25 - نسخة .8) - هلق تأكدنا (من لوغ حقيقي: rawCanvas:1800x8098 بس
+    // contentRightEdgePx فقط 650 = 36.1%، ونفس النمط تكرر بتجربة سابقة كانت 33%) إنو المشكلة مش
+    // إشكالية قص/هامش أصلًا - المحتوى نفسه ما عم يترسم إلا لعرض ضيق جوا اللقطة، بغض النظر إنو حجم
+    // الـ canvas نفسه (اللي منتحكم فيه عبر عرض الحاوية pdfContainer) صحيح وواسع. يعني في طبقة تانية
+    // جوا مكتبة html2canvas (بوضعية foreignObjectRendering:true) بترسم المحتوى الفعلي بعرض محدود
+    // بعرض "viewport" المتصفح الحقيقي وقتها (window.innerWidth/document.documentElement.clientWidth)
+    // - مش بعرض عنصر الحاوية يلي عدّلناه - وهاد بالضبط يفسّر ليش عالموبايل (نافذة ضيقة) بيصير قص/حصر
+    // واضح، وعالكمبيوتر (نافذة عريضة أصلًا) ما كان الفرق ظاهر لأنو عرض النافذة أصلًا أوسع من 900px.
+    // الحل: قبل الالتقاط، منوسّع مؤقتًا "viewport" الصفحة نفسها عبر تعديل content تبع
+    // <meta name="viewport"> (تقنية معروفة لفرض عرض تخطيط أوسع بالمتصفح بدون تكبير فعلي للجهاز)،
+    // وهيك document.documentElement.clientWidth بيصير فعليًا بعرض .page الحقيقي (900px أو أكتر) وقت
+    // الالتقاط، بغض النظر عن عرض شاشة الموبايل الفعلي - وبعد ما نخلص الالتقاط منرجّع القيمة الأصلية
+    // فورًا. ضفنا كمان تسجيل (console.log) لعرض النافذة قبل وبعد التعديل، حتى لو المشكلة استمرت نقدر
+    // نتأكد بالدليل المباشر هل التعديل انطبق فعلًا أو لأ، بدل ما نخمّن من جديد.
+    const viewportMetaEl = document.querySelector('meta[name="viewport"]');
+    const originalViewportContent = viewportMetaEl ? viewportMetaEl.getAttribute('content') : null;
+    console.log('[PDF Debug] عرض النافذة قبل توسيع الـ viewport:', 'innerWidth=' + window.innerWidth, '| documentElement.clientWidth=' + document.documentElement.clientWidth);
+    if(viewportMetaEl){
+      viewportMetaEl.setAttribute('content', 'width=' + (pdfTargetWidthPx + 40) + ', initial-scale=1');
+      // مهلة قصيرة حتى يطبّق المتصفح تغيير الـ viewport ويعيد حساب التخطيط قبل ما نكمل
+      await new Promise(r => setTimeout(r, 120));
+    }
+    console.log('[PDF Debug] عرض النافذة بعد توسيع الـ viewport:', 'innerWidth=' + window.innerWidth, '| documentElement.clientWidth=' + document.documentElement.clientWidth, '| الهدف:', pdfTargetWidthPx);
+
     let pdfBlob;
     try{
       // ملاحظة: شلنا x/y/windowWidth/width من إعدادات html2canvas تحت - لأنه لما تكون
@@ -3778,6 +3803,9 @@ async function saveToGoogleDriveInner(){
       document.body.classList.remove('pdf-capturing');
       if(wasMobileMode) document.body.classList.add('mode-mobile');
       revertElevationPrintGrouping();
+      if(viewportMetaEl && originalViewportContent !== null){
+        viewportMetaEl.setAttribute('content', originalViewportContent); // نرجّع عرض الـ viewport الأصلي فورًا حتى ما تتأثر تجربة المستخدم بعد الحفظ
+      }
     }
     await uploadFileToDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
 
