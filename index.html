@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-26.2';
+  var CURRENT_VERSION = '2026-08-26.3';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -747,8 +747,13 @@
   body.pdf-capturing .import-status{display:none !important;}
   body.pdf-capturing .mode-chooser{display:none !important;}
   body.pdf-capturing .items-manager{display:none !important;}
-  body.pdf-capturing .sign-link-copy-wrap{display:none !important;}
-  /* 🔧 2026-08-26: نفس منطق الطباعة فوق - جوا ملف الـPDF المحفوظ/المبعوت بدنا صندوق التوقيع فاضي بدون QR ولا نص، بس عنوان "توقيع الزبون" الثابت يضل ظاهر. */
+  /* 🔧 2026-08-26: جوا ملف الـPDF المحفوظ/المبعوت (body.pdf-capturing) بدنا صندوق QR/النص يضل مخفي
+     (بدون رمز QR ولا نص "امسح رمز QR")، بس زر "🖊️ اضغط للتوقيع" هلق بيضل ظاهر عمدًا هون (بعكس
+     .sign-link-copy-wrap يلي كنا عم نخفيه بالكامل قبل هيك) - لأنو منضيف رابط PDF حقيقي قابل للضغط
+     فوق نفس مكانه بعد الالتقاط (شوف saveToGoogleDriveInner، بعد worker.toPdf()) - فلازم يضل مرسوم
+     بالصورة حتى الزبون يعرف وين يضغط. بالطباعة الورقية الحقيقية (@media print) الزر يضل مخفي زي
+     ما هو، لأنو ورقة مطبوعة مستحيل تكون قابلة للضغط أصلًا - هناك التوقيع بالقلم مباشرة.
+  */
   body.pdf-capturing .client-sign-box img, body.pdf-capturing .client-sign-box .csb-hint{ display:none !important; }
   /* عرض ثابت صارم بحجم A4 (900px) بدل max-width - وقص أي محتوى داخلي بيحاول يتمدد أعرض من الصفحة، حتى ما ينزاح شي عن حدود الورقة وقت الالتقاط */
   body.pdf-capturing .page{box-shadow:none !important; padding:14px 18px !important; width:900px !important; max-width:900px !important; min-width:900px !important; overflow-x:hidden !important; box-sizing:border-box !important;}
@@ -3813,6 +3818,7 @@ async function saveToGoogleDriveInner(){
     const onePageHeightPx = pdfTargetWidthPx * (297 / 210); // نسبة صفحة A4 (ارتفاع/عرض) - قيمة ثابتة مضمونة، ما بتعتمد على أي حساب داخلي بمكتبة html2pdf.js
     const manualPageBreakEls = Array.from(pageEl.querySelectorAll('.page-break-before'));
     const manualPageBreakSpacers = [];
+    let signLinkRectForPdf = null; // 🔍 موقع زر "اضغط للتوقيع" بالنسبة لـ.page - منستخدمه بعدين لإضافة رابط PDF حقيقي فوق مكانه
 
     let pdfBlob;
     try{
@@ -3832,6 +3838,31 @@ async function saveToGoogleDriveInner(){
           el.classList.remove('page-break-before'); // منعًا لتكرار الفاصل من مكتبة html2pdf.js نفسها
         });
         console.log('[PDF Debug] فواصل الصفحات اليدوية: ارتفاع الصفحة =', onePageHeightPx.toFixed(1) + 'px', '| عدد الفواصل المركّبة =', manualPageBreakSpacers.length);
+        // 🔧 2026-08-26: منقيس موقع زر "اضغط للتوقيع" هون - بعد ما ركّبنا فواصل الصفحات اليدوية فوق
+        // (حتى الموقع يكون صحيح لو الزر انزاح لصفحة تانية بسببهم)، وقبل أي تعديل تاني عالـDOM.
+        // منسجل رقم الصفحة (0-index) وموقعه/حجمه بالبكسل *داخل* هاي الصفحة تحديدًا - لأنو
+        // getBoundingClientRect() عالزر مباشرة رح يرجع نفس القيمة سواء كان الزر بالصفحة الأولى أو
+        // العاشرة (منطقي، الصفحات مش فعليًا منفصلة بالـDOM - كلها امتداد واحد طويل)، فلازم نحسب
+        // "الموقع داخل صفحته" يدويًا (باقي القسمة على ارتفاع الصفحة الواحدة onePageHeightPx).
+        try{
+          const btnEl = document.getElementById('openSignLinkBtn');
+          if(btnEl){
+            const btnRect = btnEl.getBoundingClientRect();
+            const btnTopInPageFlow = btnRect.top - pageTopPx; // موقعه بالامتداد الطويل الكامل لكل الصفحات وراء بعض
+            const pageIndex = Math.floor(btnTopInPageFlow / onePageHeightPx); // 0 = أول صفحة PDF
+            const btnTopWithinPdfPage = btnTopInPageFlow - (pageIndex * onePageHeightPx);
+            signLinkRectForPdf = {
+              pageIndex,
+              topPx: btnTopWithinPdfPage,
+              leftPx: btnRect.left - pageEl.getBoundingClientRect().left,
+              widthPx: btnRect.width,
+              heightPx: btnRect.height
+            };
+            console.log('[PDF Debug] موقع زر التوقيع داخل PDF:', signLinkRectForPdf);
+          } else {
+            console.warn('[PDF Debug] ما لقينا زر "اضغط للتوقيع" (openSignLinkBtn) بالـDOM - رح يطلع الـPDF من غير رابط قابل للضغط.');
+          }
+        }catch(e){ console.warn('[PDF Debug] تعذّر قياس موقع زر التوقيع:', e); signLinkRectForPdf = null; }
       }catch(e){ console.warn('[PDF Debug] تعذّر حساب فواصل الصفحات اليدوية (رح تعتمد الصفحة على حساب html2pdf.js الافتراضي):', e); }
 
       // ملاحظة: شلنا x/y/windowWidth/width من إعدادات html2canvas تحت - لأنه لما تكون
@@ -3972,7 +4003,36 @@ async function saveToGoogleDriveInner(){
         }
       }
 
-      pdfBlob = await worker.toPdf().outputPdf('blob');
+      await worker.toPdf();
+      // 🔧 2026-08-26: منضيف رابط PDF حقيقي قابل للضغط (link annotation) فوق مكان زر "اضغط للتوقيع"
+      // بالضبط - مش صورة بس متل باقي محتوى الصفحة. jsPDF بتدعم هيك عبر pdf.link(x,y,w,h,{url}) على
+      // إحداثيات الصفحة بوحدة مم. لو انفتح ملف الـPDF رقميًا (موبايل/كمبيوتر) وضغط الزبون بمكان الزر
+      // المرسوم، رح تنفتحله صفحة التوقيع مباشرة - حتى لو الملف صورة مسطّحة بالأساس. هاد ما بأثر إطلاقًا
+      // على المحتوى المرسوم نفسه (بس بضيف طبقة رابط غير مرئية فوقه)، وإذا فشل لأي سبب منكمل عادي
+      // بدون ما نكسر عملية الحفظ (الرابط مجرد إضافة، مش أساسي لنجاح الحفظ).
+      try{
+        const pdfObj = worker.prop && worker.prop.pdf;
+        if(pdfObj && signLinkRectForPdf){
+          const mmPerPx = 210 / pdfTargetWidthPx; // 210مم = عرض صفحة A4 الحقيقي بعد ما jsPDF بيصغّر/يلائم اللقطة الكاملة لعرضها
+          const ref = (document.getElementById('m-ref')?.value || '').trim().replace(/\s+/g,'');
+          if(ref){
+            const token = ensureSignToken(ref);
+            const signUrl = buildSignUrl(ref, token);
+            const linkX = signLinkRectForPdf.leftPx * mmPerPx;
+            const linkY = signLinkRectForPdf.topPx * mmPerPx;
+            const linkW = signLinkRectForPdf.widthPx * mmPerPx;
+            const linkH = signLinkRectForPdf.heightPx * mmPerPx;
+            const totalPdfPages = (typeof pdfObj.getNumberOfPages === 'function') ? pdfObj.getNumberOfPages() : 1;
+            const targetPage = Math.min(signLinkRectForPdf.pageIndex + 1, totalPdfPages); // jsPDF صفحاتها 1-index
+            pdfObj.setPage(targetPage);
+            pdfObj.link(linkX, linkY, linkW, linkH, { url: signUrl });
+            console.log('[PDF Debug] ✅ تمت إضافة رابط PDF حقيقي قابل للضغط فوق زر التوقيع - صفحة:', targetPage, '| إحداثيات (مم):', {x:linkX.toFixed(1), y:linkY.toFixed(1), w:linkW.toFixed(1), h:linkH.toFixed(1)});
+          } else {
+            console.warn('[PDF Debug] ما ضفنا رابط قابل للضغط بالـPDF - لازم رقم مرجعي (Reference) أول.');
+          }
+        }
+      }catch(e){ console.warn('[PDF Debug] تعذّر إضافة رابط قابل للضغط فوق زر التوقيع (الـPDF رح يكمل يتحفظ عادي بدون الرابط):', e); }
+      pdfBlob = await worker.outputPdf('blob');
     } finally {
       // نرجّع .page الحقيقية لحالتها الأصلية قبل الالتقاط - نشيل الفواصل اليدوية ونرجّع الكلاس
       manualPageBreakSpacers.forEach(sp=>{ if(sp.parentNode) sp.parentNode.removeChild(sp); });
