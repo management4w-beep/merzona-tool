@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-24.7';
+  var CURRENT_VERSION = '2026-08-25.1';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2972,6 +2972,11 @@ function captureFullQuotationData(){
     const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
     if(exported){ data.designItems = exported.items; data.designNextId = exported.nextId; }
   }catch(e){}
+  // 🔧 2026-08-25: نحفظ القيمة الإجمالية كرقم صريح هون كمان (مش بس داخل جدول العرض) - الداشبورد
+  // كان يضطر يخمّن القيمة الإجمالية بقراءة نص ملف HTML المخبوز وبحث عن "AED" جنب رقم، وهاي الطريقة
+  // كانت ممكن تلتقط رقم غلط تمامًا لو صادف نص "AED" جنب رقم بمكان تاني بالصفحة (مثلاً بالغلط جوا
+  // ترميز base64 لصورة الشعار). هلق بنحط الرقم الصحيح هون صراحة، فالداشبورد بياخده مباشرة بدون تخمين.
+  try{ data.grandTotal = parseFloat((document.getElementById('sum-grand')?.textContent || '0').replace(/,/g,'')) || 0; }catch(e){}
   return data;
 }
 

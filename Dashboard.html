@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-24.9';
+  var CURRENT_VERSION = '2026-08-25.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2601,6 +2601,12 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
         const text = await downloadDriveFileText(token, jsonFile.id);
         const parsed = JSON.parse(text);
         fields = parsed.fields || {};
+        // 🔧 2026-08-25: ملفات JSON الجديدة (بعد التصليح) فيها القيمة الإجمالية محفوظة صراحة كرقم -
+        // أدق وأسرع بكتير من تخمينها بقراءة نص ملف HTML. لو موجودة ومنطقية (أكبر من صفر)، منستخدمها
+        // فورًا ومنتخطى قراءة ملف HTML للتخمين تمامًا.
+        if(parsed.grandTotal!=null && !isNaN(parsed.grandTotal) && parsed.grandTotal>0){
+          totalGuess = Math.round(parsed.grandTotal);
+        }
       }catch(e){ console.warn('[مطابقة الملفات] تعذّر قراءة ملف JSON لـ', refFolderName, e); }
     }
     if(htmlFile && (Object.keys(fields).length===0 || totalGuess==null)){
@@ -2610,7 +2616,9 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
           const extracted = extractQuotationDataFromHtmlText(htmlText);
           fields = extracted.fields || {};
         }
-        totalGuess = parseTotalValueFromText(htmlText);
+        // منحاول التخمين من نص HTML بس لو ما وصلتنا قيمة أدق من ملف JSON فوق (غالبًا عروض قديمة
+        // اتحفظت قبل ما نضيف grandTotal الصريح لملف JSON).
+        if(totalGuess==null) totalGuess = parseTotalValueFromText(htmlText);
       }catch(e){ console.warn('[مطابقة الملفات] تعذّر قراءة ملف HTML لـ', refFolderName, e); }
     }
     const linkFile = htmlFile || jsonFile;
@@ -2695,11 +2703,37 @@ async function reconcileWithDrive(silent){
       results.filter(Boolean).forEach(r=>{ discovered[r.ref] = r; addedCount++; });
       setStatus('عم نجيب التفاصيل... ('+Math.min(i+BATCH, toCheck.length)+'/'+toCheck.length+')');
     }
+
+    // 🔧 2026-08-25: تصحيح تلقائي لعروض أسعار مكتشفة سابقًا انحفظت بقيمة إجمالية غلط (7 بالضبط) -
+    // هاي كانت نتيجة هفوة قديمة بطريقة تخمين القيمة من ملف HTML (شوف parseTotalValueFromText) كانت
+    // ممكن تلتقط رقم عشوائي غلط. 7 درهم مستحيل تكون قيمة عرض سعر حقيقي، فآمنين نعتبرها علامة عطل
+    // ونعيد استخراج القيمة الصحيحة من جديد بالطريقة المصححة (تلقائيًا، بدون ما يحتاج حمدي يعمل شي).
+    const toRepair = [];
+    Object.keys(discovered).forEach(r=>{
+      const d = discovered[r];
+      if(d && d.source==='drive-scan' && d.total===7){
+        const match = refEntries.find(e=> e.refFolderName === (d.refFolderName || d.ref));
+        if(match) toRepair.push(match);
+      }
+    });
+    let repairedCount = 0;
+    for(let i=0;i<toRepair.length;i+=BATCH){
+      const batch = toRepair.slice(i, i+BATCH);
+      const results = await Promise.all(batch.map(e=> extractQuotationSummaryFromFolder(token, e)));
+      results.filter(Boolean).forEach(r=>{
+        discovered[r.ref] = r;
+        const existing = DATA.find(x=> stripRefSpaces(x.ref)===stripRefSpaces(r.ref));
+        if(existing) Object.assign(existing, r);
+        repairedCount++;
+      });
+    }
+
     saveDiscoveredQuotations(discovered);
     const mergedNow = mergeDiscoveredIntoData();
-    if(addedCount>0 || removedCount>0) render();
+    if(addedCount>0 || removedCount>0 || repairedCount>0) render();
     const incompleteNote = scanResult.hadErrors ? ' ⚠️ (الفحص كان ناقص - تعذّر الوصول لمجلد سنة وحدة أو أكتر، جرّب المطابقة تاني بعد شوي)' : '';
-    setStatus('✅ خلصنا! ضفنا '+addedCount+' عرض سعر جديد وحذفنا '+removedCount+' اتحذف مجلده من جوجل درايف (من أصل '+refEntries.length+' مجلد) - '+mergedNow+' منهم ظاهرين هلق بالداشبورد.'+incompleteNote);
+    const repairedNote = repairedCount>0 ? ' وصلّحنا '+repairedCount+' عرض سعر كانت قيمته الإجمالية غلط.' : '';
+    setStatus('✅ خلصنا! ضفنا '+addedCount+' عرض سعر جديد وحذفنا '+removedCount+' اتحذف مجلده من جوجل درايف (من أصل '+refEntries.length+' مجلد) - '+mergedNow+' منهم ظاهرين هلق بالداشبورد.'+repairedNote+incompleteNote);
     localStorage.setItem('merzona_last_reconcile_at', String(Date.now()));
   }catch(err){
     if(silent){ console.warn('[مطابقة الملفات] فشلت المطابقة التلقائية بالخلفية:', err && err.message); }
@@ -3130,6 +3164,16 @@ function parsePaymentsFromText(fullText){
   return null;
 }
 function parseTotalValueFromText(fullText){
+  // 🔧 2026-08-25: أدق طريقة أولاً - لو النص هو ملف HTML مخبوز لعرض سعر ميرزونا نفسه (مو نص PDF
+  // عقد)، القيمة الإجمالية دايمًا مكتوبة بالضبط جوا <td id="sum-grand">...</td> بدون كلمة AED جنبها.
+  // اكتشفنا إنه طريقة "AED + رقم" تحت كانت ممكن تلتقط رقم غلط تمامًا (مثلاً 7) لو صادف نص "AED"
+  // متبوعة برقم بمكان تاني بالصفحة بالغلط - زي جوا كود base64 لصورة شعار مضمّنة بالصفحة، ما إلها
+  // ولا علاقة بالقيمة الإجمالية. هاد الفحص مضمون - ما بينطبق إلا لو لقى فعلًا id="sum-grand" الحقيقي.
+  const sumGrandMatch = fullText.match(/id=["']sum-grand["'][^>]*>\s*([\d,]+(?:\.\d+)?)/i);
+  if(sumGrandMatch){
+    const n = parseFloat(sumGrandMatch[1].replace(/,/g,''));
+    if(!isNaN(n) && n>0) return Math.round(n);
+  }
   // نفس ملاحظة parsePaymentsFromText: القرب النصي من التسمية مش موثوق دايمًا. الطريقة الأوثق:
   // كل قيمة مكتوبة بصيغة "AED <رقم>" بقوالب عروض الأسعار هي إجمالي (سعر أساسي/ضريبة/إجمالي
   // مع ضريبة) - أسعار بنود الجدول مكتوبة بدون كلمة AED. فأكبر قيمة AED بالمستند هي الإجمالي
