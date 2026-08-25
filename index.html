@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-25.2';
+  var CURRENT_VERSION = '2026-08-25.3';
   var TOOL_KEY = 'index';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -564,16 +564,22 @@
     color:var(--muted);
   }
   .client-sign-box{
-    min-height:110px;
+    /* 🔧 2026-08-25: لازم يضل نفس ارتفاع الصندوق الفاضي القديم بالضبط (110px) مهما كان المحتوى -
+       "min-height" (يلي كان مستخدم قبل) بيسمح للصندوق يكبر أكتر من هيك لو المحتوى طويل (كان صاير
+       بالضبط هيك مع نص الرابط الطويل تحت)، وهيك بيكبّر ارتفاع الفوتر كامل عن يلي كان عليه أصلاً
+       وقت ما اتصلّحت مشكلة قصّ/تقطيع صفحة الـPDF قبل هيك - فبترجع نفس المشكلة. "height" + "overflow:hidden"
+       بيضمنوا الصندوق يضل بنفس المساحة تمامًا دايمًا، بغض النظر عن أي محتوى جوّاه. */
+    height:110px;
+    overflow:hidden;
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    gap:4px;
+    gap:5px;
   }
   .client-sign-box img{
-    width:78px;
-    height:78px;
+    width:64px;
+    height:64px;
     display:block;
   }
   .client-sign-box .csb-hint{
@@ -581,13 +587,6 @@
     font-size:10.5px;
     line-height:1.4;
     color:var(--muted);
-  }
-  .client-sign-box .csb-link{
-    font-family:'JetBrains Mono',monospace;
-    font-size:9px;
-    word-break:break-all;
-    color:var(--main,#A15C1E);
-    text-decoration:none;
   }
   .client-sign-box.csb-signed .csb-hint{ color:#1a7a3a; font-weight:600; }
   .contact-strip{
@@ -3257,7 +3256,7 @@ function renderClientSignBox(){
   const ref = (document.getElementById('m-ref')?.value || '').trim().replace(/\s+/g,'');
   if(!ref || typeof qrcode === 'undefined'){
     box.classList.remove('csb-signed');
-    box.innerHTML = '<div style="height:110px;"></div>';
+    box.innerHTML = '';
     return;
   }
   const token = ensureSignToken(ref);
@@ -3269,10 +3268,11 @@ function renderClientSignBox(){
     qr.make();
     dataUrl = qr.createDataURL(4, 0);
   }catch(e){ console.warn('[توقيع إلكتروني] تعذّر توليد رمز QR:', e); }
+  // 🔧 2026-08-25: شلنا نص الرابط الكامل من هون (كان بيطوّل الصندوق أكتر من 110px وبيرجّع مشكلة
+  // قصّ صفحة الـPDF) - رمز QR وحده كافي للمسح/الفتح، والرابط أصلاً مش قابل للضغط أو النسخ جوا PDF مسطّح.
   box.innerHTML =
     (dataUrl ? '<img src="'+dataUrl+'" alt="QR">' : '') +
-    '<div class="csb-hint">📲 اضغط أو امسح للتوقيع الإلكتروني<br>Tap or scan to sign electronically</div>' +
-    '<a class="csb-link" href="'+url+'" target="_blank" rel="noopener">'+url+'</a>';
+    '<div class="csb-hint">📲 امسح رمز QR للتوقيع الإلكتروني<br>Scan the QR code to sign electronically</div>';
 }
 window.renderClientSignBox = renderClientSignBox;
 
