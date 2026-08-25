@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.1';
+  var CURRENT_VERSION = '2026-08-28.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -3007,7 +3007,10 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
       // اسم مجلد جوجل درايف الفعلي (ممكن يختلف شوي عن ref لو الرقم المرجعي تغيّر بعد إنشاء المجلد) -
       // محفوظ هون تحديدًا حتى نقدر نتأكد لاحقًا هل هالمجلد لسا موجود فعليًا بجوجل درايف (شوف
       // pruneDeletedDiscoveredQuotations تحت) أو انحذف، بدل ما نعتمد على ref يلي ممكن يكون تغيّر.
-      refFolderName: refFolderName
+      refFolderName: refFolderName,
+      // 🔧 2026-08-28: id مجلد جوجل درايف الفعلي وقت هالفحص - محفوظ حتى نقدر نكتشف لاحقًا لو تغيّر
+      // (شوف الفحص الجديد بـreconcileWithDrive تحت - باغ "الرقم المرجعي المُعاد استخدامه").
+      refFolderId: refFolderId
     };
   }catch(e){
     console.warn('[مطابقة الملفات] تعذّر فحص مجلد', refFolderName, e);
@@ -3066,9 +3069,30 @@ async function reconcileWithDrive(silent){
     const existingRefs = new Set(DATA.map(d=>d.ref));
     const discovered = loadDiscoveredQuotations();
     Object.keys(discovered).forEach(r=> existingRefs.add(r));
-    const toCheck = refEntries.filter(e=> !existingRefs.has(e.refFolderName));
+    const newRefs = refEntries.filter(e=> !existingRefs.has(e.refFolderName));
 
-    setStatus('لقينا '+refEntries.length+' مجلد عرض سعر بجوجل درايف - '+toCheck.length+' منهم مش ظاهرين بالداشبورد. عم نجيبلهن التفاصيل...');
+    // 🔧 2026-08-28: باغ "الرقم المرجعي المُعاد استخدامه" - لو حمدي حذف مجلد عرض سعر يدويًا من
+    // جوجل درايف نفسها (مش عبر زر الحذف بالأداة)، وبعدين أنشأ عرض سعر جديد بنفس الرقم المرجعي،
+    // جوجل درايف بتنشئ مجلد جديد كليًا (id مختلف) بنفس الاسم بالضبط. بما إنه الرقم المرجعي "معروف"
+    // أصلًا (موجود بـdiscovered من المرة الأولى)، كان عم ينستثنى فوق من toCheck فما كان ينجلب
+    // تفاصيله من جديد أبدًا - فيضل الملخص القديم (يمكن كان فاضي أو لعرض سعر انحذف بالكامل) عالق
+    // للأبد بالداشبورد حتى لو العرض الجديد الكامل موجود فعليًا بجوجل درايف. هلق منقارن id المجلد
+    // الحالي بجوجل درايف مع id المجلد المحفوظ وقت آخر فحص - لو مختلفين، أكيد صار استبدال المجلد
+    // ولازم نعيد جلب التفاصيل من الصفر (نفس منطق Bug A بـmergeDiscoveredIntoData يلي بيسمح بعدين
+    // بتحديث الصف بالداشبورد من هالبيانات الطازة).
+    // ملاحظة: عروض أسعار "مكتشفة" قديمة (قبل ما نضيف حفظ refFolderId فوق) رح يكون d.refFolderId
+    // فيها undefined - هيك بيدخلوا هون تلقائيًا مرة وحدة بس (أول مطابقة بعد هالتحديث) حتى يلحقوا
+    // id المجلد الصحيح ويصير ممكن كشف إعادة الاستخدام فيهن كمان بالمستقبل. تكلفة لمرة وحدة بس.
+    const staleReused = refEntries.filter(e=>{
+      const d = discovered[e.refFolderName];
+      return d && d.source==='drive-scan' && d.refFolderId !== e.refFolderId;
+    });
+    if(staleReused.length>0){
+      console.info('[مطابقة الملفات] لقينا '+staleReused.length+' رقم مرجعي معاد استخدامه (مجلد جديد بنفس الاسم بجوجل درايف) - عم نعيد جلب بياناته من الصفر:', staleReused.map(e=>e.refFolderName));
+    }
+    const toCheck = newRefs.concat(staleReused);
+
+    setStatus('لقينا '+refEntries.length+' مجلد عرض سعر بجوجل درايف - '+toCheck.length+' منهم مش ظاهرين بالداشبورد أو محتاجين تحديث. عم نجيبلهن التفاصيل...');
 
     // منعالج على دفعات صغيرة حتى ما نفتح مئات الطلبات لجوجل درايف دفعة وحدة
     const BATCH = 5;
