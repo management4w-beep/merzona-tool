@@ -16,7 +16,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.3';
+  var CURRENT_VERSION = '2026-08-28.4';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -256,7 +256,7 @@
 <!-- ===== MERZONA ACCESS GATE - END ===== -->
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>لوحة إحصائيات ميرزونا</title>
+<title>Merzona</title>
 <link rel="preconnect" href="https://fonts.googleapis.com/">
 <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -4353,7 +4353,7 @@ function openSettlementForContract(ref){
 }
 document.getElementById('settlementBackBtn').addEventListener('click', ()=>{ showContractsView(); });
 // اسم الملف اللي المتصفح بيقترحه لما تحفظ الشهادة كـPDF من نافذة الطباعة بيجي من document.title -
-// وبما إنو الصفحة كلها عنوانها الثابت "لوحة إحصائيات ميرزونا"، كل شهادة كانت عم تطلع بنفس هالاسم
+// وبما إنو الصفحة كلها عنوانها الثابت "Merzona"، كل شهادة كانت عم تطلع بنفس هالاسم
 // العام بدل اسمها الخاص فيها. هون منولّد عنوان خاص بالشهادة (النوع + الرقم المرجعي + اسم الزبون)
 // قبل الطباعة مباشرة، ومنرجّع العنوان الأصلي بعدها.
 function buildSettlementDocTitle(){
