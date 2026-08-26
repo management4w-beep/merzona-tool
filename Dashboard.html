@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.7';
+  var CURRENT_VERSION = '2026-08-28.9';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2368,8 +2368,29 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
   var usersBtn = document.getElementById('usersTabBtn');
   if(usersBtn) usersBtn.style.display = allowed('manageUsers') ? '' : 'none';
 
-  // 🆕 تفصيل أدق جوا "اللوحة الرئيسية" نفسها - كل قسم (أرقام سريعة/دفعات متوقعة/رسم بياني/سجل
-  // العروض) إلو صلاحية مستقلة، حتى لو المستخدم مسموحلو يفتح اللوحة الرئيسية أساسًا.
+  // 🆕 2026-08-26 (نسخة معدّلة حسب طلب حمدي): بدل ما نخفي أقسام اللوحة الرئيسية بالكامل (كان
+  // ممكن يحس إنو الداشبورد "خربانة" أو ناقصها شغلات)، هلق منسيب كل قسم بمكانه وبنفس شكل الداشبورد
+  // العادي - بس منغطي محتواه (الأرقام/البيانات الفعلية) برسالة "🔒 محجوب" فوقه. يعني الشكل العام
+  // للداشبورد ثابت لأي مستخدم، والصلاحيات بس بتتحكم بالبيانات الحساسة يلي بتظهر أو لأ.
+  function mzBlankSection(el, message){
+    if(!el) return;
+    if(getComputedStyle(el).position === 'static'){ el.style.position = 'relative'; }
+    if(el.querySelector('.mz-blank-overlay')) return; // محجوب أصلاً - ما منكرر الطبقة
+    var ov = document.createElement('div');
+    ov.className = 'mz-blank-overlay';
+    ov.style.cssText = 'position:absolute;inset:0;background:var(--panel,#fff);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;text-align:center;padding:14px;z-index:5;border-radius:inherit;';
+    ov.textContent = message || '🔒 ما عندك صلاحية تشوف بيانات هالقسم';
+    el.appendChild(ov);
+  }
+  function mzUnblankSection(el){
+    if(!el) return;
+    var ov = el.querySelector('.mz-blank-overlay');
+    if(ov) ov.remove();
+  }
+
+  // تفصيل أدق جوا "اللوحة الرئيسية" نفسها - كل قسم (أرقام سريعة/دفعات متوقعة/رسم بياني/سجل
+  // العروض) إلو صلاحية مستقلة. لو dashboardHome نفسها ممنوعة، منعتبر الأربعة ممنوعين تلقائيًا
+  // (بس اللوحة الرئيسية نفسها تضل تبويب عادي مفتوح - بس فاضية من جوا).
   var homeSectionsMap = {
     dashKpisSection: 'dashKpis',
     dashExpectedPaymentsSection: 'dashExpectedPayments',
@@ -2378,33 +2399,13 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
   };
   Object.keys(homeSectionsMap).forEach(function(id){
     var el = document.getElementById(id);
-    if(el) el.style.display = allowed(homeSectionsMap[id]) ? '' : 'none';
+    if(!el) return;
+    if(allowed('dashboardHome') && allowed(homeSectionsMap[id])){
+      mzUnblankSection(el);
+    } else {
+      mzBlankSection(el);
+    }
   });
-
-  // 🆕 2026-08-26: "اللوحة الرئيسية" (الإحصائيات المالية والرسم البياني وسجل العروض) فيها
-  // معلومات حساسة - صلاحيتها (dashboardHome) منفصلة عن باقي التبويبات. لو ممنوعة عن هالمستخدم،
-  // منخفي تبويبها ومنفتحلو أول تبويب تاني مسموح إلو بدلها بدل ما يشوف الشاشة الحساسة افتراضيًا.
-  var homeBtn = document.getElementById('homeTabBtn');
-  if(!allowed('dashboardHome')){
-    if(homeBtn) homeBtn.style.display = 'none';
-    document.getElementById('dashboardView').style.display = 'none';
-    var fallbacks = [
-      ['quotation', function(){ showQuotationView(); }],
-      ['procurement', function(){ showProcurementView(); }],
-      ['contracts', function(){ showContractsView(); }],
-      ['pmp', function(){ showPmpView(); }],
-    ];
-    var opened = false;
-    for(var i=0;i<fallbacks.length;i++){
-      if(allowed(fallbacks[i][0])){ fallbacks[i][1](); opened = true; break; }
-    }
-    if(!opened){
-      document.getElementById('usersView').insertAdjacentHTML('beforebegin',
-        '<div id="mzNoAccessMsg" style="padding:60px 20px;text-align:center;color:var(--muted);font-family:Tahoma,Arial,sans-serif;">ما عندك صلاحية توصل لأي قسم بهالأداة حاليًا. تواصل مع الإدارة.</div>');
-    }
-  } else if(homeBtn){
-    homeBtn.style.display = '';
-  }
 };
 
 function buildBackupPayload(){
@@ -3102,6 +3103,9 @@ async function deleteQuotationByRef(ref, btnEl){
     saveDiscoveredTombstones(tombstones);
 
     render();
+    // 🆕 2026-08-26: مطابقة فورية وصامتة مع جوجل درايف بعد أي حذف - حتى تثبت البيانات الجديدة
+    // (تأكيد إنو الحذف انعكس فعليًا) بدل ما تنتظر أول مطابقة تلقائية دورية أو ضغطة زر يدوية.
+    reconcileWithDrive(true);
   }catch(e){
     console.error('[حذف عرض سعر] فشل:', e);
     alert('تعذّر حذف عرض السعر: '+(e && e.message ? e.message : 'خطأ غير معروف') + '\n\nتأكد إنك مسجّل دخول بجوجل وجرب كمان مرة.');
@@ -4550,6 +4554,10 @@ function renderContractsList(){
         document.getElementById('contractSummary').textContent = '';
       }
       renderContractsList();
+      // 🆕 2026-08-26: مطابقة فورية وصامتة مع جوجل درايف بعد حذف عقد كمان - نفس منطق حذف عروض
+      // الأسعار، حتى تثبت البيانات الجديدة عند كل الفريق بأسرع وقت (بالإضافة لرفع مزامنة الفريق
+      // العادي يلي أصلاً بيصير تلقائيًا من saveContracts()).
+      reconcileWithDrive(true);
     });
   });
   tbody.querySelectorAll('[data-settlement-ref]').forEach(btn=>{
