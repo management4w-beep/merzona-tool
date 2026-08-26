@@ -7,16 +7,25 @@
 (function(){
   // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
   var ACCESS_SERVER_URL = 'https://merzona-server-production.up.railway.app';
+  // متاح لباقي كود الصفحة (خارج نطاق هالدالة المغلّفة) - يستخدمها تبويب "المستخدمين" بالأسفل
+  // حتى ما نكرر نفس الرابط بمكانين ونخاطر يصير بينهم اختلاف بالمستقبل.
+  try{ window.MERZONA_ACCESS_SERVER_URL = ACCESS_SERVER_URL; }catch(e){}
 
   var DEVICE_KEY = 'merzona-device-token';
   var STATUS_KEY = 'merzona-access-status';
+  // 🆕 2026-08-26: طبقة حسابات المستخدمين (يوزرنيم/باسوورد) فوق موافقة الواتساب. TOOL_PERMISSION_KEY
+  // بيحدد شو اسم الصلاحية يلي هالملف بالذات لازم يتحقق منها (نفس مفاتيح PERMISSION_KEYS بالسيرفر) -
+  // لازم يبقى 'dashboard' هون بالضبط (بملف Dashboard.html)، وبملفات index.html/procurement.html
+  // القيمة المكافئة هي 'quotation'/'procurement' على التوالي.
+  var SESSION_KEY = 'merzona-session-token';
+  var TOOL_PERMISSION_KEY = 'dashboard';
   var POLL_MS = 4000;
   var REVALIDATE_MS = 5 * 60 * 1000; // كل قد ايش نتأكد من السيرفر إنو الجهاز المعتمد لسا مسموح (يلتقط أي إلغاء وصول بسرعة معقولة حتى لو الصفحة ضلت مفتوحة)
 
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.4';
+  var CURRENT_VERSION = '2026-08-28.5';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -76,6 +85,162 @@
   function reveal(){
     var st = document.getElementById('mz-gate-style'); if(st) st.remove();
     var ov = document.getElementById('mz-gate-overlay'); if(ov) ov.remove();
+  }
+
+  // ============================================================================
+  // 🆕 2026-08-26: حسابات المستخدمين (يوزرنيم/باسوورد) - طبقة إضافية فوق موافقة الواتساب
+  // أعلاه. ما بتشتغل إلا بعد ما الجهاز يصير "approved". مسار المالك (#owner=) ما بيمرق من
+  // هون إطلاقًا - بيرجع reveal() مباشرة (شوف init() تحت).
+  // ============================================================================
+  function getSessionToken(){
+    try{ return localStorage.getItem(SESSION_KEY); }catch(e){ return null; }
+  }
+  function setSessionToken(t){
+    try{ localStorage.setItem(SESSION_KEY, t); }catch(e){}
+  }
+
+  // متل api() تمامًا بس ما بترمي خطأ عالحالات 4xx/5xx - بترجع نفس جسم JSON يلي بعتو السيرفر
+  // (فيه رسالة الخطأ بالعربي بحقل error) حتى نقدر نعرضها للمستخدم بدل رسالة عامة.
+  function apiUsers(path, opts){
+    return fetch(ACCESS_SERVER_URL + path, opts).then(function(r){
+      return r.json().catch(function(){ return {}; });
+    });
+  }
+
+  function showBlockedNoPermission(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px;color:#e0554f">ما عندك صلاحية</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">حسابك مسموح بالدخول، بس ما عندك صلاحية لهاد الجزء تحديدًا. تواصل مع الإدارة إذا حابب توصلها.</div>';
+  }
+
+  function proceedIfPermitted(permissions){
+    if(permissions && permissions[TOOL_PERMISSION_KEY]){
+      if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(permissions, false);
+      reveal();
+    } else {
+      showBlockedNoPermission();
+    }
+  }
+
+  function showAccountError(box, msg){
+    var err = box.querySelector('#mz-acct-err');
+    if(err) err.textContent = msg || 'صار في خطأ - جرب كمان شوي';
+  }
+
+  function showCreateAccountForm(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">آخر خطوة - أنشئ حسابك 🔐</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اختار اسم مستخدم وكلمة مرور خاصين فيك، رح تحتاجهم بالمرات الجاية</div>' +
+      '<input id="mz-acct-user" type="text" placeholder="اسم المستخدم" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass" type="password" placeholder="كلمة المرور (6 أحرف عالأقل)" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass2" type="password" placeholder="أعد كتابة كلمة المرور" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-acct-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">إنشاء الحساب</button>' +
+      '<div id="mz-acct-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-acct-btn');
+    var userInput = box.querySelector('#mz-acct-user');
+    var passInput = box.querySelector('#mz-acct-pass');
+    var pass2Input = box.querySelector('#mz-acct-pass2');
+    function submit(){
+      var username = (userInput.value || '').trim();
+      var password = passInput.value || '';
+      var password2 = pass2Input.value || '';
+      if(!username || username.length < 2){ showAccountError(box, 'اكتب اسم مستخدم صحيح'); return; }
+      if(password.length < 6){ showAccountError(box, 'كلمة المرور لازم تكون 6 أحرف عالأقل'); return; }
+      if(password !== password2){ showAccountError(box, 'كلمتا المرور مش متطابقتين'); return; }
+      btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
+      apiUsers('/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, username: username, password: password })
+      }).then(function(r){
+        if(r && r.token){
+          setSessionToken(r.token);
+          proceedIfPermitted(r.permissions);
+        } else {
+          btn.disabled = false; btn.textContent = 'إنشاء الحساب';
+          showAccountError(box, (r && r.error) || 'صار في خطأ');
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'إنشاء الحساب';
+        showAccountError(box, 'تعذر الاتصال بالسيرفر');
+      });
+    }
+    btn.addEventListener('click', submit);
+    pass2Input.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ userInput.focus(); }, 50);
+  }
+
+  function showLoginForm(deviceToken, prefillUsername){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    var safePrefill = prefillUsername ? String(prefillUsername).replace(/"/g,'&quot;') : '';
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">سجّل الدخول 🔐</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اكتب اسم المستخدم وكلمة المرور يلي أنشأتهم قبل هيك</div>' +
+      '<input id="mz-acct-user" type="text" placeholder="اسم المستخدم" value="' + safePrefill + '" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass" type="password" placeholder="كلمة المرور" autocomplete="current-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-acct-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">دخول</button>' +
+      '<div id="mz-acct-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-acct-btn');
+    var userInput = box.querySelector('#mz-acct-user');
+    var passInput = box.querySelector('#mz-acct-pass');
+    function submit(){
+      var username = (userInput.value || '').trim();
+      var password = passInput.value || '';
+      if(!username || !password){ showAccountError(box, 'عبي الاسم وكلمة المرور'); return; }
+      btn.disabled = true; btn.textContent = 'جاري الدخول...';
+      apiUsers('/users/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      }).then(function(r){
+        if(r && r.token){
+          setSessionToken(r.token);
+          proceedIfPermitted(r.permissions);
+        } else {
+          btn.disabled = false; btn.textContent = 'دخول';
+          showAccountError(box, (r && r.error) || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'دخول';
+        showAccountError(box, 'تعذر الاتصال بالسيرفر');
+      });
+    }
+    btn.addEventListener('click', submit);
+    passInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ passInput.focus(); }, 50);
+  }
+
+  // هاد يلي بيستبدل استدعاءات reveal() المباشرة (ما عدا مسار المالك #owner=) - بيتحقق أول
+  // شي إذا الجهاز عملّو حساب يوزرنيم/باسوورد، وإذا لأ بيطلب منه ينشئ واحد قبل ما يفوت.
+  function revealWithAccountCheck(deviceToken){
+    apiUsers('/users/status?deviceToken=' + encodeURIComponent(deviceToken)).then(function(r){
+      if(r && r.isOwnerDevice){
+        // جهاز المالك المعتمد أصلاً (دخل قبل هيك عن طريق #owner=) - فوري وبدون أي حساب.
+        if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(null, true);
+        reveal();
+      } else if(r && r.hasAccount){
+        var token = getSessionToken();
+        if(!token){ showLoginForm(deviceToken, r.username); return; }
+        apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
+          if(me && me.permissions){ proceedIfPermitted(me.permissions); }
+          else { showLoginForm(deviceToken, r.username); }
+        }).catch(function(){ showLoginForm(deviceToken, r.username); });
+      } else if(r && r.hasAccount === false){
+        showCreateAccountForm(deviceToken);
+      } else {
+        // رد غير متوقع (مثلاً الجهاز مش approved من نظام الواتساب لأي سبب) - منكمل بالوضع
+        // القديم حتى ما حدا ينحبس برا الأداة بسبب ميزة جديدة.
+        if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(null, false);
+        reveal();
+      }
+    }).catch(function(){
+      if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(null, false);
+      reveal();
+    });
   }
 
   function getOwnerTokenFromHash(){
@@ -142,7 +307,7 @@
       }).then(function(r){
         if(r.status === 'approved'){
           try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
-          reveal();
+          revealWithAccountCheck(deviceToken);
         } else {
           showWaiting(deviceToken);
         }
@@ -167,7 +332,7 @@
         if(r.status === 'approved'){
           clearInterval(poll);
           try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
-          reveal();
+          revealWithAccountCheck(deviceToken);
         } else if(r.status === 'denied' || r.status === 'revoked'){
           clearInterval(poll);
           try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
@@ -209,6 +374,7 @@
         clearOwnerHash();
         if(r.status === 'approved'){
           try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(null, true);
           reveal();
         } else {
           showRequestForm(deviceToken);
@@ -218,7 +384,7 @@
     }
 
     if(cachedStatus === 'approved'){
-      reveal(); // نفتح فورًا (تفاؤلي)، وبنتأكد بالخلفية بشكل دوري إذا لسا الموافقة سارية
+      revealWithAccountCheck(deviceToken); // نفتح فورًا (تفاؤلي)، وبنتأكد بالخلفية بشكل دوري إذا لسا الموافقة سارية
       function revalidate(){
         api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
           if(r.status !== 'approved'){
@@ -235,7 +401,7 @@
     api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
       if(r.status === 'approved'){
         try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
-        reveal();
+        revealWithAccountCheck(deviceToken);
       } else if(r.status === 'pending'){
         showWaiting(deviceToken);
       } else {
@@ -720,6 +886,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="pmpTabBtn">🗓 جدول المشاريع</span>
         <span class="nav-pill" id="backupTabBtn">📦 نسخة احتياطية</span>
         <span class="nav-pill" id="syncStatusPill" title="مزامنة تلقائية مع جوجل درايف لكل الفريق - اضغط للربط أول مرة أو لإعادة المحاولة">🔄 مزامنة الفريق</span>
+        <span class="nav-pill" id="usersTabBtn" style="display:none;">👤 المستخدمين</span>
       </div>
       <div id="syncBanner">
         <span class="syncBannerText">👋 أول مرة بتفتح فيها الداشبورد؟ اضغط على "🔄 مزامنة الفريق" فوق حتى تربط حسابك بجوجل درايف - بعدها كل بيانات الفريق (العقود، جدول المشاريع...) بتنزامن تلقائيًا بدون أي تدخل منك.</span>
@@ -849,6 +1016,37 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     </div>
   </div>
 
+  </div>
+
+  <div id="usersView" style="display:none;padding:20px;max-width:900px;margin:0 auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+      <h2 style="margin:0;font-family:'DM Serif Text',Georgia,serif;color:var(--main);">👤 المستخدمين</h2>
+      <div style="font-size:12.5px;color:var(--muted);max-width:420px;">
+        كل مستخدم موافق عليه (بموافقة الواتساب) بينشئ حساب يوزرنيم/باسوورد أول ما يفتح الأداة. من هون فيك
+        تتحكم شو الأقسام يلي يقدر يشوفها كل حساب لحاله.
+      </div>
+    </div>
+    <div id="usersListStatus" style="font-size:13px;color:var(--muted);margin-bottom:10px;"></div>
+    <div class="table-wrap">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="text-align:right;border-bottom:1px solid var(--border,#333);">
+            <th style="padding:8px 6px;">المستخدم</th>
+            <th style="padding:8px 6px;">عرض أسعار</th>
+            <th style="padding:8px 6px;">مشتريات</th>
+            <th style="padding:8px 6px;">عقود</th>
+            <th style="padding:8px 6px;">مشاريع</th>
+            <th style="padding:8px 6px;">نسخة احتياطية</th>
+            <th style="padding:8px 6px;">ملفات</th>
+            <th style="padding:8px 6px;">مزامنة</th>
+            <th style="padding:8px 6px;">إدارة مستخدمين</th>
+            <th style="padding:8px 6px;">أدمن</th>
+            <th style="padding:8px 6px;">إجراءات</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <div id="contractsView" style="display:none;">
@@ -1838,11 +2036,13 @@ function hideAllViews(){
   document.getElementById('quotationView').style.display = 'none';
   document.getElementById('procurementView').style.display = 'none';
   document.getElementById('settlementView').style.display = 'none';
+  document.getElementById('usersView').style.display = 'none';
   document.getElementById('contractsTabBtn').classList.remove('active');
   document.getElementById('pmpTabBtn').classList.remove('active');
   document.getElementById('quotationTabBtn').classList.remove('active');
   document.getElementById('procurementTabBtn').classList.remove('active');
   document.getElementById('homeTabBtn').classList.remove('active');
+  document.getElementById('usersTabBtn').classList.remove('active');
   document.body.classList.remove('quotation-fullscreen'); // لو كنا بوضع الشاشة الكاملة ورجعنا لتبويب تاني، منرجّع الوضع العادي
   document.body.classList.remove('procurement-fullscreen');
 }
@@ -1995,6 +2195,169 @@ function closeBackupModal(){ document.getElementById('backupOverlay').classList.
 document.getElementById('backupTabBtn').addEventListener('click', openBackupModal);
 document.getElementById('backupCloseBtn').addEventListener('click', closeBackupModal);
 document.getElementById('backupOverlay').addEventListener('click', (e)=>{ if(e.target.id==='backupOverlay') closeBackupModal(); });
+
+// ============================================================================
+// 🆕 2026-08-26: تبويب "المستخدمين" - إدارة حسابات وصلاحيات المستخدمين (يوزرنيم/باسوورد)،
+// وميزة إظهار/إخفاء تبويبات النافبار حسب صلاحية كل مستخدم (بيستدعيها كود بوابة الدخول
+// بالـ<head> فور ما يتأكد من صلاحيات المستخدم الحالي - شوف window.applyMerzonaPermissions تحت).
+// ============================================================================
+const MERZONA_PERMISSION_COLUMNS = [
+  { key: 'quotation', label: 'عرض أسعار' },
+  { key: 'procurement', label: 'مشتريات' },
+  { key: 'contracts', label: 'عقود' },
+  { key: 'pmp', label: 'مشاريع' },
+  { key: 'backup', label: 'نسخة احتياطية' },
+  { key: 'files', label: 'ملفات' },
+  { key: 'teamSync', label: 'مزامنة' },
+  { key: 'manageUsers', label: 'إدارة مستخدمين' },
+];
+
+function merzonaServerUrl(){ return window.MERZONA_ACCESS_SERVER_URL || ''; }
+// عند نداء مسارات الإدارة، منبعت token (جلسة حساب عادي إلو صلاحية إدارة) و deviceToken (جهاز
+// المالك المعتمد) سوا - السيرفر بيجرب الاثنين وبيقبل أي واحد منهم يطابق.
+function merzonaAdminAuthQuery(){
+  var parts = [];
+  try{
+    var sessionToken = localStorage.getItem('merzona-session-token');
+    var deviceToken = localStorage.getItem('merzona-device-token');
+    if(sessionToken) parts.push('token=' + encodeURIComponent(sessionToken));
+    if(deviceToken) parts.push('deviceToken=' + encodeURIComponent(deviceToken));
+  }catch(e){}
+  return parts.join('&');
+}
+function merzonaAdminAuthBody(extra){
+  var body = Object.assign({}, extra || {});
+  try{
+    body.token = localStorage.getItem('merzona-session-token') || undefined;
+    body.deviceToken = localStorage.getItem('merzona-device-token') || undefined;
+  }catch(e){}
+  return body;
+}
+
+function showUsersView(){
+  hideAllViews();
+  document.getElementById('usersView').style.display = 'block';
+  document.getElementById('usersTabBtn').classList.add('active');
+  loadUsersTable();
+}
+
+function loadUsersTable(){
+  var statusEl = document.getElementById('usersListStatus');
+  var tbody = document.getElementById('usersTableBody');
+  statusEl.textContent = 'جاري التحميل...';
+  tbody.innerHTML = '';
+  var base = merzonaServerUrl();
+  if(!base){ statusEl.textContent = 'سيرفر الحسابات مش مضبوط.'; return; }
+  fetch(base + '/users/list?' + merzonaAdminAuthQuery())
+    .then(function(r){ return r.json().then(function(body){ body.__ok = r.ok; return body; }); })
+    .then(function(data){
+      if(!data.__ok || !data.users){
+        statusEl.textContent = data && data.error === 'unauthorized' ? 'ما عندك صلاحية تشوف هالتبويب.' : ((data && data.error) || 'صار في خطأ');
+        return;
+      }
+      statusEl.textContent = data.users.length + ' مستخدم';
+      renderUsersRows(data.users);
+    })
+    .catch(function(){ statusEl.textContent = 'تعذر الاتصال بالسيرفر'; });
+}
+
+function renderUsersRows(users){
+  var tbody = document.getElementById('usersTableBody');
+  tbody.innerHTML = users.map(function(u){
+    var key = u.key || u.username || '';
+    var isOwnerRow = !!u.isOwner;
+    var cols = MERZONA_PERMISSION_COLUMNS.map(function(col){
+      var checked = u.permissions && u.permissions[col.key] ? 'checked' : '';
+      var disabled = isOwnerRow ? 'disabled' : '';
+      return '<td style="text-align:center;padding:6px;"><input type="checkbox" data-perm="' + col.key + '" ' + checked + ' ' + disabled + ' /></td>';
+    }).join('');
+    var adminChecked = u.isAdmin ? 'checked' : '';
+    var adminDisabled = isOwnerRow ? 'disabled' : '';
+    var actions = isOwnerRow ? '<span style="color:var(--muted);font-size:12px;">المالك</span>' :
+      '<button class="mz-users-save" style="margin-inline-end:6px;">حفظ</button>' +
+      '<button class="mz-users-reset" style="margin-inline-end:6px;">تصفير كلمة السر</button>' +
+      '<button class="mz-users-delete" style="color:#c0392b;">حذف</button>';
+    return '<tr data-username="' + String(key).replace(/"/g,'&quot;') + '">' +
+      '<td style="padding:6px;font-weight:600;">' + (u.username || key) + (u.deviceName ? '<div style="font-size:11px;color:var(--muted);">' + u.deviceName + '</div>' : '') + '</td>' +
+      cols +
+      '<td style="text-align:center;padding:6px;"><input type="checkbox" class="mz-users-isadmin" ' + adminChecked + ' ' + adminDisabled + ' /></td>' +
+      '<td style="padding:6px;white-space:nowrap;">' + actions + '</td>' +
+      '</tr>';
+  }).join('') || '<tr><td colspan="11" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
+}
+
+document.getElementById('usersTableBody').addEventListener('click', function(e){
+  var row = e.target.closest('tr');
+  if(!row) return;
+  var username = row.getAttribute('data-username');
+  if(!username) return;
+  if(e.target.classList.contains('mz-users-save')){
+    var permissions = {};
+    MERZONA_PERMISSION_COLUMNS.forEach(function(col){
+      var cb = row.querySelector('input[data-perm="' + col.key + '"]');
+      permissions[col.key] = !!(cb && cb.checked);
+    });
+    var isAdminCb = row.querySelector('.mz-users-isadmin');
+    var isAdmin = !!(isAdminCb && isAdminCb.checked);
+    fetch(merzonaServerUrl() + '/users/permissions', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(merzonaAdminAuthBody({ username: username, permissions: permissions, isAdmin: isAdmin }))
+    }).then(function(r){ return r.json(); }).then(function(res){
+      if(res && res.ok){ document.getElementById('usersListStatus').textContent = 'تم الحفظ ✅'; }
+      else { alert((res && res.error) || 'صار خطأ بالحفظ'); }
+    }).catch(function(){ alert('تعذر الاتصال بالسيرفر'); });
+  } else if(e.target.classList.contains('mz-users-reset')){
+    if(!confirm('متأكد إنك بدك تصفّر كلمة سر "' + username + '"؟ رح يضطر ينشئ كلمة سر جديدة أول ما يفتح الأداة.')) return;
+    fetch(merzonaServerUrl() + '/users/reset-password', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(merzonaAdminAuthBody({ username: username }))
+    }).then(function(r){ return r.json(); }).then(function(res){
+      if(res && res.ok){ alert('تم تصفير كلمة السر'); } else { alert((res && res.error) || 'صار خطأ'); }
+    }).catch(function(){ alert('تعذر الاتصال بالسيرفر'); });
+  } else if(e.target.classList.contains('mz-users-delete')){
+    if(!confirm('متأكد إنك بدك تحذف حساب "' + username + '" نهائيًا؟')) return;
+    fetch(merzonaServerUrl() + '/users/delete', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(merzonaAdminAuthBody({ username: username }))
+    }).then(function(r){ return r.json(); }).then(function(res){
+      if(res && res.ok){ loadUsersTable(); } else { alert((res && res.error) || 'صار خطأ'); }
+    }).catch(function(){ alert('تعذر الاتصال بالسيرفر'); });
+  }
+});
+
+document.getElementById('usersTabBtn').addEventListener('click', ()=>{
+  const inUsers = document.getElementById('usersView').style.display !== 'none';
+  if(inUsers) showDashboardView(); else showUsersView();
+});
+
+// بيستدعيها كود بوابة الدخول أعلاه (بالـ<head>) فور ما يتأكد شو صلاحيات المستخدم الحالي -
+// بتظبط أي تبويبات بالنافبار تظهر/تختفي حسب صلاحياته. permissions=null يعني "افتح كل شي"
+// (إما المالك أو حالة استثنائية ما قدرنا نتحقق فيها من السيرفر - فشل مفتوح حتى ما حدا ينحبس).
+window.applyMerzonaPermissions = function(permissions, isOwner){
+  function allowed(key){
+    if(isOwner || !permissions) return true;
+    return !!permissions[key];
+  }
+  var navMap = {
+    quotationTabBtn: 'quotation',
+    procurementTabBtn: 'procurement',
+    contractsTabBtn: 'contracts',
+    pmpTabBtn: 'pmp',
+    backupTabBtn: 'backup',
+    syncStatusPill: 'teamSync',
+  };
+  Object.keys(navMap).forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = allowed(navMap[id]) ? '' : 'none';
+  });
+  var filesLink = document.querySelector('.nav-row a.nav-pill');
+  if(filesLink) filesLink.style.display = allowed('files') ? '' : 'none';
+  var usersBtn = document.getElementById('usersTabBtn');
+  if(usersBtn) usersBtn.style.display = allowed('manageUsers') ? '' : 'none';
+};
 
 function buildBackupPayload(){
   const data = {};
