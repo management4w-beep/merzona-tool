@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.9';
+  var CURRENT_VERSION = '2026-08-28.10';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2012,6 +2012,21 @@ function saveContracts(obj){
   catch(e){ console.error('saveContracts failed', e); return false; }
 }
 
+// 🆕 2026-08-26: "شواهد قبر" (tombstones) للعقود المحذوفة - نفس فكرة عروض الأسعار المكتشفة
+// بالضبط (شوف DISCOVERED_TOMBSTONES_KEY تحت). المشكلة يلي كانت عم تصير: حذف عقد بس محلي (حذف
+// من localStorage) بدون شاهد قبر - فأول مزامنة فريق (سحب أو حتى رفع، لأنو driveSyncPushNow نفسه
+// بيعمل mergeRemoteIntoLocal قبل الرفع) كانت ترجّع العقد المحذوف تلقائيًا طول ما نسخة جوجل درايف
+// المشتركة لسا فيها العقد القديم (يعني كل مرة تقريبًا، بغض النظر عن التوقيت) - فكان العقد "يرجع
+// لحاله" مهما انحذف. هلق أي عقد ينحذف بيسجل شاهد قبر دائم بيمنع رجوعه من نسخة قديمة.
+const CONTRACT_TOMBSTONES_KEY = 'merzona_contract_deleted_tombstones';
+function loadContractTombstones(){
+  try{ return JSON.parse(localStorage.getItem(CONTRACT_TOMBSTONES_KEY) || '{}'); }catch(e){ return {}; }
+}
+function saveContractTombstones(obj){
+  try{ localStorage.setItem(CONTRACT_TOMBSTONES_KEY, JSON.stringify(obj)); markSyncDirty(CONTRACT_TOMBSTONES_KEY, obj); return true; }
+  catch(e){ console.error('saveContractTombstones failed', e); return false; }
+}
+
 let tempPayments = [];
 let tempPaymentTables = [];
 let activeTableIdx = 0;
@@ -2553,7 +2568,7 @@ document.getElementById('backupRestoreFile').addEventListener('change', (e)=>{
    شي موجود عندي محليًا بطابع أحدث (هيك ما تضيع أي معلومة أدخلها حدا للتو). وقت الرفع لدرايف:
    منرفع نسخة كاملة مطابقة لكل شي عندي محليًا (فمنطقيًا لو حدا حذف شي فعليًا، الحذف بينعكس
    بالنسخة المشتركة بعد أول رفع). */
-const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones'];
+const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones','merzona_contract_deleted_tombstones'];
 const SYNC_FILE_NAME = 'merzona-sync-data.json';
 const DASH_TOKEN_CACHE_KEY = 'merzona_dash_gtoken_v1';
 let dashGoogleAccessToken = null;
@@ -2622,9 +2637,14 @@ function mergeOneSyncKey(key, remoteData){
   const remoteTs = (remoteData && remoteData[key+'__ts']) || {};
   const isDiscoveredKey = key === DISCOVERED_QUOTATIONS_KEY;
   const discoveredTombstones = isDiscoveredKey ? loadDiscoveredTombstones() : null;
+  // 🆕 2026-08-26: نفس منطق شواهد قبر عروض الأسعار المكتشفة، بس للعقود - يمنع رجوع عقد انحذف
+  // عمدًا من نسخة قديمة لسا موجودة بجوجل درايف (شوف تعليق CONTRACT_TOMBSTONES_KEY فوق).
+  const isContractsKey = key === CONTRACTS_KEY;
+  const contractTombstones = isContractsKey ? loadContractTombstones() : null;
   let keyChanged = false;
   Object.keys(remoteObj).forEach(rk=>{
     if(isDiscoveredKey && discoveredTombstones[rk]) return; // متروك عمدًا - ما منرجّعه من نسخة قديمة
+    if(isContractsKey && contractTombstones[rk]) return; // عقد انحذف عمدًا - ما منرجّعه من نسخة قديمة
     const rt = remoteTs[rk] || 0;
     const lt = localTs[rk] || 0;
     if(!(rk in localObj) || rt > lt){
@@ -2650,8 +2670,11 @@ function mergeRemoteIntoLocal(remoteData){
   // التو خبر الحذف (شاهد القبر) من جهاز تاني بنفس اللحظة يلي وصلته فيها نسخة عرض السعر القديمة،
   // منضمن الشاهد يوصل ويطبّق قبل ما نمرّ على مفتاح عروض الأسعار المكتشفة بنفس الجولة.
   if(mergeOneSyncKey(DISCOVERED_TOMBSTONES_KEY, remoteData)) anyChanged = true;
+  // 🆕 2026-08-26: نفس السبب بالضبط، بس لشواهد قبر العقود المحذوفة - لازم توصل وتنطبّق قبل ما
+  // نمرّ على مفتاح العقود نفسه بنفس الجولة (شوف تعليق CONTRACT_TOMBSTONES_KEY فوق).
+  if(mergeOneSyncKey(CONTRACT_TOMBSTONES_KEY, remoteData)) anyChanged = true;
   SYNC_KEYS.forEach(key=>{
-    if(key === DISCOVERED_TOMBSTONES_KEY) return; // اتعالج فوق أصلاً
+    if(key === DISCOVERED_TOMBSTONES_KEY || key === CONTRACT_TOMBSTONES_KEY) return; // اتعالجوا فوق أصلاً
     if(mergeOneSyncKey(key, remoteData)) anyChanged = true;
   });
   return anyChanged;
@@ -4544,6 +4567,11 @@ function renderContractsList(){
       const contracts = loadContracts();
       delete contracts[ref];
       saveContracts(contracts);
+      // 🆕 2026-08-26: شاهد قبر - يمنع رجوع هالعقد لحاله من نسخة قديمة لسا موجودة بجوجل درايف
+      // (شوف تعليق CONTRACT_TOMBSTONES_KEY فوق - هاد هو الباغ يلي كان يخلي العقد "يرجع" بعد الحذف).
+      const contractTombstones = loadContractTombstones();
+      contractTombstones[ref] = Date.now();
+      saveContractTombstones(contractTombstones);
       if(currentContractRef === ref){
         currentContractRef = '';
         tempPaymentTables = [];
