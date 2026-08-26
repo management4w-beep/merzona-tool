@@ -17,6 +17,9 @@
   // لازم يبقى 'procurement' هون بالضبط (بملف procurement.html)، وبملفات Dashboard.html/index.html
   // القيمة المكافئة هي 'dashboard'/'quotation' على التوالي.
   var SESSION_KEY = 'merzona-session-token';
+  // 🆕 2026-08-26: اسم المستخدم (يوزرنيم) محفوظ محليًا بعد إنشاء/تسجيل الدخول - نفس الفكرة يلي
+  // بأداة عرض الأسعار (index.html)، محفوظ هون كمان للتناسق (ما بتستخدمو هالأداة حاليًا).
+  var USERNAME_KEY = 'merzona-username';
   var TOOL_PERMISSION_KEY = 'procurement';
   var POLL_MS = 4000;
   var REVALIDATE_MS = 5 * 60 * 1000; // كل قد ايش نتأكد من السيرفر إنو الجهاز المعتمد لسا مسموح (يلتقط أي إلغاء وصول بسرعة معقولة حتى لو الصفحة ضلت مفتوحة)
@@ -24,7 +27,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-23.2';
+  var CURRENT_VERSION = '2026-08-23.3';
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -90,8 +93,11 @@
   function getSessionToken(){
     try{ return localStorage.getItem(SESSION_KEY); }catch(e){ return null; }
   }
-  function setSessionToken(t){
-    try{ localStorage.setItem(SESSION_KEY, t); }catch(e){}
+  function setSessionToken(t, username){
+    try{
+      localStorage.setItem(SESSION_KEY, t);
+      if(username) localStorage.setItem(USERNAME_KEY, username);
+    }catch(e){}
   }
 
   // متل api() تمامًا بس ما بترمي خطأ عالحالات 4xx/5xx - بترجع نفس جسم JSON يلي بعتو السيرفر
@@ -151,7 +157,7 @@
         body: JSON.stringify({ deviceToken: deviceToken, username: username, password: password })
       }).then(function(r){
         if(r && r.token){
-          setSessionToken(r.token);
+          setSessionToken(r.token, r.username);
           proceedIfPermitted(r.permissions);
         } else {
           btn.disabled = false; btn.textContent = 'إنشاء الحساب';
@@ -192,7 +198,7 @@
         body: JSON.stringify({ username: username, password: password })
       }).then(function(r){
         if(r && r.token){
-          setSessionToken(r.token);
+          setSessionToken(r.token, r.username);
           proceedIfPermitted(r.permissions);
         } else {
           btn.disabled = false; btn.textContent = 'دخول';
