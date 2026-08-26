@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.5';
+  var CURRENT_VERSION = '2026-08-28.6';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1032,6 +1032,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <thead>
           <tr style="text-align:right;border-bottom:1px solid var(--border,#333);">
             <th style="padding:8px 6px;">المستخدم</th>
+            <th style="padding:8px 6px;">اللوحة الرئيسية</th>
             <th style="padding:8px 6px;">عرض أسعار</th>
             <th style="padding:8px 6px;">مشتريات</th>
             <th style="padding:8px 6px;">عقود</th>
@@ -2202,6 +2203,7 @@ document.getElementById('backupOverlay').addEventListener('click', (e)=>{ if(e.t
 // بالـ<head> فور ما يتأكد من صلاحيات المستخدم الحالي - شوف window.applyMerzonaPermissions تحت).
 // ============================================================================
 const MERZONA_PERMISSION_COLUMNS = [
+  { key: 'dashboardHome', label: 'اللوحة الرئيسية' },
   { key: 'quotation', label: 'عرض أسعار' },
   { key: 'procurement', label: 'مشتريات' },
   { key: 'contracts', label: 'عقود' },
@@ -2283,7 +2285,7 @@ function renderUsersRows(users){
       '<td style="text-align:center;padding:6px;"><input type="checkbox" class="mz-users-isadmin" ' + adminChecked + ' ' + adminDisabled + ' /></td>' +
       '<td style="padding:6px;white-space:nowrap;">' + actions + '</td>' +
       '</tr>';
-  }).join('') || '<tr><td colspan="11" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
+  }).join('') || '<tr><td colspan="12" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
 }
 
 document.getElementById('usersTableBody').addEventListener('click', function(e){
@@ -2357,6 +2359,31 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
   if(filesLink) filesLink.style.display = allowed('files') ? '' : 'none';
   var usersBtn = document.getElementById('usersTabBtn');
   if(usersBtn) usersBtn.style.display = allowed('manageUsers') ? '' : 'none';
+
+  // 🆕 2026-08-26: "اللوحة الرئيسية" (الإحصائيات المالية والرسم البياني وسجل العروض) فيها
+  // معلومات حساسة - صلاحيتها (dashboardHome) منفصلة عن باقي التبويبات. لو ممنوعة عن هالمستخدم،
+  // منخفي تبويبها ومنفتحلو أول تبويب تاني مسموح إلو بدلها بدل ما يشوف الشاشة الحساسة افتراضيًا.
+  var homeBtn = document.getElementById('homeTabBtn');
+  if(!allowed('dashboardHome')){
+    if(homeBtn) homeBtn.style.display = 'none';
+    document.getElementById('dashboardView').style.display = 'none';
+    var fallbacks = [
+      ['quotation', function(){ showQuotationView(); }],
+      ['procurement', function(){ showProcurementView(); }],
+      ['contracts', function(){ showContractsView(); }],
+      ['pmp', function(){ showPmpView(); }],
+    ];
+    var opened = false;
+    for(var i=0;i<fallbacks.length;i++){
+      if(allowed(fallbacks[i][0])){ fallbacks[i][1](); opened = true; break; }
+    }
+    if(!opened){
+      document.getElementById('usersView').insertAdjacentHTML('beforebegin',
+        '<div id="mzNoAccessMsg" style="padding:60px 20px;text-align:center;color:var(--muted);font-family:Tahoma,Arial,sans-serif;">ما عندك صلاحية توصل لأي قسم بهالأداة حاليًا. تواصل مع الإدارة.</div>');
+    }
+  } else if(homeBtn){
+    homeBtn.style.display = '';
+  }
 };
 
 function buildBackupPayload(){
