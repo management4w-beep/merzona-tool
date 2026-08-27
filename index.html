@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.7';
+  var CURRENT_VERSION = '2026-08-27.8';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -3530,7 +3530,29 @@ async function copySignLink(){
     alert('لازم تكتبي الرقم المرجعي أول قبل ما تنسخي رابط التوقيع.');
     return;
   }
+  // 🆕 2026-08-27 (إصلاح جذري) - المشكلة يلي صارت مع حمدي: نسخ رابط التوقيع وبعته للزبون قبل ما
+  // يضغط "حفظ لجوجل درايف" (أو بعد ما عدّل بنود/أسعار بدون ما يعيد الحفظ) - فالرابط اشتغل واتفتح،
+  // بس البيانات المحفوظة فعليًا بملف <ref>-data.json كانت قديمة أو حتى مش موجودة إطلاقًا، فطلع
+  // للزبون إجمالي 0 أو "ما لقينا عرض السعر". الحل: نحفظ العرض لجوجل درايف بأحدث بياناته أول *قبل*
+  // ما نجهّز الرابط وننسخه - هيك الرابط دايمًا بيعكس آخر نسخة محفوظة فعليًا، مش نسخة قديمة/فاضية.
+  if(driveSaveInProgress){
+    alert('في عملية حفظ شغالة حاليًا - استني تخلص وبعدين جربي تنسخي رابط التوقيع.');
+    return;
+  }
   try{
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري حفظ آخر تحديث قبل تجهيز الرابط...'; }
+    await Promise.race([
+      saveToGoogleDriveInner(),
+      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت عملية الحفظ الوقت المسموح (30 ثانية) - تأكد من اتصالك بالإنترنت وجرّبي تاني.')), 30000))
+    ]);
+  }catch(saveErr){
+    console.error('[نسخ رابط التوقيع] فشل حفظ آخر تحديث قبل تجهيز الرابط:', saveErr);
+    alert('⚠️ تعذّر حفظ آخر تحديث للعرض قبل تجهيز رابط التوقيع:\n' + (saveErr && saveErr.message ? saveErr.message : saveErr) + '\n\nما انتسخ الرابط حتى ما يوصل رابط ببيانات قديمة/ناقصة للزبون - جربي تضغطي "☁️ حفظ لجوجل درايف" يدويًا، وبعدين جربي تنسخي الرابط من جديد.');
+    if(btn){ btn.disabled = false; btn.textContent = origText; }
+    return;
+  }
+  try{
+    if(btn){ btn.disabled = false; btn.textContent = '⏳ جاري تجهيز الرابط...'; }
     const token = ensureSignToken(ref);
     const url = buildSignUrl(ref, token);
     let copied = false;
@@ -3565,19 +3587,52 @@ window.copySignLink = copySignLink;
 // 🔧 2026-08-26: زر "افتح صفحة التوقيع" - لما الزبون فاتح عرض السعر (أو الصفحة) من موبايله/
 // جهازه هو نفسه، مسح رمز QR مستحيل (ما بيقدر يمسح شاشة نفس جهازه). هالزر بيفتحلو صفحة
 // التوقيع مباشرة بتاب جديد بضغطة وحدة، بدون ما يحتاج يمسح QR أو حدا يبعتلو رابط بواتساب.
-function openSignLink(){
+async function openSignLink(){
+  const btn = document.getElementById('openSignLinkBtn');
+  const origText = btn ? btn.textContent : null;
   const ref = (document.getElementById('m-ref')?.value || '').trim().replace(/\s+/g,'');
   if(!ref){
     alert('لازم تكتبي الرقم المرجعي أول قبل ما تفتحي صفحة التوقيع.');
     return;
   }
+  // 🆕 2026-08-27 (إصلاح جذري) - نفس مشكلة "نسخ رابط التوقيع": الحل هون إنو نحفظ العرض لجوجل درايف
+  // بأحدث بياناته أول *قبل* ما نفتح صفحة التوقيع - وإلا ممكن تنفتح الصفحة على بيانات قديمة/ناقصة
+  // (إجمالي العقد 0 أو حتى "ما لقينا عرض السعر") لأنو رابط التوقيع ما كان مربوط بحفظ فعلي قبل هيك.
+  if(driveSaveInProgress){
+    alert('في عملية حفظ شغالة حاليًا - استني تخلص وبعدين جربي تفتحي صفحة التوقيع.');
+    return;
+  }
+  // منفتح نافذة فاضية فورًا بنفس لحظة الضغطة حتى ما يحجبها المتصفح كنافذة منبثقة (popup-blocker) -
+  // وبعدين، بعد ما يخلص الحفظ، منعبّي فيها الرابط الصحيح.
+  let newWin = null;
+  try{ newWin = window.open('', '_blank'); }catch(e){ newWin = null; }
   try{
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري حفظ آخر تحديث قبل فتح الصفحة...'; }
+    await Promise.race([
+      saveToGoogleDriveInner(),
+      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت عملية الحفظ الوقت المسموح (30 ثانية) - تأكد من اتصالك بالإنترنت وجرّبي تاني.')), 30000))
+    ]);
+  }catch(saveErr){
+    console.error('[فتح صفحة التوقيع] فشل حفظ آخر تحديث قبل فتح الصفحة:', saveErr);
+    if(newWin && !newWin.closed){ try{ newWin.close(); }catch(e){} }
+    alert('⚠️ تعذّر حفظ آخر تحديث للعرض قبل فتح صفحة التوقيع:\n' + (saveErr && saveErr.message ? saveErr.message : saveErr) + '\n\nما انفتحت الصفحة حتى ما توصل ببيانات قديمة/ناقصة للزبون - جربي تضغطي "☁️ حفظ لجوجل درايف" يدويًا، وبعدين جربي تفتحي الصفحة من جديد.');
+    if(btn){ btn.disabled = false; btn.textContent = origText; }
+    return;
+  }
+  try{
+    if(btn){ btn.textContent = '⏳ جاري تجهيز الصفحة...'; }
     const token = ensureSignToken(ref);
     const url = buildSignUrl(ref, token);
-    window.open(url, '_blank', 'noopener');
+    if(newWin && !newWin.closed){
+      newWin.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener');
+    }
   }catch(e){
     console.error('[فتح صفحة التوقيع] فشل:', e);
     alert('صار خطأ وإحنا عم نجهّز صفحة التوقيع.');
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = origText; }
   }
 }
 window.openSignLink = openSignLink;
