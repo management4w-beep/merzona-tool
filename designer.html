@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.9';
+  var CURRENT_VERSION = '2026-08-27.10';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -966,6 +966,17 @@
   body.pdf-capturing thead{ display: table-header-group; }
   body.pdf-capturing tbody tr{ page-break-inside: avoid; break-inside: avoid; }
   body.pdf-capturing tfoot{ display: table-row-group; page-break-inside: avoid; break-inside: avoid; }
+
+  /* 🆕 2026-08-27 (طلب حمدي) - زر "☁️ احفظ التصميم لجوجل درايف" بالمصمم المستقل هلق كمان بيولّد
+     PDF فعلي (سكتش كل البنود، نفس محتوى زر "طباعة") ويرفعه مع الحفظ - قبل هيك كان الحفظ بس بيانات
+     JSON خام محدا يقدر يفتحها. لالتقاط #printSheet بـhtml2canvas لازم نظهره فعليًا (مش بس جوا
+     @media print زي الطباعة العادية) ونخبي واجهة المصمم مؤقتًا وقت الالتقاط بس - نفس فكرة
+     body.pdf-capturing فوق بالظبط، بس لمحتوى السكتش بدل صفحة عرض السعر. */
+  body.design-pdf-capturing{ background:#fff !important; }
+  body.design-pdf-capturing .app{ display:none !important; }
+  body.design-pdf-capturing #wdOverlay{ display:none !important; }
+  body.design-pdf-capturing #threeDOverlay{ display:none !important; }
+  body.design-pdf-capturing #printSheet{ display:block !important; }
 
 /* ===== Designer (embedded) styles ===== */
 
@@ -9189,6 +9200,32 @@ async function loadQuotationItemsIntoDesigner(){
     if(!refFolderId) throw new Error('quotation-not-found');
 
     if(btn) btn.textContent = '⏳ جاري تحميل البنود...';
+
+    // 🆕 2026-08-27 (طلب حمدي) - أولوية لتصميم محفوظ مسبقًا بنفس هالرقم المرجعي (عبر "☁️ احفظ
+    // التصميم لجوجل درايف") - لو موجود، هوي أدق نسخة من التصميم يلي رسمه المستخدم فعليًا بيده (بعكس
+    // البنود الافتراضية المولّدة تلقائيًا من جدول عرض سعر تحت) - فمنرجّعه بالضبط متل ما كان، ومنوقف
+    // هون بدون ما نكمّل لمنطق بنود عرض السعر تحت. قبل هالإضافة كان هالملف يترفع لجوجل درايف بس محدا
+    // يقدر يرجع يفتحه أبدًا من داخل الأداة - كان لازم المستخدم يفتحه يدويًا من جوجل درايف (بلا فايدة).
+    const designQ = encodeURIComponent(`name = '${safeRefQ}-design.json' and '${refFolderId}' in parents and trashed = false`);
+    const designRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${designQ}&fields=files(id,name)`, {
+      headers: { Authorization: 'Bearer ' + token }
+    }, 15000);
+    const designListData = await designRes.json();
+    const designFileId = (designListData.files && designListData.files.length) ? designListData.files[0].id : null;
+    if(designFileId){
+      const designContentRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${designFileId}?alt=media`, {
+        headers: { Authorization: 'Bearer ' + token }
+      }, 20000);
+      const savedDesign = await designContentRes.json();
+      const savedItems = (savedDesign && Array.isArray(savedDesign.items)) ? savedDesign.items : [];
+      items = savedItems.map(entry => buildItemFromSavedDesign(entry.design, entry.uid, entry.classAr || entry.classEn || undefined));
+      selectedId = items.length ? items[0].id : null;
+      historyStack = [];
+      renderChips(); loadSelectedIntoControls(); renderGallery(); updateUndoButton();
+      alert('✅ تم تحميل التصميم المحفوظ "' + refRaw + '" بالضبط متل ما كان.');
+      return;
+    }
+
     const fileQ = encodeURIComponent(`name = '${safeRefQ}-data.json' and '${refFolderId}' in parents and trashed = false`);
     const fileRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${fileQ}&fields=files(id,name)`, {
       headers: { Authorization: 'Bearer ' + token }
@@ -9265,6 +9302,42 @@ populateDesignerRefDatalist();
 // بتاب/نافذة تانية وزاد عروض أسعار جديدة، بتنعكس هون بدون ما يحتاج يعمل refresh يدوي.
 window.addEventListener('focus', populateDesignerRefDatalist);
 
+// 🆕 2026-08-27 (طلب حمدي) - بولّد PDF فعلي (سكتش كل البنود المرسومة - نفس محتوى زر "طباعة" بالضبط)
+// حتى يترفع مع كل حفظ تصميم على جوجل درايف - قبل هالإضافة، الحفظ كان بس بيانات JSON خام ما حدا
+// يقدر يفتحها أو يشوفها مباشرة. منستخدم نفس buildPrintSheetHTML()/getPageDimsMM() يلي زر الطباعة
+// العادي بيستخدمهم بالضبط، بس بدل ما نستنى المستخدم يتفاعل مع نافذة طباعة المتصفح (window.print())،
+// منمرر نفس المحتوى مباشرة لـhtml2pdf ومناخد الملف كـBlob تلقائيًا بالخلفية.
+async function buildDesignPdfBlob(){
+  const printItems = items.filter(it => !it.isCameraTemp);
+  if(!printItems.length) return null;
+  const dims = getPageDimsMM();
+  let styleTag = document.getElementById('dynamicPageStyle');
+  if(!styleTag){
+    styleTag = document.createElement('style');
+    styleTag.id = 'dynamicPageStyle';
+    document.head.appendChild(styleTag);
+  }
+  styleTag.textContent = `@page{ size: ${dims.w}mm ${dims.h}mm; margin: 12mm; }`;
+  const printSheetEl = document.getElementById('printSheet');
+  printSheetEl.innerHTML = buildPrintSheetHTML();
+  document.body.classList.add('design-pdf-capturing');
+  if(document.fonts && document.fonts.ready) await document.fonts.ready;
+  await new Promise(r => setTimeout(r, 150));
+  try{
+    const worker = html2pdf().from(printSheetEl).set({
+      margin: 0,
+      filename: 'design.pdf',
+      image: { type:'jpeg', quality:0.98 },
+      html2canvas: { scale:2, useCORS:true, foreignObjectRendering:true, scrollX:0, scrollY:0 },
+      jsPDF: { unit:'mm', format:[dims.w, dims.h], orientation: dims.w > dims.h ? 'landscape' : 'portrait' },
+      pagebreak: { mode: ['css','legacy'] }
+    });
+    return await worker.outputPdf('blob');
+  } finally {
+    document.body.classList.remove('design-pdf-capturing');
+  }
+}
+
 // ================= designer.html - حفظ مستقل لجوجل درايف (بدل الربط بعرض السعر) =================
 // 🆕 2026-08-27: بملف index.html الأصلي، window.wdApplyBack بتكتب المقاسات/التصميم رجوع على جدول
 // عرض السعر وتعيد حساب السعر (recalc). هون (نسخة الرسم المستقلة) ما في جدول عرض سعر أصلاً (.page
@@ -9272,6 +9345,7 @@ window.addEventListener('focus', populateDesignerRefDatalist);
 // الأصلي فوق) لتحفظ بيانات التصميم كملف JSON لوحده على جوجل درايف، تحت نفس مجلد "الرقم المرجعي"
 // (متل عروض الأسعار بالظبط: سنة / رقم مرجعي)، بدل ما تلمس أي جدول عرض سعر أو سعر. البند
 // الافتراضي "M-D-" (Design) بدل "M-Q-" حتى ما تتعارض مجلدات التصاميم مع مجلدات عروض الأسعار.
+// 🆕 2026-08-27 (طلب حمدي) - هلق كمان بترفع نسخة PDF فعلية (سكتش) مع كل حفظ، بجانب ملف الـJSON.
 window.wdApplyBack = async function(results){
   const refInput = document.getElementById('designerRefInput');
   const refRaw = (refInput && refInput.value || '').trim();
@@ -9291,7 +9365,22 @@ window.wdApplyBack = async function(results){
     const payload = { ref: refRaw, savedAt: Date.now(), items: results };
     const dataBlob = new Blob([JSON.stringify(payload)], {type:'application/json'});
     await uploadFileToDriveFolder(refSafe + '-design.json', 'application/json', dataBlob, refFolderId, token);
-    alert('✅ تم حفظ التصميم "' + refRaw + '" بنجاح على جوجل درايف (مجلد: ' + year + ' / ' + refSafe + ').');
+
+    // توليد + رفع PDF فعلي للتصميم (سكتش كل البنود) - فشل هالخطوة مش عائق أبدًا، بيانات التصميم
+    // (JSON) اتحفظت أصلًا وبتقدر ترجع تتحمّل بالمصمم حتى لو الـPDF فشل لأي سبب (مثلاً اتصال بطيء).
+    let pdfWarning = '';
+    try{
+      if(saveBtn) saveBtn.textContent = '⏳ جاري تجهيز PDF...';
+      const pdfBlob = await buildDesignPdfBlob();
+      if(pdfBlob){
+        await uploadFileToDriveFolder(refSafe + '-design.pdf', 'application/pdf', pdfBlob, refFolderId, token);
+      }
+    }catch(pdfErr){
+      console.error('[Designer] فشل توليد/رفع PDF التصميم:', pdfErr);
+      pdfWarning = '\n\n⚠️ بس تعذّر توليد نسخة PDF من التصميم (البيانات نفسها اتحفظت تمام، وبتقدر ترجع تحمّلها بالمصمم بنفس الرقم المرجعي).';
+    }
+
+    alert('✅ تم حفظ التصميم "' + refRaw + '" بنجاح على جوجل درايف (مجلد: ' + year + ' / ' + refSafe + ').' + pdfWarning);
   }catch(e){
     console.error('[Designer] فشل الحفظ لجوجل درايف:', e);
     alert('⚠️ تعذّر حفظ التصميم على جوجل درايف:\n' + (e && e.message ? e.message : e) + '\n\nجرب مرة كمان، أو تأكد من اتصال الإنترنت.');
