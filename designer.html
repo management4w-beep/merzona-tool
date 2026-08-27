@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.10';
+  var CURRENT_VERSION = '2026-08-27.11';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -1256,6 +1256,12 @@
     background:#eef1f4;
     overflow-y:auto;
   }
+  #mfgSizesOverlay{
+    display:none;
+    position:fixed; inset:0; z-index:10600;
+    background:#eef1f4;
+    overflow-y:auto;
+  }
   .purch-item-row{
     display:flex; align-items:center; gap:10px; padding:9px 6px;
     border-bottom:1px solid #eee; font-size:13px; flex-wrap:wrap;
@@ -1336,6 +1342,7 @@
     #cameraOverlay{ display:none !important; }
     body:not(.three-d-printing) #threeDOverlay{ display:none !important; }
     #purchasingOverlay{ display:none !important; }
+    #mfgSizesOverlay{ display:none !important; }
     body.wd-printing #wdOverlay{
       display:block !important; position:static !important; inset:auto !important; z-index:auto !important;
       background:white !important;
@@ -1388,6 +1395,8 @@
   .print-item-caption .cls{ font-weight:700; color:#A15C1E; font-family:'JetBrains Mono',monospace; }
   .print-item-ref{ font-size:11px; color:#1a1a2e; margin-top:6px; text-align:center; font-family:'JetBrains Mono',monospace; border-top:1px dashed #ccc; padding-top:5px; }
   .print-item-ref b{ color:#A15C1E; font-size:13px; }
+  .print-item-mfg{ font-size:11px; color:#1a1a2e; margin-top:6px; text-align:center; font-family:'JetBrains Mono',monospace; border-top:1px dashed #c0392b; padding-top:5px; }
+  .print-item-mfg b{ color:#c0392b; font-size:13px; }
 
   .wd-action-controls{ display:flex; gap:8px; align-items:center; }
   .wd-save-btn{
@@ -4769,6 +4778,7 @@ window.wdApplyBack = function(results){
       <button class="printBtn" onclick="preparePrint()">🖨️ طباعة / حفظ PDF</button>
       <button class="printBtn" onclick="open3DPreview()">🧊 عرض ثري دي</button>
       <button class="printBtn" onclick="openPurchasingOverlay()">🛒 المشتريات</button>
+      <button class="printBtn" onclick="openMfgSizesOverlay()">📐 مقاسات التصنيع</button>
     </div>
     <div class="wd-header-toggle"><button id="wdHeaderToggleBtn" onclick="toggleWdHeader()" type="button">▼ إظهار الترويسة والأدوات</button></div>
   </header>
@@ -5158,6 +5168,22 @@ window.wdApplyBack = function(results){
       <div id="purchMaterialsTable"></div>
     </div>
 
+  </div>
+</div>
+
+<div id="mfgSizesOverlay">
+  <div class="threeD-topbar">
+    <span>📐 مقاسات التصنيع</span>
+    <div style="display:flex; gap:8px;">
+      <button class="camera-close-btn" onclick="closeMfgSizesOverlay()">✕ إغلاق</button>
+    </div>
+  </div>
+  <div style="max-width:900px; margin:0 auto; padding:24px 20px 60px; direction:rtl;">
+    <div style="background:#fff; border-radius:12px; padding:20px;">
+      <h3 style="margin:0 0 8px; font-family:'DM Serif Text',serif; font-size:20px;">تعديل مقاس كل بند للتصنيع</h3>
+      <p style="font-size:12.5px; color:#6d6d6d; margin:0 0 16px;">اكتبي قد ايش لازم ينقص أو يزيد مقاس القص الفعلي عن مقاس الفتحة لكل بند (بالسم) — رقم سالب (مثلاً <span dir="ltr">-1.5</span>) = ينقص، رقم موجب = يزيد. المقاس المعدّل بيظهر هون وعلى ورقة الطباعة/PDF بس، وما بيأثر إطلاقًا على مقاس عرض السعر ولا حساب المشتريات.</p>
+      <div id="mfgSizesTable"></div>
+    </div>
   </div>
 </div>
 
@@ -5770,6 +5796,11 @@ function makeItem(type){
     archType: 'plain',
     frostedOverlay: false,
     materialIds: [],
+    // 🆕 2026-08-27 (طلب حمدي) - "مقاسات التصنيع": فرق يدوي (بالسم، سالب=ينقص موجب=يزيد) بين مقاس
+    // الفتحة/عرض السعر ومقاس القص الفعلي المطلوب للتصنيع (مثلاً باب زجاج بدون إطار لازم يُقص أنقص
+    // بـ1.5سم من مقاس الفتحة). ما بيأثر إطلاقًا على مقاس عرض السعر ولا حساب المشتريات - بس عرض/طباعة.
+    mfgWidthAdjustCm: 0,
+    mfgHeightAdjustCm: 0,
     // ---- Handrail (هاندريل) fields ----
     hrKind: 'staircase',       // 'staircase' | 'flat'
     hrMount: 'standoff',       // 'standoff' | 'hidden' | 'spigot'
@@ -7960,11 +7991,14 @@ function buildPrintSheetHTML(){
       const typeWord = isHandrail(it) ? 'الهاندريل' : (isDoorLike(it) ? 'الباب' : 'الشباك');
       const typeLabel = SHAPE_LABELS[it.shapeType] || 'شباك';
       const refLine = it.refCode ? `<div class="print-item-ref">مرجع الجدول / Reference: <b>${it.refCode}</b></div>` : '';
+      const mfg = (!isHandrail(it)) ? getMfgSizeMm(it) : null;
+      const mfgLine = (mfg && mfg.hasAdjust) ? `<div class="print-item-mfg">📐 مقاس التصنيع (بعد التعديل اليدوي): <b>${mfg.w} × ${mfg.h} mm</b></div>` : '';
       html += `<div class="print-item">
         <div class="print-item-title">${it.label} — ${typeLabel}</div>
         <div class="print-item-canvas">${buildPrintSVG(it, pageItems.length)}</div>
         <div class="print-item-caption">الرؤية لهذا ${typeWord} من الخارج / Outside View<br>
           <span class="cls">${cls.en} (${cls.ar})</span></div>
+        ${mfgLine}
         ${refLine}
       </div>`;
     });
@@ -8158,6 +8192,8 @@ function buildItemFromSavedDesign(design, uid, label){
     showerHingeSide: design.showerHingeSide || 'left',
     showerHandleType: design.showerHandleType || 'vertical_both',
     showerHingeCount: design.showerHingeCount === 2 ? 2 : 3,
+    mfgWidthAdjustCm: design.mfgWidthAdjustCm || 0,
+    mfgHeightAdjustCm: design.mfgHeightAdjustCm || 0,
     layout: cloneLayoutWithFreshIds(design.layout),
     sourceRowUid: uid
   };
@@ -8231,6 +8267,8 @@ function wdSaveAndClose(){
         showerHingeSide: it.showerHingeSide || 'left',
         showerHandleType: it.showerHandleType || 'vertical_both',
         showerHingeCount: it.showerHingeCount === 2 ? 2 : 3,
+        mfgWidthAdjustCm: it.mfgWidthAdjustCm || 0,
+        mfgHeightAdjustCm: it.mfgHeightAdjustCm || 0,
         layout: it.layout
       }
     };
@@ -9141,6 +9179,72 @@ function closePurchasingOverlay(){
 window.openPurchasingOverlay = openPurchasingOverlay;
 window.closePurchasingOverlay = closePurchasingOverlay;
 window.onPurchTubePresetChange = onPurchTubePresetChange;
+
+/* ---------- MANUFACTURING SIZES (مقاسات التصنيع) ----------
+   🆕 2026-08-27 (طلب حمدي) - يدوي بالكامل لكل بند لحاله (مش مرتبط بنوع الشكل ولا بحساب المشتريات):
+   فرق بالسم (سالب=ينقص موجب=يزيد) بين مقاس الفتحة/عرض السعر ومقاس القص الفعلي المطلوب للتصنيع
+   (مثلاً باب زجاج بدون إطار لازم يُقص أنقص بـ1.5سم). العرض والارتفاع كل واحد فيه حقل تعديل خاص فيه. */
+
+// بيرجع المقاس المعدّل (بالمم) لبند معيّن بناءً على mfgWidthAdjustCm/mfgHeightAdjustCm المخزّنين عليه.
+function getMfgSizeMm(it){
+  const wAdjCm = it.mfgWidthAdjustCm || 0;
+  const hAdjCm = it.mfgHeightAdjustCm || 0;
+  return {
+    w: Math.round((it.width||0) + wAdjCm*10),
+    h: Math.round((it.height||0) + hAdjCm*10),
+    hasAdjust: !!(wAdjCm || hAdjCm)
+  };
+}
+window.getMfgSizeMm = getMfgSizeMm;
+
+function renderMfgSizesTable(){
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isHandrail(it));
+  const el = document.getElementById('mfgSizesTable');
+  if(!visibleItems.length){
+    el.innerHTML = '<p style="color:#666;padding:10px 0;">ما في بنود بعد (الهاندريل مستثنى - مقاسه بالأطوال/الألواح مش عرض وارتفاع).</p>';
+    return;
+  }
+  el.innerHTML = visibleItems.map(it=>{
+    const mfg = getMfgSizeMm(it);
+    return `<div class="purch-item-row" style="align-items:center;">
+      <span class="purch-name">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}
+        <div style="font-size:11.5px;color:#999;font-weight:400;margin-top:2px;">مقاس الفتحة: ${Math.round(it.width)} × ${Math.round(it.height)} مم</div>
+      </span>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل العرض (سم)
+          <input type="number" step="0.1" value="${it.mfgWidthAdjustCm||0}" oninput="onMfgAdjustChange(${it.id},'w',this.value)" style="width:80px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
+        </label>
+        <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل الارتفاع (سم)
+          <input type="number" step="0.1" value="${it.mfgHeightAdjustCm||0}" oninput="onMfgAdjustChange(${it.id},'h',this.value)" style="width:80px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
+        </label>
+      </div>
+      <span class="purch-len" id="mfgOut-${it.id}" style="min-width:150px;text-align:left;direction:ltr;">${mfg.w} × ${mfg.h} mm</span>
+    </div>`;
+  }).join('');
+}
+
+function onMfgAdjustChange(itemId, axis, val){
+  const it = items.find(i=>i.id===itemId);
+  if(!it) return;
+  const num = parseFloat(val);
+  const safe = isFinite(num) ? num : 0;
+  if(axis === 'w') it.mfgWidthAdjustCm = safe; else it.mfgHeightAdjustCm = safe;
+  // منحدّث بس رقم المقاس المعدّل جنب البند، بدون ما نعيد رسم الجدول كامل - حتى ما يفقد حقل الإدخال التركيز (focus) وهي عم تكتبي
+  const mfg = getMfgSizeMm(it);
+  const outEl = document.getElementById('mfgOut-' + itemId);
+  if(outEl) outEl.textContent = mfg.w + ' × ' + mfg.h + ' mm';
+}
+window.onMfgAdjustChange = onMfgAdjustChange;
+
+function openMfgSizesOverlay(){
+  renderMfgSizesTable();
+  document.getElementById('mfgSizesOverlay').style.display = 'block';
+}
+function closeMfgSizesOverlay(){
+  document.getElementById('mfgSizesOverlay').style.display = 'none';
+}
+window.openMfgSizesOverlay = openMfgSizesOverlay;
+window.closeMfgSizesOverlay = closeMfgSizesOverlay;
 window.handleAddCatalogMaterial = handleAddCatalogMaterial;
 window.toggleDesignerItemMaterial = toggleDesignerItemMaterial;
 window.handleRemoveCatalogMaterial = handleRemoveCatalogMaterial;
