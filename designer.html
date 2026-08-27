@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.11';
+  var CURRENT_VERSION = '2026-08-27.12';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -1262,6 +1262,16 @@
     background:#eef1f4;
     overflow-y:auto;
   }
+  .mfg-card{
+    border:1px solid #eee; border-radius:10px; padding:16px; margin-bottom:16px;
+    display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;
+  }
+  .mfg-sketch{
+    flex:0 0 220px; max-width:220px; min-height:120px;
+    background:#f8f9fb; border-radius:8px; padding:8px; box-sizing:border-box;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .mfg-sketch svg{ width:100%; height:auto; display:block; }
   .purch-item-row{
     display:flex; align-items:center; gap:10px; padding:9px 6px;
     border-bottom:1px solid #eee; font-size:13px; flex-wrap:wrap;
@@ -9197,6 +9207,21 @@ function getMfgSizeMm(it){
 }
 window.getMfgSizeMm = getMfgSizeMm;
 
+// بيرسم سكتش البند (بنفس أسلوب رسمة الطباعة الثابتة buildPrintSVG - بدون أي أزرار تفاعلية قابلة
+// للضغط، حتى ما يصير خلط بينها وبين رسمة الكانفاس الحقيقية) لكن على المقاس المعدّل (مقاس التصنيع)
+// بدل مقاس الفتحة - عن طريق نسخة سطحية (shallow clone) من البند الحقيقي بعرض/ارتفاع معدّلين بس،
+// وباقي كل خصائص التصميم (التقسيمات، القوس، التضبيب...) متل ما هي بالضبط.
+function buildMfgSketchSVG(it, mfg){
+  if(!mfg || mfg.w<=0 || mfg.h<=0){
+    return '<div style="color:#c0392b;font-size:11px;padding:24px 8px;text-align:center;">⚠️ المقاس المعدّل صار صفر أو أقل - راجعي رقم التعديل</div>';
+  }
+  const previewIt = Object.assign({}, it, { width: mfg.w, height: mfg.h });
+  let svg = '';
+  try{ svg = buildPrintSVG(previewIt, itemsPerPage) || ''; }
+  catch(e){ console.warn('[مقاسات التصنيع] تعذّر رسم المعاينة', e); }
+  return svg || '<div style="color:#999;font-size:11px;padding:24px 8px;text-align:center;">تعذّر رسم المعاينة</div>';
+}
+
 function renderMfgSizesTable(){
   const visibleItems = items.filter(it => !it.isCameraTemp && !isHandrail(it));
   const el = document.getElementById('mfgSizesTable');
@@ -9206,19 +9231,21 @@ function renderMfgSizesTable(){
   }
   el.innerHTML = visibleItems.map(it=>{
     const mfg = getMfgSizeMm(it);
-    return `<div class="purch-item-row" style="align-items:center;">
-      <span class="purch-name">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}
-        <div style="font-size:11.5px;color:#999;font-weight:400;margin-top:2px;">مقاس الفتحة: ${Math.round(it.width)} × ${Math.round(it.height)} مم</div>
-      </span>
-      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-        <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل العرض (سم)
-          <input type="number" step="0.1" value="${it.mfgWidthAdjustCm||0}" oninput="onMfgAdjustChange(${it.id},'w',this.value)" style="width:80px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
-        </label>
-        <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل الارتفاع (سم)
-          <input type="number" step="0.1" value="${it.mfgHeightAdjustCm||0}" oninput="onMfgAdjustChange(${it.id},'h',this.value)" style="width:80px;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
-        </label>
+    return `<div class="mfg-card">
+      <div class="mfg-sketch" id="mfgSketch-${it.id}">${buildMfgSketchSVG(it, mfg)}</div>
+      <div style="flex:1;min-width:220px;">
+        <div style="font-weight:600;font-size:14px;color:#333;">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}</div>
+        <div style="font-size:11.5px;color:#999;margin:2px 0 12px;">مقاس الفتحة: ${Math.round(it.width)} × ${Math.round(it.height)} مم</div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+          <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل العرض (سم)
+            <input type="number" step="0.1" value="${it.mfgWidthAdjustCm||0}" oninput="onMfgAdjustChange(${it.id},'w',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
+          </label>
+          <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل الارتفاع (سم)
+            <input type="number" step="0.1" value="${it.mfgHeightAdjustCm||0}" oninput="onMfgAdjustChange(${it.id},'h',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
+          </label>
+        </div>
+        <div class="purch-len" id="mfgOut-${it.id}" style="direction:ltr;">${mfg.w} × ${mfg.h} mm</div>
       </div>
-      <span class="purch-len" id="mfgOut-${it.id}" style="min-width:150px;text-align:left;direction:ltr;">${mfg.w} × ${mfg.h} mm</span>
     </div>`;
   }).join('');
 }
@@ -9229,10 +9256,12 @@ function onMfgAdjustChange(itemId, axis, val){
   const num = parseFloat(val);
   const safe = isFinite(num) ? num : 0;
   if(axis === 'w') it.mfgWidthAdjustCm = safe; else it.mfgHeightAdjustCm = safe;
-  // منحدّث بس رقم المقاس المعدّل جنب البند، بدون ما نعيد رسم الجدول كامل - حتى ما يفقد حقل الإدخال التركيز (focus) وهي عم تكتبي
+  // منحدّث بس رقم المقاس المعدّل وسكتش المعاينة جنب البند، بدون ما نعيد رسم الجدول كامل - حتى ما يفقد حقل الإدخال التركيز (focus) وهي عم تكتبي
   const mfg = getMfgSizeMm(it);
   const outEl = document.getElementById('mfgOut-' + itemId);
   if(outEl) outEl.textContent = mfg.w + ' × ' + mfg.h + ' mm';
+  const sketchEl = document.getElementById('mfgSketch-' + itemId);
+  if(sketchEl) sketchEl.innerHTML = buildMfgSketchSVG(it, mfg);
 }
 window.onMfgAdjustChange = onMfgAdjustChange;
 
