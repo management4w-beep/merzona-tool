@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.11';
+  var CURRENT_VERSION = '2026-08-28.12';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -472,6 +472,19 @@ body.quotation-fullscreen #quotationView .quotation-frame-wrap{padding:8px 8px 0
 body.quotation-fullscreen #quotationToolbar{padding:0 0 8px;flex:0 0 auto;}
 body.quotation-fullscreen #quotationFrame{flex:1;height:auto;min-height:0;border-radius:8px;}
 
+/* ---------- Designer (مصمم النوافذ والأبواب) view - same pattern as quotation view above ---------- */
+#designerView .designer-frame-wrap{padding:0 14px 14px;}
+#designerFrame{width:100%;height:calc(100vh - 150px);min-height:640px;border:0;border-radius:10px;background:#fff;display:block;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+#designerLoading{text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;}
+#designerToolbar{display:flex;justify-content:flex-end;padding:0 0 8px;}
+#designerFullscreenBtn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--main);font-size:12.5px;font-weight:500;cursor:pointer;}
+#designerFullscreenBtn:hover{background:var(--aux1);color:#fff;border-color:var(--aux1);}
+body.designer-fullscreen{overflow:hidden;}
+body.designer-fullscreen #designerView{position:fixed;inset:0;z-index:9999;background:var(--paper);width:100vw;height:100vh;margin:0;display:flex;flex-direction:column;}
+body.designer-fullscreen #designerView .designer-frame-wrap{padding:8px 8px 0;flex:1;display:flex;flex-direction:column;min-height:0;}
+body.designer-fullscreen #designerToolbar{padding:0 0 8px;flex:0 0 auto;}
+body.designer-fullscreen #designerFrame{flex:1;height:auto;min-height:0;border-radius:8px;}
+
 /* ---------- Procurement (المشتريات) view - same pattern as quotation view above ---------- */
 #procurementView{width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);}
 #procurementView .procurement-frame-wrap{padding:0 14px 14px;}
@@ -886,6 +899,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <div class="nav-row">
         <span class="nav-pill active" id="homeTabBtn">🏠 اللوحة الرئيسية</span>
         <span class="nav-pill" id="quotationTabBtn">➕ عرض سعر جديد</span>
+        <span class="nav-pill" id="designerTabBtn">🎨 مصمم النوافذ والأبواب</span>
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 الملفات</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
@@ -1301,6 +1315,20 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <a href="https://management4w-beep.github.io/merzona-tool/" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
       </div>
       <iframe id="quotationFrame" src="" style="display:none;" title="عرض سعر جديد"></iframe>
+    </div>
+  </div>
+
+  <div id="designerView" style="display:none;">
+    <div class="designer-frame-wrap">
+      <div id="designerToolbar">
+        <button type="button" id="designerFullscreenBtn">⛶ عرض بشاشة كاملة</button>
+      </div>
+      <div id="designerLoading">⏳ عم يتحمّل مصمم النوافذ والأبواب...</div>
+      <div id="designerFailMsg" style="display:none;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
+        تعذّر تحميل أداة المصمم جوّا الصفحة.<br>
+        <a href="https://management4w-beep.github.io/merzona-tool/designer.html" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
+      </div>
+      <iframe id="designerFrame" src="" style="display:none;" title="مصمم النوافذ والأبواب"></iframe>
     </div>
   </div>
 
@@ -2060,16 +2088,19 @@ function hideAllViews(){
   document.getElementById('contractsView').style.display = 'none';
   document.getElementById('pmpView').style.display = 'none';
   document.getElementById('quotationView').style.display = 'none';
+  document.getElementById('designerView').style.display = 'none';
   document.getElementById('procurementView').style.display = 'none';
   document.getElementById('settlementView').style.display = 'none';
   document.getElementById('usersView').style.display = 'none';
   document.getElementById('contractsTabBtn').classList.remove('active');
   document.getElementById('pmpTabBtn').classList.remove('active');
   document.getElementById('quotationTabBtn').classList.remove('active');
+  document.getElementById('designerTabBtn').classList.remove('active');
   document.getElementById('procurementTabBtn').classList.remove('active');
   document.getElementById('homeTabBtn').classList.remove('active');
   document.getElementById('usersTabBtn').classList.remove('active');
   document.body.classList.remove('quotation-fullscreen'); // لو كنا بوضع الشاشة الكاملة ورجعنا لتبويب تاني، منرجّع الوضع العادي
+  document.body.classList.remove('designer-fullscreen');
   document.body.classList.remove('procurement-fullscreen');
 }
 function showContractsView(){
@@ -2137,6 +2168,51 @@ function showQuotationView(){
   }
 }
 
+// مصمم النوافذ والأبواب - نفس نمط عرض السعر تماماً (iframe محمّل مرة وحدة، lazy load) - أداة مستقلة
+// (designer.html) بس بتعيد استخدام نفس محرك الرسم يلي جوا عرض السعر، وحفظها لجوجل درايف مستقل عن
+// عرض السعر تمامًا (شوف الملاحظات جوا designer.html نفسها).
+const DESIGNER_TOOL_URL = 'https://management4w-beep.github.io/merzona-tool/designer.html';
+function showDesignerView(){
+  hideAllViews();
+  const view = document.getElementById('designerView');
+  const frame = document.getElementById('designerFrame');
+  const loading = document.getElementById('designerLoading');
+  const failMsg = document.getElementById('designerFailMsg');
+  view.style.display = 'block';
+  document.getElementById('designerTabBtn').classList.add('active');
+  if(!frame.getAttribute('data-loaded')){
+    loading.style.display = '';
+    failMsg.style.display = 'none';
+    const failTimer = setTimeout(()=>{
+      loading.style.display = 'none';
+      failMsg.style.display = 'block';
+    }, 10000);
+    frame.addEventListener('load', ()=>{
+      clearTimeout(failTimer);
+      loading.style.display = 'none';
+      let ok = true;
+      try{
+        const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+        if(!doc || !doc.getElementById('mode-chooser')) ok = false;
+      }catch(e){ ok = true; }
+      if(ok){
+        failMsg.style.display = 'none';
+        frame.style.display = 'block';
+      }else{
+        frame.style.display = 'none';
+        failMsg.style.display = 'block';
+      }
+    }, {once:true});
+    frame.addEventListener('error', ()=>{
+      clearTimeout(failTimer);
+      loading.style.display = 'none';
+      failMsg.style.display = 'block';
+    }, {once:true});
+    frame.src = DESIGNER_TOOL_URL;
+    frame.setAttribute('data-loaded', '1');
+  }
+}
+
 // المشتريات - نفس نمط عرض السعر تماماً (iframe محمّل مرة وحدة، lazy load)
 const PROCUREMENT_TOOL_URL = 'https://management4w-beep.github.io/merzona-tool/procurement.html';
 function showProcurementView(){
@@ -2192,6 +2268,10 @@ document.getElementById('pmpTabBtn').addEventListener('click', ()=>{
 document.getElementById('quotationTabBtn').addEventListener('click', ()=>{
   const inQuotation = document.getElementById('quotationView').style.display !== 'none';
   if(inQuotation) showDashboardView(); else showQuotationView();
+});
+document.getElementById('designerTabBtn').addEventListener('click', ()=>{
+  const inDesigner = document.getElementById('designerView').style.display !== 'none';
+  if(inDesigner) showDashboardView(); else showDesignerView();
 });
 document.getElementById('procurementTabBtn').addEventListener('click', ()=>{
   const inProcurement = document.getElementById('procurementView').style.display !== 'none';
@@ -2374,6 +2454,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
   }
   var navMap = {
     quotationTabBtn: 'quotation',
+    designerTabBtn: 'quotation',
     procurementTabBtn: 'procurement',
     contractsTabBtn: 'contracts',
     pmpTabBtn: 'pmp',
@@ -3612,6 +3693,16 @@ function setQuotationFullscreen(on){
 document.getElementById('quotationFullscreenBtn').addEventListener('click', ()=>{
   setQuotationFullscreen(!document.body.classList.contains('quotation-fullscreen'));
 });
+// زر الشاشة الكاملة لمصمم النوافذ والأبواب - نفس نمط عرض السعر تمامًا
+function setDesignerFullscreen(on){
+  document.body.classList.toggle('designer-fullscreen', on);
+  const btn = document.getElementById('designerFullscreenBtn');
+  btn.textContent = on ? '✕ رجوع للوضع العادي' : '⛶ عرض بشاشة كاملة';
+  document.getElementById('designerView').style.display = on ? 'flex' : 'block';
+}
+document.getElementById('designerFullscreenBtn').addEventListener('click', ()=>{
+  setDesignerFullscreen(!document.body.classList.contains('designer-fullscreen'));
+});
 function setProcurementFullscreen(on){
   document.body.classList.toggle('procurement-fullscreen', on);
   const btn = document.getElementById('procurementFullscreenBtn');
@@ -3624,6 +3715,9 @@ document.getElementById('procurementFullscreenBtn').addEventListener('click', ()
 document.addEventListener('keydown', (e)=>{
   if(e.key === 'Escape' && document.body.classList.contains('quotation-fullscreen')){
     setQuotationFullscreen(false);
+  }
+  if(e.key === 'Escape' && document.body.classList.contains('designer-fullscreen')){
+    setDesignerFullscreen(false);
   }
   if(e.key === 'Escape' && document.body.classList.contains('procurement-fullscreen')){
     setProcurementFullscreen(false);
