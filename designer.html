@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.1';
+  var CURRENT_VERSION = '2026-08-27.2';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -423,7 +423,7 @@
 </script>
 <!-- ===== MERZONA ACCESS GATE - END ===== -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>مصمم النوافذ والأبواب</title>
+<title>مصمم النوافذ والأبواب (تصميم/Sketch)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -1408,6 +1408,12 @@
     padding:9px 11px; border-radius:7px; border:1px solid var(--wd-line);
     background: var(--wd-bg-deep); color:#fff; font-family: var(--wd-font-mono); font-size:13px;
   }
+  .wd-load-items-btn{
+    padding:9px 12px; border-radius:7px; border:1px solid var(--wd-cyan);
+    background: transparent; color: var(--wd-cyan); font-family: var(--wd-font-ui);
+    font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;
+  }
+  .wd-load-items-btn:disabled{ opacity:0.5; cursor:not-allowed; }
 </style>
 <script src="https://accounts.google.com/gsi/client" async="" defer=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -4720,8 +4726,11 @@ window.wdApplyBack = function(results){
       </div>
     </div>
     <div class="wd-ref-wrap">
-      <label>الرقم المرجعي للتصميم</label>
-      <input id="designerRefInput" placeholder="M-D-260001" value="M-D-2600">
+      <label>الرقم المرجعي (عرض سعر/عقد موجود، أو تصميم جديد)</label>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <input id="designerRefInput" placeholder="M-D-260001" value="M-D-2600" style="flex:1;">
+        <button type="button" id="designerLoadItemsBtn" class="wd-load-items-btn" onclick="loadQuotationItemsIntoDesigner()" title="لو الرقم المرجعي تبع عرض سعر أو عقد موجود فعليًا، هالزر بيجيب بنوده وبيحطها هون كتصاميم افتراضية">📥 تحميل البنود</button>
+      </div>
     </div>
     <div class="wd-action-controls">
       <button class="wd-save-btn" onclick="wdSaveAndClose()">☁️ احفظ التصميم لجوجل درايف</button>
@@ -9078,6 +9087,76 @@ window.onHandrailCountChange = onHandrailCountChange;
 window.onHandrailHeightChange = onHandrailHeightChange;
 window.onShowerSidePanelToggle = onShowerSidePanelToggle;
 window.onShowerSideWidthChange = onShowerSideWidthChange;
+
+// ================= designer.html - تحميل بنود عرض سعر/عقد موجود =================
+// 🆕 2026-08-27 (طلب حمدي) - قبل هالإضافة، المصمم المستقل ما كان قادر يربط نفسه بعرض سعر أو عقد
+// موجود أصلًا - يعني ما كانت تطلع "التصاميم الافتراضية" حسب جدول العرض، ولازم يبلّش من صفر كل مرة.
+// هلق: تكتبي بجانب اسم الأداة فوق نفس الرقم المرجعي تبع عرض السعر أو العقد (متل ما هو محفوظ فعليًا -
+// مثلاً MQ260210)، وتضغطي "📥 تحميل البنود" - وقتها منجيب بيانات هالعرض من جوجل درايف بالضبط متل ما
+// بيصير لما تفتحي عرض سعر قديم من الداشبورد بزر "🔓 افتح بآخر نسخة" (نفس applyFullQuotationData
+// الأصلية، بدون أي تعديل)، وبعدين منفتح نفس بنود الجدول هاي جوا المصمم تلقائيًا (بالضبط متل ما بيصير
+// لو ضغطتي "🎨 افتح المصمم" من داخل أداة عروض الأسعار نفسها - نفس openDesignerFromToolbar الأصلية).
+// هيك التصاميم الافتراضية بتطلع فعليًا حسب جدول عرض السعر، وأي حفظ بعدها (☁️ احفظ التصميم لجوجل
+// درايف) بيروح لنفس مجلد هالرقم المرجعي بالضبط - لأنو هوي نفسو المكتوب فوق بالخانة.
+async function loadQuotationItemsIntoDesigner(){
+  const refInput = document.getElementById('designerRefInput');
+  const btn = document.getElementById('designerLoadItemsBtn');
+  const refRaw = (refInput && refInput.value || '').trim().replace(/\s+/g, '');
+  if(!refRaw){
+    alert('لازم تكتب الرقم المرجعي تبع عرض السعر أو العقد أول (بجانب اسم الأداة فوق)، وبعدين دوس "📥 تحميل البنود".');
+    return;
+  }
+  const origLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري البحث...'; }
+  try{
+    const token = await getGoogleAccessToken();
+    const year = getYearFromReference(refRaw);
+    const yearFolderId = await findYearFolderIfExists(year, token);
+    if(!yearFolderId) throw new Error('quotation-not-found');
+
+    const safeRefQ = refRaw.replace(/'/g, "\\'");
+    const folderQ = encodeURIComponent(`name = '${safeRefQ}' and '${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    const folderRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${folderQ}&fields=files(id,name)`, {
+      headers: { Authorization: 'Bearer ' + token }
+    }, 15000);
+    const folderData = await folderRes.json();
+    const refFolderId = (folderData.files && folderData.files.length) ? folderData.files[0].id : null;
+    if(!refFolderId) throw new Error('quotation-not-found');
+
+    if(btn) btn.textContent = '⏳ جاري تحميل البنود...';
+    const fileQ = encodeURIComponent(`name = '${safeRefQ}-data.json' and '${refFolderId}' in parents and trashed = false`);
+    const fileRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${fileQ}&fields=files(id,name)`, {
+      headers: { Authorization: 'Bearer ' + token }
+    }, 15000);
+    const fileListData = await fileRes.json();
+    const dataFileId = (fileListData.files && fileListData.files.length) ? fileListData.files[0].id : null;
+    if(!dataFileId) throw new Error('quotation-data-missing');
+
+    const contentRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${dataFileId}?alt=media`, {
+      headers: { Authorization: 'Bearer ' + token }
+    }, 20000);
+    const quotationData = await contentRes.json();
+
+    // نفس الآلية بالضبط يلي بتصير بأداة عروض الأسعار الأساسية لما تفتحي عرض سعر قديم - منعيد استخدامها
+    // حرفيًا هون (ما لمسناها ولا سطر) حتى نضمن نفس السلوك المضمون والمُختبر أصلًا.
+    applyFullQuotationData(quotationData);
+    openDesignerFromToolbar();
+
+    alert('✅ تم تحميل بنود عرض السعر "' + refRaw + '" - ظهرت التصاميم الافتراضية حسب جدول العرض. كمّلي التصميم وبعدين دوسي "☁️ احفظ التصميم لجوجل درايف".');
+  }catch(e){
+    console.error('[تحميل بنود عرض سعر بالمصمم] فشل:', e);
+    let msg = 'صار خطأ غير متوقع وإحنا عم نجيب بنود هالعرض.';
+    if(e && e.message === 'quotation-not-found'){
+      msg = 'ما لقينا عرض سعر أو عقد بهذا الرقم المرجعي بجوجل درايف - تأكدي من الرقم، وإنو العرض انحفظ قبل هيك من أداة عروض الأسعار (☁️ حفظ لجوجل درايف).';
+    } else if(e && e.message === 'quotation-data-missing'){
+      msg = 'لقينا مجلد بهذا الرقم المرجعي بس بدون ملف بيانات عرض سعر جواه - تأكدي إنو العرض انحفظ فعليًا من أداة عروض الأسعار.';
+    }
+    alert('⚠️ ' + msg);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = origLabel || '📥 تحميل البنود'; }
+  }
+}
+window.loadQuotationItemsIntoDesigner = loadQuotationItemsIntoDesigner;
 
 // ================= designer.html - حفظ مستقل لجوجل درايف (بدل الربط بعرض السعر) =================
 // 🆕 2026-08-27: بملف index.html الأصلي، window.wdApplyBack بتكتب المقاسات/التصميم رجوع على جدول

@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.12';
+  var CURRENT_VERSION = '2026-08-28.14';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -899,7 +899,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <div class="nav-row">
         <span class="nav-pill active" id="homeTabBtn">🏠 اللوحة الرئيسية</span>
         <span class="nav-pill" id="quotationTabBtn">➕ عرض سعر جديد</span>
-        <span class="nav-pill" id="designerTabBtn">🎨 مصمم النوافذ والأبواب</span>
+        <span class="nav-pill" id="designerTabBtn">🎨 مصمم النوافذ والأبواب (تصميم/Sketch)</span>
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 الملفات</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
@@ -1323,12 +1323,12 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <div id="designerToolbar">
         <button type="button" id="designerFullscreenBtn">⛶ عرض بشاشة كاملة</button>
       </div>
-      <div id="designerLoading">⏳ عم يتحمّل مصمم النوافذ والأبواب...</div>
+      <div id="designerLoading">⏳ عم يتحمّل مصمم النوافذ والأبواب (تصميم/Sketch)...</div>
       <div id="designerFailMsg" style="display:none;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
         تعذّر تحميل أداة المصمم جوّا الصفحة.<br>
         <a href="https://management4w-beep.github.io/merzona-tool/designer.html" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
       </div>
-      <iframe id="designerFrame" src="" style="display:none;" title="مصمم النوافذ والأبواب"></iframe>
+      <iframe id="designerFrame" src="" style="display:none;" title="مصمم النوافذ والأبواب (تصميم/Sketch)"></iframe>
     </div>
   </div>
 
@@ -4788,17 +4788,36 @@ async function ensureContractSignToken(token, ref){
   const text = await downloadDriveFileText(token, found.fileId);
   let data;
   try{ data = JSON.parse(text); }catch(e){ throw new Error('quotation-data-parse-failed'); }
-  if(data && data.signToken) return data.signToken;
-  const newToken = generateSignTokenDash();
   data = data || {};
-  data.signToken = newToken;
+  let changed = false;
+  if(!data.signToken){
+    data.signToken = generateSignTokenDash();
+    changed = true;
+  }
+  // 🆕 2026-08-27 (إصلاح جذري) - المشكلة يلي صارت مع حمدي: زر "✍️ توقيع إلكتروني" من سجل العروض
+  // كان بس يجيب/يولّد رمز التوقيع (signToken) ولا يمسّ "grandTotal" إطلاقًا - فإذا ملف بيانات
+  // العرض (<ref>-data.json) كان محفوظ قبل هيك بإجمالي 0 أو قديم (مثلاً عرض سعر تم رفعه كملف بدل ما
+  // ينحفظ من الأداة مباشرة، أو انحفظ قبل ما تضاف ميزة grandTotal أصلًا)، صفحة التوقيع كانت دايمًا
+  // بتورّي 0 - بغض النظر عن أي إصلاح صار بأداة عروض الأسعار الأساسية (index.html)، لأنو هالمسار
+  // (من الداشبورد) إله نسخة منفصلة تمامًا. الحل: قبل ما نبني الرابط، منحدّث "grandTotal" جوا ملف
+  // بيانات العرض بنفس القيمة الموثوقة الظاهرة أصلًا بجدول "سجل العروض" (DATA بالداشبورد) - نفس
+  // الرقم يلي حمدي شافه هو بعينو وقال "القيمة موجودة عندكم".
+  const d = DATA.find(x=>x.ref===ref);
+  if(d && typeof d.total === 'number' && !isNaN(d.total) && d.total > 0){
+    const knownTotal = Math.round(d.total);
+    if(data.grandTotal !== knownTotal){
+      data.grandTotal = knownTotal;
+      changed = true;
+    }
+  }
+  if(!changed) return data.signToken;
   const res = await dashFetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${found.fileId}?uploadType=media`, {
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   }, 20000);
   if(!res.ok) throw new Error('drive-update-failed-'+res.status);
-  return newToken;
+  return data.signToken;
 }
 
 // زر "✍️ توقيع إلكتروني" بلائحة العقود المسجّلة - بيجيب (أو يولّد) رابط صفحة التوقيع الإلكتروني
