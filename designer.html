@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.12';
+  var CURRENT_VERSION = '2026-08-27.13';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -5185,6 +5185,7 @@ window.wdApplyBack = function(results){
   <div class="threeD-topbar">
     <span>📐 مقاسات التصنيع</span>
     <div style="display:flex; gap:8px;">
+      <button onclick="printMfgSizes()" style="background:#0f88cd; color:#fff; border:none; border-radius:7px; padding:8px 16px; font-size:13px; cursor:pointer; font-weight:600;" title="بيطبع كل البنود على مقاس التصنيع المعدّل، بنفس حجم الورقة والهوامش وعدد البنود بالصفحة المضبوطين حاليًا بأدوات الطباعة العادية">🖨️ طباعة مقاسات التصنيع</button>
       <button class="camera-close-btn" onclick="closeMfgSizesOverlay()">✕ إغلاق</button>
     </div>
   </div>
@@ -7972,11 +7973,21 @@ function buildPrintSVG(it, pageItemCount){
   </svg>`;
 }
 
-function buildPrintSheetHTML(){
+function buildPrintSheetHTML(opts){
+  // opts.useMfgSizes (طباعة "مقاسات التصنيع" - زر مخصص جوا تبويب مقاسات التصنيع): بيرسم كل بند
+  // بمقاسه المعدّل (مقاس التصنيع) بدل مقاس الفتحة الأصلي، بنفس بالضبط شبكة/هوامش/حجم ورقة الطباعة
+  // العادية (getPageDimsMM/itemsPerPage الحاليين) - بدون ما نلمس مقاس عرض السعر ولا نكرر كود التقسيم
+  // لصفحات. الاستدعاءات العادية (بدون opts) ما بتتأثر إطلاقًا - سلوكها متل ما كان تمامًا.
+  const useMfgSizes = !!(opts && opts.useMfgSizes);
   let html = `<div class="print-letterhead">
     ${companyLogo ? `<img src="${companyLogo}" class="print-logo" alt="${companyName}"/>` : `<div class="print-company-name">${companyName}</div>`}
   </div>`;
-  const printItems = items.filter(it => !it.isCameraTemp);
+  const rawPrintItems = items.filter(it => !it.isCameraTemp);
+  const printItems = !useMfgSizes ? rawPrintItems : rawPrintItems.map(it=>{
+    if(isHandrail(it)) return it;
+    const mfg = getMfgSizeMm(it);
+    return mfg.hasAdjust ? Object.assign({}, it, { width: mfg.w, height: mfg.h }) : it;
+  });
   // الهاندريل بيطلع بصفحة لحاله بعرض الصفحة كامل (شكله عريض وطويل وبيحتاج مساحة قراءة أوسع من باقي البنود)
   const pages = [];
   let buf = [];
@@ -8001,7 +8012,9 @@ function buildPrintSheetHTML(){
       const typeWord = isHandrail(it) ? 'الهاندريل' : (isDoorLike(it) ? 'الباب' : 'الشباك');
       const typeLabel = SHAPE_LABELS[it.shapeType] || 'شباك';
       const refLine = it.refCode ? `<div class="print-item-ref">مرجع الجدول / Reference: <b>${it.refCode}</b></div>` : '';
-      const mfg = (!isHandrail(it)) ? getMfgSizeMm(it) : null;
+      // بوضعية طباعة مقاسات التصنيع، الرسمة نفسها أصلاً مرسومة على المقاس المعدّل (باين برقمها فوق
+      // الرسمة) - فما لزمة نكرر كابشن "مقاس التصنيع" تاني، بيصير تكرار بلا فايدة.
+      const mfg = (!useMfgSizes && !isHandrail(it)) ? getMfgSizeMm(it) : null;
       const mfgLine = (mfg && mfg.hasAdjust) ? `<div class="print-item-mfg">📐 مقاس التصنيع (بعد التعديل اليدوي): <b>${mfg.w} × ${mfg.h} mm</b></div>` : '';
       html += `<div class="print-item">
         <div class="print-item-title">${it.label} — ${typeLabel}</div>
@@ -8066,6 +8079,29 @@ function preparePrint(){
   });
 }
 window.addEventListener('afterprint', ()=> document.body.classList.remove('wd-printing'));
+
+// 🆕 2026-08-27 (طلب حمدي) - زر طباعة مخصص جوا تبويب "مقاسات التصنيع": بيطبع كل البنود بنفس بالضبط
+// حجم/اتجاه الورقة وعدد البنود بالصفحة والهوامش يلي مضبوطين حاليًا بأدوات الطباعة العادية فوق (زر
+// preparePrint نفسه)، الفرق الوحيد إنو كل بند بيترسم على مقاسه المعدّل (مقاس التصنيع) بدل مقاس
+// الفتحة الأصلي - أي بند ما انعدّل عليه شي بيطلع بمقاسه العادي زي ما هو.
+function printMfgSizes(){
+  const dims = getPageDimsMM();
+  let styleTag = document.getElementById('dynamicPageStyle');
+  if(!styleTag){
+    styleTag = document.createElement('style');
+    styleTag.id = 'dynamicPageStyle';
+    document.head.appendChild(styleTag);
+  }
+  styleTag.textContent = `@page{ size: ${dims.w}mm ${dims.h}mm; margin: 12mm; }`;
+  document.getElementById('printSheet').innerHTML = buildPrintSheetHTML({ useMfgSizes: true });
+  document.body.classList.add('wd-printing');
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{ window.print(); }, 250);
+    });
+  });
+}
+window.printMfgSizes = printMfgSizes;
 
 // زر واحد يطبع عرض السعر أولاً وبعده رسمة/سكتش كل البنود (الهاندريل والشاور وغيرهم) بنفس ملف الطباعة - بترتيب: عرض السعر، بعدين السكتش
 function printQuotationAndSketch(){
