@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.14';
+  var CURRENT_VERSION = '2026-08-28.15';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -899,7 +899,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <div class="nav-row">
         <span class="nav-pill active" id="homeTabBtn">🏠 اللوحة الرئيسية</span>
         <span class="nav-pill" id="quotationTabBtn">➕ عرض سعر جديد</span>
-        <span class="nav-pill" id="designerTabBtn">🎨 مصمم النوافذ والأبواب (تصميم/Sketch)</span>
+        <span class="nav-pill" id="designerTabBtn">🎨 (تصميم/Sketch)</span>
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 الملفات</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
@@ -1323,12 +1323,12 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <div id="designerToolbar">
         <button type="button" id="designerFullscreenBtn">⛶ عرض بشاشة كاملة</button>
       </div>
-      <div id="designerLoading">⏳ عم يتحمّل مصمم النوافذ والأبواب (تصميم/Sketch)...</div>
+      <div id="designerLoading">⏳ عم يتحمّل (تصميم/Sketch)...</div>
       <div id="designerFailMsg" style="display:none;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
         تعذّر تحميل أداة المصمم جوّا الصفحة.<br>
         <a href="https://management4w-beep.github.io/merzona-tool/designer.html" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
       </div>
-      <iframe id="designerFrame" src="" style="display:none;" title="مصمم النوافذ والأبواب (تصميم/Sketch)"></iframe>
+      <iframe id="designerFrame" src="" style="display:none;" title="(تصميم/Sketch)"></iframe>
     </div>
   </div>
 
