@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.15';
+  var CURRENT_VERSION = '2026-08-28.17';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1874,6 +1874,15 @@ function render(){
     });
   });
   document.getElementById('rowCountNote').textContent = rows.length + ' عرض';
+  // 🆕 2026-08-27 (طلب حمدي) - منصدّر لائحة خفيفة (رقم مرجعي + اسم زبون + إجمالي) لنفس المخزن
+  // المحلي (localStorage) المشترك بكل صفحات الأداة (نفس الأصل management4w-beep.github.io) - حتى
+  // "مصمم النوافذ والأبواب" المستقل (designer.html) يقدر يعرضها كقائمة بحث/اختيار بخانة الرقم
+  // المرجعي، بدل ما يضطر المستخدم يكتب الرقم يدويًا ويحفظه غلط. منحدّثها بكل مرة الجدول يترسم
+  // (يعني أول ما يفتح حمدي الداشبورد، أو أي تعديل عالفلترة/البحث) - هيك القائمة دايمًا طازة.
+  try{
+    const list = rows.map(d => ({ ref: d.ref, client: overrides[d.ref] || d.client, total: d.total }));
+    localStorage.setItem('merzona-quotations-list', JSON.stringify({ savedAt: Date.now(), items: list }));
+  }catch(e){}
 }
 
 let chartViewMode = 'bars';
@@ -4471,7 +4480,7 @@ function renderPaymentRows(){
     tr.innerHTML =
       '<td><span class="desc-edit" data-i="'+i+'" title="اضغط لتعديل الوصف" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+escapeHtml(p.desc)+'</span></td>'+
       '<td><span class="pct-edit" data-i="'+i+'" title="اضغط لتعديل النسبة" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+p.pct+'٪</span></td>'+
-      '<td class="num">'+fmt(aed)+'</td>'+
+      '<td class="num"><span class="aed-edit" data-i="'+i+'" title="اضغط لتعديل المبلغ الفعلي (د.إ) - النسبة بتتحسب تلقائيًا، وأي فرق (نقص أو زيادة) بينضاف/يتخصم من الدفعة يلي بعدها حتى يضل المجموع 100٪" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+fmt(aed)+'</span></td>'+
       '<td><span class="duedate-edit" data-i="'+i+'" title="اضغط لتحديد/تعديل تاريخ الاستحقاق" style="cursor:pointer;font-size:12px;color:var(--muted);border-bottom:1px dashed var(--line);">'+fmtDueDate(p.dueDate)+'</span></td>'+
       '<td>'+statusBtn+'</td>'+
       '<td><span style="cursor:pointer;color:var(--danger);" data-del="'+i+'">✕</span></td>';
@@ -4513,6 +4522,44 @@ function renderPaymentRows(){
         if(committed) return; committed = true;
         const v = parseFloat(input.value);
         tempPayments[i].pct = isNaN(v) ? 0 : v;
+        renderPaymentRows();
+      }
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ input.blur(); } });
+    });
+  });
+  // اكتب المبلغ الفعلي (د.إ) بدل النسبة لأي دفعة - بتتحسب نسبتها الحقيقية أوتوماتيكيًا، وأي فرق
+  // (نقص/زيادة) عن النسبة القديمة بينضاف/يتخصم من نسبة الدفعة اللي بعدها مباشرة حتى يضل المجموع 100٪.
+  // كل عملية تعديل هي "تحويل" نسبة بين دفعتين متجاورتين بس - فمجموع كل الدفعات ما بيتغير حتى لو
+  // المستخدم عدّل نفس الخانة أكتر من مرة.
+  tbody.querySelectorAll('.aed-edit').forEach(span=>{
+    span.addEventListener('click', function(){
+      const i = +this.dataset.i;
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0'; input.step = 'any';
+      input.value = Math.round(total * tempPayments[i].pct / 100);
+      input.style.cssText = 'font-size:13px;padding:2px 5px;border:1px solid var(--aux1);border-radius:5px;font-family:inherit;width:110px;';
+      this.replaceWith(input);
+      input.focus();
+      input.select();
+      let committed = false;
+      function commit(){
+        if(committed) return; committed = true;
+        const v = parseFloat(input.value);
+        if(isNaN(v) || v<0){ renderPaymentRows(); return; }
+        if(!total){
+          alert('ما في قيمة عقد أساسية مسجّلة لحتى نحسب النسبة من المبلغ - اضبطي "تعديل القيمة الأساسية" فوق أول.');
+          renderPaymentRows();
+          return;
+        }
+        const oldPct = tempPayments[i].pct;
+        const newPct = Math.round((v / total) * 10000) / 100;
+        const diff = Math.round((oldPct - newPct) * 100) / 100;
+        tempPayments[i].pct = newPct;
+        if(tempPayments[i+1]){
+          tempPayments[i+1].pct = Math.round((tempPayments[i+1].pct + diff) * 100) / 100;
+        }
         renderPaymentRows();
       }
       input.addEventListener('blur', commit);
