@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.8';
+  var CURRENT_VERSION = '2026-08-27.9';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -4796,6 +4796,14 @@ window.wdApplyBack = function(results){
           <button id="btnSlidingWindow" onclick="setShape('slidingWindow')">شباك سحّاب</button>
           <button id="btnSlidingDoor" onclick="setShape('slidingDoor')">باب سحّاب</button>
         </div>
+        <div style="margin-top:6px; margin-bottom:10px; display:none;" id="slidingDoorLeafBlock">
+          <label>عدد درفات الباب السحّاب</label>
+          <div class="shape-toggle">
+            <button id="btnSlidingLeafDouble" onclick="onSlidingLeafModeChange('double')" class="active">درفتين (عادي)</button>
+            <button id="btnSlidingLeafSingle" onclick="onSlidingLeafModeChange('single')">درفة وحدة</button>
+          </div>
+          <p class="hint" style="margin-top:6px;">"درفة وحدة": لوح سحّاب واحد بس بدون قاطع بالنص - نفس فريم وسكة الباب السحّاب العادي، بس بدون تقسيم لدرفتين.</p>
+        </div>
         <div class="shape-toggle">
           <button id="btnFoldingDoor" onclick="setShape('foldingDoor')" style="flex:1;">باب فولدينغ</button>
         </div>
@@ -5961,6 +5969,25 @@ function onShowerHingeCountChange(n){
 }
 window.onShowerHingeCountChange = onShowerHingeCountChange;
 
+// خيار "درفة وحدة" للباب السحّاب فقط (مش الشباك السحّاب) - بطلب حمدي: نفس الباب السحّاب العادي (نفس الفريم/السكة)
+// بس بلوح واحد بدل درفتين، بدون قاطع بالنص. حالة الدرفة الوحدة/الدرفتين منخزنة مباشرة بشكل الـ layout نفسه
+// (leaf وحيد = درفة وحدة، split لدرفتين = عادي) فما في حاجة لحقل منفصل - بيتحفظ ويترجع صح تلقائيًا مع باقي التصميم.
+function isSlidingDoorSingleLeaf(it){ return !!(it && it.layout && it.layout.kind === 'leaf'); }
+function onSlidingLeafModeChange(mode){
+  const it = getSelected(); if(!it) return;
+  const wantSingle = mode === 'single';
+  const isSingle = isSlidingDoorSingleLeaf(it);
+  if(wantSingle !== isSingle){
+    pushHistory();
+    it.layout = wantSingle ? leaf('plain') : makeSplit('row', eqParts(2));
+  }
+  document.getElementById('btnSlidingLeafDouble').classList.toggle('active', !wantSingle);
+  document.getElementById('btnSlidingLeafSingle').classList.toggle('active', wantSingle);
+  renderGallery();
+}
+window.onSlidingLeafModeChange = onSlidingLeafModeChange;
+window.isSlidingDoorSingleLeaf = isSlidingDoorSingleLeaf;
+
 const FROST_PATTERN_BTN_IDS = { full:'btnFrostFull', bandClear:'btnFrostBandClear', bandStriped:'btnFrostBandStriped' };
 function onFrostPatternChange(p){
   const it = getSelected(); if(!it) return;
@@ -6020,16 +6047,19 @@ function renderThicknessOptions(it){
   const hingeBlock = document.getElementById('hingeThicknessBlock');
   const slideBlock = document.getElementById('slidingThicknessBlock');
   const showerBlock = document.getElementById('showerDoorBlock');
+  const slidingLeafBlock = document.getElementById('slidingDoorLeafBlock');
   if(isHandrail(it)){
     hingeBlock.style.display = 'none';
     slideBlock.style.display = 'none';
     showerBlock.style.display = 'none';
+    slidingLeafBlock.style.display = 'none';
     return;
   }
   if(isShowerDoor(it)){
     hingeBlock.style.display = 'none';
     slideBlock.style.display = 'none';
     showerBlock.style.display = 'block';
+    slidingLeafBlock.style.display = 'none';
     return;
   }
   showerBlock.style.display = 'none';
@@ -6038,9 +6068,18 @@ function renderThicknessOptions(it){
     slideBlock.style.display = 'block';
     document.getElementById('inFrameThickness').value = it.frameThickness ?? DEFAULT_FRAME_THICKNESS;
     document.getElementById('inLeafThickness').value = it.leafThickness ?? DEFAULT_LEAF_THICKNESS;
+    // خيار "درفة وحدة" متاح لباب سحّاب بس (مش شباك سحّاب)
+    const isSlidingDoorOnly = it.shapeType === 'slidingDoor';
+    slidingLeafBlock.style.display = isSlidingDoorOnly ? 'block' : 'none';
+    if(isSlidingDoorOnly){
+      const single = isSlidingDoorSingleLeaf(it);
+      document.getElementById('btnSlidingLeafDouble').classList.toggle('active', !single);
+      document.getElementById('btnSlidingLeafSingle').classList.toggle('active', single);
+    }
   } else {
     hingeBlock.style.display = 'block';
     slideBlock.style.display = 'none';
+    slidingLeafBlock.style.display = 'none';
     const sel = document.getElementById('inProfileThickness');
     const opts = getThicknessOptions(it);
     sel.innerHTML = opts.map(o=>`<option value="${o.v}">${o.label}</option>`).join('');
