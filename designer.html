@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.3';
+  var CURRENT_VERSION = '2026-08-27.5';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -4728,9 +4728,11 @@ window.wdApplyBack = function(results){
     <div class="wd-ref-wrap">
       <label>الرقم المرجعي (عرض سعر/عقد موجود، أو تصميم جديد)</label>
       <div style="display:flex; gap:6px; align-items:center;">
-        <input id="designerRefInput" placeholder="M-D-260001" value="M-D-2600" style="flex:1;">
+        <input id="designerRefInput" list="designerRefDatalist" placeholder="M-D-260001" value="M-D-260" style="flex:1;" autocomplete="off">
+        <datalist id="designerRefDatalist"></datalist>
         <button type="button" id="designerLoadItemsBtn" class="wd-load-items-btn" onclick="loadQuotationItemsIntoDesigner()" title="لو الرقم المرجعي تبع عرض سعر أو عقد موجود فعليًا، هالزر بيجيب بنوده وبيحطها هون كتصاميم افتراضية">📥 تحميل البنود</button>
       </div>
+      <div id="designerRefListHint" style="font-size:11px;color:var(--wd-ink-dim);margin-top:2px;"></div>
     </div>
     <div class="wd-action-controls">
       <button class="wd-save-btn" onclick="wdSaveAndClose()">☁️ احفظ التصميم لجوجل درايف</button>
@@ -4798,14 +4800,21 @@ window.wdApplyBack = function(results){
           <button id="btnFoldingDoor" onclick="setShape('foldingDoor')" style="flex:1;">باب فولدينغ</button>
         </div>
         <div class="shape-toggle">
-          <button id="btnShowerDoor" onclick="setShape('showerGlassDoor')" style="flex:1;">🚿 باب شاور زجاجي (بدون فريم)</button>
+          <button id="btnShowerDoor" onclick="setShape('showerGlassDoor')" style="flex:1;">🚿 باب زجاج بدون إطار</button>
         </div>
         <div class="shape-toggle">
           <button id="btnHandrail" onclick="setShape('handrail')" style="flex:1;">🛡️ هاندريل (درابزين)</button>
         </div>
         <div style="margin-top:10px; display:none;" id="showerDoorBlock">
-          <p class="hint">باب زجاج كامل بدون فريم ألمنيوم - 3 مفصلات ثابتة (اتنين قريبين من فوق بالثلث العلوي، وحدة تحت قبل نهاية الباب).<br><br>
+          <p class="hint">باب زجاج كامل بدون فريم ألمنيوم - اختار عدد المفصلات تحت.<br><br>
           <b>اضغط على الباب بالرسمة</b> لتبديل جهة المفصلة (يمين/يسار) ونوع الهاندل مع بعض - بالضبط متل باقي الأبواب.</p>
+          <div style="margin-top:10px;">
+            <label>عدد المفصلات</label>
+            <div class="shape-toggle">
+              <button id="btnShowerHinge2" onclick="onShowerHingeCountChange(2)">2 مفصلات</button>
+              <button id="btnShowerHinge3" onclick="onShowerHingeCountChange(3)" class="active">3 مفصلات</button>
+            </div>
+          </div>
           <div class="check-row" style="margin-top:10px;">
             <input type="checkbox" id="inShowerLeftPanel" onchange="onShowerSidePanelToggle('left')" value="on">
             <label for="inShowerLeftPanel">إضافة زجاج ثابت يسار الباب</label>
@@ -5618,7 +5627,7 @@ function getPrintAvailPx(pageItemCount, forceFullFill){
   return { availW: Math.max(150, cellW), availH: Math.max(120, cellH) };
 }
 
-const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب شاور زجاجي', handrail:'هاندريل' };
+const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل' };
 const HANDRAIL_GAP_MM = 5;
 // مواقع أزواج مسامير Stand Off أفقيًا داخل عرض اللوح - كل زوج بيصير عنده مسمارين (فوق وتحت) - قابل للتوسيع لأكتر من زوجين للألواح الكبيرة
 function getStandoffPairPositions(pairs){
@@ -5730,6 +5739,7 @@ function makeItem(type){
     height: isDoorish ? 2200 : 1400,
     showerHingeSide: 'left',
     showerHandleType: 'vertical_both',
+    showerHingeCount: 3,
     showerLeftPanel: false,
     showerLeftWidth: 600,
     showerRightPanel: false,
@@ -5827,6 +5837,7 @@ function setShape(type){
     if(it.layout.kind !== 'leaf' || !CYCLE_SHOWER_DOOR.includes(it.layout.type)){
       it.layout = leaf('shwr_lv');
     }
+    if(it.showerHingeCount == null) it.showerHingeCount = 3;
     it.archTop = false; // ما في احتمال قوس لباب الشاور نهائيًا
   }
   if(type === 'handrail'){
@@ -5943,6 +5954,17 @@ function editShowerSideWidth(id, side){
   renderGallery();
 }
 window.editShowerSideWidth = editShowerSideWidth;
+
+const SHOWER_HINGE_COUNT_BTN_IDS = { 2:'btnShowerHinge2', 3:'btnShowerHinge3' };
+function onShowerHingeCountChange(n){
+  const it = getSelected(); if(!it) return;
+  pushHistory();
+  it.showerHingeCount = (n===2) ? 2 : 3;
+  Object.values(SHOWER_HINGE_COUNT_BTN_IDS).forEach(id=> document.getElementById(id).classList.remove('active'));
+  document.getElementById(SHOWER_HINGE_COUNT_BTN_IDS[it.showerHingeCount]).classList.add('active');
+  renderGallery();
+}
+window.onShowerHingeCountChange = onShowerHingeCountChange;
 
 const FROST_PATTERN_BTN_IDS = { full:'btnFrostFull', bandClear:'btnFrostBandClear', bandStriped:'btnFrostBandStriped' };
 function onFrostPatternChange(p){
@@ -6067,6 +6089,8 @@ function loadSelectedIntoControls(){
     document.getElementById('inWidth').value = it.width;
     document.getElementById('inHeight').value = it.height;
     if(isShower){
+      Object.values(SHOWER_HINGE_COUNT_BTN_IDS).forEach(id=> document.getElementById(id).classList.remove('active'));
+      document.getElementById(SHOWER_HINGE_COUNT_BTN_IDS[it.showerHingeCount===2?2:3]).classList.add('active');
       document.getElementById('inShowerLeftPanel').checked = !!it.showerLeftPanel;
       document.getElementById('showerLeftBlock').style.display = it.showerLeftPanel ? 'block' : 'none';
       document.getElementById('inShowerLeftWidth').value = it.showerLeftWidth || 600;
@@ -6847,7 +6871,7 @@ function classifyItem(it){
   if(it.shapeType === 'slidingDoor') return { en:'Sliding Door', ar:'باب سحّاب' };
   if(it.shapeType === 'slidingWindow') return { en:'Sliding Window', ar:'شباك سحّاب' };
   if(it.shapeType === 'door') return { en:'Hinged Door', ar:'باب مفصلي' };
-  if(it.shapeType === 'showerGlassDoor') return { en:'Shower Glass Door', ar:'باب شاور زجاجي' };
+  if(it.shapeType === 'showerGlassDoor') return { en:'Frameless Glass Door', ar:'باب زجاج بدون إطار' };
   if(it.shapeType === 'handrail'){
     const kindEn = it.hrKind === 'staircase' ? 'Staircase' : 'Flat Surface';
     const kindAr = it.hrKind === 'staircase' ? 'درج' : 'مسطح';
@@ -6910,8 +6934,11 @@ function showerDoorHardwareSVG(it, drawW, drawH, handleColor){
   const isHorizontalInside = leafType.endsWith('h');
   const hingeX = hingeOnLeft ? 0 : drawW;
   const hingeW = 14, hingeH = 26;
-  // مواقع المفصلات: وحدة قريبة من أعلى الباب، وحدة تحتها بشوي (الاتنين ضمن الثلث العلوي)، ووحدة قرب الأسفل
-  const hingeYs = [drawH*0.06, drawH*0.20, drawH*0.90];
+  // مواقع المفصلات: بحسب عدد المفصلات المختار (2 أو 3)
+  // 3 مفصلات: وحدة قريبة من أعلى الباب، وحدة تحتها بشوي (الاتنين ضمن الثلث العلوي)، ووحدة قرب الأسفل
+  // مفصلتين: وحدة قرب الأعلى ووحدة قرب الأسفل
+  const hingeCount = (it.showerHingeCount === 2) ? 2 : 3;
+  const hingeYs = hingeCount === 2 ? [drawH*0.10, drawH*0.90] : [drawH*0.06, drawH*0.20, drawH*0.90];
   let out = '';
   hingeYs.forEach(hy=>{
     out += `<rect x="${hingeX - hingeW/2}" y="${hy - hingeH/2}" width="${hingeW}" height="${hingeH}" rx="2"
@@ -8085,6 +8112,7 @@ function buildItemFromSavedDesign(design, uid, label){
     materialIds: design.materialIds || [],
     showerHingeSide: design.showerHingeSide || 'left',
     showerHandleType: design.showerHandleType || 'vertical_both',
+    showerHingeCount: design.showerHingeCount === 2 ? 2 : 3,
     layout: cloneLayoutWithFreshIds(design.layout),
     sourceRowUid: uid
   };
@@ -8155,6 +8183,7 @@ function wdSaveAndClose(){
         materialIds: it.materialIds || [],
         showerHingeSide: it.showerHingeSide || 'left',
         showerHandleType: it.showerHandleType || 'vertical_both',
+        showerHingeCount: it.showerHingeCount === 2 ? 2 : 3,
         layout: it.layout
       }
     };
@@ -9157,6 +9186,43 @@ async function loadQuotationItemsIntoDesigner(){
   }
 }
 window.loadQuotationItemsIntoDesigner = loadQuotationItemsIntoDesigner;
+
+// 🆕 2026-08-27 (طلب حمدي) - قائمة بحث/اختيار لعروض الأسعار والعقود الموجودة بجانب خانة الرقم
+// المرجعي، بدل ما يضطر يكتبه يدويًا ويغلط فيه. المصدر: نفس لائحة "سجل العروض" يلي الداشبورد
+// (Dashboard.html) بيحدّثها تلقائيًا بملف مشترك بالـlocalStorage (نفس الأصل management4w-beep.github.io)
+// كل مرة يترسم فيها جدول العروض عندها. هون بس منقرأها ومنبنيها كـ<datalist> عالخانة (نفس آلية
+// اقتراح أسماء البنود list="items-datalist" الموجودة أصلًا بجدول عرض السعر) - بحث حي وأنت عم تكتبي،
+// بدون ما نحتاج نتصل بجوجل درايف مباشرة. لو القائمة مش موجودة أصلًا (مثلاً أول مرة تفتحي المصمم
+// بهالمتصفح بدون ما تكوني فتحتي الداشبورد قبل)، الخانة بتضل شغالة عادي بس بدون اقتراحات - لازم تكتبي
+// الرقم يدويًا وقتها.
+function populateDesignerRefDatalist(){
+  const datalist = document.getElementById('designerRefDatalist');
+  const hint = document.getElementById('designerRefListHint');
+  if(!datalist) return;
+  try{
+    const raw = localStorage.getItem('merzona-quotations-list');
+    if(!raw){
+      if(hint) hint.textContent = 'ما في لائحة عروض أسعار محفوظة هون بعد - افتحي الداشبورد مرة قبل حتى تظهر الاقتراحات، أو اكتبي الرقم يدويًا.';
+      return;
+    }
+    const parsed = JSON.parse(raw);
+    const items = (parsed && Array.isArray(parsed.items)) ? parsed.items : [];
+    datalist.innerHTML = items.map(it=>{
+      const ref = String(it.ref || '');
+      const client = String(it.client || '-');
+      const total = Number(it.total || 0).toLocaleString(undefined, {maximumFractionDigits:2});
+      const label = client + ' — ' + total + ' AED';
+      return '<option value="'+ref.replace(/"/g,'&quot;')+'" label="'+label.replace(/"/g,'&quot;')+'">'+label+'</option>';
+    }).join('');
+    if(hint) hint.textContent = items.length ? ('📋 ' + items.length + ' عرض/عقد جاهزين بالبحث - ابدئي بالكتابة بخانة الرقم المرجعي.') : 'ما في عروض أسعار بالسجل بعد.';
+  }catch(e){
+    console.error('[قائمة الرقم المرجعي] فشل تحميلها:', e);
+  }
+}
+populateDesignerRefDatalist();
+// منعيد التحديث كل مرة تنفتح فيها نافذة/تاب المصمم من جديد (focus) - لو حمدي كان فاتح الداشبورد
+// بتاب/نافذة تانية وزاد عروض أسعار جديدة، بتنعكس هون بدون ما يحتاج يعمل refresh يدوي.
+window.addEventListener('focus', populateDesignerRefDatalist);
 
 // ================= designer.html - حفظ مستقل لجوجل درايف (بدل الربط بعرض السعر) =================
 // 🆕 2026-08-27: بملف index.html الأصلي، window.wdApplyBack بتكتب المقاسات/التصميم رجوع على جدول
