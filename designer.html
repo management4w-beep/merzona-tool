@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.13';
+  var CURRENT_VERSION = '2026-08-27.14';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -1272,6 +1272,8 @@
     display:flex; align-items:center; justify-content:center;
   }
   .mfg-sketch svg{ width:100%; height:auto; display:block; }
+  .mfg-card.mfg-excluded{ opacity:0.45; }
+  .mfg-card.mfg-excluded .mfg-sketch{ filter:grayscale(1); }
   .purch-item-row{
     display:flex; align-items:center; gap:10px; padding:9px 6px;
     border-bottom:1px solid #eee; font-size:13px; flex-wrap:wrap;
@@ -5812,6 +5814,7 @@ function makeItem(type){
     // بـ1.5سم من مقاس الفتحة). ما بيأثر إطلاقًا على مقاس عرض السعر ولا حساب المشتريات - بس عرض/طباعة.
     mfgWidthAdjustCm: 0,
     mfgHeightAdjustCm: 0,
+    mfgExcluded: false, // 🆕 (طلب حمدي) - استبعاد هالبند كليًا من تبويب/طباعة "مقاسات التصنيع" (بيضل موجود عادي بالرسمة وعرض السعر والطباعة العادية)
     // ---- Handrail (هاندريل) fields ----
     hrKind: 'staircase',       // 'staircase' | 'flat'
     hrMount: 'standoff',       // 'standoff' | 'hidden' | 'spigot'
@@ -7982,7 +7985,10 @@ function buildPrintSheetHTML(opts){
   let html = `<div class="print-letterhead">
     ${companyLogo ? `<img src="${companyLogo}" class="print-logo" alt="${companyName}"/>` : `<div class="print-company-name">${companyName}</div>`}
   </div>`;
-  const rawPrintItems = items.filter(it => !it.isCameraTemp);
+  // بند مستبعد (mfgExcluded) بيُطبع عادي بالطباعة العادية (useMfgSizes=false) - بس بيُشال كليًا من
+  // طباعة "مقاسات التصنيع" (useMfgSizes=true)، لأنو حمدي طلب صراحة إمكانية استبعاد بند ما بدو ياه
+  // فيها. ما بيأثر إطلاقًا على الرسمة الأصلية ولا عرض السعر.
+  const rawPrintItems = items.filter(it => !it.isCameraTemp && (!useMfgSizes || !it.mfgExcluded));
   const printItems = !useMfgSizes ? rawPrintItems : rawPrintItems.map(it=>{
     if(isHandrail(it)) return it;
     const mfg = getMfgSizeMm(it);
@@ -8014,7 +8020,7 @@ function buildPrintSheetHTML(opts){
       const refLine = it.refCode ? `<div class="print-item-ref">مرجع الجدول / Reference: <b>${it.refCode}</b></div>` : '';
       // بوضعية طباعة مقاسات التصنيع، الرسمة نفسها أصلاً مرسومة على المقاس المعدّل (باين برقمها فوق
       // الرسمة) - فما لزمة نكرر كابشن "مقاس التصنيع" تاني، بيصير تكرار بلا فايدة.
-      const mfg = (!useMfgSizes && !isHandrail(it)) ? getMfgSizeMm(it) : null;
+      const mfg = (!useMfgSizes && !isHandrail(it) && !it.mfgExcluded) ? getMfgSizeMm(it) : null;
       const mfgLine = (mfg && mfg.hasAdjust) ? `<div class="print-item-mfg">📐 مقاس التصنيع (بعد التعديل اليدوي): <b>${mfg.w} × ${mfg.h} mm</b></div>` : '';
       html += `<div class="print-item">
         <div class="print-item-title">${it.label} — ${typeLabel}</div>
@@ -8085,6 +8091,11 @@ window.addEventListener('afterprint', ()=> document.body.classList.remove('wd-pr
 // preparePrint نفسه)، الفرق الوحيد إنو كل بند بيترسم على مقاسه المعدّل (مقاس التصنيع) بدل مقاس
 // الفتحة الأصلي - أي بند ما انعدّل عليه شي بيطلع بمقاسه العادي زي ما هو.
 function printMfgSizes(){
+  const printableCount = items.filter(it => !it.isCameraTemp && !it.mfgExcluded).length;
+  if(!printableCount){
+    alert('كل البنود مستبعدة من مقاسات التصنيع (أو ما في بنود بعد) - رجّعي تضمين بند واحد عالأقل من تبويب مقاسات التصنيع قبل الطباعة.');
+    return;
+  }
   const dims = getPageDimsMM();
   let styleTag = document.getElementById('dynamicPageStyle');
   if(!styleTag){
@@ -8240,6 +8251,7 @@ function buildItemFromSavedDesign(design, uid, label){
     showerHingeCount: design.showerHingeCount === 2 ? 2 : 3,
     mfgWidthAdjustCm: design.mfgWidthAdjustCm || 0,
     mfgHeightAdjustCm: design.mfgHeightAdjustCm || 0,
+    mfgExcluded: design.mfgExcluded || false,
     layout: cloneLayoutWithFreshIds(design.layout),
     sourceRowUid: uid
   };
@@ -8315,6 +8327,7 @@ function wdSaveAndClose(){
         showerHingeCount: it.showerHingeCount === 2 ? 2 : 3,
         mfgWidthAdjustCm: it.mfgWidthAdjustCm || 0,
         mfgHeightAdjustCm: it.mfgHeightAdjustCm || 0,
+        mfgExcluded: it.mfgExcluded || false,
         layout: it.layout
       }
     };
@@ -9267,20 +9280,27 @@ function renderMfgSizesTable(){
   }
   el.innerHTML = visibleItems.map(it=>{
     const mfg = getMfgSizeMm(it);
-    return `<div class="mfg-card">
+    const excluded = !!it.mfgExcluded;
+    return `<div class="mfg-card${excluded ? ' mfg-excluded' : ''}">
       <div class="mfg-sketch" id="mfgSketch-${it.id}">${buildMfgSketchSVG(it, mfg)}</div>
       <div style="flex:1;min-width:220px;">
-        <div style="font-weight:600;font-size:14px;color:#333;">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}</div>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div style="font-weight:600;font-size:14px;color:#333;">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}</div>
+          <label style="display:flex; align-items:center; gap:5px; font-size:11px; color:#666; cursor:pointer; white-space:nowrap;" title="لو بطّلتي التضمين، هالبند ما بيظهر إطلاقًا بجدول ولا طباعة مقاسات التصنيع - بس بيضل موجود عادي بالرسمة وعرض السعر والطباعة العادية">
+            <input type="checkbox" ${excluded ? '' : 'checked'} onchange="onMfgExcludeToggle(${it.id}, !this.checked)" style="margin:0;">
+            تضمين بمقاسات التصنيع
+          </label>
+        </div>
         <div style="font-size:11.5px;color:#999;margin:2px 0 12px;">مقاس الفتحة: ${Math.round(it.width)} × ${Math.round(it.height)} مم</div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
           <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل العرض (سم)
-            <input type="number" step="0.1" value="${it.mfgWidthAdjustCm||0}" oninput="onMfgAdjustChange(${it.id},'w',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
+            <input type="number" step="0.1" value="${it.mfgWidthAdjustCm||0}" ${excluded?'disabled':''} oninput="onMfgAdjustChange(${it.id},'w',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
           </label>
           <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل الارتفاع (سم)
-            <input type="number" step="0.1" value="${it.mfgHeightAdjustCm||0}" oninput="onMfgAdjustChange(${it.id},'h',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
+            <input type="number" step="0.1" value="${it.mfgHeightAdjustCm||0}" ${excluded?'disabled':''} oninput="onMfgAdjustChange(${it.id},'h',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
           </label>
         </div>
-        <div class="purch-len" id="mfgOut-${it.id}" style="direction:ltr;">${mfg.w} × ${mfg.h} mm</div>
+        <div class="purch-len" id="mfgOut-${it.id}" style="direction:ltr;">${excluded ? 'مستبعد من مقاسات التصنيع' : mfg.w + ' × ' + mfg.h + ' mm'}</div>
       </div>
     </div>`;
   }).join('');
@@ -9300,6 +9320,18 @@ function onMfgAdjustChange(itemId, axis, val){
   if(sketchEl) sketchEl.innerHTML = buildMfgSketchSVG(it, mfg);
 }
 window.onMfgAdjustChange = onMfgAdjustChange;
+
+// 🆕 (طلب حمدي) - استبعاد/رجوع تضمين بند بتبويب مقاسات التصنيع - بند مستبعد بيضل ظاهر بالجدول (بس
+// خافت اللون وحقوله معطّلة) حتى تقدري ترجعي تضمّنيه في أي وقت، بس بيُستثنى تمامًا من طباعة مقاسات
+// التصنيع (printMfgSizes/buildPrintSheetHTML بوضعية useMfgSizes) - وما بيأثر إطلاقًا على الرسمة
+// الأصلية ولا عرض السعر ولا الطباعة العادية.
+function onMfgExcludeToggle(itemId, excluded){
+  const it = items.find(i=>i.id===itemId);
+  if(!it) return;
+  it.mfgExcluded = !!excluded;
+  renderMfgSizesTable(); // كبسة checkbox (مش كتابة) - إعادة رسم الجدول كامل آمنة هون، ما في خطر فقدان تركيز حقل إدخال
+}
+window.onMfgExcludeToggle = onMfgExcludeToggle;
 
 function openMfgSizesOverlay(){
   renderMfgSizesTable();
