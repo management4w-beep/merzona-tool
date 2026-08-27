@@ -79,7 +79,7 @@
   input[type=text]{
     width:100%;
     padding:10px 12px;
-    font-size:15px;
+    font-size:16px; /* لازم 16px بالضبط (مش أقل) - وإلا آيفون بيكبّر الشاشة تلقائيًا لما تضغط بالخانة */
     border:1px solid var(--line);
     border-radius:8px;
     font-family:inherit;
@@ -191,6 +191,44 @@
     text-align:center;
     margin:0 0 14px;
   }
+  /* 🆕 2026-08-27 (طلب حمدي) - معاينة عرض السعر (صفحة صفحة) قبل التوقيع */
+  .pdf-viewer{
+    border:1.5px solid var(--line);
+    border-radius:8px;
+    background:#f4f4f4;
+    min-height:160px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:auto;
+    padding:8px;
+  }
+  .pdf-viewer canvas{
+    max-width:100%;
+    height:auto;
+    display:block;
+    box-shadow:0 2px 10px rgba(0,0,0,0.14);
+  }
+  .pdf-loading{
+    color:var(--muted);
+    font-size:13px;
+    text-align:center;
+    padding:26px 10px;
+  }
+  .pdf-loading a{ color:var(--accent); }
+  .pdf-nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-top:6px;
+  }
+  .pdf-nav .link-btn:disabled{ opacity:0.35; cursor:not-allowed; }
+  .pdf-page-indicator{ font-size:12px; color:var(--muted); }
+  .pdf-openseparate{
+    text-align:center;
+    margin-top:6px;
+  }
+  .pdf-openseparate a{ font-size:11.5px; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -233,6 +271,22 @@
     <p class="state-sub">Review &amp; sign the contract</p>
     <div class="summary" id="form-summary"></div>
 
+    <!-- 🆕 2026-08-27 (طلب حمدي) - قبل ما يوقّع، لازم يقدر يراجع/يقلب بصفحات عرض السعر نفسه ويتأكد
+         إنو مطابق لنفس النسخة يلي انبعتلو قبل هيك عالواتساب. -->
+    <label class="field" style="margin-top:0;">مراجعة عرض السعر / Review the quotation</label>
+    <div class="pdf-viewer" id="pdfViewer">
+      <div class="pdf-loading" id="pdfLoading">⏳ جاري تحميل عرض السعر...<br>Loading the quotation...</div>
+      <canvas id="pdfCanvas" style="display:none;"></canvas>
+    </div>
+    <div class="pdf-nav" id="pdfNav" style="display:none;">
+      <button type="button" class="link-btn" id="pdfPrevBtn">◀ السابق / Previous</button>
+      <span class="pdf-page-indicator" id="pdfPageIndicator"></span>
+      <button type="button" class="link-btn" id="pdfNextBtn">التالي ▶ / Next</button>
+    </div>
+    <div class="pdf-openseparate" id="pdfOpenSeparateWrap" style="display:none;">
+      <a href="#" id="pdfOpenSeparateLink" target="_blank" rel="noopener">📄 فتحه بصفحة منفصلة / Open in a separate page</a>
+    </div>
+
     <label class="field">الاسم الكامل / Full name</label>
     <input type="text" id="signerNameInput" placeholder="اكتب اسمك الكامل هون...">
 
@@ -268,7 +322,12 @@
   <div class="fine-print">Merzona for Aluminum &amp; Glass Works</div>
 </div>
 
+<!-- 🆕 2026-08-27 - مكتبة pdf.js لعرض صفحات عرض السعر كصور يقدر الزبون يقلب فيها قبل ما يوقّع.
+     لو ما تحمّلت (مثلاً اتصال إنترنت ضعيف) ما بينكسر التوقيع نفسه - بيضل في رابط احتياطي "فتحه
+     بصفحة منفصلة" شغال بكل الحالات (مباشرة PDF عادي بمتصفح الجهاز). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
+const PDFJS_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 const API_BASE = 'https://merzona-server-production.up.railway.app';
 
 function qs(name){
@@ -332,6 +391,7 @@ async function loadInfo(){
     document.getElementById('form-summary').innerHTML = renderSummaryHtml(data.client, data.total);
     showState('state-form');
     initSignaturePad();
+    initQuotationPreview();
   }catch(e){
     showError('تعذّر الاتصال بالسيرفر', 'Could not reach the server', 'تأكد من اتصالك بالإنترنت وحاول تاني بعد شوي. Check your internet connection and try again shortly.');
   }
@@ -348,6 +408,78 @@ function handleApiError(status, err){
     showError('نسخة العرض الأصلية ناقصة', 'Original quotation file missing', 'تواصل مع Merzona لإعادة إرسال العرض.');
   } else {
     showError('صار خطأ غير متوقع', 'Unexpected error', 'حاول تاني بعد شوي، أو تواصل مع Merzona إذا استمرت المشكلة.');
+  }
+}
+
+/* ---------- مراجعة عرض السعر (صفحة صفحة) قبل التوقيع ---------- */
+function previewPdfUrl(){
+  return API_BASE + '/sign/' + encodeURIComponent(REF) + '/preview-pdf?t=' + encodeURIComponent(TOKEN);
+}
+
+let pdfDoc = null, pdfCurrentPage = 1, pdfTotalPages = 0, pdfRendering = false;
+
+function initQuotationPreview(){
+  // رابط "فتحه بصفحة منفصلة" شغال دايمًا بغض النظر إذا نجحت المعاينة جوا الصفحة أو لأ.
+  const openLink = document.getElementById('pdfOpenSeparateLink');
+  const openWrap = document.getElementById('pdfOpenSeparateWrap');
+  if(openLink){ openLink.href = previewPdfUrl(); }
+  if(openWrap){ openWrap.style.display = 'block'; }
+
+  document.getElementById('pdfPrevBtn').addEventListener('click', ()=>{
+    if(pdfCurrentPage > 1){ pdfCurrentPage--; renderPdfPage(pdfCurrentPage); }
+  });
+  document.getElementById('pdfNextBtn').addEventListener('click', ()=>{
+    if(pdfCurrentPage < pdfTotalPages){ pdfCurrentPage++; renderPdfPage(pdfCurrentPage); }
+  });
+
+  loadQuotationPreview();
+}
+
+async function loadQuotationPreview(){
+  const loadingEl = document.getElementById('pdfLoading');
+  const canvas = document.getElementById('pdfCanvas');
+  const navEl = document.getElementById('pdfNav');
+  try{
+    if(typeof pdfjsLib === 'undefined') throw new Error('pdfjs-not-loaded');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+    const loadingTask = pdfjsLib.getDocument(previewPdfUrl());
+    pdfDoc = await loadingTask.promise;
+    pdfTotalPages = pdfDoc.numPages;
+    pdfCurrentPage = 1;
+    await renderPdfPage(pdfCurrentPage);
+    loadingEl.style.display = 'none';
+    canvas.style.display = 'block';
+    navEl.style.display = pdfTotalPages > 1 ? 'flex' : 'none';
+  }catch(e){
+    console.error('[مراجعة عرض السعر] تعذّر عرضه داخل الصفحة مباشرة:', e);
+    loadingEl.innerHTML = '⚠️ تعذّر عرض عرض السعر هون مباشرة.<br>Could not preview the quotation here.<br>' +
+      'استخدم رابط "فتحه بصفحة منفصلة" تحت.<br>Use the "Open in a separate page" link below.';
+  }
+}
+
+async function renderPdfPage(num){
+  if(pdfRendering || !pdfDoc) return;
+  pdfRendering = true;
+  try{
+    const page = await pdfDoc.getPage(num);
+    const canvas = document.getElementById('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+    const viewerEl = document.getElementById('pdfViewer');
+    const containerWidth = Math.max(200, viewerEl.clientWidth - 16);
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = Math.max(0.5, Math.min(2.5, containerWidth / baseViewport.width));
+    const viewport = page.getViewport({ scale: scale });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    document.getElementById('pdfPageIndicator').textContent =
+      'صفحة ' + num + ' من ' + pdfTotalPages + ' / Page ' + num + ' of ' + pdfTotalPages;
+    document.getElementById('pdfPrevBtn').disabled = (num <= 1);
+    document.getElementById('pdfNextBtn').disabled = (num >= pdfTotalPages);
+  }catch(e){
+    console.error('[مراجعة عرض السعر] فشل رسم صفحة رقم ' + num + ':', e);
+  }finally{
+    pdfRendering = false;
   }
 }
 
