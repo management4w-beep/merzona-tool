@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.6';
+  var CURRENT_VERSION = '2026-08-27.7';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -427,7 +427,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital@0;1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital@0;1&amp;family=Tajawal:wght@400;500;700;900&amp;display=swap" rel="stylesheet">
 <style>
   :root{
     --main:#333333;
@@ -522,7 +522,15 @@
   }
   input:focus, textarea:focus{outline:2px solid #a9c6e8; background:#fff;}
   textarea{resize:vertical; min-height:14px; line-height:1.15;}
-  .ar{ direction:rtl; text-align:right; font-family:'DM Serif Text','Traditional Arabic','Arial',sans-serif; font-size:1.2em; }
+  /* 🔧 2026-08-27: صلّحنا خط العربي هون - كان الترتيب القديم ('DM Serif Text' أولاً وبعدها
+     'Traditional Arabic' وهو خط مش متوفر أصلاً إلا على بعض أجهزة الويندوز القديمة) بيخلي كل حرف
+     عربي يحتاج "استبدال خط" (font fallback) لحاله، لأنو DM Serif Text أصلاً ما فيه حروف عربي
+     نهائيًا. هالنوع من الاستبدال المختلط (عربي+انجليزي بنفس السطر) هو بالضبط السبب المعروف يخلي
+     مكتبة html2canvas (بوضعية foreignObjectRendering) ترسم الحروف فوق بعضها/مكررة عند تصدير الـPDF -
+     هيك فسّرنا مشكلة "كلمات فوق بعضها وخط غريب" يلي صارت مع طلحة. الحل: خط "Tajawal" (عربي حقيقي
+     ومحمّل فعليًا هلق عبر Google Fonts فوق) صار هو الخط الأساسي لكل نص عربي، منعًا لأي استبدال خط
+     مختلط وقت الالتقاط. */
+  .ar{ direction:rtl; text-align:right; font-family:'Tajawal','Arial',sans-serif; font-size:1.2em; }
 
   /* ---------- Header ---------- */
   .top{
