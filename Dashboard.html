@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.18';
+  var CURRENT_VERSION = '2026-08-28.19';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1681,20 +1681,30 @@ function exportCSV(){
   URL.revokeObjectURL(url);
 }
 
-function init(){
-  document.getElementById('lastUpdated').textContent = new Date().toLocaleDateString('ar-AE', {year:'numeric',month:'long',day:'numeric'});
-
+// 🔧 2026-08-27 (تصليح "الإحصائيات ثابتة" يلي أبلغ عنها حمدي): هالحساب كان قبل هيك جوا init()
+// بس - يعني بينفّذ مرة وحدة بس أول ما تفتح الصفحة. أي عروض أسعار تنضاف بعدين لمصفوفة DATA (من
+// مطابقة جوجل درايف اليدوية أو التلقائية بالخلفية) كانت فعليًا بتوصل لـDATA بالذاكرة صح (الجدول
+// نفسه كان بينعرض صح لأنه render() بيبني الجدول من DATA الطازة)، بس البطاقات الثلاث فوق (عدد
+// العروض / متوسط القيمة / أعلى عرض) كانت تضل عالقة على القيمة الأولى للأبد لأنه ما في شي كان يعيد
+// حسابها بعد أول مرة. هلق صارت دالة مستقلة (updateKpis) منقدر نناديها من أي مكان الداتا بتتغير فيه.
+function updateKpis(){
   const collected2026 = DATA.filter(d => d.year === '2026').length;
   const pct = Math.round((collected2026 / TOTAL_2026_FOLDERS) * 100);
   document.getElementById('coverageFill').style.width = pct + '%';
   document.getElementById('coveragePct').textContent = collected2026 + ' / ' + TOTAL_2026_FOLDERS + ' (' + pct + '٪)';
 
   const total = DATA.reduce((s,d)=>s+d.total,0);
-  const avg = Math.round(total / DATA.length);
-  const max = Math.max(...DATA.map(d=>d.total));
+  const avg = DATA.length ? Math.round(total / DATA.length) : 0;
+  const max = DATA.length ? Math.max(...DATA.map(d=>d.total)) : 0;
   document.getElementById('kpiCount').textContent = DATA.length;
   document.getElementById('kpiAvg').innerHTML = fmt(avg) + ' <small>د.إ</small>';
   document.getElementById('kpiMax').innerHTML = fmt(max) + ' <small>د.إ</small>';
+}
+
+function init(){
+  document.getElementById('lastUpdated').textContent = new Date().toLocaleDateString('ar-AE', {year:'numeric',month:'long',day:'numeric'});
+
+  updateKpis();
 
   document.querySelectorAll('.year-chip[data-year]').forEach(chip=>{
     chip.addEventListener('click', ()=>{
@@ -1777,6 +1787,9 @@ function getClientNameByRef(ref){
 }
 
 function render(){
+  // 🔧 2026-08-27: منحدّث بطاقات الإحصائيات (عدد العروض/المتوسط/الأعلى) مع كل إعادة رسم للجدول -
+  // هيك أي مطابقة جديدة مع جوجل درايف (يدوية أو تلقائية بالخلفية) بتنعكس فورًا عالبطاقات، مش بس عالجدول.
+  updateKpis();
   let rows = getFiltered();
   rows.sort((a,b)=>{
     let va=a[sortKey], vb=b[sortKey];
