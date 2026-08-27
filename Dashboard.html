@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.17';
+  var CURRENT_VERSION = '2026-08-28.18';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1428,7 +1428,10 @@ const DATA = [
   {ref:'M-Q-250249', year:'2025', client:'Arta building con.', phone:'971586617610', date:'9/10/2025', total:20603, duration:15, payDown:null, payAlu:null, payGlass:null, payFin:35, url:'https://drive.google.com/file/d/1EjeMid8KkTaqWDGeiPvBetl6lChBCoCO/view?usp=drivesdk'},
   {ref:'M-Q-250250', year:'2025', client:'Eng. Osama Ekra', phone:'971566079405', date:'9/20/2025', total:93778, duration:15, payDown:null, payAlu:null, payGlass:null, payFin:null, url:'https://drive.google.com/file/d/1QdCaGf2t4-EFR6N465woAIW7C8zrUTFa/view?usp=drivesdk'},
   {ref:'M-Q-250252', year:'2025', client:'—', phone:'971504500558', date:'9/22/2025', total:29768, duration:15, payDown:null, payAlu:null, payGlass:null, payFin:35, url:'https://drive.google.com/file/d/1Q_jlJzYFMDCBiHo296hkCrx8j8PGSZhq/view?usp=drivesdk'},
-  {ref:'M-Q-250253T', year:'2025', client:'request: Pergola (Aluminum) as per the requested', phone:'971 55 553 4600', date:'10/6/2025', total:42407, duration:15, payDown:null, payAlu:null, payGlass:null, payFin:35, url:'https://drive.google.com/file/d/1mz8IM87TV56XWHmRAyIFLAXnQHj3zI4U/view?usp=drivesdk'},
+  // 🆕 2026-08-27 (تصليح): هالصف بيانات مستخرجة قديمة/ناقصة (اسم العميل غلط بالوضوح "request: Pergola...")
+  // وما كان معلّم source:'drive-scan' - فكانت مطابقة جوجل درايف بترفض تلمسه للأبد (تعتبره صف يدوي محمي)
+  // حتى لو مجلده الحقيقي بجوجل درايف فيه بيانات صحيحة وأحدث. هلق معلّم صح حتى ينحدّث تلقائيًا بأول مطابقة.
+  {ref:'M-Q-250253T', year:'2025', client:'request: Pergola (Aluminum) as per the requested', phone:'971 55 553 4600', date:'10/6/2025', total:42407, duration:15, payDown:null, payAlu:null, payGlass:null, payFin:35, url:'https://drive.google.com/file/d/1mz8IM87TV56XWHmRAyIFLAXnQHj3zI4U/view?usp=drivesdk', source:'drive-scan'},
   {ref:'M-Q-250254', year:'2025', client:'—', phone:'971 58 625 1120', date:'10/9/2025', total:80201, duration:15, payDown:null, payAlu:null, payGlass:30, payFin:30, url:'https://drive.google.com/file/d/17RCOaJWylzOnQBiuV0z8A-x6-xUxqXlg/view?usp=drivesdk'},
   {ref:'M-Q-250255', year:'2025', client:'—', phone:'971 52 777 5502', date:'11/5/2025', total:131250, duration:15, payDown:null, payAlu:null, payGlass:30, payFin:30, url:'https://drive.google.com/file/d/16hu07DKmCyrQkCAgrp1IMMa6qVQ0Sgbk/view?usp=drivesdk'},
   {ref:'M-Q-250256', year:'2025', client:'—', phone:'971 52 253 6758', date:'10/13/2025', total:196345, duration:15, payDown:null, payAlu:null, payGlass:30, payFin:30, url:'https://drive.google.com/file/d/1uNJToH-3PaBjH-jzUNDAtHlrb227FVCk/view?usp=drivesdk'},
