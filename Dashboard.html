@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-28.19';
+  var CURRENT_VERSION = '2026-08-31.21';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -903,6 +903,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 الملفات</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
+        <span class="nav-pill" id="catalogsTabBtn">📚 الكتالوجات</span>
         <span class="nav-pill" id="pmpTabBtn">🗓 جدول المشاريع</span>
         <span class="nav-pill" id="backupTabBtn">📦 نسخة احتياطية</span>
         <span class="nav-pill" id="syncStatusPill" title="مزامنة تلقائية مع جوجل درايف لكل الفريق - اضغط للربط أول مرة أو لإعادة المحاولة">🔄 مزامنة الفريق</span>
@@ -1151,6 +1152,37 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
           <tbody id="contractsListBody"></tbody>
         </table>
       </div>
+    </div>
+
+  </div>
+
+  <div id="catalogsView" style="display:none;">
+
+    <div class="panel">
+      <p class="panel-title">📚 كتالوجات الأنظمة</p>
+      <p style="font-size:12.5px;color:var(--muted);margin:-6px 0 12px;">
+        أنظمة الألمنيوم يلي انقرت كاملة وانفهمت مواصفاتها الفعلية من الكتالوجات الرسمية (مش مجرد ملف
+        مرفوع بدون مراجعة) — كل نظام هون معناه مراجعته صفحة صفحة والتأكد من أرقامه الحقيقية.
+      </p>
+      <div id="catalogsList"></div>
+    </div>
+
+    <div class="panel">
+      <div class="controls" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
+        <p class="panel-title" style="margin:0;">🗂️ إدارة البنود (نسخة عمل — منفصلة عن عرض السعر)</p>
+        <span id="itemsDraftBadge" style="font-size:11.5px;color:var(--muted);"></span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0 12px;line-height:1.7;">
+        هاي نسخة عمل مستقلة تمامًا عن "Manage Items" يلي جوا أداة عرض السعر — أي تعديل أو ربط هون
+        <b>ما بيأثر إطلاقًا</b> على عروض الأسعار الحالية أو أي شي شغّال حاليًا بالنظام. الهدف منها إنك
+        تربط كل بند بالنظام المناسب من الكتالوجات فوق براحتك، ولما تخلص وترضى عن النتيجة خبرني
+        وقتها منربطها رسميًا بالداشبورد (مزامنة مع الفريق) ومنلغي البنود القديمة يلي كنا معتمدين عليها.
+      </p>
+      <div class="controls" style="margin-bottom:12px;">
+        <button class="export-btn" id="importLiveItemsBtn">📥 استيراد نسخة من البنود الحالية (عرض السعر)</button>
+        <button class="export-btn" id="addDraftItemBtn">+ بند جديد</button>
+      </div>
+      <div id="itemsDraftRows"></div>
     </div>
 
   </div>
@@ -2111,6 +2143,7 @@ function renderPaymentTableSelect(){
 function hideAllViews(){
   document.getElementById('dashboardView').style.display = 'none';
   document.getElementById('contractsView').style.display = 'none';
+  document.getElementById('catalogsView').style.display = 'none';
   document.getElementById('pmpView').style.display = 'none';
   document.getElementById('quotationView').style.display = 'none';
   document.getElementById('designerView').style.display = 'none';
@@ -2118,6 +2151,7 @@ function hideAllViews(){
   document.getElementById('settlementView').style.display = 'none';
   document.getElementById('usersView').style.display = 'none';
   document.getElementById('contractsTabBtn').classList.remove('active');
+  document.getElementById('catalogsTabBtn').classList.remove('active');
   document.getElementById('pmpTabBtn').classList.remove('active');
   document.getElementById('quotationTabBtn').classList.remove('active');
   document.getElementById('designerTabBtn').classList.remove('active');
@@ -2139,6 +2173,13 @@ function showDashboardView(){
   hideAllViews();
   document.getElementById('dashboardView').style.display = '';
   document.getElementById('homeTabBtn').classList.add('active');
+}
+function showCatalogsView(){
+  hideAllViews();
+  document.getElementById('catalogsView').style.display = 'block';
+  document.getElementById('catalogsTabBtn').classList.add('active');
+  renderCatalogsList();
+  renderItemsDraftList();
 }
 function showPmpView(){
   hideAllViews();
@@ -2290,6 +2331,10 @@ document.getElementById('pmpTabBtn').addEventListener('click', ()=>{
   const inPmp = document.getElementById('pmpView').style.display !== 'none';
   if(inPmp) showDashboardView(); else showPmpView();
 });
+document.getElementById('catalogsTabBtn').addEventListener('click', ()=>{
+  const inCatalogs = document.getElementById('catalogsView').style.display !== 'none';
+  if(inCatalogs) showDashboardView(); else showCatalogsView();
+});
 document.getElementById('quotationTabBtn').addEventListener('click', ()=>{
   const inQuotation = document.getElementById('quotationView').style.display !== 'none';
   if(inQuotation) showDashboardView(); else showQuotationView();
@@ -2312,6 +2357,7 @@ const BACKUP_KEYS = [
   'merzona_contract_files', 'merzona_pmp', 'merzona_discovered_quotations',
   'merzona_quote_total_overrides',
   'merzona-design-items', 'merzona-items', 'merzona-alum-spec-ar',
+  'merzona_items_draft',
   'merzona-price-memory', 'merzona-layout-mode', 'merzona-extract-endpoint',
   'rm_usageStats', 'rm_pinnedTemplates', 'rm_hiddenDefaults',
   'merzona_client_overrides__ts', 'merzona_quote_durations__ts', 'merzona_contracts__ts',
@@ -2341,6 +2387,7 @@ const MERZONA_PERMISSION_COLUMNS = [
   { key: 'quotation', label: 'عرض أسعار' },
   { key: 'procurement', label: 'مشتريات' },
   { key: 'contracts', label: 'عقود' },
+  { key: 'catalogs', label: 'كتالوجات' },
   { key: 'pmp', label: 'مشاريع' },
   { key: 'backup', label: 'نسخة احتياطية' },
   { key: 'files', label: 'ملفات' },
@@ -2482,6 +2529,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     designerTabBtn: 'quotation',
     procurementTabBtn: 'procurement',
     contractsTabBtn: 'contracts',
+    catalogsTabBtn: 'catalogs',
     pmpTabBtn: 'pmp',
     backupTabBtn: 'backup',
     syncStatusPill: 'teamSync',
@@ -5544,6 +5592,502 @@ function printPmpGantt(paperSize){
 }
 document.getElementById('pmpPrintA3Btn').addEventListener('click', ()=> printPmpGantt('A3'));
 document.getElementById('pmpPrintA4Btn').addEventListener('click', ()=> printPmpGantt('A4'));
+
+/* ============================================================================
+   🆕 2026-08-31: تبويب "📚 الكتالوجات" — درسنا 8 كتالوجات أنظمة ألمنيوم (الغرير/الخليج للسحب
+   وNBBM) صفحة صفحة، وهاي خلاصتها الفعلية. كل نظام هون معناه انقرا كامل (مش بس عنوان الملف).
+   جوا نفس التبويب كمان "إدارة البنود" - نسخة عمل تجريبية منفصلة كليًا عن merzona-items (يلي
+   أداة عرض السعر شغالة عليها حاليًا) - حسب طلب حمدي: ما في أي تأثير على النظام الحالي أو
+   عروض الأسعار لحتى يوافق هو ويطلب الربط الرسمي لاحقًا.
+   ============================================================================ */
+
+const CATALOG_GROUPS = [
+  {
+    id: 'next',
+    brand: 'الغرير للأنظمة الإنشائية / الخليج للسحب (AGBS / Gulf Extrusions)',
+    nameAr: 'THE NEXT — نظام السحّاب الحراري متعدد المسارات',
+    sources: ['Next.pdf (ملخص تجاري، 3 صفحات)', 'Gulf Extrusion – The Next Catalogue (كتالوج تسويقي فيه بيانات أداء، 24 صفحة)', 'The Next System (الدليل الهندسي الكامل لقصات التصنيع، 103 صفحة - بالداخل مسمّى "New Sliding System")'],
+    systems: [
+      { id:'next-sliding', nameAr:'نظام NEXT للسحّاب الحراري (2 إلى 5 مسارات)',
+        type:'سحّاب (Sliding) حراري - نوافذ وأبواب، 2-5 مسارات',
+        depth:'عرض الفريم 110 - 196 ملم حسب عدد المسارات',
+        thermalBreak:'نعم - عازل بولي أميد بعرض 34 ملم',
+        glass:'24 - 40 ملم',
+        maxPanel:'ارتفاع الدفة حتى 3.50م، عرض حتى 2.0م، وزن حتى 230 كغم',
+        performance:'تسرب هواء 300-600 باسكال، مقاومة مياه ساكن/ديناميكي 600 باسكال، ضغط رياح تصميمي حتى 2000 باسكال، مقاومة اقتحام WK2 (DIN ENV 1627)، معامل حراري Uw ≈ 1.7-1.9 W/m²K',
+        finishes:'باودر كوتينغ (بوليستر / سوبر-هايبر ديورابل PVDF) أو أنودايز (طبيعي/ذهبي/برونزي/سبكترو) 5-30 ميكرون',
+        notes:'نفس النظام موثّق بثلاث كتالوجات بمستويات تفصيل مختلفة (ملخص/تسويقي فيه أداء/دليل هندسي كامل) - الأرقام هون مجمّعة من الثلاثة سوا.',
+        images:['next-detail.jpg'] },
+    ]
+  },
+  {
+    id: 'glide',
+    brand: 'الخليج للسحب (Gulf Extrusions)',
+    nameAr: 'THE GLIDE — نظام السحّاب (رفع وسحب / سحب عادي)',
+    sources: ['The Glide – Typology & Details.pdf (25 صفحة)'],
+    systems: [
+      { id:'glide-lift-slide', nameAr:'Glide — رفع وسحب (Lift & Slide)',
+        type:'سحّاب بنظام الرفع والسحب - مساري واحد (2-track)',
+        depth:'فريم 110 ملم × 41 ملم (1.6 ملم سماكة الجدار)، سكشن الدفة/الالتقاء 85×65 ملم',
+        thermalBreak:'غير محدد بالكتالوج (لا يظهر عازل بولي أميد بأي مقطع)',
+        glass:'24 - 34 ملم (وحدة زجاج مزدوج، 6 تركيبات غاسكيت حسب السماكة)',
+        maxPanel:'وزن حتى 420 كغم، نسبة الارتفاع/العرض ≤ 2.5',
+        performance:'Uw = 1.898 W/m²K (محسوبة لوحدة مرجعية 2.4×2.0م بزجاج Ug=1.3) - بدون تصنيف رياح/هواء/مياه معتمد',
+        finishes:'مقابض فقط: مِل (طبيعي)/أسود/أبيض - ما في جدول ألوان للفريم نفسه',
+        notes:'مخططات A (درفتين) / C (4 درفات) / K (3 درفات وسط ثابت). عتبة تقوية "interlock fin" بترفع أقصى ارتفاع مسموح لحوالي 3.6م.',
+        images:['glide-liftslide-overview.jpg','glide-crosssection-detail1.jpg','glide-crosssection-detail2.jpg'] },
+      { id:'glide-slide-std', nameAr:'Glide — سحّاب عادي (Standard Slide)',
+        type:'سحّاب أفقي عادي (بدون رفع) - مساري واحد (2-track)',
+        depth:'نفس عائلة مقاطع Lift & Slide (فريم 110 ملم)',
+        thermalBreak:'غير محدد بالكتالوج',
+        glass:'24 - 34 ملم (نفس جدول الغاسكيت)',
+        maxPanel:'وزن حتى 200 كغم، نسبة الارتفاع/العرض ≤ 2',
+        performance:'غير محدد (ما في منحنيات تحميل رياح مخصصة لهالنوع)',
+        finishes:'نفس مقابض Lift & Slide (مِل/أسود/أبيض)',
+        notes:'نسخة أخف من نفس النظام - تركيب أبسط وسعة تحمل أقل.',
+        images:['glide-slide-overview.jpg','glide-crosssection-detail1.jpg','glide-crosssection-detail2.jpg'] },
+    ]
+  },
+  {
+    id: 'cw50',
+    brand: 'الخليج للسحب (Gulf Extrusions)',
+    nameAr: 'CW 50 — الواجهة الستائرية (Curtain Wall) بعرض 50 ملم',
+    sources: ['CurtainWall50MM.pdf (108 صفحة)'],
+    systems: [
+      { id:'cw50-conventional', nameAr:'CW 50 — تغطية تقليدية (Capped / Pressure Plate)',
+        type:'واجهة ستائرية - أغطية ظاهرة على المحورين',
+        depth:'عرض ظاهر 50 ملم، عمق العمود حسب التعزيز: 44 إلى 250 ملم (يقبل تعزيز حديد/ألمنيوم للمباني العالية)',
+        thermalBreak:'غير محدد/غير موجود بالمقاطع',
+        glass:'6 - 32 ملم',
+        maxPanel:'غير محدد',
+        performance:'غير محدد بالكتالوج (لا يوجد تصنيف رياح/هواء/مياه أو Uw)',
+        finishes:'باودر كوتينغ (PE-F / SDF / HDF) أو أنودايز (طبيعي/ذهبي/برونزي/سبكترو) - معتمد Qualicoat/Qualanod',
+        notes:'تزجيج جاف بغاسكيت EPDM + كوابس ضغط وأغطية خارجية (8 أشكال، منها منحني/بولت-نوز).',
+        images:['cw50-conventional-overview.jpg','cw50-conventional-detail.jpg'] },
+      { id:'cw50-two-way', nameAr:'CW 50 — تغطية أفقية فقط (Two-Way / شبه إنشائي)',
+        type:'واجهة ستائرية - أغطية أفقية ظاهرة فقط، الوصلات الرأسية سيليكون إنشائي',
+        depth:'نفس عائلة الأعمدة (50 ملم ظاهر، أعماق 44-250 ملم)',
+        thermalBreak:'غير محدد/غير موجود',
+        glass:'6 - 32 ملم',
+        maxPanel:'غير محدد',
+        performance:'غير محدد بالكتالوج',
+        finishes:'نفس خيارات التغطية التقليدية',
+        notes:'واجهة أنعم بصريًا (خطوط أفقية فقط) - وصلات رأسية سيليكون إنشائي.',
+        images:['cw50-twoway-overview.jpg','cw50-twoway-detail.jpg'] },
+      { id:'cw50-ssg', nameAr:'CW 50 — تزجيج إنشائي رباعي (4-Way SSG)',
+        type:'واجهة ستائرية - إطار مخفي بالكامل، الزجاج ملتصق بسيليكون إنشائي',
+        depth:'نفس عائلة الأعمدة (50 ملم ظاهر، أعماق 44-250 ملم)',
+        thermalBreak:'غير محدد/غير موجود',
+        glass:'حتى 32 ملم (مثال موضّح: وحدة IGU بفراغ هواء 20 ملم)',
+        maxPanel:'غير محدد',
+        performance:'غير محدد بالكتالوج',
+        finishes:'نفس خيارات التغطية التقليدية',
+        notes:'الكتالوج بيذكرها "الأكثر استخدامًا بمنطقة الشرق الأوسط". السبيكة: 6005A/6060/6061/6063/6082.',
+        images:['cw50-ssg-overview.jpg','cw50-ssg-detail.jpg'] },
+    ]
+  },
+  {
+    id: 'montana120',
+    brand: 'الخليج للسحب (Gulf Extrusions)',
+    nameAr: 'Montana 120 — نظام سحّاب حراري ثقيل (Heavy Duty)',
+    sources: ['Montana120.pdf (84 صفحة)'],
+    systems: [
+      { id:'montana120', nameAr:'Montana — سحّاب حراري 120 ملم',
+        type:'سحّاب أفقي ثقيل (2-4 درفات) + فتحات ثابتة + خيار قوس علوي',
+        depth:'عمق الفريم 120 ملم (مؤكد من المقاطع)، عمق الدفة ≈ 76.3 ملم',
+        thermalBreak:'نعم - عازل بولي أميد مقوى بالفايبرغلاس PA66 GF25، سماكة 16 ملم',
+        glass:'24 ملم (وحدة زجاج مزدوج)',
+        maxPanel:'غير محدد',
+        performance:'تصنيف H-HC40 (خدمة شاقة) - معتمد من Al Futtaim Bodycote: تسرب هواء ≤5.0 م³/ساعة/م² @75Pa (ناجح)، تسرب مياه صفر (ناجح)، معامل حراري Uw = 3.3 W/m²K (بعازل) مقابل 5.7 (ألمنيوم بدون عازل)',
+        finishes:'باودر كوتينغ (PE-F/SDF/HDF) أو أنودايز (طبيعي/ذهبي/برونزي/سبكترو)',
+        notes:'خيار فتحة قوس علوي، شبك ناموس داخلي وخارجي، قفل 3 نقاط، صمام تصريف مياه مخصص SUC-120.',
+        images:['montana-frame.jpg','montana-frame-fixed.jpg'] },
+    ]
+  },
+  {
+    id: 'general-v2',
+    brand: 'الخليج للسحب (Gulf Extrusions)',
+    nameAr: 'الكتالوج العام - المجلد الثاني (مرجع أبعاد شامل)',
+    sources: ['General_Catalogue_VOL2.pdf (292 صفحة)'],
+    systems: [
+      { id:'gc-tb600', nameAr:'TB-600 — نظام مفصلي (Hinged) حراري',
+        type:'نافذة/باب مفصلي حراري - فتح للداخل/الخارج، Turn+Tilt',
+        depth:'فريم 60-120 ملم، دفة 60/67 ملم', thermalBreak:'نعم - شريط بولي أميد 18.6 ملم',
+        glass:'18 - 38 ملم', maxPanel:'غير محدد',
+        performance:'مُختبر ASTM E283/E331/E330 (قيم النجاح/الرسوب غير منشورة بالكتالوج) - Uw ≈ 3.0 W/m²K بالعازل مقابل 5.7 بدونه',
+        finishes:'باودر كوتينغ / أنودايز', notes:'3 غاسكيت EPDM + مصطكي عزل الطقس.',
+        images:['tb600-frame.jpg'] },
+      { id:'gc-tb62', nameAr:'TB-62 — نظام مفصلي حراري 62 ملم',
+        type:'نافذة/باب مفصلي حراري، Turn+Tilt',
+        depth:'فريم 62-106 ملم، دفة 70.5 ملم', thermalBreak:'نعم - شريط بولي أميد 22 ملم',
+        glass:'24 ملم', maxPanel:'غير محدد', performance:'غير محدد (لا بيانات أداء رقمية منشورة)',
+        finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['tb62-frame.jpg'] },
+      { id:'gc-cw-50', nameAr:'واجهة ستائرية 50 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 50 ملم',
+        depth:'50 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-50mm.jpg'] },
+      { id:'gc-cw-52', nameAr:'واجهة ستائرية 52 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 52 ملم',
+        depth:'52 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-52mm.jpg'] },
+      { id:'gc-cw-55', nameAr:'واجهة ستائرية 55 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 55 ملم',
+        depth:'55 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-55mm.jpg'] },
+      { id:'gc-cw-60', nameAr:'واجهة ستائرية 60 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 60 ملم',
+        depth:'60 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-60mm.jpg'] },
+      { id:'gc-cw-61-5', nameAr:'واجهة ستائرية 61.5 ملم (Vortex)', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 61.5 ملم',
+        depth:'61.5 ملم', thermalBreak:'الفريم والدفة ممكن حراري أو غير حراري (خياران بالكتالوج)', glass:'4 - 28 ملم', maxPanel:'غير محدد',
+        performance:'مُختبرة ASTM E283/E331/E330', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-61-5mm.jpg'] },
+      { id:'gc-cw-63-5', nameAr:'واجهة ستائرية 63.5 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 63.5 ملم',
+        depth:'63.5 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-63-5mm.jpg'] },
+      { id:'gc-cw-64', nameAr:'واجهة ستائرية 64 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 64 ملم',
+        depth:'64 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-64mm.jpg'] },
+      { id:'gc-cw-65', nameAr:'واجهة ستائرية 65 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 65 ملم',
+        depth:'65 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-65mm.jpg'] },
+      { id:'gc-cw-68', nameAr:'واجهة ستائرية 68 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 68 ملم',
+        depth:'68 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-68mm.jpg'] },
+      { id:'gc-cw-75', nameAr:'واجهة ستائرية 75 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 75 ملم',
+        depth:'75 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-75mm.jpg'] },
+      { id:'gc-cw-100', nameAr:'واجهة ستائرية 100 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 100 ملم',
+        depth:'100 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-100mm.jpg'] },
+      { id:'gc-cw-130', nameAr:'واجهة ستائرية 130 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 130 ملم',
+        depth:'130 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
+        images:['gc-cw-130mm.jpg'] },
+      { id:'gc-vortex70', nameAr:'VORTEX 70 — واجهة ستائرية إنشائية',
+        type:'واجهة ستائرية بعرض 70 ملم - تقبل تزجيج إنشائي رباعي (SSG)',
+        depth:'70 ملم', thermalBreak:'غير محدد',
+        glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'مُختبرة ASTM E283/E331/E330 (قيم النجاح/الرسوب غير منشورة)',
+        finishes:'باودر كوتينغ / أنودايز', notes:'الصفحة الوحيدة بعائلة الواجهات الستائرية فيها "مقدمة نظام" سردية.',
+        images:['gc-cw-70mm-vortex.jpg'] },
+      { id:'gc-louvers', nameAr:'الفتحات الشمسية (Louvers)', type:'شفرات تظليل/تهوية - مسطحة/منحنية/Z',
+        depth:'45-500 ملم', thermalBreak:'لا يوجد', glass:'لا ينطبق', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'مرجع أبعاد فقط.' },
+      { id:'gc-kitchen', nameAr:'مقاطع المطابخ', type:'فريم/حافة/زاوية كبينت ألمنيوم',
+        depth:'25-63 ملم', thermalBreak:'لا يوجد', glass:'لا ينطبق', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'' },
+      { id:'gc-rolling-shutter', nameAr:'الرولر شتر (Rolling Shutter)', type:'شرائح وقضبان توجيه',
+        depth:'شرائح 45-80 ملم، صندوق/قضبان 45-75 ملم', thermalBreak:'لا يوجد', glass:'لا ينطبق',
+        maxPanel:'غير محدد', performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'' },
+      { id:'gc-balustrades', nameAr:'الدرابزين الزجاجي (Balustrades)', type:'قنوات مشبك زجاج + درابزين دائري',
+        depth:'قنوات 65-150 ملم، درابزين قطر 50-100 ملم', thermalBreak:'لا ينطبق',
+        glass:'سماكة القبضة غير محددة', maxPanel:'غير محدد', performance:'غير محدد',
+        finishes:'باودر كوتينغ / أنودايز', notes:'' },
+      { id:'gc-claustra', nameAr:'كلوسترا - شاشات ديكورية (Claustra)', type:'ألواح تشابك ديكورية هندسية (نمط مشربية)',
+        depth:'وحدات هندسية متعددة (رباعي/نجمة/معين/مثمن/صليب)', thermalBreak:'لا ينطبق', glass:'لا ينطبق',
+        maxPanel:'غير محدد', performance:'ديكوري بحت - لا بيانات إنشائية', finishes:'باودر كوتينغ / أنودايز', notes:'' },
+      { id:'gc-scaffolding', nameAr:'السقالات (Scaffolding)', type:'ألواح وكمرات ألمنيوم',
+        depth:'80-165 ملم، أوزان 2.7-4.75 كغم/م', thermalBreak:'لا ينطبق', glass:'لا ينطبق',
+        maxPanel:'غير محدد', performance:'غير محدد (لا شهادة تحميل منشورة)', finishes:'-', notes:'' },
+      { id:'gc-tent', nameAr:'مقاطع الخيام (Tent)', type:'أنابيب فريم خيام/سرادق مقفلة',
+        depth:'80×90 إلى 125×300 ملم', thermalBreak:'لا ينطبق', glass:'لا ينطبق',
+        maxPanel:'غير محدد', performance:'غير محدد', finishes:'-', notes:'' },
+      { id:'gc-misc', nameAr:'متفرقات (بانيلينغ، واجهات كلادينغ، فتحات ثابتة، شوب فرونت، لافتات...)',
+        type:'مجموعة أقسام متنوعة: بانيلينغ داخلي، واجهة ستائرية 40/43 ملم إضافية، كلادينغ 70-450 ملم، فتحات ثابتة (غير قابلة للفتح) 50-138 ملم، شوب فرونت، لافتات، أجنحة معارض، إكسسوارات HVAC، فريمات مفصلية صغيرة 44.5-55 ملم',
+        depth:'متفاوت حسب القسم', thermalBreak:'غير محدد (أغلبها غير حراري)', glass:'غير محدد لمعظم الأقسام',
+        maxPanel:'غير محدد', performance:'غير محدد - مرجع أبعاد فقط', finishes:'باودر كوتينغ / أنودايز',
+        notes:'أقسام دعم إضافية مش أنظمة أساسية مستقلة.' },
+    ]
+  },
+  {
+    id: 'nbbm',
+    brand: 'NBBM (New Broadway Building Materials) — شركة توزيع، مش مصنّع',
+    nameAr: 'كتالوج NBBM — مقاطع متعددة الموردين (الخليج للسحب، Emirates Extrusion، AREXCO، White Aluminium، Classic Extrusion)',
+    sources: ['NBBM_CATLOG.pdf (36 صفحة)'],
+    systems: [
+      { id:'nbbm-sliding105', nameAr:'سحّاب عادي 10.5 سم', type:'سحّاب غير حراري', depth:'105 ملم',
+        thermalBreak:'لا', glass:'غير محدد', maxPanel:'غير محدد', performance:'غير محدد - كتالوج مقاطع تجاري بدون اختبارات معتمدة',
+        finishes:'غير محدد', notes:'',
+        images:['nbbm-sliding105.jpg'] },
+      { id:'nbbm-hinged42', nameAr:'مفصلي 42 ملم', type:'نافذة/باب مفصلي غير حراري', depth:'42 ملم',
+        thermalBreak:'لا', glass:'غير محدد', maxPanel:'غير محدد', performance:'غير محدد', finishes:'غير محدد', notes:'' },
+      { id:'nbbm-hingeddoor45', nameAr:'باب مفصلي 45 ملم (بعلامة الخليج للسحب)', type:'باب/نافذة مفصلي', depth:'45 ملم (فريم كامل 105 ملم)',
+        thermalBreak:'لا', glass:'بيدات مخصصة لـ 6/8 ملم مفرد، 20 ملم مفرد، 24/28 ملم مزدوج', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'غير محدد', notes:'' },
+      { id:'nbbm-curtainwall', nameAr:'واجهة ستائرية (عروض 50/80/106/125/150 ملم)', type:'واجهة ستائرية بكوابس ضغط وأغطية',
+        depth:'50 - 150 ملم', thermalBreak:'لا', glass:'شراع مفرد أو مزدوج - سماكة غير محددة', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'غير محدد', notes:'',
+        images:['nbbm-cw-widths1.jpg','nbbm-cw-widths2.jpg'] },
+      { id:'nbbm-tb-sliding', nameAr:'سحّاب حراري 10.5 و12 سم', type:'سحّاب حراري', depth:'105 و120 ملم',
+        thermalBreak:'نعم (شريط ظاهر بالمقاطع)', glass:'غير محدد', maxPanel:'غير محدد', performance:'غير محدد',
+        finishes:'غير محدد', notes:'',
+        images:['nbbm-sliding105-tb.jpg'] },
+      { id:'nbbm-tb-hinged', nameAr:'مفصلي حراري (60-120 ملم)', type:'نافذة/باب مفصلي حراري + واجهة ستائرية حرارية مطابقة',
+        depth:'60، 66، 74، 105، 120 ملم', thermalBreak:'نعم', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'غير محدد', notes:'' },
+      { id:'nbbm-twinpro', nameAr:'TwinPro — نظام تزجيج جاف', type:'قضبان/غاسكيت تزجيج جاف (بدون سيليكون/غراء)',
+        depth:'تجويف أعمق بـ50 ملم (طول/عرض) للتفاوت', thermalBreak:'لا ينطبق', glass:'8، 10، 12 ملم',
+        maxPanel:'أطوال قياسية 3.6م و5.8م (تفصيل حسب الطلب)', performance:'غاسكيت EPDM محيطي 8 حواف - مقاوم للسرقة، بدون رقم عزل صوتي منشور',
+        finishes:'أنودايز / مِل / أي لون RAL', notes:'للقواطع الزجاجية، واجهات المحلات، اللافتات، البرغولات، السكاي لايت، كبائن الدش.' },
+      { id:'nbbm-staircase', nameAr:'درابزين وقنوات درج', type:'ريل درابزين + قنوات زجاج مشبكة',
+        depth:'ريل 6.5-10 سم، قنوات 18-40 ملم', thermalBreak:'لا ينطبق', glass:'غير محدد', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'غير محدد', notes:'' },
+      { id:'nbbm-louvers', nameAr:'فتحات شمسية', type:'شفرات كبيرة/صغيرة/بيضاوية/مصدّات رمل',
+        depth:'غير محدد', thermalBreak:'لا ينطبق', glass:'لا ينطبق', maxPanel:'غير محدد',
+        performance:'غير محدد', finishes:'غير محدد', notes:'' },
+      { id:'nbbm-sheets', nameAr:'صاج ألمنيوم (عادي وشطرنجي)', type:'صاج مسطح + صاج شطرنجي (مانع انزلاق)',
+        depth:'عادي 0.65-9.80 ملم، شطرنجي 1.5-3.8 ملم', thermalBreak:'لا ينطبق', glass:'لا ينطبق',
+        maxPanel:'مقاسات 1220×2440 و1500×3000 ملم', performance:'لا ينطبق',
+        finishes:'RAL 9010 / 1015 / مِل / أي لون بالطلب', notes:'' },
+    ]
+  },
+];
+
+const CATALOG_IMAGES_DIR = 'catalog-images/';
+
+function getAllCatalogSystemsFlat(){
+  const out = [];
+  CATALOG_GROUPS.forEach(g => g.systems.forEach(s => out.push({ id:s.id, label: g.nameAr + ' — ' + s.nameAr, images: s.images||[] })));
+  return out;
+}
+
+function findCatalogSystemById(sysId){
+  for(const g of CATALOG_GROUPS){
+    const s = g.systems.find(x => x.id === sysId);
+    if(s) return s;
+  }
+  return null;
+}
+
+function mzCatEscAttr(s){
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function catalogSpecRow(label, value){
+  if(!value) return '';
+  return '<tr><td style="padding:4px 8px 4px 0;color:var(--muted);white-space:nowrap;vertical-align:top;">'+label+'</td><td style="padding:4px 0;">'+value+'</td></tr>';
+}
+
+function catalogImageGallery(images, opts){
+  opts = opts || {};
+  if(!images || !images.length) return '';
+  const thumbH = opts.thumbH || 92;
+  return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 2px;">' +
+    images.map(img => `
+      <a href="${CATALOG_IMAGES_DIR}${img}" target="_blank" rel="noopener" title="${mzCatEscAttr(img)}"
+         style="display:block;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;">
+        <img src="${CATALOG_IMAGES_DIR}${img}" alt="${mzCatEscAttr(img)}" loading="lazy"
+             style="display:block;height:${thumbH}px;width:auto;max-width:160px;object-fit:cover;">
+      </a>`).join('') +
+    '</div>';
+}
+
+function renderCatalogsList(){
+  const c = document.getElementById('catalogsList');
+  if(!c) return;
+  c.innerHTML = CATALOG_GROUPS.map(g => `
+    <details style="border:1px solid var(--line);border-radius:9px;margin-bottom:10px;background:var(--paper);">
+      <summary style="cursor:pointer;padding:12px 14px;font-weight:700;color:var(--main);">
+        ${g.nameAr}
+        <span style="font-weight:400;color:var(--muted);font-size:12px;">— ${g.brand}</span>
+      </summary>
+      <div style="padding:0 14px 14px;">
+        <p style="font-size:11.5px;color:var(--muted);margin:0 0 10px;">📎 المصدر: ${g.sources.join(' · ')}</p>
+        ${g.systems.map(s => `
+          <div style="border-top:1px dashed var(--line);padding:10px 0;">
+            <p style="font-weight:600;margin:0 0 6px;">${s.nameAr}</p>
+            ${catalogImageGallery(s.images)}
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+              ${catalogSpecRow('النوع', s.type)}
+              ${catalogSpecRow('الأبعاد/العمق', s.depth)}
+              ${catalogSpecRow('العزل الحراري', s.thermalBreak)}
+              ${catalogSpecRow('سماكة الزجاج', s.glass)}
+              ${catalogSpecRow('أقصى مقاس/وزن', s.maxPanel)}
+              ${catalogSpecRow('الأداء/الاختبارات', s.performance)}
+              ${catalogSpecRow('التشطيبات', s.finishes)}
+              ${catalogSpecRow('ملاحظات', s.notes)}
+            </table>
+          </div>`).join('')}
+      </div>
+    </details>`).join('');
+}
+
+/* ---------- إدارة البنود (نسخة عمل تجريبية) - merzona_items_draft ----------
+   مفتاح تخزين مستقل تمامًا عن merzona-items (يلي أداة عرض السعر شغالة عليه فعليًا) - أي قراءة
+   من merzona-items هون هي قراءة فقط (استيراد نسخة)، ما في أي كتابة عليه من هالتبويب إطلاقًا. */
+const ITEMS_DRAFT_KEY = 'merzona_items_draft';
+function loadItemsDraft(){
+  try{ return JSON.parse(localStorage.getItem(ITEMS_DRAFT_KEY) || '[]'); }catch(e){ return []; }
+}
+function saveItemsDraft(list){
+  try{ localStorage.setItem(ITEMS_DRAFT_KEY, JSON.stringify(list)); }catch(e){}
+}
+function normalizeItemNameForMatch(s){
+  return String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+}
+function importLiveItemsIntoDraft(){
+  let live = [];
+  try{ live = JSON.parse(localStorage.getItem('merzona-items') || '[]'); }catch(e){ live = []; }
+  if(!live.length){
+    alert('ما لقيت بنود محفوظة بأداة عرض السعر بهالمتصفح (merzona-items فاضي أو غير موجود).');
+    return;
+  }
+  const draft = loadItemsDraft();
+  const existingNames = new Set(draft.map(it => normalizeItemNameForMatch(it.en)));
+  let added = 0;
+  live.forEach(it => {
+    const norm = normalizeItemNameForMatch(it.en);
+    if(existingNames.has(norm)) return; // موجود أصلًا بالمسودة - ما منكرر ولا منلمس أي تعديل عملته يدويًا
+    draft.push({ en: it.en||'', ar: it.ar||'', specEn: it.specEn||'', glassEn: it.glassEn||'', glassAr: it.glassAr||'', catalogLinks: [], selectedImages: [] });
+    existingNames.add(norm);
+    added++;
+  });
+  saveItemsDraft(draft);
+  renderItemsDraftList();
+  alert(added > 0 ? ('✅ تم استيراد ' + added + ' بند جديد لنسخة العمل (البنود الموجودة أصلًا بالمسودة ما اتلمست).') : 'كل بنود عرض السعر الحالية موجودة أصلًا بنسخة العمل - ما في جديد يُستورد.');
+}
+function addDraftItemRow(){
+  const draft = loadItemsDraft();
+  draft.push({ en:'', ar:'', specEn:'', glassEn:'', glassAr:'', catalogLinks:[], selectedImages:[] });
+  saveItemsDraft(draft);
+  renderItemsDraftList();
+}
+function removeDraftItemRow(idx){
+  const draft = loadItemsDraft();
+  draft.splice(idx,1);
+  saveItemsDraft(draft);
+  renderItemsDraftList();
+}
+function updateDraftItemField(idx, field, value){
+  const draft = loadItemsDraft();
+  if(!draft[idx]) return;
+  draft[idx][field] = value;
+  saveItemsDraft(draft);
+}
+function toggleDraftItemCatalogLink(idx, sysId, checked){
+  const draft = loadItemsDraft();
+  if(!draft[idx]) return;
+  if(!draft[idx].catalogLinks) draft[idx].catalogLinks = [];
+  if(checked){
+    if(!draft[idx].catalogLinks.includes(sysId)) draft[idx].catalogLinks.push(sysId);
+  } else {
+    draft[idx].catalogLinks = draft[idx].catalogLinks.filter(id => id !== sysId);
+    // إذا انشال الربط عن نظام، بنشيل الصور المختارة يلي كانت جايي منه بس وما في نظام تاني مرتبط فيها
+    const stillAvailable = new Set();
+    (draft[idx].catalogLinks||[]).forEach(id => {
+      const sys = findCatalogSystemById(id);
+      (sys && sys.images || []).forEach(img => stillAvailable.add(img));
+    });
+    draft[idx].selectedImages = (draft[idx].selectedImages||[]).filter(img => stillAvailable.has(img));
+  }
+  saveItemsDraft(draft);
+  renderItemsDraftList();
+}
+function toggleDraftItemImage(idx, img, checked){
+  const draft = loadItemsDraft();
+  if(!draft[idx]) return;
+  if(!draft[idx].selectedImages) draft[idx].selectedImages = [];
+  if(checked){
+    if(!draft[idx].selectedImages.includes(img)) draft[idx].selectedImages.push(img);
+  } else {
+    draft[idx].selectedImages = draft[idx].selectedImages.filter(x => x !== img);
+  }
+  saveItemsDraft(draft);
+}
+function getDraftItemAvailableImages(item){
+  const seen = new Set();
+  const out = [];
+  (item.catalogLinks||[]).forEach(sysId => {
+    const sys = findCatalogSystemById(sysId);
+    (sys && sys.images || []).forEach(img => {
+      if(!seen.has(img)){ seen.add(img); out.push(img); }
+    });
+  });
+  return out;
+}
+function renderItemsDraftList(){
+  const c = document.getElementById('itemsDraftRows');
+  const badge = document.getElementById('itemsDraftBadge');
+  if(!c) return;
+  const draft = loadItemsDraft();
+  const allSystems = getAllCatalogSystemsFlat();
+  if(badge) badge.textContent = draft.length + ' بند بنسخة العمل';
+  if(draft.length === 0){
+    c.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">ما في بنود بنسخة العمل بعد - اضغط "📥 استيراد نسخة من البنود الحالية" أو "+ بند جديد".</p>';
+    return;
+  }
+  c.innerHTML = draft.map((it, idx) => `
+    <div style="border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:8px;background:var(--paper);">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+        <div style="flex:1;min-width:180px;">
+          <label style="font-size:11px;color:var(--muted);display:block;">اسم البند (English)</label>
+          <input value="${mzCatEscAttr(it.en)}" oninput="updateDraftItemField(${idx},'en',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;">
+        </div>
+        <div style="flex:1;min-width:180px;">
+          <label style="font-size:11px;color:var(--muted);display:block;">اسم البند (عربي)</label>
+          <input value="${mzCatEscAttr(it.ar)}" oninput="updateDraftItemField(${idx},'ar',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;">
+        </div>
+      </div>
+      <div style="margin-bottom:6px;">
+        <label style="font-size:11px;color:var(--muted);display:block;">مواصفة الألمنيوم (English)</label>
+        <textarea rows="1" oninput="updateDraftItemField(${idx},'specEn',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;">${it.specEn||''}</textarea>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+        <div style="flex:1;min-width:180px;">
+          <label style="font-size:11px;color:var(--muted);display:block;">مواصفة الزجاج (English)</label>
+          <textarea rows="1" oninput="updateDraftItemField(${idx},'glassEn',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;">${it.glassEn||''}</textarea>
+        </div>
+        <div style="flex:1;min-width:180px;">
+          <label style="font-size:11px;color:var(--muted);display:block;">مواصفة الزجاج (عربي)</label>
+          <textarea rows="1" oninput="updateDraftItemField(${idx},'glassAr',this.value)" style="width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px;">${it.glassAr||''}</textarea>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">🔗 ربط بنظام من الكتالوجات (اختر واحد أو أكتر)</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${allSystems.map(s => {
+            const checked = (it.catalogLinks||[]).includes(s.id) ? 'checked' : '';
+            return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;background:#f4f5f7;padding:4px 9px;border-radius:99px;cursor:pointer;">
+              <input type="checkbox" ${checked} onchange="toggleDraftItemCatalogLink(${idx},'${s.id}',this.checked)" style="margin:0;">
+              ${s.label}${s.images && s.images.length ? ' 🖼️' : ''}
+            </label>`;
+          }).join('')}
+        </div>
+      </div>
+      ${(() => {
+        const avail = getDraftItemAvailableImages(it);
+        if(!avail.length) return '';
+        return `<div style="margin-top:10px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">🖼️ صور المقطع الداعمة لهالبند (اختر وحدة أو أكتر - ما بتأثر على تصميم البند حاليًا)</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${avail.map(img => {
+              const checked = (it.selectedImages||[]).includes(img) ? 'checked' : '';
+              return `<label style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:5px;border-radius:8px;border:1px solid ${checked?'var(--accent,#2563eb)':'var(--line)'};background:#fff;">
+                <img src="${CATALOG_IMAGES_DIR}${img}" alt="${mzCatEscAttr(img)}" loading="lazy" style="display:block;height:70px;width:auto;max-width:120px;object-fit:cover;border-radius:4px;">
+                <span style="display:flex;align-items:center;gap:3px;font-size:10.5px;color:var(--muted);">
+                  <input type="checkbox" ${checked} onchange="toggleDraftItemImage(${idx},'${img}',this.checked)" style="margin:0;">
+                  اختيار
+                </span>
+              </label>`;
+            }).join('')}
+          </div>
+        </div>`;
+      })()}
+      <div style="margin-top:8px;text-align:left;">
+        <button class="nav-pill" style="border-color:var(--danger);color:var(--danger);" onclick="removeDraftItemRow(${idx})">🗑 حذف البند</button>
+      </div>
+    </div>`).join('');
+}
+document.getElementById('importLiveItemsBtn').addEventListener('click', importLiveItemsIntoDraft);
+document.getElementById('addDraftItemBtn').addEventListener('click', addDraftItemRow);
 
 </script><div id="chartTooltip" class="chart-tooltip"></div><div id="chartTooltip" class="chart-tooltip"></div>
 
