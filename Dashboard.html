@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-01.33';
+  var CURRENT_VERSION = '2026-09-01.34';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -903,6 +903,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 الملفات</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
+        <span class="nav-pill" id="payrollTabBtn">💰 الرواتب</span>
         <span class="nav-pill" id="catalogsTabBtn">📚 الكتالوجات</span>
         <span class="nav-pill" id="pmpTabBtn">🗓 جدول المشاريع</span>
         <span class="nav-pill" id="backupTabBtn">📦 نسخة احتياطية</span>
@@ -1150,6 +1151,103 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
             </tr>
           </thead>
           <tbody id="contractsListBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="payrollView" style="display:none;">
+
+    <div class="panel">
+      <p class="panel-title">💰 ملخص المستحقات الحالية</p>
+      <div id="payrollSummary" class="kpis" style="margin-top:10px;flex-wrap:wrap;"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">الموظفين</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الاسم</th>
+              <th>الدور</th>
+              <th>نوع الأجر</th>
+              <th style="text-align:left;">القيمة</th>
+              <th>العملة</th>
+              <th>الحالة</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="payrollEmployeesBody"></tbody>
+        </table>
+      </div>
+      <div class="controls" style="margin-top:14px;flex-wrap:wrap;" id="payrollEmpFormRow">
+        <input type="text" id="payrollEmpName" placeholder="اسم الموظف" style="min-width:140px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <input type="text" id="payrollEmpRole" placeholder="الدور/المهمة (اختياري)" style="min-width:160px;flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <select id="payrollEmpPayType" style="padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+          <option value="monthly">شهري</option>
+          <option value="daily">يومي</option>
+        </select>
+        <input type="number" id="payrollEmpRate" placeholder="القيمة" style="width:110px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <select id="payrollEmpCurrency" style="padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+          <option value="AED">د.إ</option>
+          <option value="USD">$</option>
+        </select>
+        <input type="text" id="payrollEmpNotes" placeholder="ملاحظة (اختياري)" style="min-width:160px;flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <button id="payrollEmpSaveBtn" class="export-btn">+ إضافة موظف</button>
+        <button id="payrollEmpCancelEditBtn" class="nav-pill" style="display:none;">إلغاء التعديل</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">تسجيل يوم عمل / راتب شهري</p>
+      <div class="controls" style="flex-wrap:wrap;align-items:center;">
+        <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">الموظف:</label>
+        <select id="payrollLogEmpSelect" style="min-width:180px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;"></select>
+      </div>
+      <div class="controls" style="margin-top:10px;flex-wrap:wrap;align-items:center;" id="payrollLogDailyRow">
+        <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">من تاريخ:</label>
+        <input type="date" id="payrollLogDateFrom" style="padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">إلى تاريخ (لو أكتر من يوم):</label>
+        <input type="date" id="payrollLogDateTo" style="padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <input type="text" id="payrollLogDailyNote" placeholder="ملاحظة (اختياري)" style="min-width:160px;flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <button id="payrollLogDailyBtn" class="export-btn">+ تسجيل يوم/أيام عمل</button>
+      </div>
+      <div class="controls" style="margin-top:10px;flex-wrap:wrap;align-items:center;display:none;" id="payrollLogMonthlyRow">
+        <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">الشهر:</label>
+        <input type="month" id="payrollLogMonth" style="padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">المبلغ:</label>
+        <input type="number" id="payrollLogMonthlyAmount" placeholder="المبلغ" style="width:120px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <button id="payrollLogMonthlyBtn" class="export-btn">+ تسجيل راتب الشهر</button>
+      </div>
+      <div id="payrollLogStatus" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px;"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">المستحقات والمدفوعات</p>
+      <div class="controls" style="margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <span class="year-chip active" data-payrollfilter="all">الكل</span>
+        <span class="year-chip" data-payrollfilter="due">مستحق فقط</span>
+        <span class="year-chip" data-payrollfilter="paid">مدفوع فقط</span>
+        <select id="payrollEntriesEmpFilter" style="margin-inline-start:auto;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+          <option value="">كل الموظفين</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الموظف</th>
+              <th>النوع</th>
+              <th>الوصف</th>
+              <th style="text-align:left;">المبلغ</th>
+              <th>الحالة</th>
+              <th>تاريخ الدفع</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="payrollEntriesBody"></tbody>
         </table>
       </div>
     </div>
@@ -2143,6 +2241,7 @@ function renderPaymentTableSelect(){
 function hideAllViews(){
   document.getElementById('dashboardView').style.display = 'none';
   document.getElementById('contractsView').style.display = 'none';
+  document.getElementById('payrollView').style.display = 'none';
   document.getElementById('catalogsView').style.display = 'none';
   document.getElementById('pmpView').style.display = 'none';
   document.getElementById('quotationView').style.display = 'none';
@@ -2151,6 +2250,7 @@ function hideAllViews(){
   document.getElementById('settlementView').style.display = 'none';
   document.getElementById('usersView').style.display = 'none';
   document.getElementById('contractsTabBtn').classList.remove('active');
+  document.getElementById('payrollTabBtn').classList.remove('active');
   document.getElementById('catalogsTabBtn').classList.remove('active');
   document.getElementById('pmpTabBtn').classList.remove('active');
   document.getElementById('quotationTabBtn').classList.remove('active');
@@ -2168,6 +2268,12 @@ function showContractsView(){
   document.getElementById('contractsTabBtn').classList.add('active');
   populateContractRefSelect();
   renderContractsList();
+}
+function showPayrollView(){
+  hideAllViews();
+  document.getElementById('payrollView').style.display = 'block';
+  document.getElementById('payrollTabBtn').classList.add('active');
+  renderPayrollAll();
 }
 function showDashboardView(){
   hideAllViews();
@@ -2327,6 +2433,10 @@ document.getElementById('contractsTabBtn').addEventListener('click', ()=>{
   const inContracts = document.getElementById('contractsView').style.display !== 'none';
   if(inContracts) showDashboardView(); else showContractsView();
 });
+document.getElementById('payrollTabBtn').addEventListener('click', ()=>{
+  const inPayroll = document.getElementById('payrollView').style.display !== 'none';
+  if(inPayroll) showDashboardView(); else showPayrollView();
+});
 document.getElementById('pmpTabBtn').addEventListener('click', ()=>{
   const inPmp = document.getElementById('pmpView').style.display !== 'none';
   if(inPmp) showDashboardView(); else showPmpView();
@@ -2387,6 +2497,7 @@ const MERZONA_PERMISSION_COLUMNS = [
   { key: 'quotation', label: 'عرض أسعار' },
   { key: 'procurement', label: 'مشتريات' },
   { key: 'contracts', label: 'عقود' },
+  { key: 'payroll', label: 'رواتب' },
   { key: 'catalogs', label: 'كتالوجات' },
   { key: 'pmp', label: 'مشاريع' },
   { key: 'backup', label: 'نسخة احتياطية' },
@@ -2529,6 +2640,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     designerTabBtn: 'quotation',
     procurementTabBtn: 'procurement',
     contractsTabBtn: 'contracts',
+    payrollTabBtn: 'payroll',
     catalogsTabBtn: 'catalogs',
     pmpTabBtn: 'pmp',
     backupTabBtn: 'backup',
@@ -2714,6 +2826,366 @@ document.getElementById('backupRestoreFile').addEventListener('change', (e)=>{
   reader.readAsText(file);
 });
 
+/* ---------- Payroll feature (رواتب الموظفين — شهري/يومي) ---------- */
+const PAYROLL_EMPLOYEES_KEY = 'merzona_payroll_employees';
+const PAYROLL_ENTRIES_KEY = 'merzona_payroll_entries';
+const PAYROLL_CURRENCY_LABEL = { AED:'د.إ', USD:'$' };
+
+function loadPayrollEmployees(){
+  try{ return JSON.parse(localStorage.getItem(PAYROLL_EMPLOYEES_KEY) || '{}'); }catch(e){ return {}; }
+}
+function savePayrollEmployees(obj){
+  try{ localStorage.setItem(PAYROLL_EMPLOYEES_KEY, JSON.stringify(obj)); markSyncDirty(PAYROLL_EMPLOYEES_KEY, obj); return true; }
+  catch(e){ console.error('savePayrollEmployees failed', e); return false; }
+}
+function loadPayrollEntries(){
+  try{ return JSON.parse(localStorage.getItem(PAYROLL_ENTRIES_KEY) || '{}'); }catch(e){ return {}; }
+}
+function savePayrollEntries(obj){
+  try{ localStorage.setItem(PAYROLL_ENTRIES_KEY, JSON.stringify(obj)); markSyncDirty(PAYROLL_ENTRIES_KEY, obj); return true; }
+  catch(e){ console.error('savePayrollEntries failed', e); return false; }
+}
+
+// بذرة أولية لأسماء الموظفين الحاليين - بتتنفذ مرة وحدة بس (أول ما حدا يفتح تبويب "الرواتب" ولسا
+// ما في ولا موظف مسجّل بهالمتصفح). بعد أول مرة، كل التعديلات (إضافة/تعديل/حذف) صارت عن طريق واجهة
+// "الموظفين" العادية زي أي بيانات تانية، وبتنزامن مع الفريق متل ما هو موضح تحت.
+function seedPayrollEmployeesIfEmpty(){
+  const existing = loadPayrollEmployees();
+  if(Object.keys(existing).length > 0) return;
+  const seed = {
+    emp_talha: { name:'طلحة', role:'مهندس مدني — عروض أسعار وتسعير ورسم', payType:'monthly', rate:1000, currency:'AED', active:true, notes:'الراتب متغير حسب ضغط الشغل — يُكتب يدويًا كل شهر (عادة بين 1000 و1500)' },
+    emp_aya: { name:'آية', role:'ماركتينغ وسوشال ميديا', payType:'monthly', rate:350, currency:'USD', active:true, notes:'' },
+    emp_alaa: { name:'علاء', role:'عامل تركيبات', payType:'daily', rate:250, currency:'AED', active:true, notes:'' },
+    emp_nour: { name:'نور', role:'', payType:'daily', rate:150, currency:'AED', active:true, notes:'دوام غير منتظم — حسب الحاجة' },
+    emp_abuabdullah: { name:'أبو عبد الله', role:'', payType:'daily', rate:150, currency:'AED', active:true, notes:'دوام غير منتظم — حسب الحاجة' },
+  };
+  savePayrollEmployees(seed);
+}
+
+let payrollEditingEmpId = null;
+let payrollEntriesFilter = 'all';
+
+function renderPayrollAll(){
+  seedPayrollEmployeesIfEmpty();
+  renderPayrollEmployeesTable();
+  populatePayrollEmpSelects();
+  renderPayrollLogFormForSelectedEmp();
+  renderPayrollEntriesTable();
+  renderPayrollSummary();
+}
+
+function renderPayrollEmployeesTable(){
+  const employees = loadPayrollEmployees();
+  const tbody = document.getElementById('payrollEmployeesBody');
+  const ids = Object.keys(employees).sort((a,b)=> (employees[a].name||'').localeCompare(employees[b].name||'','ar'));
+  if(ids.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px;">ما في موظفين مسجّلين بعد</td></tr>';
+    return;
+  }
+  tbody.innerHTML = ids.map(id=>{
+    const e = employees[id];
+    const payTypeLabel = e.payType === 'monthly' ? 'شهري' : 'يومي';
+    const activeBadge = e.active !== false
+      ? '<span style="padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;background:rgba(30,122,61,.12);color:var(--ok);">نشط</span>'
+      : '<span style="padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;background:rgba(107,107,107,.12);color:var(--muted);">غير نشط</span>';
+    return '<tr>'+
+      '<td><b>'+escapeHtml(e.name)+'</b>'+(e.notes ? '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+escapeHtml(e.notes)+'</div>' : '')+'</td>'+
+      '<td style="font-size:12.5px;color:var(--muted);">'+escapeHtml(e.role||'—')+'</td>'+
+      '<td>'+payTypeLabel+'</td>'+
+      '<td class="num">'+fmt(e.rate||0)+'</td>'+
+      '<td>'+(PAYROLL_CURRENCY_LABEL[e.currency]||e.currency)+'</td>'+
+      '<td><span data-toggleactive="'+id+'" style="cursor:pointer;" title="اضغط لتغيير الحالة">'+activeBadge+'</span></td>'+
+      '<td><span style="cursor:pointer;color:var(--main);margin-inline-end:8px;" data-editemp="'+id+'" title="تعديل">✎</span><span style="cursor:pointer;color:var(--danger);" data-delemp="'+id+'" title="حذف">🗑</span></td>'+
+      '</tr>';
+  }).join('');
+
+  tbody.querySelectorAll('[data-toggleactive]').forEach(el=>{
+    el.addEventListener('click', function(){
+      const id = this.dataset.toggleactive;
+      const emps = loadPayrollEmployees();
+      if(!emps[id]) return;
+      emps[id].active = emps[id].active === false ? true : false;
+      savePayrollEmployees(emps);
+      renderPayrollAll();
+    });
+  });
+  tbody.querySelectorAll('[data-editemp]').forEach(el=>{
+    el.addEventListener('click', function(){ startEditPayrollEmployee(this.dataset.editemp); });
+  });
+  tbody.querySelectorAll('[data-delemp]').forEach(el=>{
+    el.addEventListener('click', function(){
+      const id = this.dataset.delemp;
+      const emps = loadPayrollEmployees();
+      const name = emps[id] ? emps[id].name : '';
+      if(!confirm('متأكد إنك بدك تحذف "'+name+'"؟ (سجل أيام الشغل/الرواتب السابقة تبعه رح يضل موجود بجدول المستحقات، بس ما رح تقدر تسجّل له شي جديد)')) return;
+      delete emps[id];
+      savePayrollEmployees(emps);
+      renderPayrollAll();
+    });
+  });
+}
+
+function startEditPayrollEmployee(id){
+  const emps = loadPayrollEmployees();
+  const e = emps[id];
+  if(!e) return;
+  payrollEditingEmpId = id;
+  document.getElementById('payrollEmpName').value = e.name || '';
+  document.getElementById('payrollEmpRole').value = e.role || '';
+  document.getElementById('payrollEmpPayType').value = e.payType || 'daily';
+  document.getElementById('payrollEmpRate').value = e.rate || '';
+  document.getElementById('payrollEmpCurrency').value = e.currency || 'AED';
+  document.getElementById('payrollEmpNotes').value = e.notes || '';
+  document.getElementById('payrollEmpSaveBtn').textContent = '💾 حفظ التعديل';
+  document.getElementById('payrollEmpCancelEditBtn').style.display = '';
+  document.getElementById('payrollEmpFormRow').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+document.getElementById('payrollEmpCancelEditBtn').addEventListener('click', ()=>{
+  payrollEditingEmpId = null;
+  document.getElementById('payrollEmpName').value = '';
+  document.getElementById('payrollEmpRole').value = '';
+  document.getElementById('payrollEmpRate').value = '';
+  document.getElementById('payrollEmpNotes').value = '';
+  document.getElementById('payrollEmpSaveBtn').textContent = '+ إضافة موظف';
+  document.getElementById('payrollEmpCancelEditBtn').style.display = 'none';
+});
+
+document.getElementById('payrollEmpSaveBtn').addEventListener('click', ()=>{
+  const name = document.getElementById('payrollEmpName').value.trim();
+  if(!name){ alert('لازم تكتب اسم الموظف'); return; }
+  const role = document.getElementById('payrollEmpRole').value.trim();
+  const payType = document.getElementById('payrollEmpPayType').value;
+  const rate = parseFloat(document.getElementById('payrollEmpRate').value) || 0;
+  const currency = document.getElementById('payrollEmpCurrency').value;
+  const notes = document.getElementById('payrollEmpNotes').value.trim();
+  const emps = loadPayrollEmployees();
+  const id = payrollEditingEmpId || ('emp_' + Date.now() + '_' + Math.random().toString(16).slice(2,8));
+  const wasActive = (payrollEditingEmpId && emps[payrollEditingEmpId]) ? emps[payrollEditingEmpId].active : true;
+  emps[id] = { name, role, payType, rate, currency, active: wasActive !== false, notes };
+  savePayrollEmployees(emps);
+  payrollEditingEmpId = null;
+  document.getElementById('payrollEmpName').value = '';
+  document.getElementById('payrollEmpRole').value = '';
+  document.getElementById('payrollEmpRate').value = '';
+  document.getElementById('payrollEmpNotes').value = '';
+  document.getElementById('payrollEmpSaveBtn').textContent = '+ إضافة موظف';
+  document.getElementById('payrollEmpCancelEditBtn').style.display = 'none';
+  renderPayrollAll();
+});
+
+function populatePayrollEmpSelects(){
+  const emps = loadPayrollEmployees();
+  const activeIds = Object.keys(emps).filter(id=>emps[id].active !== false)
+    .sort((a,b)=> (emps[a].name||'').localeCompare(emps[b].name||'','ar'));
+  const logSel = document.getElementById('payrollLogEmpSelect');
+  const prevLog = logSel.value;
+  logSel.innerHTML = activeIds.map(id=>'<option value="'+id+'">'+escapeHtml(emps[id].name)+'</option>').join('');
+  if(activeIds.indexOf(prevLog) !== -1) logSel.value = prevLog;
+
+  const filterSel = document.getElementById('payrollEntriesEmpFilter');
+  const prevFilter = filterSel.value;
+  const allIds = Object.keys(emps).sort((a,b)=> (emps[a].name||'').localeCompare(emps[b].name||'','ar'));
+  filterSel.innerHTML = '<option value="">كل الموظفين</option>' + allIds.map(id=>'<option value="'+id+'">'+escapeHtml(emps[id].name)+'</option>').join('');
+  if(allIds.indexOf(prevFilter) !== -1) filterSel.value = prevFilter;
+}
+
+document.getElementById('payrollLogEmpSelect').addEventListener('change', renderPayrollLogFormForSelectedEmp);
+
+function renderPayrollLogFormForSelectedEmp(){
+  const emps = loadPayrollEmployees();
+  const id = document.getElementById('payrollLogEmpSelect').value;
+  const e = emps[id];
+  const dailyRow = document.getElementById('payrollLogDailyRow');
+  const monthlyRow = document.getElementById('payrollLogMonthlyRow');
+  if(!e){ dailyRow.style.display = 'none'; monthlyRow.style.display = 'none'; return; }
+  if(e.payType === 'monthly'){
+    dailyRow.style.display = 'none';
+    monthlyRow.style.display = '';
+    if(!document.getElementById('payrollLogMonth').value){
+      const t = new Date();
+      document.getElementById('payrollLogMonth').value = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');
+    }
+    document.getElementById('payrollLogMonthlyAmount').placeholder = 'المبلغ (مثلاً '+fmt(e.rate)+')';
+  } else {
+    monthlyRow.style.display = 'none';
+    dailyRow.style.display = '';
+    if(!document.getElementById('payrollLogDateFrom').value){
+      document.getElementById('payrollLogDateFrom').value = todayISO();
+    }
+  }
+}
+
+document.getElementById('payrollLogDailyBtn').addEventListener('click', ()=>{
+  const empId = document.getElementById('payrollLogEmpSelect').value;
+  const emps = loadPayrollEmployees();
+  const e = emps[empId];
+  const statusEl = document.getElementById('payrollLogStatus');
+  if(!e){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'اختر موظف أول'; return; }
+  const from = document.getElementById('payrollLogDateFrom').value;
+  const to = document.getElementById('payrollLogDateTo').value || from;
+  if(!from){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'حدد التاريخ'; return; }
+  if(to < from){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = '"إلى تاريخ" لازم يكون بعد أو بنفس "من تاريخ"'; return; }
+  const note = document.getElementById('payrollLogDailyNote').value.trim();
+  const entries = loadPayrollEntries();
+  // تفادي تسجيل نفس اليوم مرتين لنفس الموظف
+  const existingDatesForEmp = new Set(Object.values(entries).filter(en=>en.empId===empId && en.type==='daily').map(en=>en.date));
+  let added = 0, skipped = 0;
+  let cur = new Date(from+'T00:00:00');
+  const end = new Date(to+'T00:00:00');
+  while(cur <= end){
+    const dISO = cur.getFullYear()+'-'+String(cur.getMonth()+1).padStart(2,'0')+'-'+String(cur.getDate()).padStart(2,'0');
+    if(existingDatesForEmp.has(dISO)){
+      skipped++;
+    } else {
+      const id = 'pr_' + Date.now() + '_' + Math.random().toString(16).slice(2,8) + '_' + dISO;
+      entries[id] = { empId, type:'daily', date:dISO, amount:e.rate, currency:e.currency, note, paid:false, paidAt:null, createdAt:Date.now() };
+      added++;
+    }
+    cur.setDate(cur.getDate()+1);
+  }
+  savePayrollEntries(entries);
+  document.getElementById('payrollLogDateTo').value = '';
+  document.getElementById('payrollLogDailyNote').value = '';
+  statusEl.style.color = 'var(--ok)';
+  statusEl.textContent = '✓ تسجّل '+added+' يوم' + (skipped>0 ? (' — '+skipped+' يوم كان مسجّل مسبقًا فما تكرر') : '');
+  renderPayrollAll();
+});
+
+document.getElementById('payrollLogMonthlyBtn').addEventListener('click', ()=>{
+  const empId = document.getElementById('payrollLogEmpSelect').value;
+  const emps = loadPayrollEmployees();
+  const e = emps[empId];
+  const statusEl = document.getElementById('payrollLogStatus');
+  if(!e){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'اختر موظف أول'; return; }
+  const month = document.getElementById('payrollLogMonth').value;
+  const amount = parseFloat(document.getElementById('payrollLogMonthlyAmount').value);
+  if(!month){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'حدد الشهر'; return; }
+  if(!amount || amount <= 0){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'اكتب المبلغ'; return; }
+  const entries = loadPayrollEntries();
+  const dup = Object.keys(entries).find(id=>entries[id].empId===empId && entries[id].type==='monthly' && entries[id].month===month);
+  if(dup){
+    if(!confirm('في راتب مسجّل مسبقًا لهاد الموظف لنفس الشهر ('+month+') بقيمة '+fmt(entries[dup].amount)+'. بدك تضيف سطر تاني (مثلاً مكافأة إضافية)؟')) return;
+  }
+  const id = 'pr_' + Date.now() + '_' + Math.random().toString(16).slice(2,8);
+  entries[id] = { empId, type:'monthly', month, amount, currency:e.currency, note:'', paid:false, paidAt:null, createdAt:Date.now() };
+  savePayrollEntries(entries);
+  document.getElementById('payrollLogMonthlyAmount').value = '';
+  statusEl.style.color = 'var(--ok)';
+  statusEl.textContent = '✓ تسجّل راتب '+month;
+  renderPayrollAll();
+});
+
+document.querySelectorAll('[data-payrollfilter]').forEach(chip=>{
+  chip.addEventListener('click', function(){
+    document.querySelectorAll('[data-payrollfilter]').forEach(c=>c.classList.remove('active'));
+    this.classList.add('active');
+    payrollEntriesFilter = this.dataset.payrollfilter;
+    renderPayrollEntriesTable();
+  });
+});
+document.getElementById('payrollEntriesEmpFilter').addEventListener('change', renderPayrollEntriesTable);
+
+function fmtPayrollMonth(iso){
+  if(!iso) return '—';
+  const parts = iso.split('-');
+  const y = parts[0], m = parts[1];
+  const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const idx = parseInt(m,10)-1;
+  return (months[idx]||m) + ' ' + y;
+}
+
+function renderPayrollEntriesTable(){
+  const emps = loadPayrollEmployees();
+  const entries = loadPayrollEntries();
+  const empFilter = document.getElementById('payrollEntriesEmpFilter').value;
+  let ids = Object.keys(entries);
+  if(empFilter) ids = ids.filter(id=>entries[id].empId === empFilter);
+  if(payrollEntriesFilter === 'due') ids = ids.filter(id=>!entries[id].paid);
+  if(payrollEntriesFilter === 'paid') ids = ids.filter(id=>entries[id].paid);
+  ids.sort((a,b)=>{
+    const A = entries[a], B = entries[b];
+    const dA = A.type==='daily' ? A.date : (A.month+'-01');
+    const dB = B.type==='daily' ? B.date : (B.month+'-01');
+    return dB.localeCompare(dA) || (B.createdAt||0) - (A.createdAt||0);
+  });
+  const tbody = document.getElementById('payrollEntriesBody');
+  if(ids.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px;">ما في سجلات بعد</td></tr>';
+    return;
+  }
+  tbody.innerHTML = ids.map(id=>{
+    const en = entries[id];
+    const empName = emps[en.empId] ? emps[en.empId].name : '(موظف محذوف)';
+    const typeLabel = en.type === 'monthly' ? 'شهري' : 'يومي';
+    const desc = en.type === 'monthly' ? fmtPayrollMonth(en.month) : (fmtDueDate(en.date) + (en.note ? ' — '+escapeHtml(en.note) : ''));
+    const statusBadge = en.paid
+      ? '<span data-togglepaid="'+id+'" style="cursor:pointer;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;background:rgba(30,122,61,.12);color:var(--ok);" title="اضغط للتراجع">✓ مدفوع</span>'
+      : '<span data-togglepaid="'+id+'" style="cursor:pointer;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;background:rgba(192,57,43,.10);color:var(--danger);" title="اضغط لتحديد كمدفوع">⏳ مستحق</span>';
+    const paidDateStr = (en.paid && en.paidAt) ? fmtDueDate(new Date(en.paidAt).toISOString().slice(0,10)) : '—';
+    return '<tr>'+
+      '<td>'+escapeHtml(empName)+'</td>'+
+      '<td style="font-size:12.5px;color:var(--muted);">'+typeLabel+'</td>'+
+      '<td style="font-size:12.5px;">'+desc+'</td>'+
+      '<td class="num">'+fmt(en.amount)+' '+(PAYROLL_CURRENCY_LABEL[en.currency]||en.currency)+'</td>'+
+      '<td>'+statusBadge+'</td>'+
+      '<td style="font-size:12px;color:var(--muted);">'+paidDateStr+'</td>'+
+      '<td><span style="cursor:pointer;color:var(--danger);" data-delentry="'+id+'" title="حذف">✕</span></td>'+
+      '</tr>';
+  }).join('');
+
+  tbody.querySelectorAll('[data-togglepaid]').forEach(el=>{
+    el.addEventListener('click', function(){
+      const id = this.dataset.togglepaid;
+      const ent = loadPayrollEntries();
+      if(!ent[id]) return;
+      ent[id].paid = !ent[id].paid;
+      ent[id].paidAt = ent[id].paid ? Date.now() : null;
+      savePayrollEntries(ent);
+      renderPayrollAll();
+    });
+  });
+  tbody.querySelectorAll('[data-delentry]').forEach(el=>{
+    el.addEventListener('click', function(){
+      const id = this.dataset.delentry;
+      if(!confirm('متأكد إنك بدك تحذف هالسجل؟')) return;
+      const ent = loadPayrollEntries();
+      delete ent[id];
+      savePayrollEntries(ent);
+      renderPayrollAll();
+    });
+  });
+}
+
+function renderPayrollSummary(){
+  const emps = loadPayrollEmployees();
+  const entries = loadPayrollEntries();
+  const dueByEmp = {};
+  Object.values(entries).forEach(en=>{
+    if(en.paid) return;
+    if(!dueByEmp[en.empId]) dueByEmp[en.empId] = {};
+    dueByEmp[en.empId][en.currency] = (dueByEmp[en.empId][en.currency]||0) + (en.amount||0);
+  });
+  const totalsByCur = {};
+  Object.keys(dueByEmp).forEach(empId=>{
+    Object.keys(dueByEmp[empId]).forEach(cur=>{
+      totalsByCur[cur] = (totalsByCur[cur]||0) + dueByEmp[empId][cur];
+    });
+  });
+  const wrap = document.getElementById('payrollSummary');
+  const activeIds = Object.keys(emps).filter(id=>emps[id].active !== false)
+    .sort((a,b)=> (emps[a].name||'').localeCompare(emps[b].name||'','ar'));
+  let html = '';
+  activeIds.forEach(id=>{
+    const cur = dueByEmp[id] || {};
+    const parts = Object.keys(cur).map(c=>fmt(cur[c])+' '+(PAYROLL_CURRENCY_LABEL[c]||c));
+    html += '<div class="kpi"><p class="kpi-label">'+escapeHtml(emps[id].name)+'</p><p class="kpi-value" style="font-size:18px;">'+(parts.length ? parts.join(' + ') : '<small style="color:var(--ok);">لا شي مستحق</small>')+'</p></div>';
+  });
+  const totalParts = Object.keys(totalsByCur).map(c=>fmt(totalsByCur[c])+' '+(PAYROLL_CURRENCY_LABEL[c]||c));
+  html += '<div class="kpi gold"><p class="kpi-label">إجمالي المستحق (كل الموظفين)</p><p class="kpi-value" style="font-size:18px;">'+(totalParts.length ? totalParts.join(' + ') : '0')+'</p></div>';
+  wrap.innerHTML = html;
+}
+
 /* ================= مزامنة تلقائية مع الفريق عبر جوجل درايف =================
    نطاق المزامنة: بيانات "قاعدة البيانات" المشتركة بين الفريق فقط
    (العقود، أسماء الزبائن المعدَّلة، مدد التنفيذ، ملفات العقود المرفقة، جدول المشاريع PMP).
@@ -2728,7 +3200,7 @@ document.getElementById('backupRestoreFile').addEventListener('change', (e)=>{
    شي موجود عندي محليًا بطابع أحدث (هيك ما تضيع أي معلومة أدخلها حدا للتو). وقت الرفع لدرايف:
    منرفع نسخة كاملة مطابقة لكل شي عندي محليًا (فمنطقيًا لو حدا حذف شي فعليًا، الحذف بينعكس
    بالنسخة المشتركة بعد أول رفع). */
-const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones','merzona_contract_deleted_tombstones'];
+const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones','merzona_contract_deleted_tombstones','merzona_payroll_employees','merzona_payroll_entries'];
 const SYNC_FILE_NAME = 'merzona-sync-data.json';
 const DASH_TOKEN_CACHE_KEY = 'merzona_dash_gtoken_v1';
 let dashGoogleAccessToken = null;
