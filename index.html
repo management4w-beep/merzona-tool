@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-01.12';
+  var CURRENT_VERSION = '2026-09-02.13';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -2972,6 +2972,7 @@ function resetAll(){
 // عندها أصلًا تأكيد منفصل خاص فيها (متل deleteQuotationFromDrive تحت)، بدون ما نطلع مربعي تأكيد
 // وراء بعض على نفس الكبسة.
 function resetAllNoConfirm(){
+  clearDraft(); // عرض سعر جديد فاضي بالنية - ما منحتاج نرجع نقترح مسودة عرض السعر القديم بعد هلق
   document.getElementById('supply-rows').innerHTML='';
   document.getElementById('alum-spec-rows').innerHTML='';
   document.getElementById('specs-rows').innerHTML='';
@@ -3397,6 +3398,43 @@ function applyFullQuotationData(data){
   }catch(e){ console.error('applyFullQuotationData failed', e); }
 }
 
+/* ================= مسودة محلية (Draft) - حماية من فقدان العمل عند تعليق/إغلاق المتصفح فجأة =================
+   🆕 2026-09-02: طلب من حمدي بعد ما فقد عرض سعر كامل (كان عم يدخل بنود كتيرة) بسبب تعليق المتصفح
+   وإغلاقه المفاجئ. بدل ما نبني نظام مراقبة تغييرات جديد من الصفر، منستفيد من نفس آلية "تراجع" (Undo)
+   تحت يلي أصلًا بتاخد لقطة JSON كاملة (captureFullQuotationData) بعد كل تعديل حقيقي (بـdebounce 700ms
+   عبر pushQuotationHistorySnapshotNow) - كل لقطة بتتاخد هون منخزنها كمان بالـlocalStorage كـ"مسودة"
+   (مش بس بذاكرة التبويب الحالي متل التراجع العادي يلي بيضيع لو انسكر التبويب/تعلّق المتصفح). فور ما
+   تنفتح الصفحة من جديد (تعليق/إغلاق مفاجئ/تحديث غلط) منعرض سؤال بسيط لاسترجاعها - شوف parsedDraft
+   بالكود الرئيسي تحت (قرب seedDefaults). هاي منفصلة تمامًا عن "افتح عرض سعر قديم بآخر نسخة" (جوجل
+   درايف) وعن الحفظ الفعلي - هاي بس شبكة أمان محلية بهالمتصفح بالذات، وبتنمسح تلقائيًا لما تبدئي عرض
+   سعر جديد فاضي (resetAllNoConfirm) حتى ما ترجع تقترح نفسها لعرض سعر خلص وانحفظ. */
+const DRAFT_STORAGE_KEY = 'merzona-quotation-draft-v1';
+function saveDraftFromSnapshot(snapJson){
+  try{
+    const obj = JSON.parse(snapJson);
+    obj.savedAt = Date.now();
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(obj));
+  }catch(e){ console.warn('[مسودة محلية] تعذّر الحفظ:', e); }
+}
+function clearDraft(){
+  try{ localStorage.removeItem(DRAFT_STORAGE_KEY); }catch(e){}
+}
+function isDraftMeaningful(d){
+  // مهم: seedDefaults() بحط أصلًا صف بند واحد فاضي (بدون اسم)، وقسم "تصميم النوافذ والأبواب" بحط
+  // بند تصميم افتراضي وحيد إشارتو isInitialPlaceholder:true ("شباك 1") - فمجرد وجود صف/بند تصميم
+  // مش كافي حتى نعتبر المسودة "فيها شي فعلي"، لازم نتأكد إنو في محتوى حقيقي كتبه المستخدم (بند مكتوب
+  // اسمه، أو اسم/رقم زبون، أو بند تصميم حقيقي مش الافتراضي) وإلا رح تظهر رسالة "لقينا مسودة" حتى
+  // لعرض سعر فاضي بالكامل لسا ما لمسه حدا.
+  if(!d) return false;
+  try{
+    if(d.qtyRowsHtml && /class="item-input"[^>]*value="[^"]+"/.test(d.qtyRowsHtml)) return true;
+    const f = d.fields || {};
+    if((f['m-client']||'').trim() || (f['m-number']||'').trim() || (f['m-project']||'').trim()) return true;
+    if(Array.isArray(d.designItems) && d.designItems.some(it => it && !it.isInitialPlaceholder)) return true;
+  }catch(e){}
+  return false;
+}
+
 /* ================= تراجع (Undo) لعرض السعر =================
    نفس فكرة أداة تصميم النوافذ والأبواب (historyStack من لقطات JSON) بس مطبقة على كامل عرض
    السعر - منستخدم captureFullQuotationData/applyFullQuotationData الموجودين أصلًا (نفس اللي
@@ -3422,6 +3460,7 @@ function pushQuotationHistorySnapshotNow(){
     }
     lastQuotationSnapshotJson = snap;
     updateQuotationUndoButton();
+    saveDraftFromSnapshot(snap);
   }catch(e){ /* ما منكسر التطبيق لو فشلت اللقطة لأي سبب */ }
 }
 
@@ -3463,6 +3502,11 @@ function updateQuotationUndoButton(){
   // لقطة أولى (بعد تيك واحد حتى تخلص بيانات seedDefaults/التحميل القديم تتطبق) - هاي بتصير الأساس
   // (baseline) يلي أول تعديل حقيقي بعدها بيصير أول عنصر فعلي بلائحة التراجع.
   setTimeout(pushQuotationHistorySnapshotNow, 500);
+  // حفظ فوري (بدون تأجيل الـ700ms) قبل ما تنسكر الصفحة/تتحدث أو لما تصير مخفية (تبديل تبويب، تصغير
+  // المتصفح...) - نفس أسلوب __flushDesignSave__ الموجود أصلًا لبنود التصميم، حتى ما تضيع آخر تعديلات
+  // صارت أقل من 700ms قبل الإغلاق المفاجئ.
+  window.addEventListener('beforeunload', pushQuotationHistorySnapshotNow);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') pushQuotationHistorySnapshotNow(); });
 })();
 
 /* ================= حذف عرض سعر من جوجل درايف ================= */
@@ -4749,6 +4793,7 @@ try{
   }
 }catch(e){}
 const alreadyHasContent = document.querySelectorAll('#qty-rows tr, #acc-rows .bi-row, #pay-rows .pay-row, #alum-spec-rows .bi-row').length > 0;
+
 if(pendingQuotationLoad){
   // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
   // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
@@ -4762,6 +4807,32 @@ if(pendingQuotationLoad){
   syncPage2Header();
 }
 setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل مكتبة جوجل
+
+// 🆕 محاولة استرجاع مسودة محفوظة تلقائيًا محليًا (شوف تعريف DRAFT_STORAGE_KEY/isDraftMeaningful/
+// clearDraft/saveDraftFromSnapshot فوق بقسم "مسودة محلية"). هاي منفصلة تمامًا عن الفرع فوق (يلي بيقرر
+// شو يظهر بالنموذج أول ما تفتح الصفحة - القالب الفاضي الافتراضي مخبوز أصلًا بنفس الملف، فـ
+// alreadyHasContent/data-prefilled بيصيروا صحيحين تقريبًا دايمًا حتى لو ما في ولا بيانات حقيقية).
+// هون منتحقق بشكل مستقل: هل في مسودة محلية فيها فعلاً بيانات كتبها المستخدم (isDraftMeaningful) -
+// إذا آه، منسأل إذا بدو يكملها، بغض النظر شو ظهر بالنموذج قبل هيك. ما منسويها إلا لو ما في طلب
+// تحميل صريح من لوحة التحكم (pendingQuotationLoad) - هيك ما نتعارض مع فتح عرض سعر محدد قصدًا.
+if(!pendingQuotationLoad){
+  try{
+    const rawDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+    const parsedDraft = rawDraft ? JSON.parse(rawDraft) : null;
+    if(parsedDraft && isDraftMeaningful(parsedDraft)){
+      const when = parsedDraft.savedAt ? new Date(parsedDraft.savedAt).toLocaleString('ar') : '';
+      const who = (parsedDraft.fields && parsedDraft.fields['m-client']) || '';
+      const msg = 'لقينا مسودة عرض سعر محفوظة تلقائيًا (' + (who ? ('الزبون: ' + who + ' - ') : '') + when + ').\n\nبدك تكمل عليها؟\n(اضغط إلغاء لتجاهلها والمتابعة بالنموذج الحالي - المسودة رح تنمسح)';
+      setTimeout(()=>{
+        if(confirm(msg)){
+          applyFullQuotationData(parsedDraft);
+        } else {
+          clearDraft();
+        }
+      }, 60); // شوي بعد ما يخلص الفرع فوق (والـ0ms تبع pendingQuotationLoad لو صار) حتى ما يصير تعارض ترتيب
+    }
+  }catch(e){}
+}
 
 try{
   const savedMode = localStorage.getItem('merzona-layout-mode');
