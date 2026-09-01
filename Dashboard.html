@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-01.26';
+  var CURRENT_VERSION = '2026-09-01.27';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -5650,8 +5650,8 @@ const CATALOG_GROUPS = [
   },
   {
     id: 'cw50',
-    brand: 'كرتن وول متعدد الموردين (الخليج للسحب / Emirates Extrusion / AREXCO / White Aluminium / Classic Extrusion وغيرهم عبر NBBM)',
-    nameAr: 'كرتن وول — Curtain Wall (كتالوجات مدمجة: CW 50 + قسم الكرتن وول من NBBM) — مصنّفة حسب النوعية',
+    brand: 'الخليج للسحب (Gulf Extrusions) / Emirates Extrusion / AREXCO / White Aluminium / Classic Extrusion (عبر NBBM)',
+    nameAr: 'كرتن وول (Curtain Wall)',
     sources: ['CurtainWall50MM.pdf (108 صفحة)', 'NBBM_CATLOG.pdf (36 صفحة) — قسم الكرتن وول'],
     systems: [
       { id:'cw-50-conventional', nameAr:'كرتن وول 50 ملم — تغطية تقليدية (Capped / Pressure Plate)',
@@ -5888,8 +5888,8 @@ const CATALOG_GROUPS = [
   },
   {
     id: 'nbbm',
-    brand: 'NBBM (New Broadway Building Materials) — شركة توزيع، مش مصنّع',
-    nameAr: 'كتالوج NBBM — مقاطع متعددة الموردين (الخليج للسحب، Emirates Extrusion، AREXCO، White Aluminium، Classic Extrusion) — بدون قسم الكرتن وول (مدموج ضمن كتالوج "كرتن وول")',
+    brand: 'NBBM (New Broadway Building Materials)',
+    nameAr: 'كتالوج NBBM — مقاطع متعددة الموردين (الخليج للسحب، Emirates Extrusion، AREXCO، White Aluminium، Classic Extrusion)',
     sources: ['NBBM_CATLOG.pdf (36 صفحة)'],
     systems: [
       { id:'nbbm-sliding105', nameAr:'سحّاب عادي 10.5 سم', type:'سحّاب غير حراري', depth:'105 ملم',
