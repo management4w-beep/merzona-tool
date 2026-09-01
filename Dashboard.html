@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-01.32';
+  var CURRENT_VERSION = '2026-09-01.33';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -5604,11 +5604,11 @@ document.getElementById('pmpPrintA4Btn').addEventListener('click', ()=> printPmp
 const CATALOG_GROUPS = [
   {
     id: 'next',
-    brand: 'الغرير للأنظمة الإنشائية / الخليج للسحب (AGBS / Gulf extrusions)',
-    nameAr: 'The next — نظام السحّاب الحراري متعدد المسارات',
+    brand: 'الغرير للأنظمة الإنشائية / الخليج للسحب (AGBS / Gulf Extrusions)',
+    nameAr: 'The Next — نظام السحّاب الحراري متعدد المسارات',
     sources: ['Next.pdf (ملخص تجاري، 3 صفحات)', 'Gulf Extrusion – The Next Catalogue (كتالوج تسويقي فيه بيانات أداء، 24 صفحة)', 'The Next System (الدليل الهندسي الكامل لقصات التصنيع، 103 صفحة - بالداخل مسمّى "New Sliding System")'],
     systems: [
-      { id:'next-sliding', nameAr:'نظام NEXT للسحّاب الحراري (فريم مزدوج المسار / ثلاثي المسار)',
+      { id:'next-sliding', nameAr:'نظام Next للسحّاب الحراري (فريم مزدوج المسار / ثلاثي المسار)',
         type:'سحّاب (Sliding) حراري - نوافذ وأبواب. الدليل الهندسي (103 صفحة) فيه رسمتين فريم جاهزتين بس: "Double driver" (مزدوج المسار) و"Triple driver" (ثلاثي المسار). عدد الدفوف بالواجهة (لغاية 4 دفة زي بالتايبولوجي) بينبني عادة على نفس الفريم المزدوج/الثلاثي بتراكب سكة فوق سكة - مش انو في رسمة فريم مستقلة لأربع أو خمس مسارات بالكتالوج.',
         depth:'فريم مزدوج المسار (Double driver): 110 ملم (بروفايل 83401) أو 125 ملم (83402). فريم ثلاثي المسار (Triple driver): 181 ملم (83403) أو 196 ملم (83404). وصف النظام العام بيذكر "Fixed frame width: 110-222mm" كحد أقصى نظري.',
         thermalBreak:'نعم - عازل بولي أميد بعرض 34 ملم بين شطري كل بروفايل فريم',
@@ -5622,8 +5622,8 @@ const CATALOG_GROUPS = [
   },
   {
     id: 'glide',
-    brand: 'الخليج للسحب (Gulf extrusions)',
-    nameAr: 'The glide — نظام السحّاب (رفع وسحب / سحب عادي)',
+    brand: 'الخليج للسحب (Gulf Extrusions)',
+    nameAr: 'The Glide — نظام السحّاب (رفع وسحب / سحب عادي)',
     sources: ['The Glide – Typology & Details.pdf (25 صفحة)'],
     systems: [
       { id:'glide-lift-slide', nameAr:'Glide — رفع وسحب (Lift & Slide)',
@@ -5650,8 +5650,8 @@ const CATALOG_GROUPS = [
   },
   {
     id: 'cw50',
-    brand: '(Gulf extrusions) / Emirates extrusion / AREXCO / White aluminium / Classic extrusion',
-    nameAr: '(Curtain wall) كرتن وول',
+    brand: '(Gulf Extrusions) / Emirates Extrusion / AREXCO / White Aluminium / Classic Extrusion',
+    nameAr: '(Curtain Wall) كرتن وول',
     sources: ['CurtainWall50MM.pdf (108 صفحة)', 'NBBM_CATLOG.pdf (36 صفحة) — قسم الكرتن وول'],
     systems: [
       { id:'cw-50-conventional', nameAr:'كرتن وول 50 ملم — تغطية تقليدية (Capped / Pressure Plate)',
@@ -5709,7 +5709,7 @@ const CATALOG_GROUPS = [
   {
     id: 'montana120',
     brand: '',
-    nameAr: 'Montana 120 (Heavy duty) — (Gulf extrusions) مونتانا 120 الخليج للسحب',
+    nameAr: 'Montana 120 (Heavy Duty) — (Gulf Extrusions) مونتانا 120 الخليج للسحب',
     sources: ['Montana120.pdf (84 صفحة)'],
     systems: [
       { id:'montana120', nameAr:'Montana — سحّاب حراري 120 ملم',
@@ -5726,8 +5726,8 @@ const CATALOG_GROUPS = [
   },
   {
     id: 'general-v2',
-    brand: '(Gulf extrusion الخليج للسحب)',
-    nameAr: 'General catalogue - الكتالوج العام',
+    brand: '(Gulf Extrusion الخليج للسحب)',
+    nameAr: 'General Catalogue - الكتالوج العام',
     sources: ['General_Catalogue_VOL2.pdf (292 صفحة)'],
     systems: [
       { id:'gc-tb600', nameAr:'TB-600 — نظام مفصلي (Hinged) حراري',
@@ -5746,7 +5746,7 @@ const CATALOG_GROUPS = [
       { id:'gc-cw-50', nameAr:'كرتن وول 50 ملم', type:'عمود/كمرة كرتن وول - عرض ظاهر 50 ملم',
         depth:'50 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز',
-        notes:'المصنّع: الخليج للسحب (Gulf Extrusions) - من الكتالوج العام (General Catalogue Vol.2)، نفس مصنّع كتالوج CW50 المخصص وربما نفس البند فعليًا، لكن هالمرجع بيوثق الأبعاد فقط بدون تحديد نوع التغطية (تقليدية / أفقية فقط / SSG) - راجع قسم "كرتن وول" لتفاصيل الأنواع الثلاثة الموثقة بدقة.',
+        notes:'المصنّع: الخليج للسحب (Gulf Extrusions) - من الكتالوج العام (General Catalogue Vol.2)، نفس مصنّع كتالوج "كرتن وول" المخصص وربما نفس البند فعليًا، لكن هالمرجع بيوثق الأبعاد فقط بدون تحديد نوع التغطية (تقليدية / أفقية فقط / SSG) - راجع قسم "كرتن وول" لتفاصيل الأنواع الثلاثة الموثقة بدقة.',
         images:['gc-cw-50mm.jpg','gc-cw-50mm-framesash.jpg','gc-cw-50mm-corner.jpg'] },
       { id:'gc-cw-52', nameAr:'كرتن وول 52 ملم', type:'عمود/كمرة كرتن وول - عرض ظاهر 52 ملم',
         depth:'52 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
@@ -5803,7 +5803,7 @@ const CATALOG_GROUPS = [
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز',
         notes:'المصنّع: الخليج للسحب (Gulf Extrusions) - من الكتالوج العام (General Catalogue Vol.2)، مرجع أبعاد فقط بدون تحديد نوع التغطية (تقليدية / أفقية فقط / SSG).',
         images:['gc-cw-130mm.jpg'] },
-      { id:'gc-vortex70', nameAr:'VORTEX 70 — كرتن وول إنشائي',
+      { id:'gc-vortex70', nameAr:'Vortex 70 — كرتن وول إنشائي',
         type:'كرتن وول بعرض 70 ملم - تقبل تزجيج إنشائي رباعي (SSG)',
         depth:'70 ملم', thermalBreak:'غير محدد',
         glass:'غير محدد', maxPanel:'غير محدد',
@@ -5841,7 +5841,7 @@ const CATALOG_GROUPS = [
   },
   {
     id: 'ffw55',
-    brand: 'Merzona FFW55 — نظام الطي والسحب (Fold & slide)',
+    brand: 'Merzona FFW55 — نظام الطي والسحب (Fold & Slide)',
     nameAr: 'كتالوج FFW55 — أبواب الطي والسحب',
     sources: ['FFW55_SYSTEM.pdf'],
     systems: [
@@ -5889,7 +5889,7 @@ const CATALOG_GROUPS = [
   {
     id: 'nbbm',
     brand: '',
-    nameAr: 'كتالوج NBBM — مقاطع متعددة (Gulf extrusions ، Emirates extrusion، AREXCO، White aluminium، Classic extrusion)',
+    nameAr: 'كتالوج NBBM — مقاطع متعددة (Gulf Extrusions ، Emirates Extrusion، AREXCO، White Aluminium، Classic Extrusion)',
     sources: ['NBBM_CATLOG.pdf (36 صفحة)'],
     systems: [
       { id:'nbbm-sliding105', nameAr:'سحّاب عادي 10.5 سم', type:'سحّاب غير حراري', depth:'105 ملم',
@@ -5930,7 +5930,7 @@ const CATALOG_IMAGES_DIR = 'catalog-images/';
 
 function getAllCatalogSystemsFlat(){
   const out = [];
-  CATALOG_GROUPS.forEach(g => g.systems.forEach(s => out.push({ id:s.id, label: g.nameAr + ' — ' + s.nameAr, images: s.images||[] })));
+  CATALOG_GROUPS.forEach(g => g.systems.forEach(s => out.push({ id:s.id, label: s.nameAr, images: s.images||[] })));
   return out;
 }
 
