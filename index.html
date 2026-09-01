@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-02.13';
+  var CURRENT_VERSION = '2026-09-02.16';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -636,11 +636,48 @@
   .color-confirm-picker{ display:flex; align-items:center; gap:8px; flex:1; min-width:180px; }
   .color-confirm-picker select, .color-confirm-picker input[type="text"]{
     font-size:12.5px; padding:3px 6px; border:1px solid var(--line); border-radius:5px; background:#fff;
+    color:#000; color-scheme:light;
   }
+  .color-confirm-picker select option, .color-confirm-picker select optgroup{ color:#000; background:#fff; }
   .color-swatch{
     display:inline-block; width:22px; height:22px; border-radius:4px;
     border:1px solid #999; flex:none;
   }
+
+  /* ---------- نافذة تنبيهات الطباعة (بديل عن confirm() الرمادي تبع المتصفح) ---------- */
+  .mz-warn-overlay{
+    position:fixed; inset:0; background:rgba(20,10,10,0.55); z-index:99999;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+    font-family:'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+  .mz-warn-modal{
+    background:#fff; border-radius:10px; max-width:560px; width:100%;
+    max-height:85vh; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 10px 40px rgba(0,0,0,0.35); border-top:6px solid #d32f2f;
+  }
+  .mz-warn-header{
+    display:flex; align-items:center; gap:10px; padding:16px 18px 10px 18px;
+    color:#b71c1c; font-size:16px; font-weight:700;
+  }
+  .mz-warn-list{ overflow-y:auto; padding:4px 18px 10px 18px; }
+  .mz-warn-item{
+    display:flex; align-items:flex-start; gap:8px; color:#c62828;
+    background:#fdecea; border:1px solid #f5c2c0; border-radius:6px;
+    padding:8px 10px; margin-bottom:8px; font-size:13px; font-weight:600; line-height:1.5;
+  }
+  .mz-warn-item .mz-warn-text{ color:#c62828; }
+  .mz-warn-icon{ color:#d32f2f; font-size:16px; flex:none; line-height:1.4; }
+  .mz-warn-actions{
+    display:flex; gap:10px; padding:12px 18px 18px 18px; justify-content:flex-end;
+    border-top:1px solid #eee;
+  }
+  .mz-warn-btn{
+    border:none; border-radius:7px; padding:9px 16px; font-size:13px; font-weight:700;
+    cursor:pointer; font-family:inherit;
+  }
+  .mz-warn-btn-edit{ background:#0f88cd; color:#fff; }
+  .mz-warn-btn-continue{ background:#f1f1f1; color:#555; }
+  .mz-warn-btn:hover{ filter:brightness(0.95); }
   .bank-info-section .bi-row{ padding:0; gap:0; border-bottom:none; line-height:1.1; }
   .bank-info-section .bi-row div{ padding:0; margin:0; }
 
@@ -1499,8 +1536,8 @@
     <div class="color-confirm-row page-break-avoid">
       <div class="color-confirm-label"><span>Approved Aluminum Color (Jotun Powder Coating)</span><span class="ar">لون الألمنيوم المعتمد (بودرة جوتن)</span></div>
       <div class="color-confirm-picker">
-        <select id="m-alumColor" onchange="onAlumColorChange()">
-          <option value="">-- Select / اختر اللون --</option>
+        <select id="m-alumColor" onchange="onAlumColorChange()" style="color:#000;background:#fff;color-scheme:light">
+          <option value="" style="color:#000;background:#fff">-- Select / اختر اللون --</option>
         </select>
         <span id="alumColorSwatch" class="color-swatch" style="visibility:hidden"></span>
       </div>
@@ -1522,11 +1559,11 @@
     <div class="color-confirm-row page-break-avoid">
       <div class="color-confirm-label"><span>Approved Glass Color / Type</span><span class="ar">نوع/لون الزجاج المعتمد</span></div>
       <div class="color-confirm-picker">
-        <select id="m-glassType" onchange="onGlassTypeChange()">
-          <option value="">-- Select / اختر --</option>
-          <option value="belgian">Belgian — بلجيكي</option>
-          <option value="guardian">American Guardian — أمريكي Guardian</option>
-          <option value="other">Other — نوع آخر</option>
+        <select id="m-glassType" onchange="onGlassTypeChange()" style="color:#000;background:#fff;color-scheme:light">
+          <option value="" style="color:#000;background:#fff">-- Select / اختر --</option>
+          <option value="belgian" style="color:#000;background:#fff">Belgian — بلجيكي</option>
+          <option value="guardian" style="color:#000;background:#fff">American Guardian — أمريكي Guardian</option>
+          <option value="other" style="color:#000;background:#fff">Other — نوع آخر</option>
         </select>
         <input id="m-glassTypeOther" type="text" placeholder="اكتب نوع/لون الزجاج (Other)" style="display:none">
       </div>
@@ -3171,7 +3208,34 @@ function syncPage2Header(){
   if(typeof onGlassTypeChange === 'function') onGlassTypeChange();
 }
 
-function validateBeforePrint(){
+// 🆕 2026-09-02: طلب من حمدي - إذا نوع/لون الزجاج المعتمد (m-glassType) بلجيكي أو "نوع آخر"، بس
+// نص مواصفات الزجاج (specs-rows) المأخوذ من مواصفة بند محفوظ فيه كلمة "Guardian"/"غارديان" (أو
+// العكس: معتمد Guardian بس النص فيه "Belgian"/"بلجيك") - هاد تعارض وبدو ينتبهله قبل ما يطبع/يصدّر.
+// منرجّع أسماء البنود (أو نص المواصفة نفسه لو مش مرتبط ببند محدد) يلي فيها التعارض.
+function findGlassTypeConflicts(glassType){
+  if(!glassType || glassType === '') return [];
+  const GUARDIAN_RX = /guardian|جارديان|غارديان/i;
+  const BELGIAN_RX = /belgian|بلجيك/i;
+  const conflicts = [];
+  document.querySelectorAll('#specs-rows .bi-row').forEach(row=>{
+    const enTa = row.querySelector('textarea:not(.ar)');
+    const arTa = row.querySelector('textarea.ar');
+    const text = (enTa ? enTa.value : '') + ' ' + (arTa ? arTa.value : '');
+    const mentionsGuardian = GUARDIAN_RX.test(text);
+    const mentionsBelgian = BELGIAN_RX.test(text);
+    let conflict = false;
+    if(glassType === 'belgian' && mentionsGuardian) conflict = true;
+    if(glassType === 'guardian' && mentionsBelgian) conflict = true;
+    if(glassType === 'other' && (mentionsGuardian || mentionsBelgian)) conflict = true;
+    if(conflict){
+      const itemNames = (row.dataset.linkedItem || '').split('|').filter(Boolean);
+      conflicts.push(itemNames.length ? itemNames.join(', ') : (enTa ? enTa.value.trim().slice(0,50) : ''));
+    }
+  });
+  return conflicts;
+}
+
+function collectPrintWarnings(){
   const warnings = [];
 
   const client = (document.getElementById('m-client').value || '').trim();
@@ -3184,6 +3248,8 @@ function validateBeforePrint(){
   const glassType = (document.getElementById('m-glassType')?.value || '').trim();
   if(!glassType) warnings.push('Glass color/type is not selected — نوع/لون الزجاج لسا ما تم اختياره');
   if(glassType === 'other' && !(document.getElementById('m-glassTypeOther')?.value || '').trim()) warnings.push('Glass type "Other" is selected but not named — اخترت "نوع آخر" للزجاج بس ما كتبت اسمه');
+  const glassConflicts = findGlassTypeConflicts(glassType);
+  if(glassConflicts.length) warnings.push('Approved glass type conflicts with the glass spec text of: ' + glassConflicts.join(' / ') + ' — نوع/لون الزجاج المعتمد فوق بيتعارض مع نص مواصفات الزجاج المكتوب للبند/البنود: ' + glassConflicts.join(' / '));
 
   const ref = (document.getElementById('m-ref').value || '').trim();
   // الرقم المرجعي الكامل لازم يحتوي رقم تسلسل بعد "M-Q-YY0" (بغض النظر إذا فيه مسافة بينهم أو
@@ -3220,10 +3286,64 @@ function validateBeforePrint(){
     warnings.push('Quotation total is under 100,000 AED — please review the delivery days — إجمالي العرض أقل من 100,000 درهم، يرجى مراجعة عدد أيام التسليم');
   }
 
-  if(warnings.length){
-    return confirm(warnings.join('\n') + '\n\nContinue anyway? — تابع الطباعة على أي حال؟');
-  }
-  return true;
+  return warnings;
+}
+
+// 🆕 2026-09-02: طلب من حمدي - بدل نافذة confirm() الرمادية العادية تبع المتصفح (يلي ما فيها نتحكم
+// بشكلها/ألوانها أبدًا)، منبني نافذة تنبيه خاصة فيها كل تحذير بلون أحمر مع إشارة خطأ (⚠) جنبه،
+// وفيها زرين: "الرجوع والتعديل" (الخيار الافتراضي/المُفضّل) و"المتابعة على أي حال". هاي النافذة
+// غير متزامنة (async) فمنستخدمها بنمط callback: بتستدعي onPass() فقط لو ما في تحذيرات أو المستخدم
+// اختار "متابعة على أي حال".
+function showPrintWarningsModal(warnings, onPass){
+  const old = document.getElementById('mz-warn-overlay');
+  if(old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'mz-warn-overlay';
+  overlay.className = 'mz-warn-overlay';
+
+  const modal = document.createElement('div');
+  modal.className = 'mz-warn-modal';
+
+  const header = document.createElement('div');
+  header.className = 'mz-warn-header';
+  header.innerHTML = '<span class="mz-warn-icon">⚠</span><span>تنبيهات قبل الطباعة — Warnings before printing</span>';
+  modal.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'mz-warn-list';
+  warnings.forEach(w=>{
+    const item = document.createElement('div');
+    item.className = 'mz-warn-item';
+    item.innerHTML = '<span class="mz-warn-icon">⚠</span><span class="mz-warn-text"></span>';
+    item.querySelector('.mz-warn-text').textContent = w;
+    list.appendChild(item);
+  });
+  modal.appendChild(list);
+
+  const actions = document.createElement('div');
+  actions.className = 'mz-warn-actions';
+  const editBtn = document.createElement('button');
+  editBtn.className = 'mz-warn-btn mz-warn-btn-edit';
+  editBtn.textContent = 'الرجوع والتعديل — Go back & fix';
+  editBtn.onclick = ()=>{ overlay.remove(); };
+  const continueBtn = document.createElement('button');
+  continueBtn.className = 'mz-warn-btn mz-warn-btn-continue';
+  continueBtn.textContent = 'المتابعة على أي حال — Continue anyway';
+  continueBtn.onclick = ()=>{ overlay.remove(); onPass(); };
+  actions.appendChild(continueBtn);
+  actions.appendChild(editBtn);
+  modal.appendChild(actions);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  editBtn.focus();
+}
+
+function validateBeforePrint(onPass){
+  const warnings = collectPrintWarnings();
+  if(!warnings.length){ onPass(); return; }
+  showPrintWarningsModal(warnings, onPass);
 }
 
 function setMainPageStyle(){
@@ -3237,12 +3357,13 @@ function setMainPageStyle(){
   styleTag.textContent = `@page{ size: 210mm 297mm; margin: 12mm; }`;
 }
 function doPrint(){
-  if(!validateBeforePrint()) return;
-  autosizeTextareasForPrint();
-  syncPage2Header();
-  applyElevationPrintGrouping();
-  setMainPageStyle();
-  window.print();
+  validateBeforePrint(()=>{
+    autosizeTextareasForPrint();
+    syncPage2Header();
+    applyElevationPrintGrouping();
+    setMainPageStyle();
+    window.print();
+  });
 }
 window.addEventListener('afterprint', ()=> { revertElevationPrintGrouping(); });
 
@@ -3282,16 +3403,36 @@ function findRalHex(code){
   return '';
 }
 
+// لون النص فوق خلفية اللون (hex) - أسود بمعظم الحالات متل ما طلب حمدي، بس نستثني الألوان الغامقة
+// جدًا (كنسبة سطوع واطئة) ونحطلها نص أبيض، وإلا رح يصير نفس مشكلة "الأرقام مش واضحة" يلي بلّغ
+// عنها أصلًا (نص أسود فوق خلفية قريبة من الأسود = غير مقروء).
+function contrastTextColor(hex){
+  try{
+    const h = hex.replace('#','');
+    const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
+    return luminance < 0.38 ? '#ffffff' : '#000000';
+  }catch(e){ return '#000000'; }
+}
+
 function populateAlumColorOptions(){
   const sel = document.getElementById('m-alumColor');
   if(!sel || sel.dataset.populated) return;
+  const placeholder = sel.querySelector('option[value=""]');
+  if(placeholder){ placeholder.style.color = '#000'; placeholder.style.background = '#fff'; }
   JOTUN_RAL_COLORS.forEach(grp=>{
     const og = document.createElement('optgroup');
     og.label = grp.g;
+    og.style.color = '#000';
+    og.style.background = '#fff';
     grp.items.forEach(it=>{
       const opt = document.createElement('option');
       opt.value = it.c;
       opt.textContent = it.c;
+      // 🆕 خلفية كل خيار = لون الـRAL نفسه (نفس حجم خانة الخيار كاملة)، ولون الكتابة أسود
+      // (أو أبيض بالألوان الغامقة جدًا حصرًا حتى تضل الأرقام مقروءة - راجع contrastTextColor أعلاه).
+      opt.style.background = it.h;
+      opt.style.color = contrastTextColor(it.h);
       og.appendChild(opt);
     });
     sel.appendChild(og);
@@ -8237,21 +8378,22 @@ window.addEventListener('afterprint', ()=> document.body.classList.remove('wd-pr
 
 // زر واحد يطبع عرض السعر أولاً وبعده رسمة/سكتش كل البنود (الهاندريل والشاور وغيرهم) بنفس ملف الطباعة - بترتيب: عرض السعر، بعدين السكتش
 function printQuotationAndSketch(){
-  if(!validateBeforePrint()) return;
-  autosizeTextareasForPrint();
-  syncPage2Header();
-  applyElevationPrintGrouping();
-  // بنفرض A4 عمودي موحّد للطباعتين مع بعض - المتصفحات ما بتدعم تبديل اتجاه الصفحة (عمودي/أفقي) بنفس ملف الطباعة بشكل موثوق،
-  // فلتفادي أي صفحة بيضا أو مقصوصة، منخلي كل شي (عرض السعر + السكتش) بنفس الاتجاه العمودي بملف طباعة واحد متناسق
-  combinedPrintSavedSettings = { paperSize, orientation };
-  paperSize = 'A4';
-  orientation = 'portrait';
-  setMainPageStyle();
-  document.getElementById('printSheet').innerHTML = buildPrintSheetHTML();
-  document.body.classList.add('combined-printing');
-  requestAnimationFrame(()=>{
+  validateBeforePrint(()=>{
+    autosizeTextareasForPrint();
+    syncPage2Header();
+    applyElevationPrintGrouping();
+    // بنفرض A4 عمودي موحّد للطباعتين مع بعض - المتصفحات ما بتدعم تبديل اتجاه الصفحة (عمودي/أفقي) بنفس ملف الطباعة بشكل موثوق،
+    // فلتفادي أي صفحة بيضا أو مقصوصة، منخلي كل شي (عرض السعر + السكتش) بنفس الاتجاه العمودي بملف طباعة واحد متناسق
+    combinedPrintSavedSettings = { paperSize, orientation };
+    paperSize = 'A4';
+    orientation = 'portrait';
+    setMainPageStyle();
+    document.getElementById('printSheet').innerHTML = buildPrintSheetHTML();
+    document.body.classList.add('combined-printing');
     requestAnimationFrame(()=>{
-      setTimeout(()=>{ window.print(); }, 250);
+      requestAnimationFrame(()=>{
+        setTimeout(()=>{ window.print(); }, 250);
+      });
     });
   });
 }
