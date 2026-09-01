@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-01.35';
+  var CURRENT_VERSION = '2026-09-01.36';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1202,6 +1202,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
               <th>نوع الأجر</th>
               <th style="text-align:left;">القيمة</th>
               <th>العملة</th>
+              <th>واتساب</th>
               <th>الحالة</th>
               <th></th>
             </tr>
@@ -1212,6 +1213,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <div class="controls" style="margin-top:14px;flex-wrap:wrap;" id="payrollEmpFormRow">
         <input type="text" id="payrollEmpName" placeholder="اسم الموظف" style="min-width:140px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
         <input type="text" id="payrollEmpRole" placeholder="الدور/المهمة (اختياري)" style="min-width:160px;flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <input type="text" id="payrollEmpPhone" placeholder="رقم واتساب (مثلاً 971501234567)" dir="ltr" style="min-width:170px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
         <select id="payrollEmpPayType" style="padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
           <option value="monthly">شهري</option>
           <option value="daily">يومي</option>
@@ -2921,7 +2923,7 @@ function renderPayrollEmployeesTable(){
   const tbody = document.getElementById('payrollEmployeesBody');
   const ids = Object.keys(employees).sort((a,b)=> (employees[a].name||'').localeCompare(employees[b].name||'','ar'));
   if(ids.length === 0){
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px;">ما في موظفين مسجّلين بعد</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:16px;">ما في موظفين مسجّلين بعد</td></tr>';
     return;
   }
   tbody.innerHTML = ids.map(id=>{
@@ -2930,14 +2932,29 @@ function renderPayrollEmployeesTable(){
     const activeBadge = e.active !== false
       ? '<span style="padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;background:rgba(30,122,61,.12);color:var(--ok);">نشط</span>'
       : '<span style="padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:600;background:rgba(107,107,107,.12);color:var(--muted);">غير نشط</span>';
+    let sendStatusHtml = '';
+    if(e.lastLinkSentAt){
+      const dt = new Date(e.lastLinkSentAt);
+      const dtStr = dt.toLocaleDateString('en-GB') + ' ' + dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      sendStatusHtml = e.lastLinkSendStatus === 'sent'
+        ? '<div style="font-size:10px;color:var(--ok);margin-top:3px;white-space:nowrap;">✓ أُرسل '+dtStr+'</div>'
+        : '<div style="font-size:10px;color:var(--danger);margin-top:3px;white-space:nowrap;" title="'+escapeHtml(e.lastLinkSendError||'')+'">✗ فشل '+dtStr+'</div>';
+    }
     return '<tr>'+
       '<td><b>'+escapeHtml(e.name)+'</b>'+(e.notes ? '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+escapeHtml(e.notes)+'</div>' : '')+'</td>'+
       '<td style="font-size:12.5px;color:var(--muted);">'+escapeHtml(e.role||'—')+'</td>'+
       '<td>'+payTypeLabel+'</td>'+
       '<td class="num">'+fmt(e.rate||0)+'</td>'+
       '<td>'+(PAYROLL_CURRENCY_LABEL[e.currency]||e.currency)+'</td>'+
+      '<td dir="ltr" style="font-size:12px;color:var(--muted);text-align:right;">'+escapeHtml(e.phone||'—')+'</td>'+
       '<td><span data-toggleactive="'+id+'" style="cursor:pointer;" title="اضغط لتغيير الحالة">'+activeBadge+'</span></td>'+
-      '<td><span style="cursor:pointer;color:var(--main);margin-inline-end:8px;" data-editemp="'+id+'" title="تعديل">✎</span><span style="cursor:pointer;color:var(--danger);" data-delemp="'+id+'" title="حذف">🗑</span></td>'+
+      '<td style="white-space:nowrap;">'+
+        '<span style="cursor:pointer;color:var(--main);margin-inline-end:6px;" data-editemp="'+id+'" title="تعديل">✎</span>'+
+        '<span style="cursor:pointer;color:var(--danger);margin-inline-end:6px;" data-delemp="'+id+'" title="حذف">🗑</span>'+
+        '<span style="cursor:pointer;color:var(--aux1);margin-inline-end:6px;" data-copylink="'+id+'" title="نسخ رابط الموظف الشخصي">🔗</span>'+
+        '<span style="cursor:pointer;color:var(--aux1);" data-sendlink="'+id+'" title="إرسال الرابط عالواتساب">📤</span>'+
+        sendStatusHtml+
+      '</td>'+
       '</tr>';
   }).join('');
 
@@ -2965,6 +2982,12 @@ function renderPayrollEmployeesTable(){
       renderPayrollAll();
     });
   });
+  tbody.querySelectorAll('[data-copylink]').forEach(el=>{
+    el.addEventListener('click', function(){ copyEmployeeLink(this.dataset.copylink, this); });
+  });
+  tbody.querySelectorAll('[data-sendlink]').forEach(el=>{
+    el.addEventListener('click', function(){ sendEmployeeLinkWhatsApp(this.dataset.sendlink, this); });
+  });
 }
 
 function startEditPayrollEmployee(id){
@@ -2977,6 +3000,7 @@ function startEditPayrollEmployee(id){
   document.getElementById('payrollEmpPayType').value = e.payType || 'daily';
   document.getElementById('payrollEmpRate').value = e.rate || '';
   document.getElementById('payrollEmpCurrency').value = e.currency || 'AED';
+  document.getElementById('payrollEmpPhone').value = e.phone || '';
   document.getElementById('payrollEmpNotes').value = e.notes || '';
   document.getElementById('payrollEmpSaveBtn').textContent = '💾 حفظ التعديل';
   document.getElementById('payrollEmpCancelEditBtn').style.display = '';
@@ -2988,6 +3012,7 @@ document.getElementById('payrollEmpCancelEditBtn').addEventListener('click', ()=
   document.getElementById('payrollEmpName').value = '';
   document.getElementById('payrollEmpRole').value = '';
   document.getElementById('payrollEmpRate').value = '';
+  document.getElementById('payrollEmpPhone').value = '';
   document.getElementById('payrollEmpNotes').value = '';
   document.getElementById('payrollEmpSaveBtn').textContent = '+ إضافة موظف';
   document.getElementById('payrollEmpCancelEditBtn').style.display = 'none';
@@ -3000,21 +3025,146 @@ document.getElementById('payrollEmpSaveBtn').addEventListener('click', ()=>{
   const payType = document.getElementById('payrollEmpPayType').value;
   const rate = parseFloat(document.getElementById('payrollEmpRate').value) || 0;
   const currency = document.getElementById('payrollEmpCurrency').value;
+  const phone = document.getElementById('payrollEmpPhone').value.trim();
   const notes = document.getElementById('payrollEmpNotes').value.trim();
   const emps = loadPayrollEmployees();
   const id = payrollEditingEmpId || ('emp_' + Date.now() + '_' + Math.random().toString(16).slice(2,8));
-  const wasActive = (payrollEditingEmpId && emps[payrollEditingEmpId]) ? emps[payrollEditingEmpId].active : true;
-  emps[id] = { name, role, payType, rate, currency, active: wasActive !== false, notes };
+  const existing = (payrollEditingEmpId && emps[payrollEditingEmpId]) ? emps[payrollEditingEmpId] : null;
+  const wasActive = existing ? existing.active : true;
+  // viewToken بيتولّد مرة وحدة بس لكل موظف وبيضل ثابت - لو ولّدناه من جديد كل تعديل، أي رابط
+  // سبق وانبعت للموظف كان رح ينكسر.
+  const viewToken = (existing && existing.viewToken) ? existing.viewToken : generateSignTokenDash();
+  emps[id] = { name, role, payType, rate, currency, phone, active: wasActive !== false, notes, viewToken,
+    lastLinkSentAt: existing ? (existing.lastLinkSentAt || null) : null,
+    lastLinkSendStatus: existing ? (existing.lastLinkSendStatus || null) : null,
+    lastLinkSendError: existing ? (existing.lastLinkSendError || null) : null };
   savePayrollEmployees(emps);
   payrollEditingEmpId = null;
   document.getElementById('payrollEmpName').value = '';
   document.getElementById('payrollEmpRole').value = '';
   document.getElementById('payrollEmpRate').value = '';
+  document.getElementById('payrollEmpPhone').value = '';
   document.getElementById('payrollEmpNotes').value = '';
   document.getElementById('payrollEmpSaveBtn').textContent = '+ إضافة موظف';
   document.getElementById('payrollEmpCancelEditBtn').style.display = 'none';
   renderPayrollAll();
 });
+
+/* ---------- صفحة الموظف الشخصية (رابط عام بدون تسجيل دخول - رواتب/مستحقات) ---------- */
+// نفس فكرة رابط توقيع العقود فوق (SIGN_BASE_URL) - رابط ثابت لصفحة عامة على GitHub Pages
+// (salary.html) بترجع بيانات الموظف من السيرفر حسب viewToken المخزّن جوا سجله.
+const SALARY_BASE_URL = 'https://management4w-beep.github.io/merzona-tool/salary.html';
+const PAYROLL_SEND_LINK_URL = 'https://merzona-server-production.up.railway.app/payroll/send-link';
+
+// نفس منطق تطبيع رقم الهاتف المستخدم بـtoWaLink فوق، بس هون بترجع الأرقام فقط (بدون رابط wa.me)
+// لأنو محتاجينها هيك لجسم طلب /payroll/send-link.
+function normalizePhoneDigits(phone){
+  if(!phone) return '';
+  let digits = String(phone).replace(/\D/g,'');
+  if(digits.startsWith('00')) digits = digits.slice(2);
+  if(digits.startsWith('0')) digits = '971' + digits.slice(1);
+  if(!digits.startsWith('971') && digits.length===9) digits = '971' + digits;
+  return digits;
+}
+
+function getOrCreateEmployeeViewToken(id){
+  const emps = loadPayrollEmployees();
+  const e = emps[id];
+  if(!e) return null;
+  if(!e.viewToken){
+    e.viewToken = generateSignTokenDash();
+    savePayrollEmployees(emps);
+  }
+  return e.viewToken;
+}
+
+function buildEmployeeSalaryUrl(empId, token){
+  return SALARY_BASE_URL + '?emp=' + encodeURIComponent(empId) + '&t=' + encodeURIComponent(token);
+}
+
+async function copyEmployeeLink(id, btnEl){
+  if(!id) return;
+  const origHtml = btnEl ? btnEl.innerHTML : null;
+  if(btnEl){ btnEl.style.pointerEvents = 'none'; }
+  try{
+    const token = getOrCreateEmployeeViewToken(id);
+    const url = buildEmployeeSalaryUrl(id, token);
+    let copied = false;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){ copied = false; }
+    }
+    if(!copied){
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try{ document.execCommand('copy'); copied = true; }catch(e){ copied = false; }
+      document.body.removeChild(ta);
+    }
+    if(copied){
+      if(btnEl) btnEl.innerHTML = '✅';
+    } else {
+      prompt('تعذّر النسخ التلقائي - انسخ رابط الموظف يدويًا:', url);
+    }
+  }catch(e){
+    console.error('[صفحة الموظف] تعذّر نسخ الرابط:', e);
+    alert('⚠️ صار خطأ أثناء تجهيز الرابط، جرب كمان مرة.');
+  }
+  if(btnEl){
+    setTimeout(()=>{ btnEl.style.pointerEvents = ''; btnEl.innerHTML = origHtml; }, 1800);
+  }
+}
+
+async function sendEmployeeLinkWhatsApp(id, btnEl){
+  if(!id) return;
+  const emps = loadPayrollEmployees();
+  const e = emps[id];
+  if(!e) return;
+  const digits = normalizePhoneDigits(e.phone);
+  if(!digits || digits.length < 8){
+    alert('⚠️ لازم تسجّل رقم واتساب صحيح للموظف "'+(e.name||'')+'" أول (من زر التعديل ✎)، وبعدين جرّب ترسل الرابط.');
+    return;
+  }
+  const origHtml = btnEl ? btnEl.innerHTML : null;
+  if(btnEl){ btnEl.style.pointerEvents = 'none'; btnEl.innerHTML = '⏳'; }
+  const token = getOrCreateEmployeeViewToken(id);
+  const url = buildEmployeeSalaryUrl(id, token);
+  let status = 'failed';
+  let errMsg = '';
+  try{
+    const res = await dashFetchWithTimeout(PAYROLL_SEND_LINK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': DASH_SERVER_AUTH_TOKEN },
+      body: JSON.stringify({ phone: digits, empName: e.name || '', link: url })
+    }, 40000);
+    const data = await res.json().catch(()=> ({}));
+    if(res.ok && data && data.ok){
+      status = 'sent';
+    } else {
+      status = 'failed';
+      errMsg = (data && (data.detail || data.error)) || ('HTTP ' + res.status);
+    }
+  }catch(err){
+    status = 'failed';
+    errMsg = 'تعذّر الاتصال بالسيرفر (' + ((err && err.message) || err) + ')';
+  }
+  const emps2 = loadPayrollEmployees();
+  if(emps2[id]){
+    emps2[id].lastLinkSentAt = Date.now();
+    emps2[id].lastLinkSendStatus = status;
+    emps2[id].lastLinkSendError = status === 'sent' ? null : errMsg;
+    savePayrollEmployees(emps2);
+  }
+  if(btnEl){
+    btnEl.innerHTML = status === 'sent' ? '✅' : '❌';
+    if(status !== 'sent') alert('⚠️ ما انبعت الرابط: ' + errMsg);
+    setTimeout(()=>{ btnEl.style.pointerEvents = ''; btnEl.innerHTML = origHtml; }, 1800);
+  }
+  renderPayrollAll();
+}
 
 function populatePayrollEmpSelects(){
   const emps = loadPayrollEmployees();
