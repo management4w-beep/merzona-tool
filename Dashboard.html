@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-01.34';
+  var CURRENT_VERSION = '2026-09-01.35';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -899,6 +899,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <div class="nav-row">
         <span class="nav-pill active" id="homeTabBtn">🏠 اللوحة الرئيسية</span>
         <span class="nav-pill" id="quotationTabBtn">➕ عرض سعر جديد</span>
+        <span class="nav-pill" id="quotationsTabBtn">📋 عروض الأسعار</span>
         <span class="nav-pill" id="designerTabBtn">🎨 (تصميم/Sketch)</span>
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 الملفات</a>
@@ -1009,6 +1010,67 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <div id="chartArea"><svg viewBox="0 0 1980 320" width="1980" height="320" style="display:block;"><rect data-idx="0" x="0" y="99.12655551842994" width="6" height="186.87344448157006" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="1" x="10" y="125.3149365046664" width="6" height="160.6850634953336" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="2" x="20" y="50.747926197884" width="6" height="235.252073802116" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="3" x="30" y="75.91215654918648" width="6" height="210.08784345081352" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="4" x="40" y="89.7301951681585" width="6" height="196.2698048318415" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="5" x="50" y="79.32888389549154" width="6" height="206.67111610450846" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="6" x="60" y="43.545288392155044" width="6" height="242.45471160784496" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="7" x="70" y="98.72834488289885" width="6" height="187.27165511710115" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="8" x="80" y="61.47924015253332" width="6" height="224.52075984746668" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="9" x="90" y="65.98323931222413" width="6" height="220.01676068777587" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="10" x="100" y="75.86210598577424" width="6" height="210.13789401422576" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="11" x="110" y="83.9572197586503" width="6" height="202.0427802413497" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="12" x="120" y="77.5382404204075" width="6" height="208.4617595795925" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="13" x="130" y="76.23982252115479" width="6" height="209.7601774788452" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="14" x="140" y="77.81144918475346" width="6" height="208.18855081524654" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="15" x="150" y="90.83083054662865" width="6" height="195.16916945337135" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="16" x="160" y="92.44196170996375" width="6" height="193.55803829003625" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="17" x="170" y="98.56770794935761" width="6" height="187.4322920506424" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="18" x="180" y="93.27201611701821" width="6" height="192.7279838829818" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="19" x="190" y="63.079012453863555" width="6" height="222.92098754613644" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="20" x="200" y="53.18185255030593" width="6" height="232.81814744969407" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="21" x="210" y="78.69118777393234" width="6" height="207.30881222606766" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="22" x="220" y="59.07611636775869" width="6" height="226.9238836322413" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="23" x="230" y="69.14721657909084" width="6" height="216.85278342090916" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="24" x="240" y="103.25827714821801" width="6" height="182.741722851782" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="25" x="250" y="60.022245329974965" width="6" height="225.97775467002504" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="26" x="260" y="89.82970227428152" width="6" height="196.17029772571848" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="27" x="270" y="59.54738862727797" width="6" height="226.45261137272203" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="28" x="280" y="74.92269776242335" width="6" height="211.07730223757665" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="29" x="290" y="76.04393861406655" width="6" height="209.95606138593345" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="30" x="300" y="59.44880509222125" width="6" height="226.55119490777875" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="31" x="310" y="76.5380421729412" width="6" height="209.4619578270588" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="32" x="320" y="71.345185311601" width="6" height="214.654814688399" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="33" x="330" y="51.40378625302739" width="6" height="234.5962137469726" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="34" x="340" y="81.30115965293732" width="6" height="204.69884034706268" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="35" x="350" y="62.44252805554211" width="6" height="223.5574719444579" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="36" x="360" y="100.87576450861715" width="6" height="185.12423549138285" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="37" x="370" y="62.7784291334618" width="6" height="223.2215708665382" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="38" x="380" y="78.55689886293413" width="6" height="207.44310113706587" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="39" x="390" y="107.04105879256505" width="6" height="178.95894120743495" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="40" x="400" y="85.82940165215129" width="6" height="200.1705983478487" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="41" x="410" y="61.95745323273951" width="6" height="224.0425467672605" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="42" x="420" y="85.00237805537526" width="6" height="200.99762194462474" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="43" x="430" y="56.332380328782875" width="6" height="229.66761967121712" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="44" x="440" y="65.90301500647033" width="6" height="220.09698499352967" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="45" x="450" y="60.83256842210179" width="6" height="225.1674315778982" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="46" x="460" y="87.54081646362391" width="6" height="198.4591835363761" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="47" x="470" y="74.12736821571943" width="6" height="211.87263178428057" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="48" x="480" y="98.82766339825255" width="6" height="187.17233660174745" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="49" x="490" y="63.130300813439305" width="6" height="222.8696991865607" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="50" x="500" y="116.65458212753768" width="6" height="169.34541787246232" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="51" x="510" y="101.71438995565745" width="6" height="184.28561004434255" rx="2" fill="var(--gold)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="52" x="520" y="35.71842804455562" width="6" height="250.28157195544438" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="53" x="530" y="82.17554816543591" width="6" height="203.8244518345641" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="54" x="540" y="61.48797533972103" width="6" height="224.51202466027897" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="55" x="550" y="100.30980136272481" width="6" height="185.6901986372752" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="56" x="560" y="74.63898969171245" width="6" height="211.36101030828755" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="57" x="570" y="86.54758568708903" width="6" height="199.45241431291097" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="58" x="580" y="67.19935621414618" width="6" height="218.80064378585382" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="59" x="590" y="192.61170699963213" width="6" height="93.38829300036787" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="60" x="600" y="77.01314706646363" width="6" height="208.98685293353637" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="61" x="610" y="49.397663174560535" width="6" height="236.60233682543947" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="62" x="620" y="50.75838768935816" width="6" height="235.24161231064184" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="63" x="630" y="79.71156530124776" width="6" height="206.28843469875224" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="64" x="640" y="62.367603715637046" width="6" height="223.63239628436295" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="65" x="650" y="48.096325387556334" width="6" height="237.90367461244367" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="66" x="660" y="57.82724992059542" width="6" height="228.17275007940458" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="67" x="670" y="53.66106798016554" width="6" height="232.33893201983446" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="68" x="680" y="111.00445517569631" width="6" height="174.9955448243037" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="69" x="690" y="51.97923362910541" width="6" height="234.0207663708946" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="70" x="700" y="81.42807836944775" width="6" height="204.57192163055225" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="71" x="710" y="68.98737321109655" width="6" height="217.01262678890345" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="72" x="720" y="36.81113532651173" width="6" height="249.18886467348827" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="73" x="730" y="110.35768788203578" width="6" height="175.64231211796422" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="74" x="740" y="86.43636612156538" width="6" height="199.56363387843462" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="75" x="750" y="102.06778057573925" width="6" height="183.93221942426075" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="76" x="760" y="74.00633039036941" width="6" height="211.9936696096306" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="77" x="770" y="95.25391045746895" width="6" height="190.74608954253105" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="78" x="780" y="88.70136686091647" width="6" height="197.29863313908353" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="79" x="790" y="76.90222516427738" width="6" height="209.09777483572262" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="80" x="800" y="67.78151392644864" width="6" height="218.21848607355136" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="81" x="810" y="60.32354412895128" width="6" height="225.67645587104872" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="82" x="820" y="68.08677316638205" width="6" height="217.91322683361795" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="83" x="830" y="67.40902637295576" width="6" height="218.59097362704424" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="84" x="840" y="78.77274192213454" width="6" height="207.22725807786546" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="85" x="850" y="92.27439217313818" width="6" height="193.72560782686182" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="86" x="860" y="114.5237329725395" width="6" height="171.4762670274605" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="87" x="870" y="79.49545091096124" width="6" height="206.50454908903876" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="88" x="880" y="84.16486582591497" width="6" height="201.83513417408503" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="89" x="890" y="74.35050872824525" width="6" height="211.64949127175475" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="90" x="900" y="121.86861293755052" width="6" height="164.13138706244948" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="91" x="910" y="43.12089179111226" width="6" height="242.87910820888774" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="92" x="920" y="62.32888865340905" width="6" height="223.67111134659095" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="93" x="930" y="83.64755967316572" width="6" height="202.35244032683428" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="94" x="940" y="81.3721504426394" width="6" height="204.6278495573606" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="95" x="950" y="84.34861554318294" width="6" height="201.65138445681706" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="96" x="960" y="105.84608283546876" width="6" height="180.15391716453124" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="97" x="970" y="114.40087197590734" width="6" height="171.59912802409266" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="98" x="980" y="65.82110615451927" width="6" height="220.17889384548073" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="99" x="990" y="79.98414537553614" width="6" height="206.01585462446386" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="100" x="1000" y="98.52461095212712" width="6" height="187.47538904787288" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="101" x="1010" y="65.42746731896241" width="6" height="220.5725326810376" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="102" x="1020" y="82.35040973802816" width="6" height="203.64959026197184" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="103" x="1030" y="62.67727448014267" width="6" height="223.32272551985733" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="104" x="1040" y="112.1719546902309" width="6" height="173.8280453097691" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="105" x="1050" y="85.64560832742822" width="6" height="200.35439167257178" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="106" x="1060" y="73.42210423362238" width="6" height="212.57789576637762" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="107" x="1070" y="72.5367576652132" width="6" height="213.4632423347868" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="108" x="1080" y="90.34352989802935" width="6" height="195.65647010197065" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="109" x="1090" y="80.79488556183557" width="6" height="205.20511443816443" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="110" x="1100" y="48.40087316976394" width="6" height="237.59912683023606" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="111" x="1110" y="59.274128035141445" width="6" height="226.72587196485856" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="112" x="1120" y="85.0607541290405" width="6" height="200.9392458709595" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="113" x="1130" y="120.63057462398237" width="6" height="165.36942537601763" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="114" x="1140" y="49.43916322699826" width="6" height="236.56083677300174" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="115" x="1150" y="98.0613909717093" width="6" height="187.9386090282907" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="116" x="1160" y="43.27979032220105" width="6" height="242.72020967779895" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="117" x="1170" y="58.658557997061365" width="6" height="227.34144200293863" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="118" x="1180" y="60.81299776911723" width="6" height="225.18700223088277" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="119" x="1190" y="106.88069829728332" width="6" height="179.11930170271668" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="120" x="1200" y="77.86925363596151" width="6" height="208.1307463640385" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="121" x="1210" y="84.03511136473452" width="6" height="201.96488863526548" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="122" x="1220" y="74.31132473881843" width="6" height="211.68867526118157" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="123" x="1230" y="103.15791980968774" width="6" height="182.84208019031226" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="124" x="1240" y="133.98451650864584" width="6" height="152.01548349135416" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="125" x="1250" y="112.6861915075456" width="6" height="173.3138084924544" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="126" x="1260" y="104.92590892707184" width="6" height="181.07409107292816" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="127" x="1270" y="68.91838896021056" width="6" height="217.08161103978944" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="128" x="1280" y="92.99576444492038" width="6" height="193.00423555507962" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="129" x="1290" y="89.34873026300377" width="6" height="196.65126973699623" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="130" x="1300" y="98.0722519254002" width="6" height="187.9277480745998" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="131" x="1310" y="96.4731514327843" width="6" height="189.5268485672157" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="132" x="1320" y="100.07590133371528" width="6" height="185.92409866628472" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="133" x="1330" y="61.94283201909914" width="6" height="224.05716798090086" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="134" x="1340" y="54.7113878039371" width="6" height="231.2886121960629" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="135" x="1350" y="84.96951066571248" width="6" height="201.03048933428752" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="136" x="1360" y="105.27632237117427" width="6" height="180.72367762882573" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="137" x="1370" y="63.720813286199046" width="6" height="222.27918671380095" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="138" x="1380" y="81.29911024504835" width="6" height="204.70088975495165" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="139" x="1390" y="111.00008713807037" width="6" height="174.99991286192963" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="140" x="1400" y="127.56581901898744" width="6" height="158.43418098101256" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="141" x="1410" y="54.4317093028244" width="6" height="231.5682906971756" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="142" x="1420" y="77.75841832101204" width="6" height="208.24158167898796" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="143" x="1430" y="77.11726154549251" width="6" height="208.8827384545075" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="144" x="1440" y="54.88928833517244" width="6" height="231.11071166482756" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="145" x="1450" y="90.83083054662865" width="6" height="195.16916945337135" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="146" x="1460" y="128.1372824636784" width="6" height="157.8627175363216" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="147" x="1470" y="87.976517141063" width="6" height="198.023482858937" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="148" x="1480" y="108.50459247594179" width="6" height="177.4954075240582" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="149" x="1490" y="111.17267820203901" width="6" height="174.827321797961" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="150" x="1500" y="56.92327264550232" width="6" height="229.07672735449768" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="151" x="1510" y="91.01692605372793" width="6" height="194.98307394627207" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="152" x="1520" y="71.61356997362805" width="6" height="214.38643002637195" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="153" x="1530" y="102.27837093998144" width="6" height="183.72162906001856" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="154" x="1540" y="102.22935094231127" width="6" height="183.77064905768873" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="155" x="1550" y="82.79572090713324" width="6" height="203.20427909286676" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="156" x="1560" y="74.33382027818504" width="6" height="211.66617972181496" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="157" x="1570" y="82.18967307886433" width="6" height="203.81032692113567" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="158" x="1580" y="68.83815613274837" width="6" height="217.16184386725163" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="159" x="1590" y="71.15868980472447" width="6" height="214.84131019527553" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="160" x="1600" y="51.80732158915092" width="6" height="234.19267841084908" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="161" x="1610" y="73.13808000712058" width="6" height="212.86191999287942" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="162" x="1620" y="99.94962681727426" width="6" height="186.05037318272574" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="163" x="1630" y="51.15042457495369" width="6" height="234.8495754250463" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="164" x="1640" y="87.98785719617788" width="6" height="198.01214280382212" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="165" x="1650" y="93.59391895552602" width="6" height="192.40608104447398" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="166" x="1660" y="49.472199430191864" width="6" height="236.52780056980814" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="167" x="1670" y="104.55011982900243" width="6" height="181.44988017099757" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="168" x="1680" y="131.51256681816477" width="6" height="154.48743318183523" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="169" x="1690" y="97.25198011635345" width="6" height="188.74801988364655" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="170" x="1700" y="84.89292771984498" width="6" height="201.10707228015502" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="171" x="1710" y="79.83504190941389" width="6" height="206.1649580905861" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="172" x="1720" y="91.5382930558676" width="6" height="194.4617069441324" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="173" x="1730" y="87.24786745221854" width="6" height="198.75213254778146" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="174" x="1740" y="76.49146629891519" width="6" height="209.50853370108481" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="175" x="1750" y="71.04879826193456" width="6" height="214.95120173806544" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="176" x="1760" y="67.38622586930245" width="6" height="218.61377413069755" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="177" x="1770" y="105.62695904984207" width="6" height="180.37304095015793" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="178" x="1780" y="128.52704690693767" width="6" height="157.47295309306233" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="179" x="1790" y="100.59145051434663" width="6" height="185.40854948565337" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="180" x="1800" y="106.13711533679046" width="6" height="179.86288466320954" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="181" x="1810" y="78.26087156474321" width="6" height="207.7391284352568" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="182" x="1820" y="88.14650401316132" width="6" height="197.85349598683868" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="183" x="1830" y="9.999999999999943" width="6" height="276.00000000000006" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="184" x="1840" y="101.90048150455863" width="6" height="184.09951849544137" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="185" x="1850" y="111.64144630809085" width="6" height="174.35855369190915" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="186" x="1860" y="83.09457187868384" width="6" height="202.90542812131616" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="187" x="1870" y="61.75216943191339" width="6" height="224.2478305680866" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="188" x="1880" y="117.27742702592698" width="6" height="168.72257297407302" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="189" x="1890" y="98.33851791892135" width="6" height="187.66148208107865" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="190" x="1900" y="99.53351836668085" width="6" height="186.46648163331915" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="191" x="1910" y="103.15791980968774" width="6" height="182.84208019031226" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="192" x="1920" y="96.0209785432144" width="6" height="189.9790214567856" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="193" x="1930" y="89.69238404283104" width="6" height="196.30761595716896" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="194" x="1940" y="24.88775786713677" width="6" height="261.11224213286323" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="195" x="1950" y="56.94015492791419" width="6" height="229.0598450720858" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="196" x="1960" y="88.45888226577085" width="6" height="197.54111773422915" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect><rect data-idx="197" x="1970" y="66.3814161649384" width="6" height="219.6185838350616" rx="2" fill="var(--aux1)" opacity="0.85" style="cursor:pointer;transition:opacity .1s"></rect></svg></div>
   </div>
 
+
+  </div>
+
+  <div id="usersView" style="display:none;padding:20px;max-width:900px;margin:0 auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+      <h2 style="margin:0;font-family:'DM Serif Text',Georgia,serif;color:var(--main);">👤 المستخدمين</h2>
+      <div style="font-size:12.5px;color:var(--muted);max-width:420px;">
+        كل مستخدم موافق عليه (بموافقة الواتساب) بينشئ حساب يوزرنيم/باسوورد أول ما يفتح الأداة. من هون فيك
+        تتحكم شو الأقسام يلي يقدر يشوفها كل حساب لحاله.
+      </div>
+    </div>
+    <div id="usersListStatus" style="font-size:13px;color:var(--muted);margin-bottom:10px;"></div>
+    <div class="table-wrap">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="text-align:right;border-bottom:1px solid var(--border,#333);">
+            <th style="padding:8px 6px;">المستخدم</th>
+            <th style="padding:8px 6px;">اللوحة الرئيسية</th>
+            <th style="padding:8px 6px;font-size:11.5px;">↳ أرقام سريعة</th>
+            <th style="padding:8px 6px;font-size:11.5px;">↳ الدفعات المتوقعة</th>
+            <th style="padding:8px 6px;font-size:11.5px;">↳ الرسم البياني</th>
+            <th style="padding:8px 6px;">عرض أسعار</th>
+            <th style="padding:8px 6px;">سجل ومتابعة العروض</th>
+            <th style="padding:8px 6px;">مشتريات</th>
+            <th style="padding:8px 6px;">عقود</th>
+            <th style="padding:8px 6px;">رواتب</th>
+            <th style="padding:8px 6px;">كتالوجات</th>
+            <th style="padding:8px 6px;">مشاريع</th>
+            <th style="padding:8px 6px;">نسخة احتياطية</th>
+            <th style="padding:8px 6px;">ملفات</th>
+            <th style="padding:8px 6px;">مزامنة</th>
+            <th style="padding:8px 6px;">إدارة مستخدمين</th>
+            <th style="padding:8px 6px;">أدمن</th>
+            <th style="padding:8px 6px;">إجراءات</th>
+          </tr>
+        </thead>
+        <tbody id="usersTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="quotationsView" style="display:none;">
+
+    <div class="panel">
+      <p class="panel-title">📊 متابعة عروض الأسعار حسب الفترة</p>
+      <div class="kpis" id="qtrackCounters" style="margin-top:10px;"></div>
+      <p class="panel-title" style="font-size:15px;margin-top:22px;">الاتجاه الشهري (آخر 12 شهر)</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الشهر</th>
+              <th>عدد العروض</th>
+              <th style="text-align:left;">إجمالي القيمة (د.إ)</th>
+            </tr>
+          </thead>
+          <tbody id="qtrackMonthlyBody"></tbody>
+        </table>
+      </div>
+    </div>
+
   <div class="panel" id="dashLogSection">
     <p class="panel-title">سجل العروض</p>
     <div class="controls">
@@ -1038,42 +1100,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     </div>
   </div>
 
-  </div>
 
-  <div id="usersView" style="display:none;padding:20px;max-width:900px;margin:0 auto;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-      <h2 style="margin:0;font-family:'DM Serif Text',Georgia,serif;color:var(--main);">👤 المستخدمين</h2>
-      <div style="font-size:12.5px;color:var(--muted);max-width:420px;">
-        كل مستخدم موافق عليه (بموافقة الواتساب) بينشئ حساب يوزرنيم/باسوورد أول ما يفتح الأداة. من هون فيك
-        تتحكم شو الأقسام يلي يقدر يشوفها كل حساب لحاله.
-      </div>
-    </div>
-    <div id="usersListStatus" style="font-size:13px;color:var(--muted);margin-bottom:10px;"></div>
-    <div class="table-wrap">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
-        <thead>
-          <tr style="text-align:right;border-bottom:1px solid var(--border,#333);">
-            <th style="padding:8px 6px;">المستخدم</th>
-            <th style="padding:8px 6px;">اللوحة الرئيسية</th>
-            <th style="padding:8px 6px;font-size:11.5px;">↳ أرقام سريعة</th>
-            <th style="padding:8px 6px;font-size:11.5px;">↳ الدفعات المتوقعة</th>
-            <th style="padding:8px 6px;font-size:11.5px;">↳ الرسم البياني</th>
-            <th style="padding:8px 6px;font-size:11.5px;">↳ سجل العروض</th>
-            <th style="padding:8px 6px;">عرض أسعار</th>
-            <th style="padding:8px 6px;">مشتريات</th>
-            <th style="padding:8px 6px;">عقود</th>
-            <th style="padding:8px 6px;">مشاريع</th>
-            <th style="padding:8px 6px;">نسخة احتياطية</th>
-            <th style="padding:8px 6px;">ملفات</th>
-            <th style="padding:8px 6px;">مزامنة</th>
-            <th style="padding:8px 6px;">إدارة مستخدمين</th>
-            <th style="padding:8px 6px;">أدمن</th>
-            <th style="padding:8px 6px;">إجراءات</th>
-          </tr>
-        </thead>
-        <tbody id="usersTableBody"></tbody>
-      </table>
-    </div>
   </div>
 
   <div id="contractsView" style="display:none;">
@@ -2242,6 +2269,7 @@ function hideAllViews(){
   document.getElementById('dashboardView').style.display = 'none';
   document.getElementById('contractsView').style.display = 'none';
   document.getElementById('payrollView').style.display = 'none';
+  document.getElementById('quotationsView').style.display = 'none';
   document.getElementById('catalogsView').style.display = 'none';
   document.getElementById('pmpView').style.display = 'none';
   document.getElementById('quotationView').style.display = 'none';
@@ -2251,6 +2279,7 @@ function hideAllViews(){
   document.getElementById('usersView').style.display = 'none';
   document.getElementById('contractsTabBtn').classList.remove('active');
   document.getElementById('payrollTabBtn').classList.remove('active');
+  document.getElementById('quotationsTabBtn').classList.remove('active');
   document.getElementById('catalogsTabBtn').classList.remove('active');
   document.getElementById('pmpTabBtn').classList.remove('active');
   document.getElementById('quotationTabBtn').classList.remove('active');
@@ -2274,6 +2303,13 @@ function showPayrollView(){
   document.getElementById('payrollView').style.display = 'block';
   document.getElementById('payrollTabBtn').classList.add('active');
   renderPayrollAll();
+}
+function showQuotationsView(){
+  hideAllViews();
+  document.getElementById('quotationsView').style.display = 'block';
+  document.getElementById('quotationsTabBtn').classList.add('active');
+  render();
+  renderQuotationsTracking();
 }
 function showDashboardView(){
   hideAllViews();
@@ -2437,6 +2473,10 @@ document.getElementById('payrollTabBtn').addEventListener('click', ()=>{
   const inPayroll = document.getElementById('payrollView').style.display !== 'none';
   if(inPayroll) showDashboardView(); else showPayrollView();
 });
+document.getElementById('quotationsTabBtn').addEventListener('click', ()=>{
+  const inQuotations = document.getElementById('quotationsView').style.display !== 'none';
+  if(inQuotations) showDashboardView(); else showQuotationsView();
+});
 document.getElementById('pmpTabBtn').addEventListener('click', ()=>{
   const inPmp = document.getElementById('pmpView').style.display !== 'none';
   if(inPmp) showDashboardView(); else showPmpView();
@@ -2493,8 +2533,8 @@ const MERZONA_PERMISSION_COLUMNS = [
   { key: 'dashKpis', label: '↳ أرقام سريعة' },
   { key: 'dashExpectedPayments', label: '↳ الدفعات المتوقعة' },
   { key: 'dashChart', label: '↳ الرسم البياني' },
-  { key: 'dashLog', label: '↳ سجل العروض' },
   { key: 'quotation', label: 'عرض أسعار' },
+  { key: 'quotationsLog', label: 'سجل ومتابعة العروض' },
   { key: 'procurement', label: 'مشتريات' },
   { key: 'contracts', label: 'عقود' },
   { key: 'payroll', label: 'رواتب' },
@@ -2577,7 +2617,7 @@ function renderUsersRows(users){
       '<td style="text-align:center;padding:6px;"><input type="checkbox" class="mz-users-isadmin" ' + adminChecked + ' ' + adminDisabled + ' /></td>' +
       '<td style="padding:6px;white-space:nowrap;">' + actions + '</td>' +
       '</tr>';
-  }).join('') || '<tr><td colspan="16" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
+  }).join('') || '<tr><td colspan="18" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
 }
 
 document.getElementById('usersTableBody').addEventListener('click', function(e){
@@ -2637,6 +2677,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
   }
   var navMap = {
     quotationTabBtn: 'quotation',
+    quotationsTabBtn: 'quotationsLog',
     designerTabBtn: 'quotation',
     procurementTabBtn: 'procurement',
     contractsTabBtn: 'contracts',
@@ -2675,14 +2716,15 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     if(ov) ov.remove();
   }
 
-  // تفصيل أدق جوا "اللوحة الرئيسية" نفسها - كل قسم (أرقام سريعة/دفعات متوقعة/رسم بياني/سجل
-  // العروض) إلو صلاحية مستقلة. لو dashboardHome نفسها ممنوعة، منعتبر الأربعة ممنوعين تلقائيًا
-  // (بس اللوحة الرئيسية نفسها تضل تبويب عادي مفتوح - بس فاضية من جوا).
+  // تفصيل أدق جوا "اللوحة الرئيسية" نفسها - كل قسم (أرقام سريعة/دفعات متوقعة/رسم بياني) إلو
+  // صلاحية مستقلة. لو dashboardHome نفسها ممنوعة، منعتبر التلاتة ممنوعين تلقائيًا (بس اللوحة
+  // الرئيسية نفسها تضل تبويب عادي مفتوح - بس فاضية من جوا). 🔧 2026-09-01: "سجل العروض" انتقل
+  // لتبويب مستقل "📋 عروض الأسعار" وصار إلو صلاحية توب-ليفل خاصة فيه (quotationsLog) - مش جزء من
+  // اللوحة الرئيسية بعد اليوم.
   var homeSectionsMap = {
     dashKpisSection: 'dashKpis',
     dashExpectedPaymentsSection: 'dashExpectedPayments',
     dashChartSection: 'dashChart',
-    dashLogSection: 'dashLog',
   };
   Object.keys(homeSectionsMap).forEach(function(id){
     var el = document.getElementById(id);
@@ -3184,6 +3226,60 @@ function renderPayrollSummary(){
   const totalParts = Object.keys(totalsByCur).map(c=>fmt(totalsByCur[c])+' '+(PAYROLL_CURRENCY_LABEL[c]||c));
   html += '<div class="kpi gold"><p class="kpi-label">إجمالي المستحق (كل الموظفين)</p><p class="kpi-value" style="font-size:18px;">'+(totalParts.length ? totalParts.join(' + ') : '0')+'</p></div>';
   wrap.innerHTML = html;
+}
+
+/* ---------- Quotations tracking (متابعة عروض الأسعار المرسلة حسب اليوم/الأسبوع/الشهر) ----------
+   بتستخدم نفس مصدر البيانات الموحّد (DATA) يلي جدول "سجل العروض" وبطاقات "أرقام سريعة" والرسم
+   البياني كلهم شغالين عليه أصلًا - فأي عرض سعر مكتشف جديد من جوجل درايف أو محذوف بينعكس هون
+   تلقائيًا بدون أي منطق إضافي. */
+function getQuotationsTrackingCounters(){
+  const now = new Date();
+  const todayStr = todayISO();
+  const today = {count:0, total:0}, week = {count:0, total:0}, month = {count:0, total:0};
+  DATA.forEach(d=>{
+    const dt = parseDate(d.date);
+    if(!dt) return;
+    const iso = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+    if(iso === todayStr){ today.count++; today.total += (d.total||0); }
+    const diffDays = (now - dt) / 86400000;
+    if(diffDays >= 0 && diffDays < 7){ week.count++; week.total += (d.total||0); }
+    if(dt.getFullYear()===now.getFullYear() && dt.getMonth()===now.getMonth()){ month.count++; month.total += (d.total||0); }
+  });
+  return { today, week, month };
+}
+
+function getQuotationsMonthlyTrend(){
+  const now = new Date();
+  const monthsAr = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  const buckets = [];
+  for(let i=0;i<12;i++){
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    buckets.push({ key: d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'), label: monthsAr[d.getMonth()]+' '+d.getFullYear(), count:0, total:0 });
+  }
+  const map = {};
+  buckets.forEach(b=>{ map[b.key] = b; });
+  DATA.forEach(d=>{
+    const dt = parseDate(d.date);
+    if(!dt) return;
+    const key = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
+    if(map[key]){ map[key].count++; map[key].total += (d.total||0); }
+  });
+  return buckets;
+}
+
+function renderQuotationsTracking(){
+  const c = getQuotationsTrackingCounters();
+  const wrap2 = document.getElementById('qtrackCounters');
+  wrap2.innerHTML =
+    '<div class="kpi"><p class="kpi-label">اليوم</p><p class="kpi-value">'+c.today.count+'<small> عرض</small></p><p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;">'+fmt(c.today.total)+' د.إ</p></div>'+
+    '<div class="kpi"><p class="kpi-label">هالأسبوع (آخر 7 أيام)</p><p class="kpi-value">'+c.week.count+'<small> عرض</small></p><p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;">'+fmt(c.week.total)+' د.إ</p></div>'+
+    '<div class="kpi gold"><p class="kpi-label">هالشهر</p><p class="kpi-value">'+c.month.count+'<small> عرض</small></p><p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;">'+fmt(c.month.total)+' د.إ</p></div>';
+
+  const trend = getQuotationsMonthlyTrend().slice().reverse();
+  const tbody2 = document.getElementById('qtrackMonthlyBody');
+  tbody2.innerHTML = trend.map(b=>
+    '<tr><td>'+b.label+'</td><td class="num">'+b.count+'</td><td class="num">'+fmt(b.total)+'</td></tr>'
+  ).join('');
 }
 
 /* ================= مزامنة تلقائية مع الفريق عبر جوجل درايف =================
