@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-31.22';
+  var CURRENT_VERSION = '2026-09-01.23';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -5726,27 +5726,27 @@ const CATALOG_GROUPS = [
       { id:'gc-cw-50', nameAr:'واجهة ستائرية 50 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 50 ملم',
         depth:'50 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
-        images:['gc-cw-50mm.jpg'] },
+        images:['gc-cw-50mm.jpg','gc-cw-50mm-framesash.jpg','gc-cw-50mm-corner.jpg'] },
       { id:'gc-cw-52', nameAr:'واجهة ستائرية 52 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 52 ملم',
         depth:'52 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
-        images:['gc-cw-52mm.jpg'] },
+        images:['gc-cw-52mm.jpg','gc-cw-52mm-b.jpg','gc-cw-52mm-c.jpg','gc-cw-52mm-d.jpg','gc-cw-52mm-e.jpg'] },
       { id:'gc-cw-55', nameAr:'واجهة ستائرية 55 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 55 ملم',
         depth:'55 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
-        images:['gc-cw-55mm.jpg'] },
+        images:['gc-cw-55mm.jpg','gc-cw-55mm-b.jpg','gc-cw-55mm-c.jpg'] },
       { id:'gc-cw-60', nameAr:'واجهة ستائرية 60 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 60 ملم',
         depth:'60 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
-        images:['gc-cw-60mm.jpg'] },
+        images:['gc-cw-60mm.jpg','gc-cw-60mm-mullion.jpg','gc-cw-60mm-complementary.jpg'] },
       { id:'gc-cw-61-5', nameAr:'واجهة ستائرية 61.5 ملم (Vortex)', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 61.5 ملم',
         depth:'61.5 ملم', thermalBreak:'الفريم والدفة ممكن حراري أو غير حراري (خياران بالكتالوج)', glass:'4 - 28 ملم', maxPanel:'غير محدد',
         performance:'مُختبرة ASTM E283/E331/E330', finishes:'باودر كوتينغ / أنودايز', notes:'',
-        images:['gc-cw-61-5mm.jpg'] },
+        images:['gc-cw-61-5mm.jpg','gc-cw-61-5mm-mullion.jpg','gc-cw-61-5mm-corner.jpg'] },
       { id:'gc-cw-63-5', nameAr:'واجهة ستائرية 63.5 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 63.5 ملم',
         depth:'63.5 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
-        images:['gc-cw-63-5mm.jpg'] },
+        images:['gc-cw-63-5mm.jpg','gc-cw-63-5mm-b.jpg'] },
       { id:'gc-cw-64', nameAr:'واجهة ستائرية 64 ملم', type:'عمود/كمرة واجهة ستائرية - عرض ظاهر 64 ملم',
         depth:'64 ملم', thermalBreak:'غير محدد', glass:'غير محدد', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'',
@@ -5777,7 +5777,7 @@ const CATALOG_GROUPS = [
         glass:'غير محدد', maxPanel:'غير محدد',
         performance:'مُختبرة ASTM E283/E331/E330 (قيم النجاح/الرسوب غير منشورة)',
         finishes:'باودر كوتينغ / أنودايز', notes:'الصفحة الوحيدة بعائلة الواجهات الستائرية فيها "مقدمة نظام" سردية.',
-        images:['gc-cw-70mm-vortex.jpg'] },
+        images:['gc-cw-70mm-vortex.jpg','gc-cw-70mm-mullion.jpg','gc-cw-70mm-corner.jpg'] },
       { id:'gc-louvers', nameAr:'الفتحات الشمسية (Louvers)', type:'شفرات تظليل/تهوية - مسطحة/منحنية/Z',
         depth:'45-500 ملم', thermalBreak:'لا يوجد', glass:'لا ينطبق', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'باودر كوتينغ / أنودايز', notes:'مرجع أبعاد فقط.' },
@@ -5825,7 +5825,7 @@ const CATALOG_GROUPS = [
       { id:'nbbm-curtainwall', nameAr:'واجهة ستائرية (عروض 50/80/106/125/150 ملم)', type:'واجهة ستائرية بكوابس ضغط وأغطية',
         depth:'50 - 150 ملم', thermalBreak:'لا', glass:'شراع مفرد أو مزدوج - سماكة غير محددة', maxPanel:'غير محدد',
         performance:'غير محدد', finishes:'غير محدد', notes:'',
-        images:['nbbm-cw-widths1.jpg','nbbm-cw-widths2.jpg'] },
+        images:['nbbm-cw-widths1.jpg','nbbm-cw-widths2.jpg','nbbm-cw-frames-accessories.jpg'] },
       { id:'nbbm-tb-sliding', nameAr:'سحّاب حراري 10.5 و12 سم', type:'سحّاب حراري', depth:'105 و120 ملم',
         thermalBreak:'نعم (شريط ظاهر بالمقاطع)', glass:'غير محدد', maxPanel:'غير محدد', performance:'غير محدد',
         finishes:'غير محدد', notes:'',
