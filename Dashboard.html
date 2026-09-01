@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-01.27';
+  var CURRENT_VERSION = '2026-09-01.28';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -5650,7 +5650,7 @@ const CATALOG_GROUPS = [
   },
   {
     id: 'cw50',
-    brand: 'الخليج للسحب (Gulf Extrusions) / Emirates Extrusion / AREXCO / White Aluminium / Classic Extrusion (عبر NBBM)',
+    brand: 'الخليج للسحب (Gulf Extrusions) / Emirates Extrusion / AREXCO / White Aluminium / Classic Extrusion',
     nameAr: 'كرتن وول (Curtain Wall)',
     sources: ['CurtainWall50MM.pdf (108 صفحة)', 'NBBM_CATLOG.pdf (36 صفحة) — قسم الكرتن وول'],
     systems: [
@@ -5709,7 +5709,7 @@ const CATALOG_GROUPS = [
   {
     id: 'montana120',
     brand: 'الخليج للسحب (Gulf Extrusions)',
-    nameAr: 'Montana 120 — نظام سحّاب حراري ثقيل (Heavy Duty)',
+    nameAr: 'نظام سحّاب (Heavy Duty) — Montana 120',
     sources: ['Montana120.pdf (84 صفحة)'],
     systems: [
       { id:'montana120', nameAr:'Montana — سحّاب حراري 120 ملم',
@@ -5727,7 +5727,7 @@ const CATALOG_GROUPS = [
   {
     id: 'general-v2',
     brand: 'الخليج للسحب (Gulf Extrusions)',
-    nameAr: 'الكتالوج العام - المجلد الثاني (مرجع أبعاد شامل)',
+    nameAr: 'الكتالوج العام',
     sources: ['General_Catalogue_VOL2.pdf (292 صفحة)'],
     systems: [
       { id:'gc-tb600', nameAr:'TB-600 — نظام مفصلي (Hinged) حراري',
@@ -5888,8 +5888,8 @@ const CATALOG_GROUPS = [
   },
   {
     id: 'nbbm',
-    brand: 'NBBM (New Broadway Building Materials)',
-    nameAr: 'كتالوج NBBM — مقاطع متعددة الموردين (الخليج للسحب، Emirates Extrusion، AREXCO، White Aluminium، Classic Extrusion)',
+    brand: '',
+    nameAr: 'كتالوج NBBM — مقاطع متعددة (Gulf Extrusions ، Emirates Extrusion، AREXCO، White Aluminium، Classic Extrusion)',
     sources: ['NBBM_CATLOG.pdf (36 صفحة)'],
     systems: [
       { id:'nbbm-sliding105', nameAr:'سحّاب عادي 10.5 سم', type:'سحّاب غير حراري', depth:'105 ملم',
@@ -5972,7 +5972,7 @@ function renderCatalogsList(){
     <details style="border:1px solid var(--line);border-radius:9px;margin-bottom:10px;background:var(--paper);">
       <summary style="cursor:pointer;padding:12px 14px;font-weight:700;color:var(--main);">
         ${g.nameAr}
-        <span style="font-weight:400;color:var(--muted);font-size:12px;">— ${g.brand}</span>
+        ${g.brand ? `<span style="font-weight:400;color:var(--muted);font-size:12px;">— ${g.brand}</span>` : ''}
       </summary>
       <div style="padding:0 14px 14px;">
         <p style="font-size:11.5px;color:var(--muted);margin:0 0 10px;">📎 المصدر: ${g.sources.join(' · ')}</p>
