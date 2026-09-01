@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.11';
+  var CURRENT_VERSION = '2026-09-01.12';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -624,6 +624,23 @@
   }
   .bi-row:last-of-type{border-bottom:none;}
   .row-controls{display:flex; justify-content:flex-end; gap:6px; margin-top:1px;}
+
+  /* ---------- لون الألمنيوم المعتمد (جوتن) + نوع/لون الزجاج المعتمد - حقل ثابت أول صفحة ---------- */
+  .color-confirm-row{
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+    padding:6px 10px; border-bottom:1px dashed var(--line);
+    background:#fbfbfb;
+  }
+  .color-confirm-label{ display:flex; flex-direction:column; font-size:11.5px; font-weight:600; min-width:200px; }
+  .color-confirm-label .ar{ font-weight:600; }
+  .color-confirm-picker{ display:flex; align-items:center; gap:8px; flex:1; min-width:180px; }
+  .color-confirm-picker select, .color-confirm-picker input[type="text"]{
+    font-size:12.5px; padding:3px 6px; border:1px solid var(--line); border-radius:5px; background:#fff;
+  }
+  .color-swatch{
+    display:inline-block; width:22px; height:22px; border-radius:4px;
+    border:1px solid #999; flex:none;
+  }
   .bank-info-section .bi-row{ padding:0; gap:0; border-bottom:none; line-height:1.1; }
   .bank-info-section .bi-row div{ padding:0; margin:0; }
 
@@ -949,6 +966,8 @@
   body.pdf-capturing .page *{ max-width:100% !important; box-sizing:border-box !important; }
   body.pdf-capturing table{ table-layout:fixed !important; width:100% !important; }
   body.pdf-capturing input, body.pdf-capturing textarea{border:none !important; background:transparent !important; padding:1px 2px !important; appearance:none; -webkit-appearance:none; box-shadow:none !important; outline:none !important;}
+  body.pdf-capturing select{border:none !important; background:transparent !important; padding:1px 2px !important; appearance:none; -webkit-appearance:none; -moz-appearance:none; box-shadow:none !important; outline:none !important; font-weight:600;}
+  body.pdf-capturing .color-confirm-row{ background:transparent !important; }
   body.pdf-capturing button.row-remove{display:none !important;}
   body.pdf-capturing .row-controls{display:none !important;}
   body.pdf-capturing .add-btn-wrap{display:none !important;}
@@ -1477,6 +1496,15 @@
   <!-- ALUMINUM SYSTEM -->
   <div class="section">
     <div class="section-title"><span>Aluminum System</span><span class="ar">نظام الألمنيوم</span></div>
+    <div class="color-confirm-row page-break-avoid">
+      <div class="color-confirm-label"><span>Approved Aluminum Color (Jotun Powder Coating)</span><span class="ar">لون الألمنيوم المعتمد (بودرة جوتن)</span></div>
+      <div class="color-confirm-picker">
+        <select id="m-alumColor" onchange="onAlumColorChange()">
+          <option value="">-- Select / اختر اللون --</option>
+        </select>
+        <span id="alumColorSwatch" class="color-swatch" style="visibility:hidden"></span>
+      </div>
+    </div>
     <div id="alum-spec-rows"><div class="bi-row">
     <textarea rows="1" placeholder="System statement (English)" onblur="autoTranslateRow(this); propagateRowEditToItems(this)" data-prev-height="42px" style="height: 42px;">Using below Al Ghurair Thermal Break System, we can change it as per client request:</textarea>
     <div>
@@ -1491,6 +1519,18 @@
   <!-- SPECS -->
   <div class="section">
     <div class="section-title"><span>Regarding the Glass Type, specs below</span><span class="ar">مواصفات الزجاج أدناه</span></div>
+    <div class="color-confirm-row page-break-avoid">
+      <div class="color-confirm-label"><span>Approved Glass Color / Type</span><span class="ar">نوع/لون الزجاج المعتمد</span></div>
+      <div class="color-confirm-picker">
+        <select id="m-glassType" onchange="onGlassTypeChange()">
+          <option value="">-- Select / اختر --</option>
+          <option value="belgian">Belgian — بلجيكي</option>
+          <option value="guardian">American Guardian — أمريكي Guardian</option>
+          <option value="other">Other — نوع آخر</option>
+        </select>
+        <input id="m-glassTypeOther" type="text" placeholder="اكتب نوع/لون الزجاج (Other)" style="display:none">
+      </div>
+    </div>
     <div id="specs-rows"></div>
   </div>
 
@@ -3126,6 +3166,8 @@ function syncPage2Header(){
   if(clientVal) titleVal += ' - ' + clientVal;
   document.title = titleVal;
   if(typeof renderClientSignBox === 'function') renderClientSignBox();
+  if(typeof onAlumColorChange === 'function') onAlumColorChange();
+  if(typeof onGlassTypeChange === 'function') onGlassTypeChange();
 }
 
 function validateBeforePrint(){
@@ -3135,6 +3177,12 @@ function validateBeforePrint(){
   const phone = (document.getElementById('m-number').value || '').trim();
   if(!client) warnings.push('Client name is empty — اسم الزبون فارغ');
   if(!phone) warnings.push('Client phone number is empty — رقم هاتف الزبون فارغ');
+
+  const alumColor = (document.getElementById('m-alumColor')?.value || '').trim();
+  if(!alumColor) warnings.push('Aluminum color (Jotun RAL) is not selected — لون الألمنيوم (جوتن) لسا ما تم اختياره');
+  const glassType = (document.getElementById('m-glassType')?.value || '').trim();
+  if(!glassType) warnings.push('Glass color/type is not selected — نوع/لون الزجاج لسا ما تم اختياره');
+  if(glassType === 'other' && !(document.getElementById('m-glassTypeOther')?.value || '').trim()) warnings.push('Glass type "Other" is selected but not named — اخترت "نوع آخر" للزجاج بس ما كتبت اسمه');
 
   const ref = (document.getElementById('m-ref').value || '').trim();
   // الرقم المرجعي الكامل لازم يحتوي رقم تسلسل بعد "M-Q-YY0" (بغض النظر إذا فيه مسافة بينهم أو
@@ -3205,7 +3253,67 @@ window.addEventListener('afterprint', restoreTextareaHeights);
    عرض السعر (الحقول + جداول البنود/الإكسسوارات/الدفعات + بنود التصميم) بكائن JSON بسيط، منقدر نحمّله
    جوا أي نسخة حالية/محدّثة من هالأداة - هيك أي تصليح مستقبلي بيطبّق تلقائيًا حتى على عروض أسعار قديمة. */
 const QUOTATION_ROW_CONTAINERS = ['supply-rows','alum-spec-rows','specs-rows','acc-rows','pay-rows','notes-rows'];
-const QUOTATION_FIELD_IDS = ['m-title','m-date','m-client','m-number','m-project','m-location','m-ref','discount-amount','discount-pct','delivery-days'];
+const QUOTATION_FIELD_IDS = ['m-title','m-date','m-client','m-number','m-project','m-location','m-ref','discount-amount','discount-pct','delivery-days','m-alumColor','m-glassType','m-glassTypeOther'];
+
+/* ================= لون الألمنيوم المعتمد (بودرة جوتن) + نوع/لون الزجاج المعتمد =================
+   🆕 2026-09-01: طلب من حمدي إنو يكون في مكان ثابت (مش سطر حر قابل للحذف) بأول صفحة من عرض السعر/العقد
+   لتأكيد لون الألمنيوم (من كتالوج جوتن الرسمي - قائمة منسدلة فيها كل ألوان RAL مجمّعة حسب تصنيف جوتن
+   نفسه: Think/Sleep/Play/Relax/Awake/Unwind/Explore/Energise/Love/Work) مع مربّع يعرض اللون فعليًا،
+   وكمان نوع/لون الزجاج (بلجيكي / أمريكي Guardian / نوع آخر قابل لإعادة التسمية). القيمتين مسجّلتين
+   ضمن QUOTATION_FIELD_IDS فوق فبيتخزنوا/يترجعوا تلقائيًا مع باقي حقول عرض السعر (نفس آلية m-client
+   وغيرها) - يعني لما يصير "تحويل لعقد" وتوقيع الكتروني، اللون المختار بيضل مسجّل مع هيك النسخة بالضبط.
+   ألوان RAL (hex) هون مأخوذة من جدول RAL Classic القياسي المعتمد عالميًا (مش تخمين). */
+const JOTUN_RAL_COLORS = [
+  {g:'Think',items:[{c:'RAL 7000',h:'#7A888E'},{c:'RAL 7001',h:'#8C979C'},{c:'RAL 7002',h:'#817863'},{c:'RAL 7003',h:'#797669'},{c:'RAL 7004',h:'#9A9B9B'},{c:'RAL 7005',h:'#6B6E6B'},{c:'RAL 7006',h:'#766A5E'},{c:'RAL 7008',h:'#745F3D'},{c:'RAL 7009',h:'#5D6058'},{c:'RAL 7010',h:'#585C56'},{c:'RAL 7011',h:'#52595D'},{c:'RAL 7012',h:'#575D5E'},{c:'RAL 7013',h:'#575044'},{c:'RAL 7015',h:'#4F5358'},{c:'RAL 7016',h:'#383E42'},{c:'RAL 7021',h:'#2F3234'},{c:'RAL 7022',h:'#4C4A44'},{c:'RAL 7023',h:'#808076'},{c:'RAL 7024',h:'#45494E'},{c:'RAL 7026',h:'#374345'},{c:'RAL 7030',h:'#928E85'},{c:'RAL 7031',h:'#5B686D'},{c:'RAL 7032',h:'#B5B0A1'},{c:'RAL 7033',h:'#7F8274'},{c:'RAL 7034',h:'#92886F'},{c:'RAL 7035',h:'#C5C7C4'},{c:'RAL 7036',h:'#979392'},{c:'RAL 7037',h:'#7A7B7A'},{c:'RAL 7038',h:'#B0B0A9'},{c:'RAL 7039',h:'#6B665E'},{c:'RAL 7040',h:'#989EA1'},{c:'RAL 7042',h:'#8E9291'},{c:'RAL 7043',h:'#4F5250'},{c:'RAL 7044',h:'#B7B3A8'},{c:'RAL 7045',h:'#8D9295'},{c:'RAL 7046',h:'#7E868A'},{c:'RAL 7047',h:'#C8C8C7'}]},
+  {g:'Sleep',items:[{c:'RAL 9001',h:'#E9E0D2'},{c:'RAL 9002',h:'#D6D5CB'},{c:'RAL 9003',h:'#ECECE7'},{c:'RAL 9004',h:'#2B2B2C'},{c:'RAL 9005',h:'#0E0E10'},{c:'RAL 9010',h:'#F1EDE1'},{c:'RAL 9011',h:'#27292B'},{c:'RAL 9016',h:'#F1F1EA'},{c:'RAL 9017',h:'#29292A'},{c:'RAL 9018',h:'#C8CBC4'}]},
+  {g:'Play',items:[{c:'RAL 9006',h:'#A1A1A0'},{c:'RAL 9007',h:'#868581'},{c:'RAL 1035',h:'#8F8370'},{c:'RAL 1036',h:'#806440'},{c:'RAL 2013',h:'#923E25'},{c:'RAL 3032',h:'#701D24'},{c:'RAL 3033',h:'#A53A2E'},{c:'RAL 4011',h:'#6E6387'},{c:'RAL 4012',h:'#6A6B7F'},{c:'RAL 5025',h:'#20697C'},{c:'RAL 5026',h:'#0F3052'},{c:'RAL 6035',h:'#194D25'},{c:'RAL 6036',h:'#04574B'},{c:'RAL 7048',h:'#817B73'},{c:'RAL 8029',h:'#7F4031'},{c:'RAL 9022',h:'#858583'},{c:'RAL 9023',h:'#787B7A'}]},
+  {g:'Relax',items:[{c:'RAL 6000',h:'#3C7460'},{c:'RAL 6001',h:'#366735'},{c:'RAL 6002',h:'#325928'},{c:'RAL 6003',h:'#50533C'},{c:'RAL 6004',h:'#024442'},{c:'RAL 6005',h:'#114232'},{c:'RAL 6006',h:'#3C392E'},{c:'RAL 6007',h:'#2C3222'},{c:'RAL 6008',h:'#36342A'},{c:'RAL 6009',h:'#27352A'},{c:'RAL 6010',h:'#4D6F39'},{c:'RAL 6011',h:'#6B7C59'},{c:'RAL 6012',h:'#2F3D3A'},{c:'RAL 6013',h:'#7C765A'},{c:'RAL 6014',h:'#474135'},{c:'RAL 6015',h:'#3D3D36'},{c:'RAL 6016',h:'#00694C'},{c:'RAL 6017',h:'#587F40'},{c:'RAL 6018',h:'#60993B'},{c:'RAL 6019',h:'#B9CEAC'},{c:'RAL 6020',h:'#37422F'},{c:'RAL 6021',h:'#8A9977'},{c:'RAL 6022',h:'#3A3327'},{c:'RAL 6024',h:'#008351'},{c:'RAL 6025',h:'#5E6E3B'},{c:'RAL 6026',h:'#005F4E'},{c:'RAL 6027',h:'#7EBAB5'},{c:'RAL 6028',h:'#315442'},{c:'RAL 6029',h:'#006F3D'},{c:'RAL 6032',h:'#237F52'},{c:'RAL 6033',h:'#45877F'},{c:'RAL 6034',h:'#7AADAC'}]},
+  {g:'Awake',items:[{c:'RAL 1000',h:'#CDBA88'},{c:'RAL 1001',h:'#D0B084'},{c:'RAL 1002',h:'#D2AA6D'},{c:'RAL 1003',h:'#F9A900'},{c:'RAL 1004',h:'#E49E00'},{c:'RAL 1005',h:'#CB8F00'},{c:'RAL 1006',h:'#E19000'},{c:'RAL 1007',h:'#E88C00'},{c:'RAL 1011',h:'#AF8050'},{c:'RAL 1012',h:'#DDAF28'},{c:'RAL 1013',h:'#E3D9C7'},{c:'RAL 1014',h:'#DDC49B'},{c:'RAL 1015',h:'#E6D2B5'},{c:'RAL 1016',h:'#F1DD39'},{c:'RAL 1017',h:'#F6A951'},{c:'RAL 1018',h:'#FACA31'},{c:'RAL 1019',h:'#A48F7A'},{c:'RAL 1020',h:'#A08F65'},{c:'RAL 1021',h:'#F6B600'},{c:'RAL 1023',h:'#F7B500'},{c:'RAL 1024',h:'#BA8F4C'},{c:'RAL 1027',h:'#A77F0F'},{c:'RAL 1028',h:'#FF9C00'},{c:'RAL 1032',h:'#E2A300'},{c:'RAL 1033',h:'#F99A1D'},{c:'RAL 1034',h:'#EB9C52'},{c:'RAL 1037',h:'#F09200'}]},
+  {g:'Unwind',items:[{c:'RAL 4001',h:'#816183'},{c:'RAL 4002',h:'#8D3C4B'},{c:'RAL 4003',h:'#C4618C'},{c:'RAL 4004',h:'#651E38'},{c:'RAL 4005',h:'#76689A'},{c:'RAL 4006',h:'#903373'},{c:'RAL 4007',h:'#47243C'},{c:'RAL 4008',h:'#844C82'},{c:'RAL 4009',h:'#9D8692'},{c:'RAL 4010',h:'#BB4077'}]},
+  {g:'Explore',items:[{c:'RAL 5000',h:'#304F6E'},{c:'RAL 5001',h:'#0E4C64'},{c:'RAL 5002',h:'#00387A'},{c:'RAL 5003',h:'#1F3855'},{c:'RAL 5004',h:'#191E28'},{c:'RAL 5005',h:'#005387'},{c:'RAL 5007',h:'#376B8C'},{c:'RAL 5008',h:'#2B3A44'},{c:'RAL 5009',h:'#215F78'},{c:'RAL 5010',h:'#004F7C'},{c:'RAL 5011',h:'#1A2B3C'},{c:'RAL 5012',h:'#0089B6'},{c:'RAL 5013',h:'#193153'},{c:'RAL 5014',h:'#637D96'},{c:'RAL 5015',h:'#007CAF'},{c:'RAL 5017',h:'#005B8C'},{c:'RAL 5018',h:'#048B8C'},{c:'RAL 5019',h:'#005E83'},{c:'RAL 5020',h:'#00414B'},{c:'RAL 5021',h:'#007577'},{c:'RAL 5022',h:'#222D5A'},{c:'RAL 5023',h:'#41698C'},{c:'RAL 5024',h:'#6093AC'}]},
+  {g:'Energise',items:[{c:'RAL 2000',h:'#DA6E00'},{c:'RAL 2001',h:'#BA481C'},{c:'RAL 2002',h:'#BF3922'},{c:'RAL 2003',h:'#F67829'},{c:'RAL 2004',h:'#E25304'},{c:'RAL 2008',h:'#EC6B22'},{c:'RAL 2009',h:'#DE5308'},{c:'RAL 2010',h:'#D05D29'},{c:'RAL 2011',h:'#E26E0F'},{c:'RAL 2012',h:'#D5654E'}]},
+  {g:'Love',items:[{c:'RAL 3000',h:'#A72920'},{c:'RAL 3001',h:'#9B2423'},{c:'RAL 3002',h:'#9B2321'},{c:'RAL 3003',h:'#861A22'},{c:'RAL 3004',h:'#6B1C23'},{c:'RAL 3005',h:'#59191F'},{c:'RAL 3007',h:'#3E2022'},{c:'RAL 3009',h:'#6D342D'},{c:'RAL 3011',h:'#782423'},{c:'RAL 3012',h:'#C5856D'},{c:'RAL 3013',h:'#972E25'},{c:'RAL 3014',h:'#CB7375'},{c:'RAL 3015',h:'#D8A0A6'},{c:'RAL 3016',h:'#A63D30'},{c:'RAL 3017',h:'#CA555D'},{c:'RAL 3018',h:'#C63F4A'},{c:'RAL 3020',h:'#BB1F11'},{c:'RAL 3022',h:'#CF6955'},{c:'RAL 3027',h:'#AB273C'},{c:'RAL 3031',h:'#A63437'}]},
+  {g:'Work',items:[{c:'RAL 8000',h:'#89693F'},{c:'RAL 8001',h:'#9D622B'},{c:'RAL 8002',h:'#794D3E'},{c:'RAL 8003',h:'#7E4B27'},{c:'RAL 8004',h:'#8D4931'},{c:'RAL 8007',h:'#70462B'},{c:'RAL 8008',h:'#724A25'},{c:'RAL 8011',h:'#5A3827'},{c:'RAL 8012',h:'#66332B'},{c:'RAL 8014',h:'#4A3526'},{c:'RAL 8015',h:'#5E2F26'},{c:'RAL 8016',h:'#4C2B20'},{c:'RAL 8017',h:'#442F29'},{c:'RAL 8019',h:'#3D3635'},{c:'RAL 8022',h:'#1A1719'},{c:'RAL 8023',h:'#A45729'},{c:'RAL 8024',h:'#795038'},{c:'RAL 8025',h:'#755847'},{c:'RAL 8028',h:'#513A2A'}]}
+];
+
+function findRalHex(code){
+  for(const grp of JOTUN_RAL_COLORS){ for(const it of grp.items){ if(it.c === code) return it.h; } }
+  return '';
+}
+
+function populateAlumColorOptions(){
+  const sel = document.getElementById('m-alumColor');
+  if(!sel || sel.dataset.populated) return;
+  JOTUN_RAL_COLORS.forEach(grp=>{
+    const og = document.createElement('optgroup');
+    og.label = grp.g;
+    grp.items.forEach(it=>{
+      const opt = document.createElement('option');
+      opt.value = it.c;
+      opt.textContent = it.c;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  });
+  sel.dataset.populated = '1';
+}
+
+function onAlumColorChange(){
+  const sel = document.getElementById('m-alumColor');
+  const swatch = document.getElementById('alumColorSwatch');
+  if(!sel || !swatch) return;
+  const hex = findRalHex(sel.value);
+  if(hex){ swatch.style.background = hex; swatch.style.visibility = 'visible'; }
+  else { swatch.style.background = 'transparent'; swatch.style.visibility = 'hidden'; }
+}
+
+function onGlassTypeChange(){
+  const sel = document.getElementById('m-glassType');
+  const other = document.getElementById('m-glassTypeOther');
+  if(!sel || !other) return;
+  if(sel.value === 'other'){ other.style.display = ''; }
+  else { other.style.display = 'none'; }
+}
 
 function captureFullQuotationData(){
   // مهم: خانات input/textarea بتحدّث قيمتها (property) وقت الكتابة، بس الـattribute/النص جوا الوسم
@@ -4628,6 +4736,7 @@ window.__debugPdfFull = async function(opts){
 };
 
 populateItemsDatalist();
+populateAlumColorOptions();
 // إذا لوحة التحكم طلبت تحميل عرض سعر قديم بالنسخة الحالية من الأداة (زر "🔓 افتح بآخر نسخة")، البيانات
 // بتوصل هون عبر مفتاح localStorage مشترك (نفس الأصل management4w-beep.github.io/merzona-tool/).
 // منشيلها فورًا حتى لو صار refresh عادي بعدين ما تنطبّق مرتين فوق تعديلات المستخدم.
