@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-01.36';
+  var CURRENT_VERSION = '2026-09-02.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1056,7 +1056,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <div class="panel">
       <p class="panel-title">📊 متابعة عروض الأسعار حسب الفترة</p>
       <div class="kpis" id="qtrackCounters" style="margin-top:10px;"></div>
-      <p class="panel-title" style="font-size:15px;margin-top:22px;">الاتجاه الشهري (آخر 12 شهر)</p>
+      <p class="panel-title" style="font-size:15px;margin-top:22px;">الاتجاه الشهري (آخر 12 شهر) - اضغط على أي شهر لعرض تفاصيله تحت</p>
       <div class="table-wrap">
         <table>
           <thead>
@@ -1067,6 +1067,28 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
             </tr>
           </thead>
           <tbody id="qtrackMonthlyBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;">
+        <p class="panel-title" style="margin:0;">📋 تفاصيل عروض الشهر المختار</p>
+        <select id="qtrackMonthSelect" style="padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;"></select>
+      </div>
+      <p id="qtrackMonthSummary" style="font-size:12.5px;color:var(--muted);margin:10px 0 4px;"></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>التاريخ</th>
+              <th>الاسم</th>
+              <th>الهاتف</th>
+              <th>الرقم المرجعي</th>
+              <th style="text-align:left;">القيمة (د.إ)</th>
+            </tr>
+          </thead>
+          <tbody id="qtrackMonthDetailBody"></tbody>
         </table>
       </div>
     </div>
@@ -1277,6 +1299,45 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
             </tr>
           </thead>
           <tbody id="payrollEntriesBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">💵 تسجيل دفعة (إعطاء الموظف مصاري)</p>
+      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">سجّل هون أي مبلغ فعليًا أعطيته للموظف (كامل المستحق أو جزء بس) - بينخصم تلقائيًا من "ملخص المستحقات الحالية" فوق، سواء كان مرتبط بيوم/شهر معيّن أو دفعة عامة.</p>
+      <div class="controls" style="flex-wrap:wrap;align-items:center;">
+        <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">الموظف:</label>
+        <select id="payrollPaymentEmpSelect" style="min-width:180px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;"></select>
+        <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">التاريخ:</label>
+        <input type="date" id="payrollPaymentDate" style="padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <label style="font-size:12.5px;color:var(--muted);white-space:nowrap;">المبلغ:</label>
+        <input type="number" id="payrollPaymentAmount" placeholder="المبلغ" style="width:120px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <input type="text" id="payrollPaymentNote" placeholder="ملاحظة (اختياري)" style="min-width:160px;flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+        <button id="payrollPaymentSaveBtn" class="export-btn">💵 تسجيل الدفعة</button>
+      </div>
+      <div id="payrollPaymentStatus" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px;"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">سجل الدفعات</p>
+      <div class="controls" style="margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+        <select id="payrollPaymentsEmpFilter" style="padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
+          <option value="">كل الموظفين</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>الموظف</th>
+              <th>التاريخ</th>
+              <th style="text-align:left;">المبلغ</th>
+              <th>ملاحظة</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="payrollPaymentsBody"></tbody>
         </table>
       </div>
     </div>
@@ -1786,6 +1847,15 @@ function toWaLink(phone){
 
 function parseDate(dateStr){
   if(!dateStr || dateStr==='—') return null;
+  // 🔧 2026-09-01: عروض الأسعار المكتشفة تلقائيًا من جوجل درايف بتخزّن تاريخها بصيغة ISO
+  // (YYYY-MM-DD) لأنها جاية مباشرة من قيمة <input type="date">. لازم نتحقق من هاي الصيغة أول
+  // (قبل صيغة الفواصل المائلة القديمة) وإلا هيك عروض ما رح تنحسب أبدًا بأي إحصائية بالأداة.
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if(isoMatch){
+    const y = Number(isoMatch[1]), m = Number(isoMatch[2]), d = Number(isoMatch[3]);
+    if(!d||!m||!y) return null;
+    return new Date(y, m-1, d);
+  }
   const parts = dateStr.split('/');
   if(parts.length!==3) return null;
   const [d,m,y] = parts.map(Number);
@@ -2889,6 +2959,18 @@ function savePayrollEntries(obj){
   try{ localStorage.setItem(PAYROLL_ENTRIES_KEY, JSON.stringify(obj)); markSyncDirty(PAYROLL_ENTRIES_KEY, obj); return true; }
   catch(e){ console.error('savePayrollEntries failed', e); return false; }
 }
+// 🆕 2026-09-02: سجل "الدفعات الفعلية" (مصاري أعطيتها فعليًا للموظف) - منفصل عن "المستحقات"
+// (أيام العمل/الرواتب الشهرية المسجّلة فوق). أي دفعة هون بتنخصم من إجمالي المستحق للموظف، سواء
+// كانت دفعة كاملة عن يوم/شهر معيّن (عبر زر "✓ مدفوع" بجدول المستحقات) أو دفعة جزئية/عامة (عبر
+// النموذج المخصص). هيك حمدي يقدر يسجّل "عطيته 500 درهم اليوم" حتى لو ما كانت تغطي كامل المستحق.
+const PAYROLL_PAYMENTS_KEY = 'merzona_payroll_payments';
+function loadPayrollPayments(){
+  try{ return JSON.parse(localStorage.getItem(PAYROLL_PAYMENTS_KEY) || '{}'); }catch(e){ return {}; }
+}
+function savePayrollPayments(obj){
+  try{ localStorage.setItem(PAYROLL_PAYMENTS_KEY, JSON.stringify(obj)); markSyncDirty(PAYROLL_PAYMENTS_KEY, obj); return true; }
+  catch(e){ console.error('savePayrollPayments failed', e); return false; }
+}
 
 // بذرة أولية لأسماء الموظفين الحاليين - بتتنفذ مرة وحدة بس (أول ما حدا يفتح تبويب "الرواتب" ولسا
 // ما في ولا موظف مسجّل بهالمتصفح). بعد أول مرة، كل التعديلات (إضافة/تعديل/حذف) صارت عن طريق واجهة
@@ -2911,11 +2993,43 @@ let payrollEntriesFilter = 'all';
 
 function renderPayrollAll(){
   seedPayrollEmployeesIfEmpty();
+  migrateLegacyPaidPayrollEntries();
   renderPayrollEmployeesTable();
   populatePayrollEmpSelects();
   renderPayrollLogFormForSelectedEmp();
   renderPayrollEntriesTable();
+  renderPayrollPaymentsTable();
   renderPayrollSummary();
+}
+
+// 🔧 2026-09-02: أي سجل "مستحق" كان انحدد ✓ مدفوع قبل ما نضيف سجل الدفعات الفعلي (بالتحديثات
+// الأولى لتبويب الرواتب) ما إله دفعة فعلية مقابلة بـmerzona_payroll_payments - لو تركناه هيك،
+// إجمالي "المستحق" الجديد (المبني على كل السجلات ناقص كل الدفعات) رح يرجّعه يظهر مستحق من جديد
+// رغم إنو حمدي أصلًا حدده مدفوع من قبل. هاي الدالة بترحّل هيك سجلات تلقائيًا (مرة وحدة لكل سجل -
+// آمنة تتكرر لأنها بتتحقق أول من عدم وجود دفعة مرتبطة أصلًا بنفس sourceEntryId).
+function migrateLegacyPaidPayrollEntries(){
+  const entries = loadPayrollEntries();
+  const payments = loadPayrollPayments();
+  const existingSourceIds = new Set(Object.values(payments).map(p=>p.sourceEntryId).filter(Boolean));
+  let changed = false;
+  Object.keys(entries).forEach(id=>{
+    const en = entries[id];
+    if(!en.paid) return;
+    if(existingSourceIds.has(id)) return;
+    const pid = 'pay_' + Date.now() + '_' + Math.random().toString(16).slice(2,8);
+    payments[pid] = {
+      empId: en.empId,
+      date: en.paidAt ? new Date(en.paidAt).toISOString().slice(0,10) : (en.type==='daily' ? en.date : (en.month+'-01')),
+      amount: en.amount || 0,
+      currency: en.currency,
+      note: 'ترحيل تلقائي (كان محدد مدفوع مسبقًا)',
+      sourceEntryId: id,
+      createdAt: en.paidAt || Date.now(),
+    };
+    existingSourceIds.add(id);
+    changed = true;
+  });
+  if(changed) savePayrollPayments(payments);
 }
 
 function renderPayrollEmployeesTable(){
@@ -3180,6 +3294,18 @@ function populatePayrollEmpSelects(){
   const allIds = Object.keys(emps).sort((a,b)=> (emps[a].name||'').localeCompare(emps[b].name||'','ar'));
   filterSel.innerHTML = '<option value="">كل الموظفين</option>' + allIds.map(id=>'<option value="'+id+'">'+escapeHtml(emps[id].name)+'</option>').join('');
   if(allIds.indexOf(prevFilter) !== -1) filterSel.value = prevFilter;
+
+  const paySel = document.getElementById('payrollPaymentEmpSelect');
+  const prevPay = paySel.value;
+  paySel.innerHTML = activeIds.map(id=>'<option value="'+id+'">'+escapeHtml(emps[id].name)+'</option>').join('');
+  if(activeIds.indexOf(prevPay) !== -1) paySel.value = prevPay;
+  const payDateEl = document.getElementById('payrollPaymentDate');
+  if(!payDateEl.value) payDateEl.value = todayISO();
+
+  const payFilterSel = document.getElementById('payrollPaymentsEmpFilter');
+  const prevPayFilter = payFilterSel.value;
+  payFilterSel.innerHTML = '<option value="">كل الموظفين</option>' + allIds.map(id=>'<option value="'+id+'">'+escapeHtml(emps[id].name)+'</option>').join('');
+  if(allIds.indexOf(prevPayFilter) !== -1) payFilterSel.value = prevPayFilter;
 }
 
 document.getElementById('payrollLogEmpSelect').addEventListener('change', renderPayrollLogFormForSelectedEmp);
@@ -3330,9 +3456,35 @@ function renderPayrollEntriesTable(){
     el.addEventListener('click', function(){
       const id = this.dataset.togglepaid;
       const ent = loadPayrollEntries();
-      if(!ent[id]) return;
-      ent[id].paid = !ent[id].paid;
-      ent[id].paidAt = ent[id].paid ? Date.now() : null;
+      const en = ent[id];
+      if(!en) return;
+      const payments = loadPayrollPayments();
+      if(!en.paid){
+        // من مستحق -> مدفوع: بننشئ دفعة فعلية بكامل مبلغ هالسجل، مرتبطة فيه (sourceEntryId) - هيك
+        // إجمالي "المستحق" بينخصم منه المبلغ تلقائيًا نفس لحظة الضغط.
+        en.paid = true;
+        en.paidAt = Date.now();
+        const pid = 'pay_' + Date.now() + '_' + Math.random().toString(16).slice(2,8);
+        payments[pid] = {
+          empId: en.empId,
+          date: todayISO(),
+          amount: en.amount || 0,
+          currency: en.currency,
+          note: 'دفعة كاملة (زر ✓ مدفوع بجدول المستحقات)',
+          sourceEntryId: id,
+          createdAt: Date.now(),
+        };
+        savePayrollPayments(payments);
+      } else {
+        // من مدفوع -> مستحق (تراجع): بنحذف الدفعة المرتبطة (لو موجودة) حتى ما يضل إجمالي "المدفوع"
+        // فيه مبلغ بدون سجل مستحق حقيقي وراه.
+        en.paid = false;
+        en.paidAt = null;
+        Object.keys(payments).forEach(pid=>{
+          if(payments[pid].sourceEntryId === id) delete payments[pid];
+        });
+        savePayrollPayments(payments);
+      }
       savePayrollEntries(ent);
       renderPayrollAll();
     });
@@ -3352,11 +3504,31 @@ function renderPayrollEntriesTable(){
 function renderPayrollSummary(){
   const emps = loadPayrollEmployees();
   const entries = loadPayrollEntries();
-  const dueByEmp = {};
+  const payments = loadPayrollPayments();
+  // 🔧 2026-09-02: "المستحق" هلق = (مجموع كل سجلات الأيام/الرواتب المسجّلة لهالموظف) ناقص (مجموع
+  // كل الدفعات الفعلية يلي انسجّلت إله - سواء دفعة كاملة عن سجل معيّن أو دفعة جزئية/عامة). هيك
+  // أي مبلغ حمدي بيسجّله "أعطيته للموظف" بينخصم فورًا من المستحق، حتى لو ما كان يغطي سجل معيّن
+  // كامل بالضبط.
+  const accruedByEmp = {};
   Object.values(entries).forEach(en=>{
-    if(en.paid) return;
-    if(!dueByEmp[en.empId]) dueByEmp[en.empId] = {};
-    dueByEmp[en.empId][en.currency] = (dueByEmp[en.empId][en.currency]||0) + (en.amount||0);
+    if(!accruedByEmp[en.empId]) accruedByEmp[en.empId] = {};
+    accruedByEmp[en.empId][en.currency] = (accruedByEmp[en.empId][en.currency]||0) + (en.amount||0);
+  });
+  const paidByEmp = {};
+  Object.values(payments).forEach(p=>{
+    if(!paidByEmp[p.empId]) paidByEmp[p.empId] = {};
+    paidByEmp[p.empId][p.currency] = (paidByEmp[p.empId][p.currency]||0) + (p.amount||0);
+  });
+  const dueByEmp = {};
+  Object.keys(accruedByEmp).forEach(empId=>{
+    Object.keys(accruedByEmp[empId]).forEach(cur=>{
+      const accrued = accruedByEmp[empId][cur] || 0;
+      const paid = (paidByEmp[empId] && paidByEmp[empId][cur]) || 0;
+      const balance = accrued - paid;
+      if(Math.round(balance*100) === 0) return; // ما تبقى شي مستحق بهالعملة
+      if(!dueByEmp[empId]) dueByEmp[empId] = {};
+      dueByEmp[empId][cur] = balance;
+    });
   });
   const totalsByCur = {};
   Object.keys(dueByEmp).forEach(empId=>{
@@ -3377,6 +3549,75 @@ function renderPayrollSummary(){
   html += '<div class="kpi gold"><p class="kpi-label">إجمالي المستحق (كل الموظفين)</p><p class="kpi-value" style="font-size:18px;">'+(totalParts.length ? totalParts.join(' + ') : '0')+'</p></div>';
   wrap.innerHTML = html;
 }
+
+function renderPayrollPaymentsTable(){
+  const emps = loadPayrollEmployees();
+  const payments = loadPayrollPayments();
+  const empFilter = document.getElementById('payrollPaymentsEmpFilter').value;
+  let ids = Object.keys(payments);
+  if(empFilter) ids = ids.filter(id=>payments[id].empId === empFilter);
+  ids.sort((a,b)=> (payments[b].date||'').localeCompare(payments[a].date||'') || (payments[b].createdAt||0) - (payments[a].createdAt||0));
+  const tbody = document.getElementById('payrollPaymentsBody');
+  if(ids.length === 0){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px;">ما في دفعات مسجّلة بعد</td></tr>';
+    return;
+  }
+  tbody.innerHTML = ids.map(id=>{
+    const p = payments[id];
+    const empName = emps[p.empId] ? emps[p.empId].name : '(موظف محذوف)';
+    return '<tr>'+
+      '<td>'+escapeHtml(empName)+'</td>'+
+      '<td>'+fmtDueDate(p.date)+'</td>'+
+      '<td class="num">'+fmt(p.amount||0)+' '+(PAYROLL_CURRENCY_LABEL[p.currency]||p.currency)+'</td>'+
+      '<td style="font-size:12.5px;color:var(--muted);">'+escapeHtml(p.note||'—')+'</td>'+
+      '<td><span style="cursor:pointer;color:var(--danger);" data-delpayment="'+id+'" title="حذف">✕</span></td>'+
+      '</tr>';
+  }).join('');
+
+  tbody.querySelectorAll('[data-delpayment]').forEach(el=>{
+    el.addEventListener('click', function(){
+      const id = this.dataset.delpayment;
+      if(!confirm('متأكد إنك بدك تحذف هالدفعة؟ (المبلغ رح يرجع يظهر مستحق من جديد)')) return;
+      const pays = loadPayrollPayments();
+      const p = pays[id];
+      delete pays[id];
+      savePayrollPayments(pays);
+      // لو الدفعة كانت مرتبطة بسجل مستحق معيّن (عبر زر ✓ مدفوع)، بنرجّع هداك السجل لحالة "مستحق"
+      // حتى يضل متوافق مع حذف دفعته.
+      if(p && p.sourceEntryId){
+        const ent = loadPayrollEntries();
+        if(ent[p.sourceEntryId] && ent[p.sourceEntryId].paid){
+          ent[p.sourceEntryId].paid = false;
+          ent[p.sourceEntryId].paidAt = null;
+          savePayrollEntries(ent);
+        }
+      }
+      renderPayrollAll();
+    });
+  });
+}
+
+document.getElementById('payrollPaymentSaveBtn').addEventListener('click', ()=>{
+  const statusEl = document.getElementById('payrollPaymentStatus');
+  const empId = document.getElementById('payrollPaymentEmpSelect').value;
+  const emps = loadPayrollEmployees();
+  const e = emps[empId];
+  if(!e){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'اختر موظف أول'; return; }
+  const date = document.getElementById('payrollPaymentDate').value || todayISO();
+  const amount = parseFloat(document.getElementById('payrollPaymentAmount').value);
+  if(!amount || amount <= 0){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'لازم تكتب مبلغ صحيح أكبر من صفر'; return; }
+  const note = document.getElementById('payrollPaymentNote').value.trim();
+  const payments = loadPayrollPayments();
+  const pid = 'pay_' + Date.now() + '_' + Math.random().toString(16).slice(2,8);
+  payments[pid] = { empId, date, amount, currency: e.currency, note, sourceEntryId: null, createdAt: Date.now() };
+  savePayrollPayments(payments);
+  document.getElementById('payrollPaymentAmount').value = '';
+  document.getElementById('payrollPaymentNote').value = '';
+  statusEl.style.color = 'var(--ok)';
+  statusEl.textContent = '✓ تسجّلت الدفعة (' + fmt(amount) + ' ' + (PAYROLL_CURRENCY_LABEL[e.currency]||e.currency) + ' لـ' + e.name + ')';
+  renderPayrollAll();
+});
+document.getElementById('payrollPaymentsEmpFilter').addEventListener('change', renderPayrollPaymentsTable);
 
 /* ---------- Quotations tracking (متابعة عروض الأسعار المرسلة حسب اليوم/الأسبوع/الشهر) ----------
    بتستخدم نفس مصدر البيانات الموحّد (DATA) يلي جدول "سجل العروض" وبطاقات "أرقام سريعة" والرسم
@@ -3417,6 +3658,87 @@ function getQuotationsMonthlyTrend(){
   return buckets;
 }
 
+function getQuotationsForMonth(monthKey){
+  return DATA.filter(d=>{
+    const dt = parseDate(d.date);
+    if(!dt) return false;
+    const key = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
+    return key === monthKey;
+  }).sort((a,b)=> parseDate(b.date) - parseDate(a.date));
+}
+
+function currentMonthKey(){
+  const now = new Date();
+  return now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+}
+
+const monthsArFull = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function monthKeyLabel(key){
+  const parts = key.split('-');
+  const idx = parseInt(parts[1],10)-1;
+  return (monthsArFull[idx]||parts[1]) + ' ' + parts[0];
+}
+
+let qtrackMonthSelectBound = false;
+function bindQuotationsMonthSelectOnce(){
+  if(qtrackMonthSelectBound) return;
+  qtrackMonthSelectBound = true;
+  document.getElementById('qtrackMonthSelect').addEventListener('change', function(){
+    renderQuotationsMonthDetail(this.value);
+  });
+}
+function populateQuotationsMonthSelect(){
+  bindQuotationsMonthSelectOnce();
+  // بنجمع كل الأشهر الموجود فيها عروض أسعار فعليًا من DATA (مش بس آخر 12 شهر) + الشهر الحالي
+  // دايمًا حتى لو فاضي - عشان حمدي يقدر يرجع لأي شهر قديم مش بس السنة الحالية.
+  const keys = new Set();
+  keys.add(currentMonthKey());
+  DATA.forEach(d=>{
+    const dt = parseDate(d.date);
+    if(!dt) return;
+    keys.add(dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0'));
+  });
+  const sorted = Array.from(keys).sort().reverse();
+  const sel = document.getElementById('qtrackMonthSelect');
+  const prev = sel.value || currentMonthKey();
+  sel.innerHTML = sorted.map(k=> '<option value="'+k+'">'+monthKeyLabel(k)+'</option>').join('');
+  sel.value = sorted.includes(prev) ? prev : sorted[0];
+}
+
+function renderQuotationsMonthDetail(monthKey){
+  const rows = getQuotationsForMonth(monthKey);
+  const overrides = loadClientOverrides();
+  const total = rows.reduce((s,d)=> s + (d.total||0), 0);
+  document.getElementById('qtrackMonthSummary').textContent =
+    rows.length + ' عرض سعر بشهر ' + monthKeyLabel(monthKey) + ' - إجمالي القيمة: ' + fmt(total) + ' د.إ';
+  const tbody = document.getElementById('qtrackMonthDetailBody');
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:16px;">ما في عروض أسعار مسجّلة بهالشهر</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(d=>{
+    const clientName = overrides[d.ref] || d.client;
+    const waLink = toWaLink(d.phone);
+    const phoneCell = waLink
+      ? '<a href="'+waLink+'" target="_blank" rel="noopener" class="wa-link">'+escapeHtml(d.phone)+' <span class="wa-icon">💬</span></a>'
+      : '<span>'+escapeHtml(d.phone||'—')+'</span>';
+    const refCell = d.url
+      ? '<a href="'+d.url+'" target="_blank" rel="noopener" class="ref-badge">'+escapeHtml(d.ref)+' ↗</a>'
+      : '<span class="ref-badge">'+escapeHtml(d.ref)+'</span>';
+    const dt = parseDate(d.date);
+    const dateDisplay = dt
+      ? String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear()
+      : escapeHtml(d.date||'—');
+    return '<tr>'+
+      '<td>'+dateDisplay+'</td>'+
+      '<td>'+escapeHtml(clientName)+'</td>'+
+      '<td>'+phoneCell+'</td>'+
+      '<td>'+refCell+'</td>'+
+      '<td class="num">'+fmt(d.total||0)+'</td>'+
+      '</tr>';
+  }).join('');
+}
+
 function renderQuotationsTracking(){
   const c = getQuotationsTrackingCounters();
   const wrap2 = document.getElementById('qtrackCounters');
@@ -3428,10 +3750,23 @@ function renderQuotationsTracking(){
   const trend = getQuotationsMonthlyTrend().slice().reverse();
   const tbody2 = document.getElementById('qtrackMonthlyBody');
   tbody2.innerHTML = trend.map(b=>
-    '<tr><td>'+b.label+'</td><td class="num">'+b.count+'</td><td class="num">'+fmt(b.total)+'</td></tr>'
+    '<tr class="qtrack-month-row" data-monthkey="'+b.key+'" style="cursor:pointer;" title="اضغط لعرض تفاصيل هالشهر">'+
+    '<td>'+b.label+'</td><td class="num">'+b.count+'</td><td class="num">'+fmt(b.total)+'</td></tr>'
   ).join('');
-}
+  tbody2.querySelectorAll('.qtrack-month-row').forEach(tr=>{
+    tr.addEventListener('click', function(){
+      const key = this.dataset.monthkey;
+      populateQuotationsMonthSelect();
+      const sel = document.getElementById('qtrackMonthSelect');
+      if(Array.from(sel.options).some(o=>o.value===key)) sel.value = key;
+      renderQuotationsMonthDetail(sel.value);
+      document.getElementById('qtrackMonthSelect').closest('.panel').scrollIntoView({behavior:'smooth', block:'center'});
+    });
+  });
 
+  populateQuotationsMonthSelect();
+  renderQuotationsMonthDetail(document.getElementById('qtrackMonthSelect').value);
+}
 /* ================= مزامنة تلقائية مع الفريق عبر جوجل درايف =================
    نطاق المزامنة: بيانات "قاعدة البيانات" المشتركة بين الفريق فقط
    (العقود، أسماء الزبائن المعدَّلة، مدد التنفيذ، ملفات العقود المرفقة، جدول المشاريع PMP).
@@ -3446,7 +3781,7 @@ function renderQuotationsTracking(){
    شي موجود عندي محليًا بطابع أحدث (هيك ما تضيع أي معلومة أدخلها حدا للتو). وقت الرفع لدرايف:
    منرفع نسخة كاملة مطابقة لكل شي عندي محليًا (فمنطقيًا لو حدا حذف شي فعليًا، الحذف بينعكس
    بالنسخة المشتركة بعد أول رفع). */
-const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones','merzona_contract_deleted_tombstones','merzona_payroll_employees','merzona_payroll_entries'];
+const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones','merzona_contract_deleted_tombstones','merzona_payroll_employees','merzona_payroll_entries','merzona_payroll_payments'];
 const SYNC_FILE_NAME = 'merzona-sync-data.json';
 const DASH_TOKEN_CACHE_KEY = 'merzona_dash_gtoken_v1';
 let dashGoogleAccessToken = null;
