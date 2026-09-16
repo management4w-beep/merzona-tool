@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-02.1';
+  var CURRENT_VERSION = '2026-09-16.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -905,6 +905,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 الملفات</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
         <span class="nav-pill" id="payrollTabBtn">💰 الرواتب</span>
+        <span class="nav-pill" id="clientsTabBtn">👥 العملاء</span>
         <span class="nav-pill" id="catalogsTabBtn">📚 الكتالوجات</span>
         <span class="nav-pill" id="pmpTabBtn">🗓 جدول المشاريع</span>
         <span class="nav-pill" id="backupTabBtn">📦 نسخة احتياطية</span>
@@ -1036,6 +1037,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
             <th style="padding:8px 6px;">مشتريات</th>
             <th style="padding:8px 6px;">عقود</th>
             <th style="padding:8px 6px;">رواتب</th>
+            <th style="padding:8px 6px;">العملاء</th>
             <th style="padding:8px 6px;">كتالوجات</th>
             <th style="padding:8px 6px;">مشاريع</th>
             <th style="padding:8px 6px;">نسخة احتياطية</th>
@@ -1338,6 +1340,50 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
             </tr>
           </thead>
           <tbody id="payrollPaymentsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="clientsView" style="display:none;">
+
+    <div class="panel">
+      <p class="panel-title">👥 ملخص العملاء</p>
+      <div id="clientsSummaryKpis" class="kpis" style="margin-top:10px;flex-wrap:wrap;"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">دليل العملاء</p>
+      <p style="font-size:12px;color:var(--muted);margin:-6px 0 12px;">مبني تلقائيًا من عروض الأسعار والعقود الموجودة - بس "الإمارة" لازم تحطها يدويًا لكل زبون. اضغط على أي صف لعرض تفاصيل مشاريعه.</p>
+      <div class="controls" style="flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+        <input type="text" id="clientsSearchBox" placeholder="ابحث بالاسم أو رقم الهاتف...">
+        <span class="year-chip active" data-emiratefilter="">كل الإمارات</span>
+        <span class="year-chip" data-emiratefilter="أبوظبي">أبوظبي</span>
+        <span class="year-chip" data-emiratefilter="دبي">دبي</span>
+        <span class="year-chip" data-emiratefilter="الشارقة">الشارقة</span>
+        <span class="year-chip" data-emiratefilter="عجمان">عجمان</span>
+        <span class="year-chip" data-emiratefilter="أم القيوين">أم القيوين</span>
+        <span class="year-chip" data-emiratefilter="رأس الخيمة">رأس الخيمة</span>
+        <span class="year-chip" data-emiratefilter="الفجيرة">الفجيرة</span>
+        <span class="year-chip" data-emiratefilter="__unset">بدون إمارة</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th>الاسم</th>
+              <th>الهاتف</th>
+              <th>الإمارة</th>
+              <th>عروض</th>
+              <th>عقود</th>
+              <th style="text-align:left;">قيمة العقود</th>
+              <th style="text-align:left;">المستلم</th>
+              <th style="text-align:left;">المتبقي</th>
+            </tr>
+          </thead>
+          <tbody id="clientsDirectoryBody"></tbody>
         </table>
       </div>
     </div>
@@ -2341,6 +2387,7 @@ function hideAllViews(){
   document.getElementById('dashboardView').style.display = 'none';
   document.getElementById('contractsView').style.display = 'none';
   document.getElementById('payrollView').style.display = 'none';
+  document.getElementById('clientsView').style.display = 'none';
   document.getElementById('quotationsView').style.display = 'none';
   document.getElementById('catalogsView').style.display = 'none';
   document.getElementById('pmpView').style.display = 'none';
@@ -2351,6 +2398,7 @@ function hideAllViews(){
   document.getElementById('usersView').style.display = 'none';
   document.getElementById('contractsTabBtn').classList.remove('active');
   document.getElementById('payrollTabBtn').classList.remove('active');
+  document.getElementById('clientsTabBtn').classList.remove('active');
   document.getElementById('quotationsTabBtn').classList.remove('active');
   document.getElementById('catalogsTabBtn').classList.remove('active');
   document.getElementById('pmpTabBtn').classList.remove('active');
@@ -2375,6 +2423,12 @@ function showPayrollView(){
   document.getElementById('payrollView').style.display = 'block';
   document.getElementById('payrollTabBtn').classList.add('active');
   renderPayrollAll();
+}
+function showClientsView(){
+  hideAllViews();
+  document.getElementById('clientsView').style.display = 'block';
+  document.getElementById('clientsTabBtn').classList.add('active');
+  renderClientsDirectory();
 }
 function showQuotationsView(){
   hideAllViews();
@@ -2545,6 +2599,10 @@ document.getElementById('payrollTabBtn').addEventListener('click', ()=>{
   const inPayroll = document.getElementById('payrollView').style.display !== 'none';
   if(inPayroll) showDashboardView(); else showPayrollView();
 });
+document.getElementById('clientsTabBtn').addEventListener('click', ()=>{
+  const inClients = document.getElementById('clientsView').style.display !== 'none';
+  if(inClients) showDashboardView(); else showClientsView();
+});
 document.getElementById('quotationsTabBtn').addEventListener('click', ()=>{
   const inQuotations = document.getElementById('quotationsView').style.display !== 'none';
   if(inQuotations) showDashboardView(); else showQuotationsView();
@@ -2610,6 +2668,7 @@ const MERZONA_PERMISSION_COLUMNS = [
   { key: 'procurement', label: 'مشتريات' },
   { key: 'contracts', label: 'عقود' },
   { key: 'payroll', label: 'رواتب' },
+  { key: 'clients', label: 'العملاء' },
   { key: 'catalogs', label: 'كتالوجات' },
   { key: 'pmp', label: 'مشاريع' },
   { key: 'backup', label: 'نسخة احتياطية' },
@@ -2689,7 +2748,7 @@ function renderUsersRows(users){
       '<td style="text-align:center;padding:6px;"><input type="checkbox" class="mz-users-isadmin" ' + adminChecked + ' ' + adminDisabled + ' /></td>' +
       '<td style="padding:6px;white-space:nowrap;">' + actions + '</td>' +
       '</tr>';
-  }).join('') || '<tr><td colspan="18" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
+  }).join('') || '<tr><td colspan="19" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
 }
 
 document.getElementById('usersTableBody').addEventListener('click', function(e){
@@ -2754,6 +2813,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     procurementTabBtn: 'procurement',
     contractsTabBtn: 'contracts',
     payrollTabBtn: 'payroll',
+    clientsTabBtn: 'clients',
     catalogsTabBtn: 'catalogs',
     pmpTabBtn: 'pmp',
     backupTabBtn: 'backup',
@@ -3619,6 +3679,202 @@ document.getElementById('payrollPaymentSaveBtn').addEventListener('click', ()=>{
 });
 document.getElementById('payrollPaymentsEmpFilter').addEventListener('change', renderPayrollPaymentsTable);
 
+/* ---------- دليل العملاء (Clients Directory) ---------- */
+// 🆕 2026-09-13: تبويب جديد بيجمّع كل زبون (حسب رقم الهاتف بعد التطبيع - أو الاسم لو ما في هاتف)
+// من عروض الأسعار (DATA) والعقود (loadContracts) الموجودة أصلًا بالنظام - بدون أي إدخال يدوي
+// للمشاريع أو الدفعات (حسب طلب حمدي: "تلقائيًا من العروض والعقود الموجودة" و"بس ملخص من العقود
+// الموجودة، مش نظام دفعات جديد"). الشي الوحيد المُدخل يدويًا هون هو "الإمارة" لكل زبون (حقل مش
+// موجود بأي مكان تاني بالنظام)، مخزّن بمفتاح مستقل صغير ومتزامن مع الفريق.
+const CLIENT_DIRECTORY_KEY = 'merzona_client_directory';
+function loadClientDirectory(){
+  try{ return JSON.parse(localStorage.getItem(CLIENT_DIRECTORY_KEY) || '{}'); }catch(e){ return {}; }
+}
+function saveClientDirectory(obj){
+  try{ localStorage.setItem(CLIENT_DIRECTORY_KEY, JSON.stringify(obj)); markSyncDirty(CLIENT_DIRECTORY_KEY, obj); return true; }
+  catch(e){ console.error('saveClientDirectory failed', e); return false; }
+}
+const UAE_EMIRATES = ['أبوظبي','دبي','الشارقة','عجمان','أم القيوين','رأس الخيمة','الفجيرة'];
+
+// نفس منطق تطبيع رقم الهاتف المستخدم بميزة الرواتب - بيرجع أرقام بس (بدون رابط)، حتى نقدر نجمع
+// كل سجلات نفس الزبون تحت مفتاح واحد بغض النظر عن شكل كتابة رقمه (971.../+971.../0...).
+function normalizeClientKey(phone, name){
+  const digits = normalizePhoneDigits(phone);
+  if(digits && digits.length >= 8) return 'p:' + digits;
+  const n = (name||'').trim().toLowerCase();
+  return n ? 'n:' + n : 'p:unknown';
+}
+
+function buildClientsDirectoryAggregate(){
+  const overrides = loadClientOverrides();
+  const contracts = loadContracts();
+  const directory = loadClientDirectory();
+  const clients = {};
+
+  function ensureClient(key, name, phone){
+    if(!clients[key]){
+      clients[key] = { key, name: name || '(بدون اسم)', phone: phone || '', quoteCount:0, contractCount:0, contractTotal:0, received:0, details: [] };
+    }
+    const c = clients[key];
+    if(name && c.name === '(بدون اسم)') c.name = name;
+    if(phone && !c.phone) c.phone = phone;
+    return c;
+  }
+
+  DATA.forEach(d=>{
+    const name = overrides[d.ref] || d.client || '';
+    const key = normalizeClientKey(d.phone, name);
+    const c = ensureClient(key, name, d.phone);
+    c.quoteCount++;
+    c.details.push({ ref: d.ref, date: d.date || '', total: d.total || 0, isContract: false });
+  });
+
+  Object.keys(contracts).forEach(ref=>{
+    const con = contracts[ref];
+    const d = DATA.find(x=>x.ref===ref);
+    const name = overrides[ref] || (con && con.client) || (d && d.client) || '';
+    const phone = d ? d.phone : '';
+    const key = normalizeClientKey(phone, name);
+    const c = ensureClient(key, name, phone);
+    c.contractCount++;
+    const tables = getPaymentTables(con);
+    let contractValue = 0;
+    tables.forEach(t=>{
+      const total = t.total || 0;
+      contractValue += total;
+      c.contractTotal += total;
+      (t.payments||[]).forEach(p=>{
+        if(getPayStatus(p) === 'received') c.received += total * (p.pct||0) / 100;
+      });
+    });
+    // لو العقد أصلًا موجود ضمن نفس المرجع بعروض الأسعار (الحالة الشائعة - تحويل عرض سعر لعقد)،
+    // منحدّث نفس السطر بدل ما نكرره بقائمة التفاصيل.
+    const existingDetail = c.details.find(x=>x.ref===ref);
+    if(existingDetail){
+      existingDetail.isContract = true;
+      if(contractValue) existingDetail.total = contractValue;
+    } else {
+      c.details.push({ ref, date: (d && d.date) || '', total: contractValue, isContract: true });
+    }
+  });
+
+  return Object.keys(clients).map(k=>{
+    const c = clients[k];
+    const dir = directory[k] || {};
+    return {
+      key: k, name: c.name, phone: c.phone, emirate: dir.emirate || '',
+      quoteCount: c.quoteCount, contractCount: c.contractCount,
+      contractTotal: c.contractTotal, received: c.received,
+      outstanding: Math.max(0, c.contractTotal - c.received),
+      details: c.details.slice().sort((a,b)=> String(b.date||'').localeCompare(String(a.date||''))),
+    };
+  });
+}
+
+let clientsSearchQuery = '';
+let clientsEmirateFilter = '';
+
+function renderClientsSummaryKpis(list){
+  const wrap = document.getElementById('clientsSummaryKpis');
+  const totalClients = list.length;
+  const totalContractValue = list.reduce((s,c)=>s+c.contractTotal,0);
+  const totalReceived = list.reduce((s,c)=>s+c.received,0);
+  const totalOutstanding = list.reduce((s,c)=>s+c.outstanding,0);
+  wrap.innerHTML =
+    '<div class="kpi"><p class="kpi-label">عدد العملاء</p><p class="kpi-value">'+totalClients+'</p></div>'+
+    '<div class="kpi"><p class="kpi-label">إجمالي قيمة العقود</p><p class="kpi-value" style="font-size:18px;">'+fmt(totalContractValue)+' د.إ</p></div>'+
+    '<div class="kpi"><p class="kpi-label">إجمالي المستلم</p><p class="kpi-value" style="font-size:18px;color:var(--ok);">'+fmt(totalReceived)+' د.إ</p></div>'+
+    '<div class="kpi gold"><p class="kpi-label">إجمالي المتبقي</p><p class="kpi-value" style="font-size:18px;">'+fmt(totalOutstanding)+' د.إ</p></div>';
+}
+
+function renderClientsDirectory(){
+  const all = buildClientsDirectoryAggregate();
+  const q = clientsSearchQuery.trim().toLowerCase();
+  const list = all.filter(c=>{
+    if(clientsEmirateFilter === '__unset' && c.emirate) return false;
+    if(clientsEmirateFilter && clientsEmirateFilter !== '__unset' && c.emirate !== clientsEmirateFilter) return false;
+    if(q && !((c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q))) return false;
+    return true;
+  });
+  list.sort((a,b)=> b.contractTotal - a.contractTotal || b.quoteCount - a.quoteCount || (a.name||'').localeCompare(b.name||'','ar'));
+
+  renderClientsSummaryKpis(list);
+
+  const tbody = document.getElementById('clientsDirectoryBody');
+  if(list.length === 0){
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px;">ما في عملاء مطابقين</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(c=>{
+    const waLink = toWaLink(c.phone);
+    const phoneCell = waLink
+      ? '<a href="'+waLink+'" target="_blank" rel="noopener" class="wa-link">'+escapeHtml(c.phone||'—')+' <span class="wa-icon">💬</span></a>'
+      : '<span>'+escapeHtml(c.phone||'—')+'</span>';
+    const emirateOptions = [''].concat(UAE_EMIRATES).map(em=>
+      '<option value="'+escapeHtml(em)+'"'+(c.emirate===em?' selected':'')+'>'+(em?escapeHtml(em):'— غير محدد —')+'</option>'
+    ).join('');
+    const detailHtml = c.details.length
+      ? c.details.map(d=>
+          '<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed var(--line);font-size:12px;">'+
+            '<span>'+escapeHtml(d.ref)+' — '+escapeHtml(d.date||'—')+(d.isContract ? ' <b style="color:var(--main);">(عقد)</b>' : '')+'</span>'+
+            '<span class="num">'+fmt(d.total)+' د.إ</span>'+
+          '</div>'
+        ).join('')
+      : '<div style="font-size:12px;color:var(--muted);">لا تفاصيل</div>';
+
+    return '<tr class="client-row" style="cursor:pointer;">'+
+      '<td style="text-align:center;color:var(--muted);">▸</td>'+
+      '<td><b>'+escapeHtml(c.name)+'</b></td>'+
+      '<td dir="ltr" style="text-align:right;">'+phoneCell+'</td>'+
+      '<td><select data-emirateselect="'+escapeHtml(c.key)+'" style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:12px;">'+emirateOptions+'</select></td>'+
+      '<td class="num">'+c.quoteCount+'</td>'+
+      '<td class="num">'+c.contractCount+'</td>'+
+      '<td class="num">'+fmt(c.contractTotal)+'</td>'+
+      '<td class="num" style="color:var(--ok);">'+fmt(c.received)+'</td>'+
+      '<td class="num" style="color:'+(c.outstanding>0?'var(--danger)':'var(--ok)')+';">'+fmt(c.outstanding)+'</td>'+
+      '</tr>'+
+      '<tr class="client-detail-row" style="display:none;">'+
+      '<td></td><td colspan="8" style="padding:8px 12px;background:#fafbfc;">'+detailHtml+'</td>'+
+      '</tr>';
+  }).join('');
+
+  tbody.querySelectorAll('.client-row').forEach(tr=>{
+    tr.addEventListener('click', function(e){
+      if(e.target && e.target.closest('select')) return; // ما نفتح/نسكر التفاصيل لما يكون عم يختار إمارة
+      const detailRow = this.nextElementSibling;
+      if(!detailRow) return;
+      const show = detailRow.style.display === 'none';
+      detailRow.style.display = show ? '' : 'none';
+      const arrowCell = this.querySelector('td');
+      if(arrowCell) arrowCell.textContent = show ? '▾' : '▸';
+    });
+  });
+  tbody.querySelectorAll('[data-emirateselect]').forEach(sel=>{
+    sel.addEventListener('click', (e)=> e.stopPropagation());
+    sel.addEventListener('change', function(){
+      const key = this.dataset.emirateselect;
+      const dir = loadClientDirectory();
+      if(!dir[key]) dir[key] = {};
+      dir[key].emirate = this.value;
+      saveClientDirectory(dir);
+      renderClientsDirectory();
+    });
+  });
+}
+
+document.getElementById('clientsSearchBox').addEventListener('input', function(){
+  clientsSearchQuery = this.value;
+  renderClientsDirectory();
+});
+document.querySelectorAll('[data-emiratefilter]').forEach(chip=>{
+  chip.addEventListener('click', function(){
+    document.querySelectorAll('[data-emiratefilter]').forEach(c=>c.classList.remove('active'));
+    this.classList.add('active');
+    clientsEmirateFilter = this.dataset.emiratefilter;
+    renderClientsDirectory();
+  });
+});
+
+
 /* ---------- Quotations tracking (متابعة عروض الأسعار المرسلة حسب اليوم/الأسبوع/الشهر) ----------
    بتستخدم نفس مصدر البيانات الموحّد (DATA) يلي جدول "سجل العروض" وبطاقات "أرقام سريعة" والرسم
    البياني كلهم شغالين عليه أصلًا - فأي عرض سعر مكتشف جديد من جوجل درايف أو محذوف بينعكس هون
@@ -3781,7 +4037,7 @@ function renderQuotationsTracking(){
    شي موجود عندي محليًا بطابع أحدث (هيك ما تضيع أي معلومة أدخلها حدا للتو). وقت الرفع لدرايف:
    منرفع نسخة كاملة مطابقة لكل شي عندي محليًا (فمنطقيًا لو حدا حذف شي فعليًا، الحذف بينعكس
    بالنسخة المشتركة بعد أول رفع). */
-const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones','merzona_contract_deleted_tombstones','merzona_payroll_employees','merzona_payroll_entries','merzona_payroll_payments'];
+const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones','merzona_contract_deleted_tombstones','merzona_payroll_employees','merzona_payroll_entries','merzona_payroll_payments','merzona_client_directory'];
 const SYNC_FILE_NAME = 'merzona-sync-data.json';
 const DASH_TOKEN_CACHE_KEY = 'merzona_dash_gtoken_v1';
 let dashGoogleAccessToken = null;
@@ -3905,9 +4161,9 @@ function buildLocalSyncPayload(){
 // بتسأل خدمة توكن جوجل درايف الجديدة عالسيرفر (بدل ما نفتح نافذة جوجل بالمتصفح) - بترجع توكن جاهز
 // فورًا بدون أي نافذة أو كبسة إطلاقًا، طول ما حمدي ربط السيرفر بحسابه مرة وحدة. بترجع null بهدوء
 // (بدون ما ترمي خطأ) لو السيرفر مش مربوط بعد أو مش متاح مؤقتًا - وقتها منكمل بالطريقة القديمة تحت.
-async function fetchDashDriveTokenFromServer(){
+async function fetchDashDriveTokenFromServer(timeoutMs){
   const controller = new AbortController();
-  const timer = setTimeout(()=> controller.abort(), 8000);
+  const timer = setTimeout(()=> controller.abort(), timeoutMs || 8000);
   try{
     const res = await fetch(DASH_DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(DASH_SERVER_AUTH_TOKEN), { signal: controller.signal });
     if(!res.ok) return null;
@@ -3931,7 +4187,19 @@ function getDashGoogleAccessToken(silent){
   dashTokenInFlight = (async ()=>{
     // 🔧 2026-08-24: أول محاولة هلق هي خدمة السيرفر - ما بتحتاج ولا نافذة ولا كبسة إطلاقًا (لا أول
     // مرة ولا كل ساعة). لو نجحت، خلصنا بدون ما نلمس مكتبة جوجل بالمتصفح نهائيًا.
-    const fromServer = await fetchDashDriveTokenFromServer();
+    // 🔧 2026-09-16: باغ حرج لقيناه بسبب شكوى حمدي "مزامنة الفريق بتضل تحمّل وما بتخلص" - لما تكون
+    // silent=false (يعني كبسة يدوية حقيقية على "🔄 مزامنة الفريق")، كنا منستنى خدمة السيرفر لمدة
+    // تصل لـ8 ثواني كاملة قبل ما نجرب المسار الاحتياطي (نافذة جوجل بالمتصفح). المشكلة: المتصفح
+    // بيعتبر "الكبسة الحقيقية" منتهية الصلاحية بعد كم ثانية بس من وقت الضغط الفعلي - فلو السيرفر
+    // تأخر أو فشل (شبكة حمدي، أو خدمة Railway واقفة مؤقتًا)، وقت ما نوصل لسطر requestAccessToken
+    // تحت، تكون "صلاحية الكبسة" خلصت من نظر المتصفح، فبيرفض يفتح نافذة جوجل بصمت (بدون أي رسالة
+    // خطأ واضحة) - وبما إنو الوضعية هون prompt:'' (غير صامتة)، مهلتها الكاملة 60 ثانية، فحمدي كان
+    // عم يحس إنو الزر "عالق" لمدة دقيقة كاملة كل مرة يضغط فيها، ولو جرب كذا مرة ورا بعض حس إنه
+    // "ما عم يشتغل نهائيًا". الحل: لو الكبسة يدوية (silent=false)، منقصر مهلة انتظار السيرفر لثانيتين
+    // ونص بس (بدل 8) - هيك لو السيرفر ما رد بسرعة، منوصل للمسار الاحتياطي وصلاحية الكبسة الحقيقية
+    // لسا طازة، فنافذة جوجل بتنفتح فعليًا بدل ما تنرفض بصمت. ما لمسنا مهلة الوضعية الصامتة (silent=true،
+    // المزامنة التلقائية بالخلفية) - هاي أصلًا ما محتاجة "كبسة حقيقية" لأنها prompt:'none'.
+    const fromServer = await fetchDashDriveTokenFromServer(silent ? 8000 : 2500);
     if(fromServer){
       saveCachedDashToken(fromServer.access_token, fromServer.expires_in);
       return dashGoogleAccessToken;
