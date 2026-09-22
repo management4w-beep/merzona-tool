@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-16.1';
+  var CURRENT_VERSION = '2026-09-22.1';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -966,6 +966,9 @@
     .mode-chooser{display:none !important;}
     .items-manager{display:none !important;}
     .sign-link-copy-wrap{display:none !important;}
+    /* 🆕 2026-09-22: قائمة اختيار الفرع (الإمارات/دمشق-سوريا) أداة داخلية لنا بس - ما لازم تظهر
+       أبدًا بعرض السعر المطبوع/PDF يلي بيوصل للزبون. */
+    .branch-row-noprint{display:none !important;}
     /* 🔧 2026-08-27: رجّعنا رمز QR يظهر بالمطبوع الورقي بناءً على طلب حمدي (كان مخفي من قبل) - بس
        هلق محصور بمنطقة ثابتة أقصى يمين صندوق التوقيع (client-sign-qr-area)، ومنطقة التوقيع نفسها
        (client-sign-area) فاضية دايمًا وبتاخد باقي الصندوق - هيك الزبون يقدر يوقّع بالقلم مباشرة على
@@ -1019,6 +1022,8 @@
      هون كمان: رمز QR أقصى يمين مربع التوقيع (client-sign-qr-area) + منطقة فاضية (client-sign-area)
      للتوقيع - سواء بالقلم لو انطبعت الصفحة لاحقًا، أو إلكترونيًا بمسح الـQR. */
   body.pdf-capturing .sign-link-copy-wrap{ display:none !important; }
+  /* 🆕 2026-09-22: نسخة مطابقة لقاعدة الطباعة الورقية فوق - قائمة اختيار الفرع ما لازم تظهر بملف PDF المحفوظ لجوجل درايف. */
+  body.pdf-capturing .branch-row-noprint{ display:none !important; }
   /* عرض ثابت صارم بحجم A4 (900px) بدل max-width - وقص أي محتوى داخلي بيحاول يتمدد أعرض من الصفحة، حتى ما ينزاح شي عن حدود الورقة وقت الالتقاط */
   body.pdf-capturing .page{box-shadow:none !important; padding:14px 18px !important; width:900px !important; max-width:900px !important; min-width:900px !important; overflow-x:hidden !important; box-sizing:border-box !important;}
   body.pdf-capturing .page *{ max-width:100% !important; box-sizing:border-box !important; }
@@ -1536,6 +1541,17 @@
     <div class="meta-box">
       <div class="meta-title"><input id="m-title" value="Quotation" oninput="syncPage2Header()"></div>
       <div class="meta-rows">
+        <!-- 🆕 2026-09-22: طلب حمدي - فرع دمشق/سوريا جنب فرع الإمارات الحالي. اختيار الفرع هون
+             بيتحكم بحرف الرقم المرجعي (M للإمارات، S لدمشق - نفس طريقة الترقيم تمامًا) وبمجلد
+             جوجل درايف يلي بينحفظ فيه عرض السعر (مجلد منفصل كليًا عن مجلدات الإمارات - نفس الدرايف)
+             وبعنوان الشركة تحت عرض السعر. onBranchChange() بتحدّث كل هيك لما تختاري من هالقائمة،
+             وapplyBranchFromRef() (مستدعاة من جوا syncPage2Header) بتكتشف الفرع تلقائيًا من حرف
+             الرقم المرجعي نفسه لما تفتحي عرض سعر قديم محفوظ - فما في داعي تختاري الفرع يدويًا كل
+             مرة إذا كنتي بس عم تفتحي/تكملي عرض سعر موجود أصلًا. -->
+        <div class="meta-row branch-row-noprint"><label>Branch</label><div class="val"><select id="m-branch" onchange="onBranchChange()" style="color:#000;background:#fff;color-scheme:light">
+          <option value="uae">🇦🇪 UAE — الإمارات</option>
+          <option value="syria">🇸🇾 Damascus, Syria — دمشق، سوريا</option>
+        </select></div></div>
         <div class="meta-row"><label>Date</label><div class="val"><input type="date" id="m-date" oninput="syncPage2Header()" value="2026-08-07"></div></div>
         <div class="meta-row"><label>Client</label><div class="val"><input id="m-client" placeholder="Client company name" oninput="syncPage2Header()" value=""></div></div>
         <div class="meta-row"><label>Number</label><div class="val"><input id="m-number" placeholder="-" oninput="syncPage2Header()" value=""></div></div>
@@ -1887,7 +1903,7 @@
   </div>
 
   <div class="contact-strip">
-    United Arab Emirates / Sharjah, Abu Dhabi &nbsp; Tel: +971508471158 &nbsp; e: Info@Merzona.com &nbsp; Web: www.Merzona.ae
+    <span id="branch-address-text">United Arab Emirates / Sharjah, Abu Dhabi &nbsp; Tel: +971508471158 &nbsp; e: Info@Merzona.com &nbsp; Web: www.Merzona.ae</span>
   </div>
 
 </div>
@@ -3057,7 +3073,10 @@ function seedDefaults(){
   // الرقم المرجعي ما بيحتوي مسافة أبدًا - المستخدم بيكمل يكتب رقم التسلسل ملزوق مباشرة (مثلاً
   // "M-Q-260204") - هيك نفس التنسيق يلي بيولّده الاقتراح التلقائي بالأسفل، وما بيصير عنا نفس
   // الرقم المرجعي مسجّل مرتين (مرة بمسافة ومرة بدونها) بمكانين مختلفين.
-  document.getElementById('m-ref').value = `M-Q-${yy}0`;
+  // 🆕 2026-09-22: حرف البادئة (M أو S) صار حسب الفرع المختار بقائمة #m-branch (افتراضيًا الإمارات/M).
+  const branchNow = document.getElementById('m-branch') ? document.getElementById('m-branch').value : 'uae';
+  const refPrefixNow = getBranchConfig(branchNow).refPrefix;
+  document.getElementById('m-ref').value = `${refPrefixNow}-Q-${yy}0`;
   const deliveryEl = document.getElementById('delivery-days');
   if(deliveryEl) deliveryEl.value = '45';
 
@@ -3228,6 +3247,10 @@ function syncPage2Header(){
   if(typeof renderClientSignBox === 'function') renderClientSignBox();
   if(typeof onAlumColorChange === 'function') onAlumColorChange();
   if(typeof onGlassTypeChange === 'function') onGlassTypeChange();
+  // 🆕 2026-09-22: فرع الإمارات/دمشق - بنكتشفه من حرف الرقم المرجعي الحالي كل مرة يتغيّر فيها
+  // (كتابة يدوية، تحميل عرض سعر قديم، أو اقتراح تلقائي/يدوي) ومنحدّث القائمة المنسدلة + عنوان
+  // الشركة تحت عرض السعر ليطابقوا - شوف تعريف applyBranchFromRef فوق (جنب BRANCH_CONFIG) للتفاصيل.
+  if(typeof applyBranchFromRef === 'function') applyBranchFromRef();
 }
 
 // 🆕 2026-09-02: طلب من حمدي - إذا نوع/لون الزجاج المعتمد (m-glassType) بلجيكي أو "نوع آخر"، بس
@@ -3685,7 +3708,10 @@ async function deleteQuotationFromDrive(){
   if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نحذف...'; }
   try{
     const token = await getGoogleAccessToken(false); // كبسة يدوية - مسموح نافذة موافقة لو احتاجت
-    const yearFolderId = await findYearFolderIfExists(year, token);
+    // 🆕 2026-09-22: لازم نفتش بمجلد الجذر الصحيح حسب فرع الرقم المرجعي (M=الإمارات، S=دمشق-سوريا) -
+    // وإلا الحذف كان رح يفتش دايمًا بمجلدات الإمارات بس، وما رح يلاقي عروض أسعار فرع دمشق أبدًا.
+    const rootFolderIdForDelete = getDriveRootFolderIdForBranch(getBranchFromRef(refRaw));
+    const yearFolderId = await findYearFolderIfExists(year, token, rootFolderIdForDelete);
     if(!yearFolderId){ alert('ما لقينا مجلد سنة '+year+' أصلاً بجوجل درايف - يمكن هالعرض ما انحفظ لجوجل درايف قط.'); return; }
     const q = encodeURIComponent(`name = '${refSafe.replace(/'/g,"\\'")}' and '${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
     const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
@@ -3762,7 +3788,74 @@ function saveFilledCopy(){
 // شكله بيكون تقريبًا: 123456789-abc123xyz.apps.googleusercontent.com
 const GOOGLE_CLIENT_ID = '575144277793-dgh7oslo72umva7cb37rpa82tman9vfm.apps.googleusercontent.com';
 const DRIVE_ROOT_FOLDER_ID = '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D'; // نفس مجلدك الرئيسي يلي بعتّهولي رابطه
+// 🆕 2026-09-22: مجلد جديد كليًا (بنفس حساب جوجل درايف - جنب مجلد الإمارات فوق بالضبط، مش جواه)
+// خاص بفرع دمشق/سوريا - أنشأناه تلقائيًا كمجلد شقيق ("Quotations" هو الأب المشترك للاتنين). أي
+// عرض سعر مرجعه يبلش بحرف S (شوف getDriveRootFolderIdForBranch/BRANCH_CONFIG تحت) بينحفظ هون
+// حصرًا، بدون ما يختلط أبدًا مع مجلدات سنين الإمارات.
+const DRIVE_ROOT_FOLDER_ID_SYRIA = '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
+
+/* ================= فرع الإمارات / دمشق - سوريا =================
+   🆕 2026-09-22: طلب حمدي - فتح فرع بدمشق، وبدو يكون فيه: (1) رقم مرجعي بصيغة مختلفة تمامًا
+   (نفس طريقة الترقيم M-Q-YY0### بس بحرف S بدل M - قرار حمدي صراحة)، (2) مجلد جوجل درايف منفصل
+   كليًا عن مجلدات الإمارات (نفس الحساب - DRIVE_ROOT_FOLDER_ID_SYRIA فوق)، (3) عنوان الشركة تحت
+   عرض السعر (وأي مكان تاني فيه عنوان) يصير "Damascus, Syria — دمشق، سوريا" بدل عنوان الإمارات.
+   القرار المعماري: "الفرع" مش حقل مخزّن لحاله (ما ضفناه لـQUOTATION_FIELD_IDS) - هو مُشتق دايمًا
+   من حرف الرقم المرجعي نفسه (M أو S) عبر getBranchFromRef() تحت. هيك: (أ) ما ممكن يصير تعارض
+   بين قيمة القائمة المنسدلة والرقم المرجعي الفعلي، (ب) فتح عرض سعر قديم محفوظ (إمارات أو دمشق)
+   بيرجع يظهر صح تلقائيًا (القائمة + العنوان) بمجرد ما ينحمّل رقمه المرجعي - بدون ما يحتاج المستخدم
+   يختار الفرع يدويًا كل مرة. القائمة المنسدلة (#m-branch) هي بس واجهة مريحة لتغيير حرف الرقم
+   المرجعي بسهولة (onBranchChange تحت)، مش مصدر الحقيقة. */
+const BRANCH_CONFIG = {
+  uae: {
+    refPrefix: 'M',
+    driveRootFolderId: DRIVE_ROOT_FOLDER_ID,
+    addressHtml: 'United Arab Emirates / Sharjah, Abu Dhabi &nbsp; Tel: +971508471158 &nbsp; e: Info@Merzona.com &nbsp; Web: www.Merzona.ae'
+  },
+  syria: {
+    refPrefix: 'S',
+    driveRootFolderId: DRIVE_ROOT_FOLDER_ID_SYRIA,
+    addressHtml: 'Damascus, Syria &nbsp; — &nbsp; دمشق، سوريا'
+  }
+};
+function getBranchConfig(branch){ return BRANCH_CONFIG[branch] || BRANCH_CONFIG.uae; }
+// بتقرأ حرف الرقم المرجعي (أول حرف قبل "-Q-") وبترجع اسم الفرع المطابق - "uae" احتياطيًا لأي
+// شكل غير متوقع (رقم مرجعي يدوي قديم بدون حرف واضح مثلاً)، حتى ما ينكسر شي بعروض الأسعار القديمة.
+function getBranchFromRef(refRaw){
+  const m = String(refRaw||'').trim().match(/^([A-Za-z])-?Q-/i);
+  if(m && m[1].toUpperCase()==='S') return 'syria';
+  return 'uae';
+}
+function getDriveRootFolderIdForBranch(branch){ return getBranchConfig(branch).driveRootFolderId; }
+// بتحدّث عنوان الشركة تحت عرض السعر (contact-strip) حسب الفرع الحالي.
+function applyBranchAddress(branch){
+  const el = document.getElementById('branch-address-text');
+  if(el) el.innerHTML = getBranchConfig(branch).addressHtml;
+}
+// مستدعاة من جوا syncPage2Header() (يلي أصلًا بتشتغل مع كل تغيير بالرقم المرجعي - كتابة يدوية،
+// تحميل عرض سعر قديم، أو اقتراح تلقائي/يدوي) - بتكتشف الفرع من حرف الرقم المرجعي الحالي وبتحدّث
+// القائمة المنسدلة + العنوان ليطابقوا، بدون ما تلمس الرقم المرجعي نفسه.
+function applyBranchFromRef(){
+  const refEl = document.getElementById('m-ref');
+  const branchEl = document.getElementById('m-branch');
+  const branch = getBranchFromRef(refEl ? refEl.value : '');
+  if(branchEl && branchEl.value !== branch) branchEl.value = branch;
+  applyBranchAddress(branch);
+}
+// مستدعاة من onchange القائمة المنسدلة #m-branch - بتاخد حرف الرقم المرجعي الحالي وتبدله بحرف
+// الفرع الجديد بس (بتحافظ على باقي الرقم/التسلسل متل ما هو)، بدون ما تفرض رقم افتراضي جديد -
+// هيك لو كان المستخدم كتب تسلسل يدوي، ما بيضيع.
+function onBranchChange(){
+  const branch = document.getElementById('m-branch').value;
+  const refEl = document.getElementById('m-ref');
+  if(refEl){
+    const prefix = getBranchConfig(branch).refPrefix;
+    const current = (refEl.value||'').trim();
+    const m = current.match(/^[A-Za-z]-?Q-(.*)$/i);
+    refEl.value = m ? (prefix + '-Q-' + m[1]) : current;
+  }
+  syncPage2Header();
+}
 
 // ⚠️ سيرفر إشعارات واتساب (اختياري) - بيبعت أوتوماتيك عرض السعر لمجموعة "Tasks" عند كل حفظ.
 // اتركهم فاضيين/كما هم حتى تجهز سيرفر whatsapp-server (شوف README.md جواه) - قبل هيك هاد الشي معطّل تلقائيًا.
@@ -4089,8 +4182,11 @@ async function fetchWithTimeout(url, options, timeoutMs){
   }
 }
 
-async function findYearFolderIfExists(year, token){
-  const q = encodeURIComponent(`name = '${year}' and '${DRIVE_ROOT_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+// 🆕 2026-09-22: ضفنا rootFolderId (اختياري، افتراضيًا مجلد الإمارات كما كان) حتى نقدر نبحث بمجلد
+// دمشق/سوريا المنفصل (DRIVE_ROOT_FOLDER_ID_SYRIA) لما يكون الرقم المرجعي بحرف S - شوف BRANCH_CONFIG.
+async function findYearFolderIfExists(year, token, rootFolderId){
+  const rootId = rootFolderId || DRIVE_ROOT_FOLDER_ID;
+  const q = encodeURIComponent(`name = '${year}' and '${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
   }, 15000);
@@ -4103,9 +4199,11 @@ async function findYearFolderIfExists(year, token){
 // بعد ما لاحظ إنو الاقتراح التلقائي الصامت ممكن يفشل بهدوء (مشكلة شبكة/سيرفر مؤقتة، جلسة جوجل منتهية...)
 // ويسيب الرقم عالافتراضي الخام "M-Q-YY0" بدون ما يعرف ليش ولا يقدر يعمل شي غير الكتابة اليدوية.
 // بترجع null لو ما في مجلد سنة بعد أو ما لقينا أي رقم مرجعي مفهوم جواه (يعني أول عرض سعر بهاي السنة).
-async function computeNextReferenceSeq(defaultVal, token){
+// 🆕 2026-09-22: ضفنا rootFolderId (اختياري) - منمررها من autoSuggestNextReference/manualSuggestNextReference
+// حسب الفرع المختار حاليًا، حتى الاقتراح التلقائي يبحث بمجلد دمشق/سوريا الصحيح مش مجلد الإمارات بالغلط.
+async function computeNextReferenceSeq(defaultVal, token, rootFolderId){
   const year = getYearFromReference(defaultVal);
-  const yearFolderId = await findYearFolderIfExists(year, token);
+  const yearFolderId = await findYearFolderIfExists(year, token, rootFolderId);
   if(!yearFolderId) return null; // ما في مجلد سنة بعد
 
   const q = encodeURIComponent(`'${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
@@ -4142,16 +4240,19 @@ async function autoSuggestNextReference(){
   const refInput = document.getElementById('m-ref');
   if(!refInput) return;
   const yy = new Date().getFullYear().toString().slice(-2);
-  const defaultVal = `M-Q-${yy}0`;
+  // 🆕 2026-09-22: حرف البادئة وجذر مجلد جوجل درايف حسب الفرع المختار حاليًا بقائمة #m-branch.
+  const branchNow = document.getElementById('m-branch') ? document.getElementById('m-branch').value : 'uae';
+  const branchCfg = getBranchConfig(branchNow);
+  const defaultVal = `${branchCfg.refPrefix}-Q-${yy}0`;
   // ما نلمس الخانة إلا لو لسا بحالتها الافتراضية (يعني المستخدم ما كتب شي يدوي فوقها)
   if(refInput.value.trim() !== defaultVal.trim()) return;
 
   try{
     const token = await getGoogleAccessToken(true); // محاولة صامتة بس
-    const nextSeqStr = await computeNextReferenceSeq(defaultVal, token);
+    const nextSeqStr = await computeNextReferenceSeq(defaultVal, token, branchCfg.driveRootFolderId);
     if(nextSeqStr === null) return;
     if(refInput.value.trim() === defaultVal.trim()){ // نتأكد تاني إنو المستخدم ما كتب شي بالفترة يلي استغرقتها العملية
-      refInput.value = `M-Q-${yy}0${nextSeqStr}`;
+      refInput.value = `${branchCfg.refPrefix}-Q-${yy}0${nextSeqStr}`;
       syncPage2Header();
     }
   }catch(e){
@@ -4172,7 +4273,10 @@ async function manualSuggestNextReference(){
   if(btn){ btn.disabled = true; btn.textContent = '⏳'; }
   try{
     const yy = new Date().getFullYear().toString().slice(-2);
-    const defaultVal = `M-Q-${yy}0`;
+    // 🆕 2026-09-22: حرف البادئة وجذر مجلد جوجل درايف حسب الفرع المختار حاليًا بقائمة #m-branch.
+    const branchNow = document.getElementById('m-branch') ? document.getElementById('m-branch').value : 'uae';
+    const branchCfg = getBranchConfig(branchNow);
+    const defaultVal = `${branchCfg.refPrefix}-Q-${yy}0`;
     // 🆕 2026-09-16: كانت هون getGoogleAccessToken(true) (صامتة) رغم إنو هاد زر بضغطة يدوية حقيقية -
     // يعني لو فشلت خدمة التوكن من السيرفر (fetchDriveTokenFromServer)، كانت بترجع لمحاولة صامتة
     // بالمتصفح (prompt:'none') يلي المتصفح ممنوع يفتحها كنافذة حقيقية أصلًا، فبتنتهي دايمًا بـ
@@ -4181,11 +4285,11 @@ async function manualSuggestNextReference(){
     // نافذة تسجيل دخول جوجل حقيقية (مسموحة لأنها نتيجة كبسة يدوية فعلية) بدل ما تفشل بصمت.
     const token = await getGoogleAccessToken(false);
     if(!token) throw new Error('تعذّر تسجيل الدخول لجوجل درايف.');
-    const nextSeqStr = await computeNextReferenceSeq(defaultVal, token);
+    const nextSeqStr = await computeNextReferenceSeq(defaultVal, token, branchCfg.driveRootFolderId);
     if(nextSeqStr === null){
-      throw new Error('ما لقينا رقم مرجعي سابق مفهوم بمجلد سنة "' + getYearFromReference(defaultVal) + '" بجوجل درايف. إذا هاد أول عرض سعر بهاي السنة، فالرقم الافتراضي "' + defaultVal + '" صحيح - كمّل الرقم يدويًا (مثلاً ' + defaultVal + '001).');
+      throw new Error('ما لقينا رقم مرجعي سابق مفهوم بمجلد سنة "' + getYearFromReference(defaultVal) + '" بجوجل درايف (فرع ' + (branchNow==='syria' ? 'دمشق-سوريا' : 'الإمارات') + '). إذا هاد أول عرض سعر بهاي السنة لهالفرع، فالرقم الافتراضي "' + defaultVal + '" صحيح - كمّل الرقم يدويًا (مثلاً ' + defaultVal + '001).');
     }
-    refInput.value = `M-Q-${yy}0${nextSeqStr}`;
+    refInput.value = `${branchCfg.refPrefix}-Q-${yy}0${nextSeqStr}`;
     syncPage2Header();
   }catch(e){
     alert('⚠️ تعذّر اقتراح رقم مرجعي جديد تلقائيًا:\n' + (e && e.message ? e.message : e) + '\n\nفيك تكتب الرقم يدويًا - بس تأكد ما في تعارض مع عرض سعر تاني بنفس الرقم (راجع مجلد السنة بجوجل درايف).');
@@ -4431,8 +4535,12 @@ async function saveToGoogleDriveInner(){
     const refRaw = (document.getElementById('m-ref').value || 'Merzona-Quotation').trim();
     const refSafe = refRaw.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-\u0600-\u06FF]+/g,'_') || 'Merzona-Quotation';
     const year = getYearFromReference(refRaw);
+    // \uD83C\uDD95 2026-09-22: \u0645\u062C\u0644\u062F \u0627\u0644\u062C\u0630\u0631 (\u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062A \u0623\u0648 \u062F\u0645\u0634\u0642-\u0633\u0648\u0631\u064A\u0627) \u0628\u064A\u062A\u062D\u062F\u062F \u0645\u0646 \u062D\u0631\u0641 \u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0645\u0631\u062C\u0639\u064A \u0646\u0641\u0633\u0647 (M \u0623\u0648 S) -
+    // \u0646\u0641\u0633 \u0627\u0644\u0645\u0635\u062F\u0631 \u0627\u0644\u0648\u062D\u064A\u062F \u0644\u0644\u062D\u0642\u064A\u0642\u0629 \u064A\u0644\u064A \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0645\u0646\u0633\u062F\u0644\u0629 #m-branch \u0628\u062A\u0639\u062A\u0645\u062F \u0639\u0644\u064A\u0647 (\u0634\u0648\u0641 BRANCH_CONFIG \u0641\u0648\u0642).
+    // \u0647\u064A\u0643 \u0645\u0633\u062A\u062D\u064A\u0644 \u0639\u0631\u0636 \u0633\u0639\u0631 \u0628\u062D\u0631\u0641 S \u064A\u0646\u062D\u0641\u0638 \u0628\u0627\u0644\u063A\u0644\u0637 \u062C\u0648\u0627 \u0645\u062C\u0644\u062F\u0627\u062A \u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062A \u0623\u0648 \u0627\u0644\u0639\u0643\u0633.
+    const rootFolderIdForSave = getDriveRootFolderIdForBranch(getBranchFromRef(refRaw));
 
-    const yearFolderId = await findOrCreateDriveFolder(year, DRIVE_ROOT_FOLDER_ID, token);
+    const yearFolderId = await findOrCreateDriveFolder(year, rootFolderIdForSave, token);
     const refFolderId = await findOrCreateDriveFolder(refSafe, yearFolderId, token);
 
     // نسخة HTML الكاملة من الأداة (نفس نظامك الحالي بالضبط)
