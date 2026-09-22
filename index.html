@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-22.2';
+  var CURRENT_VERSION = '2026-09-22.5';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -1566,6 +1566,14 @@
           <option value="uae">🇦🇪 UAE — الإمارات</option>
           <option value="syria">🇸🇾 Damascus, Syria — دمشق، سوريا</option>
         </select></div></div>
+        <!-- 🆕 2026-09-22: طلب حمدي - فرع دمشق/سوريا بس ما إلها عملة ثابتة متل الإمارات (درهم) - أحيانًا
+             دولار وأحيانًا ليرة سورية، فحطينا قائمة اختيار عملة منفصلة تظهر فقط لما الفرع يكون سوريا
+             (updateCurrencyRowVisibility تحت). اختيارها بيحدّث كل نصوص العملة بعرض السعر (رأس عمود
+             السعر/الإجمالي، الحقل النائب placeholder، وسطر "فقط ... لا غير" بالأسفل) عبر applyCurrencyLabels(). -->
+        <div class="meta-row branch-row-noprint" id="currency-row" style="display:none"><label>Currency</label><div class="val"><select id="m-currency" onchange="onCurrencyChange()" style="color:#000;background:#fff;color-scheme:light">
+          <option value="usd">💵 USD — دولار أمريكي</option>
+          <option value="syp">💷 SYP — ليرة سورية</option>
+        </select></div></div>
         <div class="meta-row"><label>Date</label><div class="val"><input type="date" id="m-date" oninput="syncPage2Header()" value="2026-08-07"></div></div>
         <div class="meta-row"><label>Client</label><div class="val"><input id="m-client" placeholder="Client company name" oninput="syncPage2Header()" value=""></div></div>
         <div class="meta-row"><label>Number</label><div class="val"><input id="m-number" placeholder="-" oninput="syncPage2Header()" value=""></div></div>
@@ -1707,8 +1715,8 @@
           <th style="width:70px">Width (mm)</th>
           <th style="width:70px">Height (mm)</th>
           <th style="width:50px">Qty</th>
-          <th style="width:90px" class="price-col">Price/m² (AED)</th>
-          <th style="width:100px">Total (AED)</th>
+          <th style="width:90px" class="price-col" id="price-col-header">Price/m² (AED)</th>
+          <th style="width:100px" id="total-col-header">Total (AED)</th>
           <th style="width:34px" class="remove-col"></th>
         </tr>
       </thead>
@@ -1749,7 +1757,7 @@
           <td id="sum-discount">0</td>
           <td class="remove-col"></td>
         </tr>
-        <tr class="vat-row"><td colspan="8">VAT 5% (TRN #: 104252457700003)</td><td id="sum-vat">0</td><td class="remove-col"></td></tr>
+        <tr class="vat-row" id="vat-row"><td colspan="8">VAT 5% (TRN #: 104252457700003)</td><td id="sum-vat">0</td><td class="remove-col"></td></tr>
         <tr class="grand-row"><td colspan="8">Total with VAT - المجموع مع الضريبة</td><td id="sum-grand">0</td><td class="remove-col"></td></tr>
         <tr class="words-row"><td colspan="9" id="sum-words">Only — AED</td><td class="remove-col"></td></tr>
         <tr class="words-row words-row-ar"><td colspan="9" id="sum-words-ar" class="ar">فقط — درهم لا غير</td><td class="remove-col"></td></tr>
@@ -1914,7 +1922,10 @@
   </div>
 
   <!-- BANK TRANSFER INFO -->
-  <div class="section big-text bank-info-section">
+  <!-- 🆕 2026-09-22: طلب حمدي - ما في حساب بنكي لفرع دمشق-سوريا حاليًا، فهالقسم (بيانات بنك المشرق
+       الإماراتي) لازم ينخفي كليًا لعروض أسعار سوريا (updateBankInfoVisibility تحت) - بالتحرير
+       والطباعة والـPDF سوا. لو صار عنده حساب بنكي لسوريا بالمستقبل، ينضاف كقسم موازي بس يظهر لفرعها. -->
+  <div class="section big-text bank-info-section" id="bank-info-section">
     <div class="section-title"><span>Bank Transfer Information</span><span class="ar">معلومات التحويل البنكي</span></div>
     <div class="bi-row">
       <div>Bank Name: Mashreq Bank</div>
@@ -2797,7 +2808,7 @@ function addQtyRow(w='',h='',qty='1',price='', selectedIdx=-1){
     <td><input class="w-input" value="${w}" oninput="restrictToNumbersAndPlus(this); onDimensionInput(this)" onkeydown="handleRowEnter(event)" onblur="evalSumExpression(this)" enterkeyhint="next"></td>
     <td><input class="h-input" value="${h}" oninput="restrictToNumbersAndPlus(this); onDimensionInput(this)" onkeydown="handleRowEnter(event)" onblur="evalSumExpression(this)" enterkeyhint="done"></td>
     <td><input class="qty-input" value="${qty}" oninput="onDimensionInput(this)" onkeydown="handleRowEnter(event)" enterkeyhint="done"></td>
-    <td class="price-col"><input class="price" value="${price}" oninput="onPriceInput(this)" onkeydown="handleRowEnter(event)" placeholder="AED/m²" enterkeyhint="done"></td>
+    <td class="price-col"><input class="price" value="${price}" oninput="onPriceInput(this)" onkeydown="handleRowEnter(event)" placeholder="${getCurrentCurrencyConfig().code}/m²" enterkeyhint="done"></td>
     <td><input class="line-total" value="0" oninput="onManualTotalInput(this)" onkeydown="handleRowEnter(event)" style="background:#f4f5f7;font-weight:bold;text-align:center;" title="Auto-calculated — edit directly to override with a fixed total" enterkeyhint="done"></td>
     <td class="remove-col">
       <div class="row-move-btns">
@@ -3065,13 +3076,19 @@ function recalcSummary(){
     : '0';
 
   const discountedTotal = round2(total - discountAmount);
-  const vat=round2(discountedTotal*0.05);
+  // 🆕 2026-09-22: ضريبة القيمة المضافة 5% خاصة بفرع الإمارات بس (getBranchConfig(branch).hasVat) -
+  // فرع دمشق/سوريا ما بينحسب له VAT إطلاقًا (مش بس بينخفي بصريًا - القيمة فعليًا صفر بالمجموع).
+  const hasVat = getBranchConfig(getCurrentBranch()).hasVat;
+  const vat = hasVat ? round2(discountedTotal*0.05) : 0;
   const grand=round2(discountedTotal+vat);
   document.getElementById('sum-vat').textContent = vat.toLocaleString(undefined,{maximumFractionDigits:2});
   document.getElementById('sum-grand').textContent = grand.toLocaleString(undefined,{maximumFractionDigits:2});
-  const words = grand>0 ? 'Only ' + numToWordsEn(grand) + ' AED' : 'Only — AED';
+  // 🆕 2026-09-22: اسم العملة (بالكلمة الإنجليزية/العربية) بسطر "فقط ... لا غير" صار حسب العملة
+  // الحالية (درهم لفرع الإمارات، أو دولار/ليرة سورية لفرع دمشق حسب قائمة #m-currency).
+  const curCfg = getCurrentCurrencyConfig();
+  const words = grand>0 ? 'Only ' + numToWordsEn(grand) + ' ' + curCfg.code : 'Only — ' + curCfg.code;
   document.getElementById('sum-words').textContent = words;
-  const wordsAr = grand>0 ? 'فقط ' + numToWordsAr(grand) + ' درهم لا غير' : 'فقط — درهم لا غير';
+  const wordsAr = grand>0 ? 'فقط ' + numToWordsAr(grand) + ' ' + curCfg.arWord : 'فقط — ' + curCfg.arWord;
   document.getElementById('sum-words-ar').textContent = wordsAr;
 
   if(grand > 150000){
@@ -3121,6 +3138,9 @@ function resetAllNoConfirm(){
   document.getElementById('notes-rows').innerHTML='';
   qtyCount=0;
   seedDefaults();
+  // 🆕 2026-09-22: seedDefaults() فوق بيزرع فقرة الاختصاص القضائي دايمًا بنص "الشارقة" الافتراضي
+  // (شوف addNoteRow جوا seedDefaults) - إذا الفرع الحالي دمشق/سوريا، لازم نصححها فورًا لنص دمشق.
+  applyBranchJurisdictionClause(getCurrentBranch());
   // 🔧 2026-08-24: لقينا السبب الحقيقي لمشكلة "الرقم المرجعي ما بيتحدث": autoSuggestNextReference()
   // كانت بتنفّذ مرة وحدة بس، 300ms بعد ما تفتح الصفحة لأول مرة - وما كانت تنعاد أبدًا بعد كبسة
   // "إعادة تعيين النموذج" لعمل عرض سعر جديد. فكانت النتيجة: أول عرض سعر بالجلسة ياخد رقم صح
@@ -3352,13 +3372,19 @@ function collectPrintWarnings(){
   if(!client) warnings.push('Client name is empty — اسم الزبون فارغ');
   if(!phone) warnings.push('Client phone number is empty — رقم هاتف الزبون فارغ');
 
+  // 🆕 2026-09-22: إذا المستخدم لغى قسم الألمنيوم/الزجاج كليًا (section-toggle الجديد)، ما في داعي
+  // نحذّر عن لون/نوع ما تم اختياره - القسم أصلًا مش رح يظهر بعرض السعر.
+  const alumSectionOn = document.getElementById('alum-section-toggle')?.checked !== false;
+  const glassSectionOn = document.getElementById('glass-section-toggle')?.checked !== false;
   const alumColor = (document.getElementById('m-alumColor')?.value || '').trim();
-  if(!alumColor) warnings.push('Aluminum color (Jotun RAL) is not selected — لون الألمنيوم (جوتن) لسا ما تم اختياره');
+  if(alumSectionOn && !alumColor) warnings.push('Aluminum color (Jotun RAL) is not selected — لون الألمنيوم (جوتن) لسا ما تم اختياره');
   const glassType = (document.getElementById('m-glassType')?.value || '').trim();
-  if(!glassType) warnings.push('Glass color/type is not selected — نوع/لون الزجاج لسا ما تم اختياره');
-  if(glassType === 'other' && !(document.getElementById('m-glassTypeOther')?.value || '').trim()) warnings.push('Glass type "Other" is selected but not named — اخترت "نوع آخر" للزجاج بس ما كتبت اسمه');
-  const glassConflicts = findGlassTypeConflicts(glassType);
-  if(glassConflicts.length) warnings.push('Approved glass type conflicts with the glass spec text of: ' + glassConflicts.join(' / ') + ' — نوع/لون الزجاج المعتمد فوق بيتعارض مع نص مواصفات الزجاج المكتوب للبند/البنود: ' + glassConflicts.join(' / '));
+  if(glassSectionOn){
+    if(!glassType) warnings.push('Glass color/type is not selected — نوع/لون الزجاج لسا ما تم اختياره');
+    if(glassType === 'other' && !(document.getElementById('m-glassTypeOther')?.value || '').trim()) warnings.push('Glass type "Other" is selected but not named — اخترت "نوع آخر" للزجاج بس ما كتبت اسمه');
+    const glassConflicts = findGlassTypeConflicts(glassType);
+    if(glassConflicts.length) warnings.push('Approved glass type conflicts with the glass spec text of: ' + glassConflicts.join(' / ') + ' — نوع/لون الزجاج المعتمد فوق بيتعارض مع نص مواصفات الزجاج المكتوب للبند/البنود: ' + glassConflicts.join(' / '));
+  }
 
   const ref = (document.getElementById('m-ref').value || '').trim();
   // الرقم المرجعي الكامل لازم يحتوي رقم تسلسل بعد "M-Q-YY0" (بغض النظر إذا فيه مسافة بينهم أو
@@ -3391,8 +3417,21 @@ function collectPrintWarnings(){
   const grand = parseMoney(document.getElementById('sum-grand').textContent);
   if(days === '45'){
     warnings.push('Delivery days is still at the default (45) — please review — عدد أيام التسليم لسا على القيمة الافتراضية (45)، يرجى المراجعة');
-  } else if(grand < 100000){
-    warnings.push('Quotation total is under 100,000 AED — please review the delivery days — إجمالي العرض أقل من 100,000 درهم، يرجى مراجعة عدد أيام التسليم');
+  } else {
+    // 🆕 2026-09-22: عتبة "المجموع صغير، راجعي أيام التسليم" مبنية على العملة الحالية - درهم 100,000
+    // لفرع الإمارات، أو 30,000 دولار (أو ما يعادلها بالليرة السورية حسب USD_TO_SYP_RATE) لفرع دمشق.
+    const branchNow = getCurrentBranch();
+    const curKey = getCurrentCurrencyKey();
+    if(branchNow === 'uae' && grand < 100000){
+      warnings.push('Quotation total is under 100,000 AED — please review the delivery days — إجمالي العرض أقل من 100,000 درهم، يرجى مراجعة عدد أيام التسليم');
+    } else if(branchNow === 'syria' && curKey === 'usd' && grand < SYRIA_LOW_TOTAL_THRESHOLD_USD){
+      warnings.push(`Quotation total is under ${SYRIA_LOW_TOTAL_THRESHOLD_USD.toLocaleString()} USD — please review the delivery days — إجمالي العرض أقل من ${SYRIA_LOW_TOTAL_THRESHOLD_USD.toLocaleString()} دولار، يرجى مراجعة عدد أيام التسليم`);
+    } else if(branchNow === 'syria' && curKey === 'syp'){
+      const thresholdSyp = Math.round(SYRIA_LOW_TOTAL_THRESHOLD_USD * USD_TO_SYP_RATE);
+      if(grand < thresholdSyp){
+        warnings.push(`Quotation total is under ${thresholdSyp.toLocaleString()} SYP (≈ ${SYRIA_LOW_TOTAL_THRESHOLD_USD.toLocaleString()} USD) — please review the delivery days — إجمالي العرض أقل من ${thresholdSyp.toLocaleString()} ليرة سورية (ما يعادل ${SYRIA_LOW_TOTAL_THRESHOLD_USD.toLocaleString()} دولار)، يرجى مراجعة عدد أيام التسليم`);
+      }
+    }
   }
 
   return warnings;
@@ -3488,7 +3527,9 @@ const QUOTATION_ROW_CONTAINERS = ['supply-rows','alum-spec-rows','specs-rows','a
 // أول حقول من نوع checkbox تنضاف لهالقائمة، فلازم القراءة/الاسترجاع تحت (captureFullQuotationData/
 // applyFullQuotationData) تتعامل مع checkbox.checked بدل .value بشكل عام (مو حالة خاصة لهالحقلين بس)
 // حتى أي حقل checkbox مستقبلي ينضاف هون يشتغل صح تلقائيًا بدون تعديل إضافي بالكود.
-const QUOTATION_FIELD_IDS = ['m-title','m-date','m-client','m-number','m-project','m-location','m-ref','discount-amount','discount-pct','delivery-days','m-alumColor','m-glassType','m-glassTypeOther','alum-section-toggle','glass-section-toggle'];
+// 🆕 2026-09-22: 'm-currency' (عملة فرع دمشق/سوريا - دولار أو ليرة سورية) عنصر select عادي فبيتخزن
+// عبر .value متل باقي الحقول (بدون حاجة لأي حالة خاصة متل checkbox).
+const QUOTATION_FIELD_IDS = ['m-title','m-date','m-client','m-number','m-project','m-location','m-ref','discount-amount','discount-pct','delivery-days','m-alumColor','m-glassType','m-glassTypeOther','alum-section-toggle','glass-section-toggle','m-currency'];
 
 /* ================= لون الألمنيوم المعتمد (بودرة جوتن) + نوع/لون الزجاج المعتمد =================
    🆕 2026-09-01: طلب من حمدي إنو يكون في مكان ثابت (مش سطر حر قابل للحذف) بأول صفحة من عرض السعر/العقد
@@ -3899,15 +3940,47 @@ const BRANCH_CONFIG = {
   uae: {
     refPrefix: 'M',
     driveRootFolderId: DRIVE_ROOT_FOLDER_ID,
-    addressHtml: 'United Arab Emirates / Sharjah, Abu Dhabi &nbsp; Tel: +971508471158 &nbsp; e: Info@Merzona.com &nbsp; Web: www.Merzona.ae'
+    addressHtml: 'United Arab Emirates / Sharjah, Abu Dhabi &nbsp; Tel: +971508471158 &nbsp; e: Info@Merzona.com &nbsp; Web: www.Merzona.ae',
+    // 🆕 2026-09-22: طلب حمدي - ضريبة القيمة المضافة 5% (ورقم التسجيل الضريبي TRN) خاصة بالإمارات
+    // بس - فرع دمشق/سوريا ما إله ضريبة قيمة مضافة إماراتية، فبند الـVAT بالجدول لازم ينخفي كليًا
+    // (بدون ما يُحسب أصلًا بالمجموع) لما الفرع يكون سوريا - شوف recalcSummary/updateVatVisibility تحت.
+    hasVat: true,
+    jurisdictionEn: 'Sharjah courts shall have exclusive jurisdiction over any dispute arising from this contract.',
+    jurisdictionAr: 'الاختصاص القضائي لحل أي نزاع ناتج عن هذا العقد ينعقد لمحاكم إمارة الشارقة.'
   },
   syria: {
     refPrefix: 'S',
     driveRootFolderId: DRIVE_ROOT_FOLDER_ID_SYRIA,
-    addressHtml: 'Damascus, Syria &nbsp; — &nbsp; دمشق، سوريا'
+    addressHtml: 'Damascus, Syria &nbsp; — &nbsp; دمشق، سوريا',
+    hasVat: false,
+    jurisdictionEn: 'Damascus courts shall have exclusive jurisdiction over any dispute arising from this contract.',
+    jurisdictionAr: 'الاختصاص القضائي لحل أي نزاع ناتج عن هذا العقد ينعقد لمحاكم مدينة دمشق.'
   }
 };
 function getBranchConfig(branch){ return BRANCH_CONFIG[branch] || BRANCH_CONFIG.uae; }
+// 🆕 2026-09-22: طلب حمدي - فرع دمشق/سوريا بدو عملة قابلة للاختيار (دولار أو ليرة سورية)، بعكس فرع
+// الإمارات يلي عملته ثابتة دايمًا درهم. القيمة الفعلية بتنقرأ من #m-currency (تظهر بس لما الفرع سوريا).
+const CURRENCY_CONFIG = {
+  aed: { code:'AED', arWord:'درهم لا غير' },
+  usd: { code:'USD', arWord:'دولار أمريكي لا غير' },
+  syp: { code:'SYP', arWord:'ليرة سورية لا غير' }
+};
+// 🆕 2026-09-22: طلب حمدي - عتبة "المجموع صغير، راجعي أيام التسليم" لفرع دمشق-سوريا لازم تكون
+// 30 ألف دولار (أو ما يعادلها بالليرة السورية حسب سعر الصرف). سعر الصرف رقم ثابت بالكود (قرار
+// حمدي صراحة - مو حقل قابل للتعديل بالواجهة) وبده يتحدّث يدويًا هون كل ما تغيّر بشكل كبير.
+const USD_TO_SYP_RATE = 136.5; // 🔔 آخر تحديث 2026-09-22 - حدّثيه هون لو تغيّر سعر الصرف بشكل ملحوظ
+const SYRIA_LOW_TOTAL_THRESHOLD_USD = 30000;
+function getCurrentBranch(){
+  const el = document.getElementById('m-branch');
+  return el ? el.value : 'uae';
+}
+// بترجع مفتاح العملة الحالي الفعلي (aed دايمًا لفرع الإمارات، أو دولار/ليرة حسب قائمة #m-currency لفرع سوريا).
+function getCurrentCurrencyKey(){
+  if(getCurrentBranch() !== 'syria') return 'aed';
+  const cur = document.getElementById('m-currency');
+  return (cur && cur.value === 'syp') ? 'syp' : 'usd';
+}
+function getCurrentCurrencyConfig(){ return CURRENCY_CONFIG[getCurrentCurrencyKey()]; }
 // بتقرأ حرف الرقم المرجعي (أول حرف قبل "-Q-") وبترجع اسم الفرع المطابق - "uae" احتياطيًا لأي
 // شكل غير متوقع (رقم مرجعي يدوي قديم بدون حرف واضح مثلاً)، حتى ما ينكسر شي بعروض الأسعار القديمة.
 function getBranchFromRef(refRaw){
@@ -3921,15 +3994,83 @@ function applyBranchAddress(branch){
   const el = document.getElementById('branch-address-text');
   if(el) el.innerHTML = getBranchConfig(branch).addressHtml;
 }
+// 🆕 2026-09-22: فقرة الاختصاص القضائي (بند حر النص ضمن الشروط والأحكام notes-rows) - ما إلها معرّف
+// خاص متل باقي إعدادات الفرع، فمنكتشفها بمطابقة نصها بالضبط (نفس فلسفة getBranchFromRef فوق: الفرع
+// مُشتق، مش مخزّن) وبنبدلها لنسخة الشارقة/دمشق المناسبة - بس فقط لو النص لسا بالضبط إحدى النسختين
+// المعروفتين، حتى ما نمسح أي تعديل يدوي حقيقي صار على هالبند من المستخدم.
+function applyBranchJurisdictionClause(branch){
+  const target = getBranchConfig(branch);
+  const other = getBranchConfig(branch === 'syria' ? 'uae' : 'syria');
+  document.querySelectorAll('#notes-rows .notes-item').forEach(item=>{
+    const enEl = item.querySelector('textarea:not(.ar)');
+    const arEl = item.querySelector('textarea.ar');
+    if(!enEl || !arEl) return;
+    const enVal = enEl.value.trim();
+    if(enVal === target.jurisdictionEn.trim() || enVal === other.jurisdictionEn.trim()){
+      enEl.value = target.jurisdictionEn;
+      arEl.value = target.jurisdictionAr;
+    }
+  });
+}
+// 🆕 2026-09-22: بند "VAT 5%" (ضريبة القيمة المضافة الإماراتية) ما بينطبق على فرع دمشق/سوريا - منخفي
+// سطره كليًا (بالتحرير والطباعة والـPDF سوا، لأنو style.display مش كلاس @media print) ومنصفّر قيمته
+// فعليًا (شوف recalcSummary) حتى ما يترتب أي ضريبة خفية على المجموع.
+function updateVatVisibility(branch){
+  const row = document.getElementById('vat-row');
+  if(row) row.style.display = getBranchConfig(branch).hasVat ? '' : 'none';
+}
+// 🆕 2026-09-22: طلب حمدي - ما في حساب بنكي لفرع دمشق-سوريا حاليًا، فقسم "معلومات التحويل البنكي"
+// (بيانات بنك المشرق الإماراتي) لازم ينخفي كليًا لعروض أسعار سوريا - style.display مش كلاس @media
+// print، فبينخفي بالتحرير والطباعة والـPDF سوا بنفس الوقت.
+function updateBankInfoVisibility(branch){
+  const el = document.getElementById('bank-info-section');
+  if(el) el.style.display = (branch === 'syria') ? 'none' : '';
+}
+// 🆕 2026-09-22: قائمة اختيار العملة (#currency-row) بتظهر بس لفرع دمشق/سوريا - فرع الإمارات عملته
+// ثابتة درهم دايمًا فما داعي أصلًا نعرض قائمة اختيار.
+function updateCurrencyRowVisibility(branch){
+  const row = document.getElementById('currency-row');
+  if(row) row.style.display = (branch === 'syria') ? '' : 'none';
+}
+// 🆕 2026-09-22: بتحدّث كل نصوص العملة المعروضة بعرض السعر (رأس عمود السعر/الإجمالي، الحقل النائب
+// لكل خانة سعر موجودة حاليًا بالجدول، والحقل النائب لخانة الخصم) حسب العملة الحالية (getCurrentCurrencyConfig)
+// - مستدعاة من onCurrencyChange() (تبديل القائمة يدويًا) ومن applyBranchDependentUI (تبديل الفرع، أو
+// تحميل/فتح عرض سعر قديم). سطر "فقط ... لا غير" وقيمة VAT/المجموع النهائي بيتحدثوا هني كمان عبر recalcSummary().
+function applyCurrencyLabels(){
+  const cfg = getCurrentCurrencyConfig();
+  const priceHeader = document.getElementById('price-col-header');
+  const totalHeader = document.getElementById('total-col-header');
+  if(priceHeader) priceHeader.textContent = `Price/m² (${cfg.code})`;
+  if(totalHeader) totalHeader.textContent = `Total (${cfg.code})`;
+  document.querySelectorAll('#qty-rows .price').forEach(inp=>{ inp.placeholder = `${cfg.code}/m²`; });
+  const discountInput = document.getElementById('discount-amount');
+  if(discountInput) discountInput.placeholder = `Amount (${cfg.code})`;
+  if(typeof recalcSummary === 'function') recalcSummary();
+}
+function onCurrencyChange(){
+  applyCurrencyLabels();
+}
+// 🆕 2026-09-22: دالة جامعة تجمع كل تأثيرات تبديل الفرع (عنوان الشركة، فقرة الاختصاص القضائي، ظهور/إخفاء
+// بند الـVAT، ظهور/إخفاء قائمة اختيار العملة، وتحديث كل نصوص العملة+المجموع) - مستدعاة من applyBranchFromRef
+// تحت (يلي بدورها بتشتغل من جوا syncPage2Header() مع أي تغيير بالرقم المرجعي أو تحميل عرض سعر قديم).
+function applyBranchDependentUI(branch){
+  applyBranchAddress(branch);
+  applyBranchJurisdictionClause(branch);
+  updateVatVisibility(branch);
+  updateBankInfoVisibility(branch);
+  updateCurrencyRowVisibility(branch);
+  applyCurrencyLabels();
+}
 // مستدعاة من جوا syncPage2Header() (يلي أصلًا بتشتغل مع كل تغيير بالرقم المرجعي - كتابة يدوية،
 // تحميل عرض سعر قديم، أو اقتراح تلقائي/يدوي) - بتكتشف الفرع من حرف الرقم المرجعي الحالي وبتحدّث
-// القائمة المنسدلة + العنوان ليطابقوا، بدون ما تلمس الرقم المرجعي نفسه.
+// القائمة المنسدلة + العنوان + كل باقي عناصر الفرع (VAT/العملة/الاختصاص القضائي) ليطابقوا، بدون ما
+// تلمس الرقم المرجعي نفسه.
 function applyBranchFromRef(){
   const refEl = document.getElementById('m-ref');
   const branchEl = document.getElementById('m-branch');
   const branch = getBranchFromRef(refEl ? refEl.value : '');
   if(branchEl && branchEl.value !== branch) branchEl.value = branch;
-  applyBranchAddress(branch);
+  applyBranchDependentUI(branch);
 }
 // مستدعاة من onchange القائمة المنسدلة #m-branch - بتاخد حرف الرقم المرجعي الحالي وتبدله بحرف
 // الفرع الجديد بس (بتحافظ على باقي الرقم/التسلسل متل ما هو)، بدون ما تفرض رقم افتراضي جديد -
