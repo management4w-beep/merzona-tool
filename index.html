@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-22.1';
+  var CURRENT_VERSION = '2026-09-22.2';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -522,6 +522,12 @@
     font-size:11.5px;
   }
   button.danger{color:var(--red);border-color:#e0b3ac;}
+  /* 🆕 2026-09-22: أزرار تحريك سطر جدول الكميات لفوق/تحت - داخل نفس عمود الحذف (remove-col) يلي
+     أصلًا مخفي بالكامل بالطباعة/الـPDF (visibility:hidden بكلا القاعدتين @media print وbody.pdf-capturing)،
+     فهاي الأزرار الجديدة بتنخفي تلقائيًا هناك بدون أي CSS إضافي. */
+  .row-move-btns{ display:flex; gap:2px; justify-content:center; margin-bottom:2px; }
+  .row-move-btns button{ padding:1px 4px; font-size:9px; line-height:1.2; }
+  .row-move-up:disabled, .row-move-down:disabled{ opacity:.3; cursor:not-allowed; }
 
   .page{
     max-width:900px;
@@ -652,6 +658,14 @@
     padding:6px 10px; border-bottom:1px dashed var(--line);
     background:#fbfbfb;
   }
+  /* 🆕 2026-09-22: زر "تضمين هذا القسم" (نظام الألمنيوم / مواصفات الزجاج) - سطر صغير محلي فوق عنوان
+     القسم، مخفي بالطباعة/الـPDF عبر نفس كلاس branch-row-noprint الموجود أصلًا. section-hidden قاعدة
+     عادية (مش داخل @media print) قصدًا - هيك القسم بيختفي بكل الحالات الثلاث (الشاشة أثناء التحرير،
+     الطباعة الورقية، والـPDF المحفوظ لجوجل درايف) بمجرد إلغاء تحديد المربع، بدون أي تكرار CSS. */
+  .section-toggle-row{ display:flex; align-items:center; padding:2px 10px; font-size:11px; color:#777; }
+  .section-toggle-row label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .section-toggle-row input[type="checkbox"]{ cursor:pointer; }
+  .section-hidden{ display:none !important; }
   .color-confirm-label{ display:flex; flex-direction:column; font-size:11.5px; font-weight:600; min-width:200px; }
   .color-confirm-label .ar{ font-weight:600; }
   .color-confirm-picker{ display:flex; align-items:center; gap:8px; flex:1; min-width:180px; }
@@ -1570,6 +1584,13 @@
 
   <!-- ALUMINUM SYSTEM -->
   <div class="section">
+    <!-- 🆕 2026-09-22: طلب حمدي - إمكانية إلغاء قسم "نظام الألمنيوم" بالكامل من عرض سعر معيّن لما ما يكون
+         مطلوب. مربع الاختيار هون محلي فقط (branch-row-noprint - مخفي بالطباعة/الـPDF أصلًا)، وبيتحكم
+         بكلاس section-hidden عالحاوية اللي تحتو (alum-section) اللي فيها العنوان والمحتوى سوا. -->
+    <div class="section-toggle-row branch-row-noprint">
+      <label><input type="checkbox" id="alum-section-toggle" checked onchange="toggleQuoteSection('alum-section', this.checked)"><span>Include this section</span> / <span class="ar">تضمين هذا القسم</span></label>
+    </div>
+    <div id="alum-section">
     <div class="section-title"><span>Aluminum System</span><span class="ar">نظام الألمنيوم</span></div>
     <div class="color-confirm-row page-break-avoid">
       <div class="color-confirm-label"><span>Approved Aluminum Color (Jotun Powder Coating)</span><span class="ar">لون الألمنيوم المعتمد (بودرة جوتن)</span></div>
@@ -1589,10 +1610,16 @@
     <div class="add-btn-wrap">
       <button class="small" onclick="addSystemStatementRow()">+ Add system statement</button>
     </div>
+    </div>
   </div>
 
   <!-- SPECS -->
   <div class="section">
+    <!-- 🆕 2026-09-22: نفس فكرة زر تضمين قسم الألمنيوم فوق، هون لقسم "مواصفات الزجاج". -->
+    <div class="section-toggle-row branch-row-noprint">
+      <label><input type="checkbox" id="glass-section-toggle" checked onchange="toggleQuoteSection('glass-section', this.checked)"><span>Include this section</span> / <span class="ar">تضمين هذا القسم</span></label>
+    </div>
+    <div id="glass-section">
     <div class="section-title"><span>Regarding the Glass Type, specs below</span><span class="ar">مواصفات الزجاج أدناه</span></div>
     <div class="color-confirm-row page-break-avoid">
       <div class="color-confirm-label"><span>Approved Glass Color / Type</span><span class="ar">نوع/لون الزجاج المعتمد</span></div>
@@ -1607,6 +1634,7 @@
       </div>
     </div>
     <div id="specs-rows"></div>
+    </div>
   </div>
 
   <!-- ACCESSORIES -->
@@ -1700,6 +1728,10 @@
     <td class="price-col"><input class="price" value="" oninput="onPriceInput(this)" onkeydown="handleRowEnter(event)" placeholder="AED/m²" enterkeyhint="done"></td>
     <td><input class="line-total" value="0" oninput="onManualTotalInput(this)" onkeydown="handleRowEnter(event)" style="background:#f4f5f7;font-weight:bold;text-align:center;" title="Auto-calculated — edit directly to override with a fixed total" enterkeyhint="done"></td>
     <td class="remove-col">
+      <div class="row-move-btns">
+        <button type="button" class="small row-move-up" onclick="moveQtyRowUp(this)" title="Move row up / تحريك السطر لأعلى">▲</button>
+        <button type="button" class="small row-move-down" onclick="moveQtyRowDown(this)" title="Move row down / تحريك السطر لأسفل">▼</button>
+      </div>
       <button class="small danger row-remove" onclick="removeQtyRow(this)">×</button>
     </td></tr></tbody>
       <tfoot>
@@ -2131,6 +2163,24 @@ function removeQtyRow(btn){
   renumber();
   recalc();
   removeLinkedSpecsIfUnused(itemName);
+}
+
+// 🆕 2026-09-22: طلب حمدي - إمكانية تحريك أي سطر بجدول الكميات لفوق/تحت يدويًا (مثلاً حتى يحط بندين
+// متشابهين جنب بعض)، بدل ما يكون الترتيب محصور بترتيب الإضافة فقط. منستخدم swap بسيط بالـDOM
+// (insertBefore) وبعدين renumber() الموجودة أصلًا بترتب الأرقام/الأكواد ومجموعة الواجهة من جديد.
+function moveQtyRowUp(btn){
+  const tr = btn.closest('tr');
+  const prev = tr && tr.previousElementSibling;
+  if(!tr || !prev) return;
+  tr.parentNode.insertBefore(tr, prev);
+  renumber();
+}
+function moveQtyRowDown(btn){
+  const tr = btn.closest('tr');
+  const next = tr && tr.nextElementSibling;
+  if(!tr || !next) return;
+  tr.parentNode.insertBefore(next, tr);
+  renumber();
 }
 
 function specRowExists(containerId, enText){
@@ -2750,6 +2800,10 @@ function addQtyRow(w='',h='',qty='1',price='', selectedIdx=-1){
     <td class="price-col"><input class="price" value="${price}" oninput="onPriceInput(this)" onkeydown="handleRowEnter(event)" placeholder="AED/m²" enterkeyhint="done"></td>
     <td><input class="line-total" value="0" oninput="onManualTotalInput(this)" onkeydown="handleRowEnter(event)" style="background:#f4f5f7;font-weight:bold;text-align:center;" title="Auto-calculated — edit directly to override with a fixed total" enterkeyhint="done"></td>
     <td class="remove-col">
+      <div class="row-move-btns">
+        <button type="button" class="small row-move-up" onclick="moveQtyRowUp(this)" title="Move row up / تحريك السطر لأعلى">▲</button>
+        <button type="button" class="small row-move-down" onclick="moveQtyRowDown(this)" title="Move row down / تحريك السطر لأسفل">▼</button>
+      </div>
       <button class="small danger row-remove" onclick="removeQtyRow(this)">×</button>
     </td>`;
   tbody.appendChild(tr);
@@ -2779,6 +2833,10 @@ function renumber(){
     const label = code ? (code + counts[key]) : String(counts[key]);
     const cell = r.querySelector('.row-code');
     if(cell) cell.textContent = label;
+    const upBtn = r.querySelector('.row-move-up');
+    const downBtn = r.querySelector('.row-move-down');
+    if(upBtn) upBtn.disabled = (i === 0);
+    if(downBtn) downBtn.disabled = (i === rows.length - 1);
   });
   qtyCount = rows.length;
   renderElevationColumn();
@@ -3048,6 +3106,12 @@ function resetAll(){
 // وراء بعض على نفس الكبسة.
 function resetAllNoConfirm(){
   clearDraft(); // عرض سعر جديد فاضي بالنية - ما منحتاج نرجع نقترح مسودة عرض السعر القديم بعد هلق
+  // 🆕 2026-09-22: عرض سعر جديد فاضي لازم يبلش وقسمي الألمنيوم/الزجاج ظاهرين افتراضيًا (متل ما كانوا
+  // قبل هالميزة) - حتى لو المستخدم كان لغاهم بعرض سعر سابق بنفس الجلسة.
+  const alumToggleEl = document.getElementById('alum-section-toggle');
+  if(alumToggleEl){ alumToggleEl.checked = true; toggleQuoteSection('alum-section', true); }
+  const glassToggleEl = document.getElementById('glass-section-toggle');
+  if(glassToggleEl){ glassToggleEl.checked = true; toggleQuoteSection('glass-section', true); }
   document.getElementById('supply-rows').innerHTML='';
   document.getElementById('alum-spec-rows').innerHTML='';
   document.getElementById('specs-rows').innerHTML='';
@@ -3420,7 +3484,11 @@ window.addEventListener('afterprint', restoreTextareaHeights);
    عرض السعر (الحقول + جداول البنود/الإكسسوارات/الدفعات + بنود التصميم) بكائن JSON بسيط، منقدر نحمّله
    جوا أي نسخة حالية/محدّثة من هالأداة - هيك أي تصليح مستقبلي بيطبّق تلقائيًا حتى على عروض أسعار قديمة. */
 const QUOTATION_ROW_CONTAINERS = ['supply-rows','alum-spec-rows','specs-rows','acc-rows','pay-rows','notes-rows'];
-const QUOTATION_FIELD_IDS = ['m-title','m-date','m-client','m-number','m-project','m-location','m-ref','discount-amount','discount-pct','delivery-days','m-alumColor','m-glassType','m-glassTypeOther'];
+// 🆕 2026-09-22: زودنا 'alum-section-toggle' و'glass-section-toggle' (مربعا "تضمين هذا القسم") - هاي
+// أول حقول من نوع checkbox تنضاف لهالقائمة، فلازم القراءة/الاسترجاع تحت (captureFullQuotationData/
+// applyFullQuotationData) تتعامل مع checkbox.checked بدل .value بشكل عام (مو حالة خاصة لهالحقلين بس)
+// حتى أي حقل checkbox مستقبلي ينضاف هون يشتغل صح تلقائيًا بدون تعديل إضافي بالكود.
+const QUOTATION_FIELD_IDS = ['m-title','m-date','m-client','m-number','m-project','m-location','m-ref','discount-amount','discount-pct','delivery-days','m-alumColor','m-glassType','m-glassTypeOther','alum-section-toggle','glass-section-toggle'];
 
 /* ================= لون الألمنيوم المعتمد (بودرة جوتن) + نوع/لون الزجاج المعتمد =================
    🆕 2026-09-01: طلب من حمدي إنو يكون في مكان ثابت (مش سطر حر قابل للحذف) بأول صفحة من عرض السعر/العقد
@@ -3502,6 +3570,15 @@ function onGlassTypeChange(){
   else { other.style.display = 'none'; }
 }
 
+// 🆕 2026-09-22: طلب حمدي - إلغاء قسم "نظام الألمنيوم" و/أو "مواصفات الزجاج" بالكامل من عرض سعر معيّن
+// (مثلاً لما ما يكون الألمنيوم أو الزجاج ضمن نطاق العمل بهالصفقة). sectionBodyId هون معرّف الحاوية
+// (alum-section / glass-section) اللي فيها عنوان القسم ومحتواه سوا - section-hidden قاعدة CSS عادية
+// (مش @media print) فبتخفي القسم بكل الحالات (الشاشة/الطباعة/الـPDF) بمجرد إلغاء التحديد.
+function toggleQuoteSection(sectionBodyId, show){
+  const el = document.getElementById(sectionBodyId);
+  if(el) el.classList.toggle('section-hidden', !show);
+}
+
 function captureFullQuotationData(){
   // مهم: خانات input/textarea بتحدّث قيمتها (property) وقت الكتابة، بس الـattribute/النص جوا الوسم
   // ما بيتحدّث تلقائيًا - فلازم "نخبز" القيمة الحالية بالattribute/النص قبل ما نقرأ innerHTML،
@@ -3515,7 +3592,10 @@ function captureFullQuotationData(){
   const data = { schema:'merzona-quotation-data-v1', fields:{}, rows:{}, qtyRowsHtml:'' };
   QUOTATION_FIELD_IDS.forEach(id=>{
     const el = document.getElementById(id);
-    if(el) data.fields[id] = el.value;
+    if(!el) return;
+    // 🆕 2026-09-22: حقول checkbox (متل section-toggle) بتُقرأ من .checked مش .value (.value لخانة
+    // checkbox دايمًا نص ثابت "on" بغض النظر عن حالتها الفعلية).
+    data.fields[id] = (el.type === 'checkbox') ? el.checked : el.value;
   });
   // نضمن إنو أي نسخة تنحفظ من هلق وطالع (جوجل درايف أو غيره) يكون رقمها المرجعي دايمًا بدون
   // مسافات - حتى لو المستخدم كتب مسافة يدوي بالخانة - منعًا لتكرار نفس العرض تحت رقمين مختلفين شكليًا.
@@ -3554,7 +3634,16 @@ function applyFullQuotationData(data){
     if(data.fields){
       Object.keys(data.fields).forEach(id=>{
         const el = document.getElementById(id);
-        if(el) el.value = data.fields[id];
+        if(!el) return;
+        // 🆕 2026-09-22: حقول checkbox بتترجع من .checked (مش .value)، وبعدين منطلق حدث 'change' يدويًا
+        // حتى الـonchange المكتوب أصلًا بالوسم (متل toggleQuoteSection) ينفّذ من جديد ويطبّق التأثير
+        // البصري الصحيح (إخفاء/إظهار القسم) - نفس آلية عامة صالحة لأي حقل checkbox مستقبلي بدون كود إضافي.
+        if(el.type === 'checkbox'){
+          el.checked = !!data.fields[id];
+          el.dispatchEvent(new Event('change'));
+        } else {
+          el.value = data.fields[id];
+        }
       });
       // دفاع إضافي: لو النسخة يلي تم تحميلها قديمة ولسا فيها مسافة بالرقم المرجعي (من قبل هالتصحيح)،
       // منشيلها هون كمان حتى ما ترجع تتخزن/تتقارن بمسافة من جديد.
