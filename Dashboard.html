@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.2';
+  var CURRENT_VERSION = '2026-09-23.3';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1899,6 +1899,10 @@ function recomputeAllQuoteTotalOverrides(){
 applyQuoteTotalOverridesToData();
 
 const TOTAL_2026_FOLDERS = 89; // مؤكد فعليًا من Google Drive (كل مجلدات السنة، لحد آب/أغسطس)
+// 🆕 2026-09-23: طلب حمدي - نسبة التغطية لازم تحترم فلتر الفرع كمان. رقم فرع سوريا (1) مؤكد فعليًا
+// من Google Drive بتاريخ اليوم (فرع سوريا لسا بأوله - مجلد 2026 فيه عرض سعر واحد S-Q-260001 لهلق).
+// لازم يتحدّث يدويًا بين فترة وفترة متل ما كان عم يصير مع رقم الإمارات بالضبط.
+const TOTAL_2026_FOLDERS_BY_BRANCH = { uae: 89, syria: 1 };
 
 let sortKey = 'ref', sortDir = -1;
 let activeYear = 'all';
@@ -1937,7 +1941,9 @@ let pickedDay = null; // 'YYYY-MM-DD'
 
 function getChartData(){
   const now = new Date();
-  const data = DATA.slice().sort((a,b)=> a.ref.localeCompare(b.ref));
+  // 🆕 2026-09-23: طلب حمدي - الرسم البياني كمان لازم يحترم فلتر الفرع متل باقي الإحصائيات
+  const branchData = activeBranch==='all' ? DATA : DATA.filter(d=>getEntryBranch(d)===activeBranch);
+  const data = branchData.slice().sort((a,b)=> a.ref.localeCompare(b.ref));
   if(chartRange==='all') return data;
   if(chartRange==='year') return data.filter(d => d.year === String(now.getFullYear()));
   return data.filter(d=>{
@@ -2010,10 +2016,14 @@ function exportCSV(){
 // العروض / متوسط القيمة / أعلى عرض) كانت تضل عالقة على القيمة الأولى للأبد لأنه ما في شي كان يعيد
 // حسابها بعد أول مرة. هلق صارت دالة مستقلة (updateKpis) منقدر نناديها من أي مكان الداتا بتتغير فيه.
 function updateKpis(){
-  const collected2026 = DATA.filter(d => d.year === '2026').length;
-  const pct = Math.round((collected2026 / TOTAL_2026_FOLDERS) * 100);
+  // 🆕 2026-09-23: طلب حمدي - نسبة التغطية (فوق) لازم تحترم فلتر الفرع، نفس البطاقات الثلاث تحتها تمامًا
+  const collected2026 = (activeBranch==='all' ? DATA : DATA.filter(d=>getEntryBranch(d)===activeBranch)).filter(d => d.year === '2026').length;
+  const total2026 = activeBranch==='all'
+    ? (TOTAL_2026_FOLDERS_BY_BRANCH.uae + TOTAL_2026_FOLDERS_BY_BRANCH.syria)
+    : (TOTAL_2026_FOLDERS_BY_BRANCH[activeBranch] || TOTAL_2026_FOLDERS_BY_BRANCH.uae);
+  const pct = Math.round((collected2026 / total2026) * 100);
   document.getElementById('coverageFill').style.width = pct + '%';
-  document.getElementById('coveragePct').textContent = collected2026 + ' / ' + TOTAL_2026_FOLDERS + ' (' + pct + '٪)';
+  document.getElementById('coveragePct').textContent = collected2026 + ' / ' + total2026 + ' (' + pct + '٪)';
 
   // 🆕 2026-09-23: طلب حمدي - البطاقات التلاتة فوق لازم تحترم فلتر الفرع (متل ما كانت تاريخيًا
   // بتتجاهل فلتر السنة/البحث - نفس السلوك القديم محفوظ، بس هلق مع الفرع كمان). السبب: ما بيصح نجمع
@@ -2068,6 +2078,8 @@ function init(){
       chip.classList.add('active');
       activeBranch = chip.dataset.branch;
       render();
+      drawChart();
+      renderExpectedPayments();
     });
   });
   document.querySelectorAll('.year-chip[data-range]').forEach(chip=>{
@@ -6546,11 +6558,13 @@ function getAllPendingPayments(){
     tables.forEach(t=>{
       t.payments.forEach(p=>{
         if(getPayStatus(p) !== 'due') return;
-        list.push({ref, client:c.client, tableName:t.name, total:t.total, desc:p.desc, pct:p.pct, dueDate:p.dueDate, aed: Math.round((t.total||0)*p.pct/100)});
+        list.push({ref, branch:getDashBranchFromRef(ref), client:c.client, tableName:t.name, total:t.total, desc:p.desc, pct:p.pct, dueDate:p.dueDate, aed: Math.round((t.total||0)*p.pct/100)});
       });
     });
   });
-  return list;
+  // 🆕 2026-09-23: طلب حمدي - الدفعات المتوقعة كمان لازم تحترم فلتر الفرع (نفس فلسفة عروض الأسعار
+  // بالضبط - الفرع مشتق من أول حرف بالرقم المرجعي للعقد)
+  return activeBranch==='all' ? list : list.filter(p=>p.branch===activeBranch);
 }
 
 function filterPaymentsByRange(list){
