@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-16.1';
+  var CURRENT_VERSION = '2026-09-23.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -902,7 +902,8 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="quotationsTabBtn">📋 عروض الأسعار</span>
         <span class="nav-pill" id="designerTabBtn">🎨 (تصميم/Sketch)</span>
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
-        <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 الملفات</a>
+        <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 ملفات الإمارات</a>
+        <a href="https://drive.google.com/drive/folders/1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS" target="_blank" class="nav-pill">📁 ملفات سوريا</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
         <span class="nav-pill" id="payrollTabBtn">💰 الرواتب</span>
         <span class="nav-pill" id="clientsTabBtn">👥 العملاء</span>
@@ -1103,6 +1104,10 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <span class="year-chip" data-year="2026">2026</span>
       <span class="year-chip" data-year="2025">2025</span>
       <span class="year-chip" data-year="2024">2024</span>
+      <span style="width:1px;background:var(--line);align-self:stretch;margin:0 2px;"></span>
+      <span class="year-chip active" data-branch="all">🌍 كل الفروع</span>
+      <span class="year-chip" data-branch="uae">🇦🇪 الإمارات</span>
+      <span class="year-chip" data-branch="syria">🇸🇾 سوريا</span>
       <button id="exportBtn" class="export-btn">⬇ تصدير CSV</button>
       <button id="uploadQuotationBtn" class="export-btn" style="background:var(--aux1);color:#fff;">⬆️ رفع عرض سعر</button>
       <input type="file" id="uploadQuotationFileInput" accept=".html,text/html" style="display:none;">
@@ -1116,7 +1121,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
             <th data-key="ref">الرقم المرجعي <span class="arrow" data-arrow="ref">▼</span></th>
             <th data-key="client">الزبون <span class="arrow" data-arrow="client"></span></th>
             <th data-key="phone">الهاتف <span class="arrow" data-arrow="phone"></span></th>
-            <th data-key="total">القيمة (د.إ) <span class="arrow" data-arrow="total"></span></th>
+            <th data-key="total">القيمة <span class="arrow" data-arrow="total"></span></th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -1678,6 +1683,7 @@ const TOTAL_2026_FOLDERS = 89; // مؤكد فعليًا من Google Drive (كل 
 
 let sortKey = 'ref', sortDir = -1;
 let activeYear = 'all';
+let activeBranch = 'all'; // 🆕 2026-09-23: طلب حمدي - فلتر الفرع (كل الفروع / الإمارات / سوريا)
 
 function toWaLink(phone){
   if(!phone || phone==='—') return null;
@@ -1733,13 +1739,35 @@ function getChartData(){
 function fmt(n){ return n.toLocaleString('en-US'); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// 🆕 2026-09-23: طلب حمدي - عروض أسعار فرع سوريا ما كانت عم تظهر عالداشبورد لأنه الفحص/المطابقة مع
+// جوجل درايف كان بيدور بس بمجلد فرع الإمارات. هلق صار في مجلدين، وبنفس فلسفة أداة عرض السعر
+// (index.html): الفرع مو مخزّن كحقل منفصل لازم - دايمًا مشتق من أول حرف بالرقم المرجعي (M=إمارات،
+// S=سوريا)، حتى يضل شغال صح مع أي بيانات قديمة بدون ما نحتاج نعدلها.
+function getDashBranchFromRef(ref){
+  return (ref||'').trim().toUpperCase().startsWith('S') ? 'syria' : 'uae';
+}
+function getEntryBranch(d){
+  return (d && d.branch) || getDashBranchFromRef(d && d.ref);
+}
+// عملة كل عرض سعر: فرع الإمارات دايمًا درهم. فرع سوريا ممكن يكون دولار أو ليرة سورية (حسب اختيار
+// المستخدم بأداة عرض السعر وقت الحفظ) - وبمحفوظة كحقل m-currency جوا ملف بيانات الـJSON، فمنقراها
+// من هناك. لو عرض سعر سوري قديم ما فيه هالحقل (اتحفظ قبل ما نضيف اختيار العملة)، منفترض دولار.
+function getEntryCurrency(d){
+  if(d && d.currency) return d.currency;
+  return getEntryBranch(d) === 'syria' ? 'usd' : 'aed';
+}
+const CURRENCY_LABELS_DASH = { aed:'د.إ', usd:'USD', syp:'ل.س' };
+function currencyLabel(cur){ return CURRENCY_LABELS_DASH[cur] || 'د.إ'; }
+const BRANCH_LABELS_DASH = { uae:'🇦🇪 الإمارات', syria:'🇸🇾 سوريا' };
+function branchLabel(branch){ return BRANCH_LABELS_DASH[branch] || branch; }
+
 function exportCSV(){
   const rows = getFiltered();
-  const header = ['السنة','الرقم المرجعي','الزبون','الهاتف (لواتساب)','القيمة (د.إ)'];
+  const header = ['الفرع','السنة','الرقم المرجعي','الزبون','الهاتف (لواتساب)','العملة','القيمة'];
   const lines = [header.join(',')];
   rows.forEach(d=>{
     const wa = toWaLink(d.phone) || d.phone;
-    const line = [d.year, d.ref, '"'+getClientName(d).replace(/"/g,'""')+'"', wa.replace('https://wa.me/',''), d.total].join(',');
+    const line = [branchLabel(getEntryBranch(d)), d.year, d.ref, '"'+getClientName(d).replace(/"/g,'""')+'"', wa.replace('https://wa.me/',''), currencyLabel(getEntryCurrency(d)), d.total].join(',');
     lines.push(line);
   });
   const csvContent = '\uFEFF' + lines.join('\n');
@@ -1766,12 +1794,37 @@ function updateKpis(){
   document.getElementById('coverageFill').style.width = pct + '%';
   document.getElementById('coveragePct').textContent = collected2026 + ' / ' + TOTAL_2026_FOLDERS + ' (' + pct + '٪)';
 
-  const total = DATA.reduce((s,d)=>s+d.total,0);
-  const avg = DATA.length ? Math.round(total / DATA.length) : 0;
-  const max = DATA.length ? Math.max(...DATA.map(d=>d.total)) : 0;
-  document.getElementById('kpiCount').textContent = DATA.length;
-  document.getElementById('kpiAvg').innerHTML = fmt(avg) + ' <small>د.إ</small>';
-  document.getElementById('kpiMax').innerHTML = fmt(max) + ' <small>د.إ</small>';
+  // 🆕 2026-09-23: طلب حمدي - البطاقات التلاتة فوق لازم تحترم فلتر الفرع (متل ما كانت تاريخيًا
+  // بتتجاهل فلتر السنة/البحث - نفس السلوك القديم محفوظ، بس هلق مع الفرع كمان). السبب: ما بيصح نجمع
+  // درهم إماراتي مع دولار/ليرة سورية برقم واحد مضلل. لو الفرع المختار (أو "كل الفروع") فيه أكتر من
+  // عملة، منعرض توزيع لكل عملة لحالها بدل رقم واحد غلط.
+  const branchData = activeBranch === 'all' ? DATA : DATA.filter(d => getEntryBranch(d) === activeBranch);
+  document.getElementById('kpiCount').textContent = branchData.length;
+
+  const groups = {};
+  branchData.forEach(d=>{
+    const cur = getEntryCurrency(d);
+    (groups[cur] = groups[cur] || []).push(d.total);
+  });
+  const currencies = Object.keys(groups);
+
+  function renderKpiCell(elId, aggFn){
+    const el = document.getElementById(elId);
+    if(!el) return;
+    if(currencies.length === 0){
+      el.innerHTML = '—';
+    } else if(currencies.length === 1){
+      const cur = currencies[0];
+      el.innerHTML = fmt(Math.round(aggFn(groups[cur]))) + ' <small>' + currencyLabel(cur) + '</small>';
+    } else {
+      // أكتر من عملة بنفس الفلتر الحالي (مثلًا "كل الفروع"، أو فرع سوريا فيه عروض دولار وليرة مع بعض)
+      el.innerHTML = currencies.map(cur=>
+        '<div style="font-size:14px;line-height:1.5;">' + fmt(Math.round(aggFn(groups[cur]))) + ' <small>' + currencyLabel(cur) + '</small></div>'
+      ).join('');
+    }
+  }
+  renderKpiCell('kpiAvg', vals => vals.reduce((s,v)=>s+v,0) / vals.length);
+  renderKpiCell('kpiMax', vals => Math.max(...vals));
 }
 
 function init(){
@@ -1784,6 +1837,15 @@ function init(){
       document.querySelectorAll('.year-chip[data-year]').forEach(c=>c.classList.remove('active'));
       chip.classList.add('active');
       activeYear = chip.dataset.year;
+      render();
+    });
+  });
+  // 🆕 2026-09-23: طلب حمدي - فلتر الفرع (كل الفروع / الإمارات / سوريا) بنفس أسلوب فلتر السنة تمامًا
+  document.querySelectorAll('.year-chip[data-branch]').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      document.querySelectorAll('.year-chip[data-branch]').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      activeBranch = chip.dataset.branch;
       render();
     });
   });
@@ -1832,6 +1894,7 @@ function getFiltered(){
   const q = document.getElementById('searchBox').value.trim().toLowerCase();
   return DATA.filter(d=>{
     if(activeYear!=='all' && d.year!==activeYear) return false;
+    if(activeBranch!=='all' && getEntryBranch(d)!==activeBranch) return false;
     if(!q) return true;
     return d.ref.toLowerCase().includes(q) || d.client.toLowerCase().includes(q) || getClientName(d).toLowerCase().includes(q) || d.phone.toLowerCase().includes(q);
   });
@@ -1903,7 +1966,7 @@ function render(){
       '<td><span class="year-tag">'+d.year+'</span>'+refCell+openLatestBtn+convertToContractBtn+'</td>'+
       '<td><span class="client-edit" data-ref="'+d.ref+'" title="اضغط لتعديل اسم الزبون" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+clientName+'</span></td>'+
       '<td dir="ltr" style="text-align:right">'+phoneCell+'</td>'+
-      '<td class="num">'+fmt(d.total)+'</td>';
+      '<td class="num">'+fmt(d.total)+' <small style="color:var(--muted);font-size:10.5px;">'+currencyLabel(getEntryCurrency(d))+'</small></td>';
     tbody.appendChild(tr);
   });
   tbody.querySelectorAll('.delete-quotation-btn').forEach(btn=>{
@@ -4047,7 +4110,12 @@ async function dashFetchWithTimeout(url, options, timeoutMs){
 }
 
 const GOOGLE_CLIENT_ID_DASH = '575144277793-dgh7oslo72umva7cb37rpa82tman9vfm.apps.googleusercontent.com';
-const DRIVE_ROOT_FOLDER_ID_DASH = '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D';
+const DRIVE_ROOT_FOLDER_ID_DASH = '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D'; // فرع الإمارات
+// 🆕 2026-09-23: طلب حمدي - فرع سوريا كان عنده مجلد درايف خاص فيه من قبل، بس الداشبورد ما كان يعرف
+// فيه أصلًا (بيدور بس بمجلد الإمارات فوق) فعروض أسعار سوريا ما كانت تظهر ولا مرة. هلق صار يفحص
+// مجلدين. DRIVE_ROOTS_BY_BRANCH_DASH هي نقطة التوسّع الوحيدة - أي فرع جديد بالمستقبل بس يضاف هون.
+const DRIVE_ROOT_FOLDER_ID_SYRIA_DASH = '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS'; // فرع سوريا
+const DRIVE_ROOTS_BY_BRANCH_DASH = { uae: DRIVE_ROOT_FOLDER_ID_DASH, syria: DRIVE_ROOT_FOLDER_ID_SYRIA_DASH };
 const DRIVE_SCOPE_DASH = 'https://www.googleapis.com/auth/drive';
 // 🔧 2026-08-24: خدمة توكن جوجل درايف الجديدة عالسيرفر - بترجع توكن دخول جاهز لجوجل درايف بدون
 // ما تحتاج تفتح ولا نافذة موافقة أبدًا (لا أول مرة ولا كل ساعة)، طول ما حمدي ربط السيرفر بحسابه
@@ -4354,7 +4422,11 @@ function sanitizeRefForFolderDash(refRaw){
 async function findQuotationFolderId(token, ref){
   const year = getYearFromReferenceDash(ref);
   const refSafe = sanitizeRefForFolderDash(ref);
-  const yearFiles = await listDriveFolderChildren(token, DRIVE_ROOT_FOLDER_ID_DASH);
+  // 🆕 2026-09-23: قبل كان دايمًا بيدور بمجلد الإمارات بس - فحذف عرض سعر سوري من الداشبورد كان
+  // "ينجح" ظاهريًا (بيختفي من السجل) بس فعليًا ما كان يلاقي مجلده الحقيقي بجوجل درايف (لأنه بمجلد
+  // تاني) فما كان ينقله لسلة المحذوفات أبدًا. هلق بيختار المجلد الصحيح حسب فرع الرقم المرجعي.
+  const rootId = DRIVE_ROOTS_BY_BRANCH_DASH[getDashBranchFromRef(ref)] || DRIVE_ROOT_FOLDER_ID_DASH;
+  const yearFiles = await listDriveFolderChildren(token, rootId);
   const yearFolder = yearFiles.find(f=> f.mimeType==='application/vnd.google-apps.folder' && f.name===year);
   if(!yearFolder) return null;
   const refFiles = await listDriveFolderChildren(token, yearFolder.id);
@@ -4663,23 +4735,34 @@ function mergeDiscoveredIntoData(){
 // إنها موجودة فعليًا، وتشيلهم من الداشبورد! هيك بالضبط كان بيصير "الداشبورد بيرجع متل ما كان" بعد
 // أول مطابقة تلقائية بالخلفية تصادف فيها هفوة اتصال. هلق منرجّع كمان علم hadErrors حتى نقدر نمنع
 // الحذف (prune) لما يكون الفحص ناقص، بدل ما نمسح بيانات صحيحة اعتمادًا على فحص غير مكتمل.
+// 🆕 2026-09-23: طلب حمدي - قبل هيك كانت الدالة هاي بتفحص مجلد فرع الإمارات بس، فعروض أسعار فرع
+// سوريا ما كانت توصل للداشبورد إطلاقًا مهما عملنا مطابقة. هلق بتفحص كل الفروع المعرّفة بـ
+// DRIVE_ROOTS_BY_BRANCH_DASH وبتوسم كل عرض سعر مكتشف بفرعه (مفيد نحفظه صراحة هون حتى ما نعيد
+// اشتقاقه من الرقم المرجعي بكل مكان لاحقًا، رغم إنه getEntryBranch() قادر يشتقه لحاله لو غاب).
 async function scanDriveFolderForYearRefs(token){
-  const rootChildren = await listDriveFolderChildren(token, DRIVE_ROOT_FOLDER_ID_DASH);
-  const yearFolders = rootChildren.filter(f=> f.mimeType==='application/vnd.google-apps.folder' && /^\d{4}$/.test(f.name));
+  let allEntries = [];
   let hadErrors = false;
-  const nested = await Promise.all(yearFolders.map(yf=>
-    listDriveFolderChildren(token, yf.id).then(children=>
-      children.filter(f=>f.mimeType==='application/vnd.google-apps.folder')
-        .map(f=>({year: yf.name, refFolderId: f.id, refFolderName: f.name}))
-    ).catch(e=>{ console.warn('[مطابقة الملفات] تعذّر فحص مجلد سنة', yf.name, e); hadErrors = true; return []; })
-  ));
-  return { entries: nested.flat(), hadErrors };
+  for(const branch of Object.keys(DRIVE_ROOTS_BY_BRANCH_DASH)){
+    const rootId = DRIVE_ROOTS_BY_BRANCH_DASH[branch];
+    try{
+      const rootChildren = await listDriveFolderChildren(token, rootId);
+      const yearFolders = rootChildren.filter(f=> f.mimeType==='application/vnd.google-apps.folder' && /^\d{4}$/.test(f.name));
+      const nested = await Promise.all(yearFolders.map(yf=>
+        listDriveFolderChildren(token, yf.id).then(children=>
+          children.filter(f=>f.mimeType==='application/vnd.google-apps.folder')
+            .map(f=>({year: yf.name, refFolderId: f.id, refFolderName: f.name, branch}))
+        ).catch(e=>{ console.warn('[مطابقة الملفات] تعذّر فحص مجلد سنة', yf.name, 'فرع', branch, e); hadErrors = true; return []; })
+      ));
+      allEntries = allEntries.concat(nested.flat());
+    }catch(e){ console.warn('[مطابقة الملفات] تعذّر فحص فرع', branch, e); hadErrors = true; }
+  }
+  return { entries: allEntries, hadErrors };
 }
 
 // من جوا مجلد عرض سعر وحد، منجرب نستخرج أكبر قد ممكن من المعلومات (اسم الزبون، الرقم، التاريخ،
 // القيمة الإجمالية) من ملف البيانات JSON لو موجود (أسرع وأدق)، وإلا من ملف HTML المخبوز
 async function extractQuotationSummaryFromFolder(token, refEntry){
-  const { year, refFolderId, refFolderName } = refEntry;
+  const { year, refFolderId, refFolderName, branch } = refEntry;
   try{
     const children = await listDriveFolderChildren(token, refFolderId);
     const jsonFile = children.find(f=> f.name.endsWith('-data.json'));
@@ -4718,6 +4801,10 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
       phone: fields['m-number'] || '',
       date: fields['m-date'] || '',
       total: totalGuess || 0,
+      // 🆕 2026-09-23: الفرع اللي انكتشف منه (فرع الإمارات دايمًا "aed"، فحقل m-currency عنده ما إله
+      // معنى حتى لو موجود بملف الـJSON - القيمة الحقيقية بس لفرع سوريا يلي فيه اختيار عملة فعلي).
+      branch: branch || getDashBranchFromRef(ref),
+      currency: (branch === 'syria') ? (fields['m-currency'] || null) : null,
       duration: null, payDown:null, payAlu:null, payGlass:null, payFin:null,
       url: linkFile ? ('https://drive.google.com/file/d/'+linkFile.id+'/view') : null,
       source: 'drive-scan',
