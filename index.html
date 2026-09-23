@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.9';
+  var CURRENT_VERSION = '2026-09-23.10';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -7962,6 +7962,10 @@ function buildHandrailSVG(it){
   const allYs = [0];
   // تجميع نقاط "القطعة" الواحدة (لوح أو أكثر مدموجين) لرسم مضلع واحد متواصل بدون فاصل بينهم
   let pieceBottomPts = [], pieceTopPts = [], pieceHasNonLanding = false;
+  // 🆕 2026-09-23: طلب حمدي - قياس طول كل "جزء" (مائل/استراحة) لحاله أسفل التصميم، بالرقم يلي هو
+  // بالضبط سجّله (seg.totalLength) - مستقل تمامًا عن دمج القطع البصري (مساحة المضلع)، حتى لو جزءين
+  // مدموجين بصريًا بمضلع واحد (بدون خط فاصل) بيضلوا كل واحد فيهم إله سطر قياس طول لحاله تحت الرسمة
+  const segRanges = {};
 
   panelsMm.forEach((p, idx)=>{
     const pw = p.w*hScale;
@@ -7971,6 +7975,10 @@ function buildHandrailSVG(it){
     const riseEnd = (isStair && (p.type==='flight' || p.inclined)) ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
     const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
+    if(isStair){
+      if(!segRanges[p.segId]) segRanges[p.segId] = { start:x, end:x+pw };
+      else segRanges[p.segId].end = x+pw;
+    }
     pieceBottomPts.push([x,yB0], [x+pw,yB1]);
     pieceTopPts.push([x,yT0], [x+pw,yT1]);
     if(p.type !== 'landing' || p.inclined) pieceHasNonLanding = true;
@@ -8067,10 +8075,30 @@ function buildHandrailSVG(it){
   const labelY = Math.max(...allYs) + baseH + 18;
 
   const yMin = Math.min(...allYs), yMax = Math.max(...allYs) + baseH;
-  const padTop = 56, padSide = 70, padBottom = 46;
+  const padTop = 56, padSide = 70, padBottom = isStair ? 90 : 46;
   const viewX = -padSide, viewY = yMin - padTop;
   const totalW = drawW + padSide*2;
   const totalH = (yMax - yMin) + padTop + padBottom;
+
+  // 🆕 2026-09-23 (طلب حمدي): سطر قياس طول كل جزء (مائل/استراحة) أسفل التصميم بالكامل - الرقم هو
+  // بالضبط طول الجزء يلي مسجّله حمدي (seg.totalLength)، وكل جزء إله سطره الخاص بغض النظر عن دمج
+  // القطع البصري (يعني حتى لو جزءين مدموجين بمضلع واحد فوق، تحت بيضلوا مفصولين كل واحد برقمه)
+  let segDimSvg = '';
+  if(isStair){
+    const segsForDim = ensureHandrailSegments(it);
+    const segDimY = yMax + 26;
+    segsForDim.forEach(seg=>{
+      const range = segRanges[seg.id];
+      if(!range) return;
+      const midX = (range.start + range.end) / 2;
+      const dimColor = seg.type==='landing' ? 'var(--wd-amber)' : 'var(--wd-ink)';
+      segDimSvg += `<line x1="${range.start}" y1="${segDimY}" x2="${range.end}" y2="${segDimY}" stroke="${dimColor}" stroke-width="1"/>
+        <line x1="${range.start}" y1="${segDimY-5}" x2="${range.start}" y2="${segDimY+5}" stroke="${dimColor}" stroke-width="1"/>
+        <line x1="${range.end}" y1="${segDimY-5}" x2="${range.end}" y2="${segDimY+5}" stroke="${dimColor}" stroke-width="1"/>
+        <text x="${midX}" y="${segDimY+18}" fill="${dimColor}" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(seg.totalLength)} mm</text>
+        ${seg.type==='landing' ? `<text x="${midX}" y="${segDimY+31}" fill="${dimColor}" font-size="9.5" text-anchor="middle">استراحة</text>` : ''}`;
+    });
+  }
 
   // أبعاد: الارتفاع عالجنب (عند آخر لوح - يمين الرسمة - مباشرة جنب حافته) - القياس الإجمالي فوق انشال بناءً على طلب المستخدم لأنو كل لوح صار عليه قياسه الفعلي المائل لحاله فوقه مباشرة
   const dimY = yMin - 30;
@@ -8093,6 +8121,7 @@ function buildHandrailSVG(it){
     ${gapMarkSvg}
     ${baseSvg}
     ${diagonalSvg}
+    ${segDimSvg}
   </svg>`;
 }
 function editHandrailTotal(id){
