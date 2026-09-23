@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.5';
+  var CURRENT_VERSION = '2026-09-23.6';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -6471,7 +6471,7 @@ function isHandrail(it){ return it.shapeType === 'handrail'; }
 // أجزاء الدرج (مائل / استراحة) - بتتأكد إنو في جزء وحد عالأقل، وبترجع المصفوفة
 function ensureHandrailSegments(it){
   if(!it.hrSegments || !it.hrSegments.length){
-    it.hrSegments = [{ id:'s'+(hrSegIdCounter++), type:'flight', panelCount: it.hrPanelCount || 4, totalLength: it.hrTotalLength || 4800, mergedWithNext:false, riseCm:0 }];
+    it.hrSegments = [{ id:'s'+(hrSegIdCounter++), type:'flight', panelCount: it.hrPanelCount || 4, totalLength: it.hrTotalLength || 4800, mergedWithNext:false, riseCm:0, inclined:false }];
   }
   return it.hrSegments;
 }
@@ -6500,7 +6500,7 @@ function getHandrailTotalLength(it){
 function addHandrailSegment(type){
   const it = getSelected(); if(!it) return;
   pushHistory();
-  ensureHandrailSegments(it).push({ id:'s'+(hrSegIdCounter++), type, panelCount: type==='landing'?1:4, totalLength: type==='landing'?1200:4800, mergedWithNext:false, riseCm:0 });
+  ensureHandrailSegments(it).push({ id:'s'+(hrSegIdCounter++), type, panelCount: type==='landing'?1:4, totalLength: type==='landing'?1200:4800, mergedWithNext:false, riseCm:0, inclined:false });
   syncHandrailDims(it);
   renderHandrailSegmentsUI(it);
   renderGallery();
@@ -6516,6 +6516,20 @@ function toggleHandrailSegmentMerge(itemId, segId){
   const seg = segs.find(s=>s.id===segId); if(!seg) return;
   pushHistory();
   seg.mergedWithNext = !seg.mergedWithNext;
+  renderHandrailSegmentsUI(it);
+  renderGallery();
+}
+// 🆕 2026-09-23: طلب حمدي (بعد ما جرّب فرق الارتفاع بشكل "قفزة/درجة" وعجبه) - بدو كمان خيار تاني منفصل:
+// إنه الاستراحة نفسها تكون مائلة (متل الدرج، ميلان متواصل بعرضها) بدل ما تضل مسطحة دايمًا. هلق صار
+// عندها الخيارين وهو يختار بينهم بهالزر: بالوضع الافتراضي (مو مائلة) فرق الارتفاع بيصير "قفزة" قبل
+// الاستراحة وهي نفسها بتضل مستوية (الميزة السابقة). لو فعّل "مائلة"، فرق الارتفاع بيتوزع كميلان متواصل
+// عبر عرض الاستراحة كلها (متل الدرج المائل بالضبط) بدل القفزة.
+function toggleHandrailSegmentIncline(itemId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const segs = ensureHandrailSegments(it);
+  const seg = segs.find(s=>s.id===segId); if(!seg) return;
+  pushHistory();
+  seg.inclined = !seg.inclined;
   renderHandrailSegmentsUI(it);
   renderGallery();
 }
@@ -6562,10 +6576,11 @@ function renderHandrailSegmentsUI(it){
     // بصريًا (طرف بيرتفع وطرف لأ)، صار فرق الارتفاع "قفزة" كاملة بترتفع فيها الاستراحة كلها سوا (الأرض
     // تحتها كأنها ارتفعت) وبتضل الاستراحة نفسها مستوية بكامل عرضها - مش مائلة. 0 = بنفس مستوى الدرج قبلها.
     const riseRow = (seg.type === 'landing') ? `
-    <div style="display:flex;gap:6px;align-items:center;margin:-2px 0 6px;padding:0 6px 6px 6px;">
+    <div style="display:flex;gap:6px;align-items:center;margin:-2px 0 6px;padding:0 6px 6px 6px;flex-wrap:wrap;">
       <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);min-width:64px;">⬆ فرق الارتفاع</span>
-      <input type="number" min="0" step="0.5" style="width:64px;" value="${seg.riseCm||0}" onchange="onHrSegField(${it.id},'${seg.id}','riseCm',this.value)" title="فرق ارتفاع الأرض تحت الاستراحة كلها (سم) - الاستراحة بتضل مستوية وبترتفع سوا كقطعة واحدة، 0 يعني بنفس مستوى الدرج قبلها">
-      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">سم ${seg.riseCm>0 ? '(استراحة مرتفعة ⬆)' : '(بنفس المستوى)'}</span>
+      <input type="number" min="0" step="0.5" style="width:64px;" value="${seg.riseCm||0}" onchange="onHrSegField(${it.id},'${seg.id}','riseCm',this.value)" title="فرق ارتفاع الأرض تحت الاستراحة كلها (سم) - 0 يعني بنفس مستوى الدرج قبلها">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">سم</span>
+      <button class="small${seg.inclined?' active':''}" style="font-size:10.5px;${seg.inclined?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentIncline(${it.id},'${seg.id}')" title="لو مفعّل: فرق الارتفاع بيتوزع كميلان متواصل بعرض الاستراحة كلها (متل الدرج المائل). لو مطفّي: فرق الارتفاع بيصير قفزة قبل الاستراحة وهي نفسها بتضل مستوية">${seg.inclined ? '🔀 مائلة' : '▬ مستوية'}</button>
     </div>` : '';
     // 🆕 2026-09-23: زر "دمج مع القطعة التالية" - بيظهر بس بين كل جزئين متتاليين (مش بعد آخر جزء
     // بالقائمة، لأنو ما في "قطعة تالية" إلها). لما يكون مفعّل (🔗 مدموج) بيصير الجزءان لوح زجاج
@@ -6581,6 +6596,7 @@ window.addHandrailSegment = addHandrailSegment;
 window.removeHandrailSegment = removeHandrailSegment;
 window.onHrSegField = onHrSegField;
 window.toggleHandrailSegmentMerge = toggleHandrailSegmentMerge;
+window.toggleHandrailSegmentIncline = toggleHandrailSegmentIncline;
 
 function makeItem(type){
   const isDoorish = type === 'door' || type === 'slidingDoor' || type === 'foldingDoor' || type === 'showerGlassDoor';
@@ -7890,17 +7906,18 @@ function buildHandrailPanelsMm(it){
       const n = Math.max(1, seg.panelCount||1);
       const pw = hrSegPanelWidth(seg);
       const isLastSeg = segIdx === segs.length-1;
-      // 🆕 2026-09-23: طلب حمدي (بعد ملاحظته إنو الميلان التدريجي غلط بصريًا) - الاستراحة المرتفعة
-      // ما لازم تصير "مائلة" (طرف واطي وطرف عالي)، لازم "الأرض" تحتها كلها ترتفع دفعة وحدة (قفزة ارتفاع)
-      // قبل ما تبلش الاستراحة، وبعدين الاستراحة نفسها بتضل مستوية (مسطحة) بكامل عرضها على الارتفاع الجديد
-      // - يعني القطعة كلها (طرفيها الاثنين) بترتفع سوا، مش نص القطعة بس. jumpMm = القفزة الكاملة
-      // (بالمم) وبتنحسب مرة وحدة بس عأول لوح بالاستراحة (i===0)؛ باقي ألواح نفس الاستراحة ما إلها قفزة
-      // إضافية لأنها أصلاً صارت على نفس المستوى الجديد من أول لوح.
+      // 🆕 2026-09-23: طلب حمدي - الاستراحة المرتفعة عندها وضعين يختار بينهم (زر "مائلة/مستوية" بالواجهة):
+      // 1) مستوية (الافتراضي): "الأرض" تحتها كلها ترتفع دفعة وحدة (قفزة) قبل ما تبلش الاستراحة، وهي
+      //    نفسها بتضل مستوية بكامل عرضها على الارتفاع الجديد (jumpMm - قفزة كاملة عأول لوح بس).
+      // 2) مائلة (لو فعّل seg.inclined): فرق الارتفاع بيتوزع كميلان متواصل بعرض الاستراحة كلها بدل
+      //    القفزة - نفس منطق ميلان الدرج المائل بالضبط، بس بنسبة مبنية على رقم حمدي مش زاوية ثابتة (riseRatio).
       const riseCm = (seg.type === 'landing') ? (seg.riseCm || 0) : 0;
+      const inclined = (seg.type === 'landing') && !!seg.inclined;
+      const riseRatio = (riseCm > 0 && inclined) ? (riseCm*10 / Math.max(1, seg.totalLength||1)) : 0;
       for(let i=0;i<n;i++){
         const isLastPanelOfSeg = (i === n-1);
-        const jumpMm = (i === 0 && riseCm > 0) ? riseCm*10 : 0;
-        panelsMm.push({ w: pw, type: seg.type, segId: seg.id, riseCm, jumpMm, mergeWithNext: (isLastPanelOfSeg && !isLastSeg) ? !!seg.mergedWithNext : false });
+        const jumpMm = (i === 0 && riseCm > 0 && !inclined) ? riseCm*10 : 0;
+        panelsMm.push({ w: pw, type: seg.type, segId: seg.id, riseCm, jumpMm, riseRatio, mergeWithNext: (isLastPanelOfSeg && !isLastSeg) ? !!seg.mergedWithNext : false });
       }
     });
   } else {
@@ -7929,7 +7946,7 @@ function buildHandrailSVG(it){
   const RAKE_ANGLE_DEG = 28; // ميلان تخطيطي ثابت لأجزاء الدرج المائلة (مو بزاوية حقيقية مأخوذة من مخطط الدرج)
   const rakeSlope = Math.tan(RAKE_ANGLE_DEG*Math.PI/180);
   // مجموع الارتفاع التراكمي الحقيقي لكل الأجزاء (المائلة تلقائيًا + الاستراحات المائلة يدويًا) - حتى ما تفيض الرسمة عموديًا
-  const totalRiseMm = isStair ? panelsMm.reduce((s,p)=> s + (p.type==='flight' ? p.w*rakeSlope : (p.jumpMm||0)), 0) : 0;
+  const totalRiseMm = isStair ? panelsMm.reduce((s,p)=> s + (p.type==='flight' ? p.w*rakeSlope : ((p.jumpMm||0) + (p.riseRatio ? p.w*p.riseRatio : 0))), 0) : 0;
   const boxW = getScreenMaxDimPx(it);
   const boxH = getScreenMaxDimPx(it);
   const hScaleByWidth = boxW / totalLenMm;
@@ -7953,7 +7970,7 @@ function buildHandrailSVG(it){
     // 🆕 2026-09-23: "قفزة" ارتفاع الاستراحة المائلة بتنطبق دفعة وحدة قبل أول لوح فيها - الأرض
     // كلها بترتفع سوا (مش نص اللوح بس) وبعدها الاستراحة نفسها بتضل مستوية بكامل عرضها
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
-    const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : 0;
+    const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : ((isStair && p.riseRatio) ? pw*p.riseRatio : 0);
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
     const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
     pieceBottomPts.push([x,yB0], [x+pw,yB1]);
@@ -7988,7 +8005,7 @@ function buildHandrailSVG(it){
       // الأجزاء المسطحة (استراحة / هاندريل مسطح) بيضل عليها مقاس عرض×ارتفاع بالنص
       // 🆕 2026-09-23: لو الاستراحة مائلة يدويًا (riseCm)، منضيف فرق الارتفاع يلي كاتبه حمدي للنص
       const cx = x+pw/2, cy = (yT0+yT1+yB0+yB1)/4;
-      const riseLabel = (p.type==='landing' && p.riseCm > 0) ? ` (+${p.riseCm}سم⬆)` : '';
+      const riseLabel = (p.type==='landing' && p.riseCm > 0) ? (p.riseRatio ? ` (+${p.riseCm}سم↗ مائلة)` : ` (+${p.riseCm}سم⬆)`) : '';
       panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="10.5" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" style="pointer-events:none;">${Math.round(p.w)}×${Math.round(glassH)}${riseLabel}</text>`;
     }
     bottomPts.push([x,yB0], [x+pw,yB1]);
@@ -8554,7 +8571,7 @@ function buildHandrailPrintSVG(it, pageItemCount){
   const rakeSlope = Math.tan(RAKE_ANGLE_DEG*Math.PI/180);
   // ميلان الدرج (تلقائي) + ميلان الاستراحات المدخل يدويًا بيضيفوا ارتفاع إضافي على الرسمة - لازم ناخدهم بالحسبان بمقياس الطول
   // وإلا بطول كبير + عرض صفحة كامل، الميلان ممكن يطلّع الرسمة أطول من الصفحة ويفيض لصفحة تانية
-  const totalRiseMm = isStair ? panelsMm.reduce((s,p)=> s + (p.type==='flight' ? p.w*rakeSlope : (p.jumpMm||0)), 0) : 0;
+  const totalRiseMm = isStair ? panelsMm.reduce((s,p)=> s + (p.type==='flight' ? p.w*rakeSlope : ((p.jumpMm||0) + (p.riseRatio ? p.w*p.riseRatio : 0))), 0) : 0;
   const hScaleByWidth = Math.min(targetW/totalLenMm, 1);
   const hScaleByHeight = targetH / Math.max(1, glassH + totalRiseMm);
   const hScale = Math.min(hScaleByWidth, hScaleByHeight);
@@ -8574,7 +8591,7 @@ function buildHandrailPrintSVG(it, pageItemCount){
   panelsMm.forEach((p, idx)=>{
     const pw = p.w*hScale;
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
-    const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : 0;
+    const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : ((isStair && p.riseRatio) ? pw*p.riseRatio : 0);
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
     const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
     pieceBottomPts.push([x,yB0], [x+pw,yB1]);
@@ -8585,7 +8602,7 @@ function buildHandrailPrintSVG(it, pageItemCount){
       pieceBottomPts = []; pieceTopPts = [];
     }
     const cx = x+pw/2, cy = (yT0+yT1+yB0+yB1)/4;
-    const riseLabel = (p.type==='landing' && p.riseCm > 0) ? ` (+${p.riseCm}سم⬆)` : '';
+    const riseLabel = (p.type==='landing' && p.riseCm > 0) ? (p.riseRatio ? ` (+${p.riseCm}سم↗ مائلة)` : ` (+${p.riseCm}سم⬆)`) : '';
     if(pw > 26) panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="11" fill="#2b6f93" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(p.w)}×${Math.round(glassH)}${riseLabel}</text>`;
     bottomPts.push([x,yB0], [x+pw,yB1]);
     const legExtra = it.hrMount === 'spigot' ? (baseH+8) : baseH;
@@ -9566,7 +9583,7 @@ function build3DHandrailSVG(it){
 
   const RAKE_ANGLE_DEG = 28;
   const rakeSlope = Math.tan(RAKE_ANGLE_DEG*Math.PI/180);
-  const totalRiseMm = isStair ? panelsMm.reduce((s,p)=> s + (p.type==='flight' ? p.w*rakeSlope : (p.jumpMm||0)), 0) : 0;
+  const totalRiseMm = isStair ? panelsMm.reduce((s,p)=> s + (p.type==='flight' ? p.w*rakeSlope : ((p.jumpMm||0) + (p.riseRatio ? p.w*p.riseRatio : 0))), 0) : 0;
   const hScale = Math.min(480/totalLenMm, 300/Math.max(1, glassH + totalRiseMm));
   let drawH = glassH*hScale;
   const MIN_DRAWH = 90;
@@ -9586,7 +9603,7 @@ function build3DHandrailSVG(it){
   panelsMm.forEach(p=>{
     const pw = p.w*hScale;
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
-    const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : 0;
+    const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : ((isStair && p.riseRatio) ? pw*p.riseRatio : 0);
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
     const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
     pieceBottomPts.push([x,yB0], [x+pw,yB1]);
