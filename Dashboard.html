@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.1';
+  var CURRENT_VERSION = '2026-09-23.2';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -727,6 +727,20 @@ body.procurement-fullscreen #procurementFrame{flex:1;height:auto;min-height:0;bo
   border-color:var(--aux1);
   color:#fff;
 }
+/* 🆕 2026-09-23: شريط اختيار الفرع - ظاهر دايمًا فوق الصفحة بكل الشاشات (مو مدفون جوا فلاتر ثانية) */
+.branch-bar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 18px;margin:0 0 14px;border-radius:10px;
+  background:linear-gradient(135deg, var(--main), var(--aux1));
+}
+.branch-bar-label{color:#fff;font-weight:700;font-size:14px;white-space:nowrap;}
+.branch-chip{
+  padding:8px 16px;border-radius:99px;font-size:13px;font-weight:600;cursor:pointer;
+  background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.55);
+  transition:all .15s;
+}
+.branch-chip:hover{background:rgba(255,255,255,0.3);}
+.branch-chip.active{background:#fff;color:var(--main);border-color:#fff;}
 .export-btn{
   padding:7px 14px;
   border:1px solid var(--gold);
@@ -943,6 +957,13 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <div class="updated"><b id="lastUpdated">18 أغسطس 2026</b></div>
   </div>
 
+  <div class="branch-bar">
+    <span class="branch-bar-label">🏢 اختر الفرع:</span>
+    <span class="year-chip branch-chip active" data-branch="all">🌍 كل الفروع</span>
+    <span class="year-chip branch-chip" data-branch="uae">🇦🇪 الإمارات</span>
+    <span class="year-chip branch-chip" data-branch="syria">🇸🇾 سوريا</span>
+  </div>
+
   <div class="coverage" style="display:none;">
     <span class="coverage-label">نسبة التغطية من إجمالي مجلدات 2026</span>
     <div class="coverage-track"><div class="coverage-fill" id="coverageFill" style="width: 103%;"></div></div>
@@ -1104,10 +1125,6 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <span class="year-chip" data-year="2026">2026</span>
       <span class="year-chip" data-year="2025">2025</span>
       <span class="year-chip" data-year="2024">2024</span>
-      <span style="width:1px;background:var(--line);align-self:stretch;margin:0 2px;"></span>
-      <span class="year-chip active" data-branch="all">🌍 كل الفروع</span>
-      <span class="year-chip" data-branch="uae">🇦🇪 الإمارات</span>
-      <span class="year-chip" data-branch="syria">🇸🇾 سوريا</span>
       <button id="exportBtn" class="export-btn">⬇ تصدير CSV</button>
       <button id="uploadQuotationBtn" class="export-btn" style="background:var(--aux1);color:#fff;">⬆️ رفع عرض سعر</button>
       <input type="file" id="uploadQuotationFileInput" accept=".html,text/html" style="display:none;">
@@ -1955,8 +1972,10 @@ function getEntryBranch(d){
 // المستخدم بأداة عرض السعر وقت الحفظ) - وبمحفوظة كحقل m-currency جوا ملف بيانات الـJSON، فمنقراها
 // من هناك. لو عرض سعر سوري قديم ما فيه هالحقل (اتحفظ قبل ما نضيف اختيار العملة)، منفترض دولار.
 function getEntryCurrency(d){
-  if(d && d.currency) return d.currency;
-  return getEntryBranch(d) === 'syria' ? 'usd' : 'aed';
+  // 🛡️ 2026-09-23: فرع الإمارات دائمًا درهم مهما كانت قيمة currency المخزّنة (تحسبًا لأي بيانات
+  // قديمة/مخبأة محليًا من قبل هالتحديث فيها قيمة عملة غير صحيحة) - منمنع أي تسرب دولار لقسم الإمارات
+  if(getEntryBranch(d) !== 'syria') return 'aed';
+  return (d && d.currency) || 'usd';
 }
 const CURRENCY_LABELS_DASH = { aed:'د.إ', usd:'USD', syp:'ل.س' };
 function currencyLabel(cur){ return CURRENCY_LABELS_DASH[cur] || 'د.إ'; }
