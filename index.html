@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-22.5';
+  var CURRENT_VERSION = '2026-09-23.1';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -3846,7 +3846,7 @@ async function deleteQuotationFromDrive(){
     const q = encodeURIComponent(`name = '${refSafe.replace(/'/g,"\\'")}' and '${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
     const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
       headers: { Authorization: 'Bearer ' + token }
-    }, 15000);
+    }, 20000);
     const data = await res.json();
     const folder = data.files && data.files[0];
     if(!folder){ alert('ما لقينا مجلد عرض السعر هيدا بجوجل درايف (يمكن كان محذوف أصلاً، أو الاسم اختلف عن الرقم المرجعي).'); return; }
@@ -3854,7 +3854,7 @@ async function deleteQuotationFromDrive(){
       method: 'PATCH',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ trashed: true })
-    }, 15000);
+    }, 20000);
     alert('✅ تم نقل عرض السعر "'+refRaw+'" لسلة مهملات جوجل درايف.\nرح يختفي من الداشبورد تلقائيًا بأول مزامنة، وهلق رح تنفتح صفحة عرض سعر جديدة فاضية برقم مرجعي جديد.');
     // 🔧 2026-08-27: طلب حمدي - بعد ما ينحذف عرض السعر، الصفحة كانت تضل عارضة نفس بياناته القديمة
     // (كأنو ما صار شي)، وهاد كان مربك ومسبّب لخطأ إعادة استخدام نفس الرقم المرجعي المحذوف بالغلط
@@ -4419,7 +4419,7 @@ async function findYearFolderIfExists(year, token, rootFolderId){
   const q = encodeURIComponent(`name = '${year}' and '${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
-  }, 15000);
+  }, 20000);
   const data = await res.json();
   return (data.files && data.files.length) ? data.files[0].id : null;
 }
@@ -4439,7 +4439,7 @@ async function computeNextReferenceSeq(defaultVal, token, rootFolderId){
   const q = encodeURIComponent(`'${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(name)&pageSize=1000`, {
     headers: { Authorization: 'Bearer ' + token }
-  }, 15000);
+  }, 20000);
   const data = await res.json();
   let minSeq = null, maxSeq = null;
   const seqSet = new Set();
@@ -4531,9 +4531,12 @@ async function manualSuggestNextReference(){
 async function findOrCreateDriveFolder(name, parentId, token){
   const safeName = name.replace(/'/g, "\\'");
   const q = encodeURIComponent(`name = '${safeName}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  // 🔧 2026-09-23: رفعنا المهلة هون (كانت 15 ثانية) - أول حفظة لفرع جديد كليًا (متل دمشق-سوريا) بتحتاج
+  // فعليًا تنشئ المجلد (create) مش بس تدوّر عليه (search)، وهالإنشاء ممكن ياخد وقت أطول شوي من البحث
+  // العادي بمجلد قديم فيه مجلدات كتير أصلًا - شوف نفس الملاحظة جنب saveToGoogleDrive.
   const searchRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
-  }, 15000);
+  }, 20000);
   const searchData = await searchRes.json();
   if(searchData.files && searchData.files.length){
     return searchData.files[0].id;
@@ -4542,7 +4545,7 @@ async function findOrCreateDriveFolder(name, parentId, token){
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
-  }, 15000);
+  }, 20000);
   const createData = await createRes.json();
   return createData.id;
 }
@@ -4556,7 +4559,7 @@ async function uploadFileToDriveFolder(filename, mimeType, blob, parentId, token
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token },
     body: form
-  }, 30000);
+  }, 35000);
   return res.json();
 }
 
@@ -4592,11 +4595,17 @@ async function saveToGoogleDrive(evt){
     clearTimeout(watchdog);
     if(btn){ btn.disabled = false; btn.textContent = SAVE_BTN_LABEL; }
   }
+  // 🔧 2026-09-23: طلب حمدي - فشل حفظ أول عرض سعر لفرع دمشق-سوريا بخطأ "signal is aborted without
+  // reason". السبب: أول حفظة لفرع جديد كليًا لازم تنشئ مجلد السنة (2026) ومجلد الرقم المرجعي من
+  // الصفر جوا مجلد سوريا (بعكس فرع الإمارات يلي مجلداته موجودة أصلًا من زمان) - وهالإنشاء الإضافي
+  // (مع 3 رفعات ملفات: HTML وJSON وPDF، وتوليد الـPDF نفسه بالمتصفح) بيصير مجموع وقته الفعلي أطول من
+  // مهلة الـ30 ثانية القديمة بسهولة، فبيوقف الحفظ بمنتصف الطريق. رفعنا كل المهل تحت (مهلة كل طلب Drive
+  // فردي + المهلة الكلية + هالمؤقّت الاحتياطي) لإعطاء هامش وقت كافي أكبر، بالذات لأول حفظة بفرع جديد.
   const watchdog = setTimeout(()=>{
     if(settled) return;
     resetBtn();
-    console.error('[Drive Save] المؤقّت الاحتياطي اشتغل - العملية تعدّت المهلة القصوى (35 ثانية).');
-  }, 35000);
+    console.error('[Drive Save] المؤقّت الاحتياطي اشتغل - العملية تعدّت المهلة القصوى (65 ثانية).');
+  }, 65000);
   // كاشف احتياطي إضافي: لما نافذة تسجيل الدخول (popup) تنسكر (سواء نجحت أو انلغت)، نافذتنا الرئيسية بترجعلها التركيز focus فورًا.
   // إذا رجع التركيز وما وصلت نتيجة خلال ثانيتين، الأرجح إنو المستخدم سكّر نافذة جوجل (ألغى) - فمنرجّع الزر لطبيعته تلقائيًا بدون ما يحتاج يضغط أي شي.
   const onFocusReturn = ()=>{
@@ -4613,7 +4622,7 @@ async function saveToGoogleDrive(evt){
     if(btn){ btn.disabled = false; btn.textContent = '⏳ جاري الحفظ... (اكبس للإلغاء)'; }
     const result = await Promise.race([
       saveToGoogleDriveInner(),
-      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت العملية الوقت المسموح (30 ثانية) - تأكد من اتصالك بالإنترنت وجرّب تاني.')), 30000))
+      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت العملية الوقت المسموح (60 ثانية) - تأكد من اتصالك بالإنترنت وجرّب تاني.')), 60000))
     ]);
     window.removeEventListener('focus', onFocusReturn);
     if(driveSaveCancelled) return; // المستخدم كان ألغى يدويًا - ما منعرض أي نتيجة متأخرة
