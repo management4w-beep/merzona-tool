@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.3';
+  var CURRENT_VERSION = '2026-09-23.4';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -1202,6 +1202,11 @@
     width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center;
   }
   .item-chip .x:hover{ background: var(--wd-danger); color:white; }
+  .item-chip .edit{
+    background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:0.75;
+    width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; padding:0;
+  }
+  .item-chip .edit:hover{ background: var(--wd-cyan-dim); opacity:1; }
 
   .add-row{ display:flex; gap:8px; margin-bottom: 4px; }
   .add-row button{
@@ -6653,6 +6658,20 @@ function deleteItem(id, evt){
   renderGallery();
 }
 
+// 🆕 2026-09-23: طلب حمدي - يقدر يعدّل اسم أي عنصر (هاندريل، شباك، باب..) يلي ظاهر فوق التصميم بالمصمم
+// (بالشريط اللي فيه اسم العنصر مع زر × الحذف) بدل ما يضل الاسم التلقائي المولّد ثابت.
+function renameItem(id, evt){
+  if(evt) evt.stopPropagation();
+  const it = items.find(i=>i.id===id); if(!it) return;
+  const name = (prompt('اسم العنصر الجديد:', it.label) || '').trim();
+  if(!name) return; // إذا ألغى أو ترك الحقل فاضي، منضل عالاسم القديم
+  pushHistory();
+  it.label = name;
+  renderChips();
+  renderGallery();
+}
+window.renameItem = renameItem;
+
 function selectItem(id){
   selectedId = id;
   renderChips();
@@ -6676,7 +6695,7 @@ function renderChips(){
     const chip = document.createElement('div');
     chip.className = 'item-chip' + (it.id===selectedId ? ' active' : '');
     chip.onclick = () => selectItem(it.id);
-    chip.innerHTML = `<span>${it.label}</span><button class="x" onclick="deleteItem(${it.id}, event)">×</button>`;
+    chip.innerHTML = `<span>${it.label}</span><button class="edit" title="عدّل الاسم" onclick="renameItem(${it.id}, event)">✏️</button><button class="x" onclick="deleteItem(${it.id}, event)">×</button>`;
     wrap.appendChild(chip);
   });
 }
