@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.1';
+  var CURRENT_VERSION = '2026-09-23.2';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -6466,7 +6466,7 @@ function isHandrail(it){ return it.shapeType === 'handrail'; }
 // أجزاء الدرج (مائل / استراحة) - بتتأكد إنو في جزء وحد عالأقل، وبترجع المصفوفة
 function ensureHandrailSegments(it){
   if(!it.hrSegments || !it.hrSegments.length){
-    it.hrSegments = [{ id:'s'+(hrSegIdCounter++), type:'flight', panelCount: it.hrPanelCount || 4, totalLength: it.hrTotalLength || 4800 }];
+    it.hrSegments = [{ id:'s'+(hrSegIdCounter++), type:'flight', panelCount: it.hrPanelCount || 4, totalLength: it.hrTotalLength || 4800, mergedWithNext:false }];
   }
   return it.hrSegments;
 }
@@ -6495,8 +6495,22 @@ function getHandrailTotalLength(it){
 function addHandrailSegment(type){
   const it = getSelected(); if(!it) return;
   pushHistory();
-  ensureHandrailSegments(it).push({ id:'s'+(hrSegIdCounter++), type, panelCount: type==='landing'?1:4, totalLength: type==='landing'?1200:4800 });
+  ensureHandrailSegments(it).push({ id:'s'+(hrSegIdCounter++), type, panelCount: type==='landing'?1:4, totalLength: type==='landing'?1200:4800, mergedWithNext:false });
   syncHandrailDims(it);
+  renderHandrailSegmentsUI(it);
+  renderGallery();
+}
+// 🆕 2026-09-23: طلب حمدي - أحيانًا القطعة المائلة (درج) والاستراحة اللي بعدها (أو أي جزءين متجاورين)
+// بدهم يكونوا لوح زجاج واحد متواصل (بدون فاصل/قطع بينهم) بدل لوحين منفصلين بفاصل 5mm - متل الصورة يلي
+// بعتها (لوح واحد شكله غير منتظم: جزء مائل يتبع الدرج وجزء مستقيم بنهايته). هالتبديل (mergedWithNext)
+// معناه: ما في فاصل ولا خط تقسيم بين آخر لوح بهالجزء وأول لوح بالجزء يلي بعده - بيترسموا كقطعة زجاج
+// وحدة متواصلة (شوف buildHandrailSVG/buildHandrailPrintSVG: computeHandrailPanelPieces تحت).
+function toggleHandrailSegmentMerge(itemId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const segs = ensureHandrailSegments(it);
+  const seg = segs.find(s=>s.id===segId); if(!seg) return;
+  pushHistory();
+  seg.mergedWithNext = !seg.mergedWithNext;
   renderHandrailSegmentsUI(it);
   renderGallery();
 }
@@ -6523,18 +6537,28 @@ function renderHandrailSegmentsUI(it){
   const wrap = document.getElementById('hrSegmentsList');
   if(!wrap) return;
   const segs = ensureHandrailSegments(it);
-  wrap.innerHTML = segs.map((seg,idx)=>`
+  wrap.innerHTML = segs.map((seg,idx)=>{
+    const row = `
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;padding:6px;background:#f4f5f7;border-radius:4px;">
       <span style="font-size:12px;font-weight:600;min-width:64px;">${seg.type==='flight'?'🪜 مائل':'▬ استراحة'} ${idx+1}</span>
       <input type="number" min="1" step="1" style="width:56px;" value="${seg.panelCount}" onchange="onHrSegField(${it.id},'${seg.id}','panelCount',this.value)" title="عدد الألواح">
       <input type="number" min="1" style="width:84px;" value="${Math.round(seg.totalLength)}" onchange="onHrSegField(${it.id},'${seg.id}','totalLength',this.value)" title="الطول الإجمالي (مم)">
       <button class="small danger" style="margin-right:auto;" onclick="removeHandrailSegment(${it.id},'${seg.id}')" ${segs.length<=1?'disabled':''}>×</button>
-    </div>
-  `).join('');
+    </div>`;
+    // 🆕 2026-09-23: زر "دمج مع القطعة التالية" - بيظهر بس بين كل جزئين متتاليين (مش بعد آخر جزء
+    // بالقائمة، لأنو ما في "قطعة تالية" إلها). لما يكون مفعّل (🔗 مدموج) بيصير الجزءان لوح زجاج
+    // واحد متواصل بدون فاصل بينهم بالرسمة وبالطباعة.
+    const mergeRow = (idx < segs.length-1) ? `
+    <div style="display:flex;justify-content:center;margin:-2px 0 6px;">
+      <button class="small${seg.mergedWithNext?' active':''}" style="font-size:10.5px;${seg.mergedWithNext?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentMerge(${it.id},'${seg.id}')" title="ادمج هالقطعة مع اللي بعدها كلوح زجاج واحد متواصل بدون فاصل">${seg.mergedWithNext ? '🔗 مدموجة مع اللي بعدها (بدون فاصل)' : '⛓️‍💥 دمج مع القطعة التالية'}</button>
+    </div>` : '';
+    return row + mergeRow;
+  }).join('');
 }
 window.addHandrailSegment = addHandrailSegment;
 window.removeHandrailSegment = removeHandrailSegment;
 window.onHrSegField = onHrSegField;
+window.toggleHandrailSegmentMerge = toggleHandrailSegmentMerge;
 
 function makeItem(type){
   const isDoorish = type === 'door' || type === 'slidingDoor' || type === 'foldingDoor' || type === 'showerGlassDoor';
@@ -7816,27 +7840,45 @@ function showerDoorHardwareSVG(it, drawW, drawH, handleColor){
 }
 
 // ---------- HANDRAIL (هاندريل) rendering ----------
+// 🆕 2026-09-23: طلب حمدي - إمكانية دمج جزءين متجاورين (مائل + استراحة مثلًا) كلوح زجاج واحد متواصل
+// بدون فاصل بينهم (زر "دمج مع القطعة التالية" بـrenderHandrailSegmentsUI). هالدالة مشتركة بين
+// buildHandrailSVG وbuildHandrailPrintSVG - بتبني قائمة الألواح المسطّحة، وكل لوح معه mergeWithNext
+// (صحيح لو آخر لوح بقطعة معلّمة "مدموجة" وفي قطعة بعدها - يعني ما في فاصل ولا خط تقسيم بينه وبين
+// أول لوح بالقطعة التالية).
+function buildHandrailPanelsMm(it){
+  const isStair = it.hrKind === 'staircase';
+  let panelsMm = [];
+  if(isStair){
+    const segs = ensureHandrailSegments(it);
+    segs.forEach((seg, segIdx)=>{
+      const n = Math.max(1, seg.panelCount||1);
+      const pw = hrSegPanelWidth(seg);
+      const isLastSeg = segIdx === segs.length-1;
+      for(let i=0;i<n;i++){
+        const isLastPanelOfSeg = (i === n-1);
+        panelsMm.push({ w: pw, type: seg.type, segId: seg.id, mergeWithNext: (isLastPanelOfSeg && !isLastSeg) ? !!seg.mergedWithNext : false });
+      }
+    });
+  } else {
+    const n = Math.max(1, it.hrPanelCount || 1);
+    const pw = getHandrailPanelWidth(it);
+    for(let i=0;i<n;i++) panelsMm.push({ w: pw, type:'flat', mergeWithNext:false });
+  }
+  return panelsMm;
+}
+
 function buildHandrailSVG(it){
   const glassH = Math.max(50, it.hrGlassHeight || 1200);
   const gap = HANDRAIL_GAP_MM;
   const isStair = it.hrKind === 'staircase';
 
   // ابني قائمة الألواح المسطّحة (بالمليمتر) - من أجزاء الدرج (مائل/استراحة) أو من الجزء المسطح الواحد
-  let panelsMm = [];
-  if(isStair){
-    ensureHandrailSegments(it).forEach(seg=>{
-      const n = Math.max(1, seg.panelCount||1);
-      const pw = hrSegPanelWidth(seg);
-      for(let i=0;i<n;i++) panelsMm.push({ w: pw, type: seg.type, segId: seg.id });
-    });
-  } else {
-    const n = Math.max(1, it.hrPanelCount || 1);
-    const pw = getHandrailPanelWidth(it);
-    for(let i=0;i<n;i++) panelsMm.push({ w: pw, type:'flat' });
-  }
+  let panelsMm = buildHandrailPanelsMm(it);
   if(!panelsMm.length || panelsMm.some(p=>!p.w || p.w<=0)) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">أدخل أبعاد صحيحة</div>';
 
-  const totalLenMm = panelsMm.reduce((s,p)=>s+p.w,0) + (panelsMm.length-1)*gap;
+  // 🆕 عدد الفواصل الفعلي أقل من (عدد الألواح - 1) لما يكون في دمج - كل زوج مدموج ما بياخد فاصل.
+  const numGaps = panelsMm.slice(0,-1).filter(p=>!p.mergeWithNext).length;
+  const totalLenMm = panelsMm.reduce((s,p)=>s+p.w,0) + numGaps*gap;
 
   // مقياس أفقي مبني على الطول الإجمالي، ومقياس رأسي مستقل بحد أدنى مقروء - حتى ما تختفي قياسات الارتفاع بالأطوال الكبيرة (25 م مثلاً)
   // وبناخد بالحسبان ارتفاع الميلان التراكمي لأجزاء الدرج المائلة حتى ما تفيض الرسمة عموديًا لصفحة/بطاقة أطول من اللازم
@@ -7858,14 +7900,24 @@ function buildHandrailSVG(it){
   let panelsSvg = '', legsSvg = '', panelLabelsSvg = '', gapMarkSvg = '', diagonalSvg = '';
   let bottomPts = [];
   const allYs = [0];
+  // تجميع نقاط "القطعة" الواحدة (لوح أو أكثر مدموجين) لرسم مضلع واحد متواصل بدون فاصل بينهم
+  let pieceBottomPts = [], pieceTopPts = [], pieceHasNonLanding = false;
 
   panelsMm.forEach((p, idx)=>{
     const pw = p.w*hScale;
     const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
     const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
-    const fill = p.type==='landing' ? 'rgba(120,180,220,0.16)' : 'var(--wd-glass, rgba(120,180,220,0.28))';
-    panelsSvg += `<polygon points="${x},${yB0} ${x},${yT0} ${x+pw},${yT1} ${x+pw},${yB1}" fill="${fill}" stroke="var(--wd-ink)" stroke-width="2"/>`;
+    pieceBottomPts.push([x,yB0], [x+pw,yB1]);
+    pieceTopPts.push([x,yT0], [x+pw,yT1]);
+    if(p.type !== 'landing') pieceHasNonLanding = true;
+    if(!p.mergeWithNext){
+      // آخر لوح بالقطعة (أو قطعة من لوح واحد بدون دمج) - نرسم القطعة كلها كمضلع واحد
+      const pieceFill = pieceHasNonLanding ? 'var(--wd-glass, rgba(120,180,220,0.28))' : 'rgba(120,180,220,0.16)';
+      const piecePts = pieceBottomPts.concat(pieceTopPts.slice().reverse());
+      panelsSvg += `<polygon points="${piecePts.map(pt=>pt.join(',')).join(' ')}" fill="${pieceFill}" stroke="var(--wd-ink)" stroke-width="2"/>`;
+      pieceBottomPts = []; pieceTopPts = []; pieceHasNonLanding = false;
+    }
     // قياس القطر "عالميل" لكل لوح مائل لحاله - خط أحمر قطري من الزاوية السفلية للزاوية العلوية المقابلة (وقياسه لحاله عليه) + طول قطعة الزجاج المائل يلي دخّله المستخدم فوق اللوح موازي لحافته (نفس الرقم المُدخل، بدون أي تحويل حسابي إضافي - المستخدم أصلاً بياخد مقاس الزجاجة مائل)
     if(p.type==='flight'){
       const riseMm = p.w*rakeSlope;
@@ -7914,14 +7966,14 @@ function buildHandrailSVG(it){
         });
       });
     }
-    // فاصل 5mm بين هالوح واللي بعده - بنعرضه بين كل الفواصل حتى تتأكد إنو المسافة فعلاً محسوبة ومخصومة بكل مكان
-    if(idx < panelsMm.length-1){
+    // فاصل 5mm بين هالوح واللي بعده - بنعرضه بين كل الفواصل حتى تتأكد إنو المسافة فعلاً محسوبة ومخصومة بكل مكان (ما منرسمو إذا اللوحين مدموجين ببعض بدون فاصل)
+    if(idx < panelsMm.length-1 && !p.mergeWithNext){
       const gx = x+pw+gapPx/2;
       gapMarkSvg += `<line x1="${x+pw}" y1="${yB1-drawH-6}" x2="${x+pw}" y2="${yB1+6}" stroke="var(--wd-amber)" stroke-width="1" opacity="0.7"/>
         <line x1="${x+pw+gapPx}" y1="${yB1-drawH-6}" x2="${x+pw+gapPx}" y2="${yB1+6}" stroke="var(--wd-amber)" stroke-width="1" opacity="0.7"/>
         <text x="${gx}" y="${yB1-drawH-10}" font-size="9.5" fill="var(--wd-amber)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${gap}mm</text>`;
     }
-    x += pw + gapPx;
+    x += pw + (p.mergeWithNext ? 0 : gapPx);
     baseline += riseEnd;
   });
   const drawW = x - gapPx; // منشيل آخر فاصل زيادة انضاف بعد آخر لوح
@@ -8440,20 +8492,10 @@ function buildHandrailPrintSVG(it, pageItemCount){
   const glassH = Math.max(50, it.hrGlassHeight || 1200);
   const gap = HANDRAIL_GAP_MM;
   const isStair = it.hrKind === 'staircase';
-  let panelsMm = [];
-  if(isStair){
-    ensureHandrailSegments(it).forEach(seg=>{
-      const n = Math.max(1, seg.panelCount||1);
-      const pw = hrSegPanelWidth(seg);
-      for(let i=0;i<n;i++) panelsMm.push({ w: pw, type: seg.type });
-    });
-  } else {
-    const n = Math.max(1, it.hrPanelCount || 1);
-    const pw = getHandrailPanelWidth(it);
-    for(let i=0;i<n;i++) panelsMm.push({ w: pw, type:'flat' });
-  }
+  let panelsMm = buildHandrailPanelsMm(it);
   if(!panelsMm.length || panelsMm.some(p=>!p.w||p.w<=0)) return '';
-  const totalLenMm = panelsMm.reduce((s,p)=>s+p.w,0) + (panelsMm.length-1)*gap;
+  const numGaps = panelsMm.slice(0,-1).filter(p=>!p.mergeWithNext).length;
+  const totalLenMm = panelsMm.reduce((s,p)=>s+p.w,0) + numGaps*gap;
 
   const estPadSide = 100, estPadTop = 56, estPadBottom = 46;
   const targetW = Math.max(50, availW - estPadSide*2);
@@ -8477,13 +8519,20 @@ function buildHandrailPrintSVG(it, pageItemCount){
   let panelsSvg = '', legsSvg = '', panelLabelsSvg = '', gapMarkSvg = '';
   let bottomPts = [];
   const allYs = [0];
+  let pieceBottomPts = [], pieceTopPts = [];
 
   panelsMm.forEach((p, idx)=>{
     const pw = p.w*hScale;
     const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
     const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
-    panelsSvg += `<polygon points="${x},${yB0} ${x},${yT0} ${x+pw},${yT1} ${x+pw},${yB1}" fill="#E4F3FA" stroke="#000000" stroke-width="2"/>`;
+    pieceBottomPts.push([x,yB0], [x+pw,yB1]);
+    pieceTopPts.push([x,yT0], [x+pw,yT1]);
+    if(!p.mergeWithNext){
+      const piecePts = pieceBottomPts.concat(pieceTopPts.slice().reverse());
+      panelsSvg += `<polygon points="${piecePts.map(pt=>pt.join(',')).join(' ')}" fill="#E4F3FA" stroke="#000000" stroke-width="2"/>`;
+      pieceBottomPts = []; pieceTopPts = [];
+    }
     const cx = x+pw/2, cy = (yT0+yT1+yB0+yB1)/4;
     if(pw > 26) panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="11" fill="#2b6f93" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(p.w)}×${Math.round(glassH)}</text>`;
     bottomPts.push([x,yB0], [x+pw,yB1]);
@@ -8508,13 +8557,13 @@ function buildHandrailPrintSVG(it, pageItemCount){
         });
       });
     }
-    if(idx < panelsMm.length-1){
+    if(idx < panelsMm.length-1 && !p.mergeWithNext){
       const gx = x+pw+gapPx/2;
       gapMarkSvg += `<line x1="${x+pw}" y1="${yB1-drawH-6}" x2="${x+pw}" y2="${yB1+6}" stroke="#A15C1E" stroke-width="1" opacity="0.7"/>
         <line x1="${x+pw+gapPx}" y1="${yB1-drawH-6}" x2="${x+pw+gapPx}" y2="${yB1+6}" stroke="#A15C1E" stroke-width="1" opacity="0.7"/>
         <text x="${gx}" y="${yB1-drawH-10}" font-size="9" fill="#A15C1E" text-anchor="middle" font-family="'JetBrains Mono',monospace" direction="ltr">${gap}mm</text>`;
     }
-    x += pw + gapPx;
+    x += pw + (p.mergeWithNext ? 0 : gapPx);
     baseline += riseEnd;
   });
   const drawW = x - gapPx;
@@ -9458,20 +9507,10 @@ function build3DHandrailSVG(it){
   const glassH = Math.max(50, it.hrGlassHeight || 1200);
   const gap = HANDRAIL_GAP_MM;
   const isStair = it.hrKind === 'staircase';
-  let panelsMm = [];
-  if(isStair){
-    ensureHandrailSegments(it).forEach(seg=>{
-      const n = Math.max(1, seg.panelCount||1);
-      const pw = hrSegPanelWidth(seg);
-      for(let i=0;i<n;i++) panelsMm.push({ w: pw, type: seg.type });
-    });
-  } else {
-    const n = Math.max(1, it.hrPanelCount || 1);
-    const pw = getHandrailPanelWidth(it);
-    for(let i=0;i<n;i++) panelsMm.push({ w: pw, type:'flat' });
-  }
+  let panelsMm = buildHandrailPanelsMm(it);
   if(!panelsMm.length || panelsMm.some(p=>!p.w || p.w<=0)) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">أدخل أبعاد صحيحة</div>';
-  const totalLenMm = panelsMm.reduce((s,p)=>s+p.w,0) + (panelsMm.length-1)*gap;
+  const numGaps = panelsMm.slice(0,-1).filter(p=>!p.mergeWithNext).length;
+  const totalLenMm = panelsMm.reduce((s,p)=>s+p.w,0) + numGaps*gap;
 
   const RAKE_ANGLE_DEG = 28;
   const rakeSlope = Math.tan(RAKE_ANGLE_DEG*Math.PI/180);
@@ -9490,13 +9529,20 @@ function build3DHandrailSVG(it){
   let glass = '', legsSvg = '';
   let bottomPts = [];
   const allYs = [0];
+  let pieceBottomPts = [], pieceTopPts = [];
 
   panelsMm.forEach(p=>{
     const pw = p.w*hScale;
     const riseEnd = (isStair && p.type==='flight') ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
     const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
-    glass += `<polygon points="${x},${yB0} ${x},${yT0} ${x+pw},${yT1} ${x+pw},${yB1}" fill="url(#glass-${gid})" stroke="#14181c" stroke-width="1"/>`;
+    pieceBottomPts.push([x,yB0], [x+pw,yB1]);
+    pieceTopPts.push([x,yT0], [x+pw,yT1]);
+    if(!p.mergeWithNext){
+      const piecePts = pieceBottomPts.concat(pieceTopPts.slice().reverse());
+      glass += `<polygon points="${piecePts.map(pt=>pt.join(',')).join(' ')}" fill="url(#glass-${gid})" stroke="#14181c" stroke-width="1"/>`;
+      pieceBottomPts = []; pieceTopPts = [];
+    }
     const rx = x+pw*0.2, rw = Math.max(4, pw*0.14);
     glass += `<polygon points="${rx},${yT0} ${rx+rw},${yT0} ${x+pw*0.05},${yB0} ${Math.max(x,rx+rw-pw*0.4)},${yB0}" fill="url(#streakGrad-${gid})" opacity="0.5"/>`;
     bottomPts.push([x,yB0], [x+pw,yB1]);
@@ -9522,7 +9568,7 @@ function build3DHandrailSVG(it){
         });
       });
     }
-    x += pw + gapPx;
+    x += pw + (p.mergeWithNext ? 0 : gapPx);
     baseline += riseEnd;
   });
   const drawW = x - gapPx;
@@ -9970,7 +10016,6 @@ window.onHandrailCountChange = onHandrailCountChange;
 window.onHandrailHeightChange = onHandrailHeightChange;
 window.onShowerSidePanelToggle = onShowerSidePanelToggle;
 window.onShowerSideWidthChange = onShowerSideWidthChange;
-
 
 })();
 </script>
