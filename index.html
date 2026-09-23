@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.8';
+  var CURRENT_VERSION = '2026-09-23.9';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -7982,7 +7982,11 @@ function buildHandrailSVG(it){
       pieceBottomPts = []; pieceTopPts = []; pieceHasNonLanding = false;
     }
     // قياس القطر "عالميل" لكل لوح مائل لحاله - خط أحمر قطري من الزاوية السفلية للزاوية العلوية المقابلة (وقياسه لحاله عليه) + طول قطعة الزجاج المائل يلي دخّله المستخدم فوق اللوح موازي لحافته (نفس الرقم المُدخل، بدون أي تحويل حسابي إضافي - المستخدم أصلاً بياخد مقاس الزجاجة مائل)
-    if(p.type==='flight'){
+    // 🔧 2026-09-23 (طلب حمدي - "لازم المقاسات تكون متل الدرج بالظبط نفس الروح"): الاستراحة المائلة
+    // (p.inclined) هلق بتاخد بالضبط نفس معاملة اللوح المائل (خط القطر الأحمر + قياس الحافة العلوي) -
+    // مو بس صندوق مقاس بسيط بالنص. الاستراحة المستوية (غير مائلة) بتضل عالصندوق البسيط تحت (مافي
+    // قطر أصلاً لأنها مسطحة 100%، ما إلها معنى هندسي).
+    if(p.type==='flight' || p.inclined){
       const riseMm = p.w*rakeSlope;
       const diagMm = Math.sqrt(p.w*p.w + (riseMm+glassH)*(riseMm+glassH)); // طول القطر (الخط الأحمر) من زاوية لزاوية مقابلة
       const topDx = pw, topDy = (yT1-yT0);
@@ -7991,9 +7995,11 @@ function buildHandrailSVG(it){
       const diagDx = pw, diagDy = (yT1-yB0);
       const diagAngleDeg = Math.atan2(diagDy,diagDx)*180/Math.PI;
       const diagMidX = x+pw/2, diagMidY = (yB0+yT1)/2;
+      // لو استراحة مائلة، منضيف فرق الارتفاع يلي كاتبه حمدي مباشرة لنص قياس الحافة (حتى ما تضيع هالمعلومة)
+      const edgeRiseSuffix = (p.type==='landing' && p.riseCm > 0) ? ` (+${p.riseCm}سم)` : '';
       diagonalSvg += `<line x1="${x}" y1="${yB0}" x2="${x+pw}" y2="${yT1}" stroke="#e53935" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
         <g transform="translate(${edgeMidX},${edgeMidY}) rotate(${edgeAngleDeg})">
-          <text x="0" y="-8" font-size="11" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.w)} mm</text>
+          <text x="0" y="-8" font-size="11" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.w)} mm${edgeRiseSuffix}</text>
         </g>
         <g transform="translate(${diagMidX},${diagMidY}) rotate(${diagAngleDeg})">
           <rect x="-30" y="-19" width="60" height="14" fill="var(--wd-bg-deep, #0b1220)" opacity="0.85" rx="3"/>
