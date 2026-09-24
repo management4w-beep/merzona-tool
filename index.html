@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.10';
+  var CURRENT_VERSION = '2026-09-24.1';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -5603,6 +5603,9 @@ window.wdApplyBack = function(results){
         <div class="add-row" style="margin-top:6px;">
           <button onclick="addItem('handrail')" style="flex:1;">🛡️ + هاندريل (درابزين) جديد</button>
         </div>
+        <div class="add-row" style="margin-top:6px;">
+          <button onclick="addItem('room')" style="flex:1;">🏛️ + غرفة/مجلس جديد</button>
+        </div>
       </div>
 
       <div class="field-block">
@@ -5732,6 +5735,24 @@ window.wdApplyBack = function(results){
             <input type="number" id="inHrHeight" min="200" oninput="onHandrailHeightChange()" value="1200">
           </div>
           <p class="hint" style="margin-top:8px;">فاصل ثابت 5mm بين كل لوح وللي جنبه. كل الألواح بنفس الجزء الواحد لازم تكون متساوية بالمقاس.</p>
+        </div>
+
+        <!-- 🆕 2026-09-24: طلب حمدي - "غرفة/مجلس": مخطط أرضية بعدة أضلاع (طول + زاوية لكل ضلع)،
+             كل ضلع بيصير بند تصميم عادي مستقل بجدول عرض السعر لما ينصمم. مرحلة أولى (أساس): رسم
+             المخطط + ربط كل ضلع ببند سعر. السقف والديكورات والمشهد 3D الحقيقي والفيديو مراحل جاية. -->
+        <div style="margin-top:10px; display:none;" id="roomBlock">
+          <div>
+            <label>ارتفاع الغرفة الافتراضي (مم) - بيُستخدم كارتفاع مبدئي لأي ضلع جديد لما ينصمم</label>
+            <input type="number" id="inRoomHeight" min="1000" oninput="onRoomHeightChange()" value="2500">
+          </div>
+          <label style="margin-top:8px;">أضلاع الأرضية (بالترتيب حول الغرفة)</label>
+          <p class="hint">كل ضلع = طوله بالمم + الزاوية الداخلية بينه وبين الضلع يلي بعده (افتراضي 90° لغرفة مستطيلة عادية). دوس "🎨 صمم" لتحويل الضلع لبند تصميم عادي (زجاج/باب/هاندريل) - بينضاف تلقائيًا كسطر جديد بجدول عرض السعر فوق.</p>
+          <div id="roomSidesList"></div>
+          <div class="add-row" style="margin-top:6px;">
+            <button onclick="addRoomSideFromControls()" class="small" style="flex:1;">+ ضلع جديد</button>
+          </div>
+          <label style="margin-top:10px;">مخطط الأرضية (تخطيطي - من فوق)</label>
+          <div id="roomFloorPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
         </div>
 
         <div class="row2" id="normalDimsRow" style="display: grid;">
@@ -6454,7 +6475,7 @@ function getPrintAvailPx(pageItemCount, forceFullFill){
   return { availW: Math.max(150, cellW), availH: Math.max(120, cellH) };
 }
 
-const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل' };
+const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل', room:'غرفة/مجلس' };
 const HANDRAIL_GAP_MM = 5;
 // مواقع أزواج مسامير Stand Off أفقيًا داخل عرض اللوح - كل زوج بيصير عنده مسمارين (فوق وتحت) - قابل للتوسيع لأكتر من زوجين للألواح الكبيرة
 function getStandoffPairPositions(pairs){
@@ -6465,8 +6486,12 @@ function getStandoffPairPositions(pairs){
   return Array.from({length:n}, (_,i)=> margin + i*step);
 }
 let hrSegIdCounter = 1;
+// 🆕 2026-09-24: طلب حمدي - أداة "غرفة/مجلس" (مخطط أرضية بعدة أضلاع، كل ضلع بيصير بند تصميم عادي
+// متكامل مع جدول عرض السعر). هاد العداد لمعرّفات أضلاع الغرفة (roomSides)، نفس فكرة hrSegIdCounter.
+let roomSideIdCounter = 1;
 
 function isHandrail(it){ return it.shapeType === 'handrail'; }
+function isRoom(it){ return it.shapeType === 'room'; }
 
 // أجزاء الدرج (مائل / استراحة) - بتتأكد إنو في جزء وحد عالأقل، وبترجع المصفوفة
 function ensureHandrailSegments(it){
@@ -6614,7 +6639,7 @@ function makeItem(type){
   } else {
     layout = makeSplit('col', [{frac:70,node:leaf()},{frac:30,node:leaf()}]);
   }
-  return {
+  const it = {
     id: nextId++,
     label: label + ' ' + (items.filter(i=>i.shapeType===type).length + 1),
     shapeType: type,
@@ -6650,6 +6675,14 @@ function makeItem(type){
     hrGlassHeight: 1200,
     layout
   };
+  // 🆕 2026-09-24: طلب حمدي - "غرفة/مجلس" (مخطط أرضية بعدة أضلاع، طول+زاوية داخلية لكل ضلع). هاد
+  // البند تنظيمي فقط (ما إله عرض/ارتفاع/سعر لحاله وما بيدخل جدول عرض السعر) - كل ضلع فيه لما ينصمم
+  // ("🎨 صمم") بيصير بند تصميم عادي مستقل (نافذة/باب/هاندريل) بسطره الخاص بجدول عرض السعر.
+  if(type === 'room'){
+    it.roomHeight = 2500;
+    it.roomSides = [0,1,2,3].map(()=>({ id:'rs'+(roomSideIdCounter++), length:3000, angleDeg:90, rowUid:null }));
+  }
+  return it;
 }
 
 function addItem(type){
@@ -6989,6 +7022,18 @@ function loadSelectedIntoControls(){
   });
   renderTemplateSections();
   if(!it) return;
+
+  // 🆕 2026-09-24: "غرفة/مجلس" - لوحة تحكم مختلفة كليًا (أضلاع + زوايا)، منعزلة عن باقي أنواع البنود
+  const room = isRoom(it);
+  document.getElementById('roomBlock').style.display = room ? 'block' : 'none';
+  if(room){
+    document.getElementById('handrailBlock').style.display = 'none';
+    document.getElementById('normalDimsRow').style.display = 'none';
+    document.getElementById('inArch').closest('.check-row').style.display = 'none';
+    document.getElementById('inRoomHeight').value = it.roomHeight || 2500;
+    renderRoomSidesUI(it);
+    return;
+  }
 
   const hr = isHandrail(it);
   const isShower = isShowerDoor(it);
@@ -7795,6 +7840,7 @@ function renderNode(it, node, x, y, w, h, scale, isDoor, out, netMap){
 }
 
 function classifyItem(it){
+  if(it.shapeType === 'room') return { en:'Room / Majlis', ar:'غرفة/مجلس' };
   if(it.shapeType === 'foldingDoor') return { en:'Folding Door', ar:'باب فولدينغ' };
   if(it.shapeType === 'slidingDoor') return { en:'Sliding Door', ar:'باب سحّاب' };
   if(it.shapeType === 'slidingWindow') return { en:'Sliding Window', ar:'شباك سحّاب' };
@@ -8149,8 +8195,166 @@ function editHandrailTotal(id){
 }
 window.editHandrailTotal = editHandrailTotal;
 
+/* ---------- ROOM / MAJLIS (غرفة/مجلس) - مخطط أرضية بعدة أضلاع ---------- */
+// 🆕 2026-09-24: طلب حمدي - مرحلة أولى (أساس): رسم مخطط الأرضية (عدة أضلاع، كل ضلع بطوله وزاويته
+// الداخلية) وربط كل ضلع ببند تصميم عادي مستقل (نافذة/باب/هاندريل...) بسطره الخاص بجدول عرض السعر،
+// بالضبط متل ما بيصير مع أي بند عادي اليوم. السقف والديكورات فوق البنود والمشهد 3D الحقيقي القابل
+// للتدوير وتصدير الفيديو التلقائي 360° مراحل جاية (اتفقنا عليها كخطوات لاحقة بعد هالأساس).
+
+function onRoomHeightChange(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.roomHeight = Math.max(1000, parseFloat(document.getElementById('inRoomHeight').value)||2500);
+}
+window.onRoomHeightChange = onRoomHeightChange;
+
+function addRoomSide(itemId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  pushHistory();
+  if(!it.roomSides) it.roomSides = [];
+  it.roomSides.push({ id:'rs'+(roomSideIdCounter++), length:3000, angleDeg:90, rowUid:null });
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.addRoomSide = addRoomSide;
+
+function addRoomSideFromControls(){
+  const it = getSelected(); if(it) addRoomSide(it.id);
+}
+window.addRoomSideFromControls = addRoomSideFromControls;
+
+function removeRoomSide(itemId, sideId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  if((it.roomSides||[]).length <= 3){ alert('لازم يبقى عالأقل 3 أضلاع لتشكيل مساحة مغلقة.'); return; }
+  pushHistory();
+  it.roomSides = it.roomSides.filter(s=>s.id!==sideId);
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.removeRoomSide = removeRoomSide;
+
+function onRoomSideField(itemId, sideId, field, value){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const s = (it.roomSides||[]).find(x=>x.id===sideId); if(!s) return;
+  pushHistory();
+  if(field==='length') s.length = Math.max(1, parseFloat(value)||1);
+  if(field==='angleDeg') s.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.onRoomSideField = onRoomSideField;
+
+// 🎨 "صمم" - بيحوّل هاد الضلع لبند تصميم عادي متكامل بجدول عرض السعر (نفس آلية openDesignerFromToolbar
+// بالضبط: بند جديد بجدول #qty-rows، بعدين إعادة تحميل كل الأسطر جوا المصمم)، وبيفتحله لوحة التحكم
+// العادية مباشرة (زجاج/باب/هاندريل...) - تمامًا متل أي بند تاني.
+function designRoomSide(itemId, sideId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  pushHistory();
+  let tr = side.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+side.rowUid+'"]') : null;
+  if(!tr){
+    const idx = it.roomSides.indexOf(side) + 1;
+    addQtyRow(Math.round(side.length), Math.round(it.roomHeight||2500), '1', '');
+    const rows = document.querySelectorAll('#qty-rows tr');
+    tr = rows[rows.length-1];
+    const nameInput = tr.querySelector('.item-input');
+    if(nameInput){
+      nameInput.value = (it.label||'غرفة') + ' - ضلع ' + idx;
+      tr.dataset.itemName = nameInput.value;
+    }
+    side.rowUid = ensureRowUid(tr);
+  }
+  renumber();
+  const rowData = Array.from(document.querySelectorAll('#qty-rows tr')).map(rowTr=>{
+    const uid = ensureRowUid(rowTr);
+    const itemName = (rowTr.querySelector('.item-input')||{}).value || '';
+    const w = parseFloat((rowTr.querySelector('.w-input')||{}).value) || 0;
+    const h = parseFloat((rowTr.querySelector('.h-input')||{}).value) || 0;
+    const refCode = (rowTr.querySelector('.row-code')||{}).textContent || '';
+    const linkedIdx = findItemIndexByName(itemName);
+    const savedDesign = linkedIdx>=0 ? (ITEMS[linkedIdx].design || null) : null;
+    return { uid, itemName, w, h, refCode, savedDesign };
+  });
+  WD.loadFromRows(rowData);
+  const target = items.find(i=>i.sourceRowUid === side.rowUid);
+  if(target) selectItem(target.id);
+  renderGallery();
+}
+window.designRoomSide = designRoomSide;
+
+function renderRoomSidesUI(it){
+  const list = document.getElementById('roomSidesList');
+  if(!list) return;
+  const sides = it.roomSides || [];
+  list.innerHTML = sides.map((s, idx)=>{
+    const linkedTr = s.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+s.rowUid+'"]') : null;
+    const linkedName = linkedTr ? ((linkedTr.querySelector('.item-input')||{}).value || '') : '';
+    const statusHtml = s.rowUid
+      ? `<span style="font-size:11px;color:var(--wd-ok,#1e7a3d);">✓ مصمم: ${escAttr(linkedName || ('ضلع '+(idx+1)))}</span>`
+      : `<span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">لسا ما انصمم</span>`;
+    return `
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:6px;">
+      <span style="font-size:12px;font-weight:600;min-width:50px;">ضلع ${idx+1}</span>
+      <input type="number" min="1" style="width:80px;" value="${Math.round(s.length)}" onchange="onRoomSideField(${it.id},'${s.id}','length',this.value)" title="طول الضلع (مم)">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
+      <input type="number" min="1" max="359" style="width:64px;" value="${Math.round(s.angleDeg)}" onchange="onRoomSideField(${it.id},'${s.id}','angleDeg',this.value)" title="الزاوية الداخلية بين هاد الضلع واللي بعده (افتراضي 90°)">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">°</span>
+      <button class="small" onclick="designRoomSide(${it.id},'${s.id}')" style="font-size:10.5px;">🎨 ${s.rowUid ? 'عدّل التصميم' : 'صمم'}</button>
+      ${statusHtml}
+      <button class="small danger" onclick="removeRoomSide(${it.id},'${s.id}')" title="حذف الضلع" style="margin-inline-start:auto;">×</button>
+    </div>`;
+  }).join('');
+  const previewEl = document.getElementById('roomFloorPreview');
+  if(previewEl) previewEl.innerHTML = buildRoomSVG(it);
+}
+
+// رسمة تخطيطية للأرضية من فوق (2D top-down) - نمشي حول الأضلاع (طول+زاوية داخلية) بادئين من (0,0)
+// لنبني نقاط المضلع، ونحط رقم طول كل ضلع فوقه بمنتصفه، مع تنبيه بسيط لو الشكل ما "بيسكّر" (المسافة
+// بين نقطة البداية والنهاية كبيرة) حتى المستخدم يراجع الأطوال/الزوايا يلي دخّلها.
+function buildRoomSVG(it){
+  const sides = it.roomSides || [];
+  if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">ضيف 3 أضلاع عالأقل</div>';
+  let bearing = 0, x = 0, y = 0;
+  const pts = [{x, y}];
+  const mids = [];
+  sides.forEach(s=>{
+    const rad = bearing * Math.PI/180;
+    const nx = x + s.length*Math.cos(rad), ny = y + s.length*Math.sin(rad);
+    mids.push({ x:(x+nx)/2, y:(y+ny)/2, length:s.length, angle:bearing });
+    x = nx; y = ny;
+    pts.push({x, y});
+    bearing += (180 - (s.angleDeg||90)); // الزاوية الخارجية = 180 - الزاوية الداخلية
+  });
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rangeW = Math.max(1, maxX-minX), rangeH = Math.max(1, maxY-minY);
+  const boxPx = 260;
+  const scale = Math.min(boxPx/rangeW, boxPx/rangeH);
+  const pad = 40;
+  const toPx = p => ({ x:(p.x-minX)*scale, y:(p.y-minY)*scale });
+  const pxPts = pts.map(toPx);
+  const polyStr = pxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
+  const closureGap = Math.hypot(pts[pts.length-1].x - pts[0].x, pts[pts.length-1].y - pts[0].y);
+  const isClosed = closureGap < Math.max(50, rangeW*0.03);
+  const totalW = rangeW*scale + pad*2, totalH = rangeH*scale + pad*2;
+  let labelsSvg = '';
+  mids.forEach(m=>{
+    const p = toPx(m);
+    let labelAngle = m.angle % 360; if(labelAngle < 0) labelAngle += 360;
+    if(labelAngle > 90 && labelAngle < 270) labelAngle -= 180; // نص فوق رأسه - منقلبه ليضل مقروء
+    labelsSvg += `<text x="${p.x}" y="${p.y-6}" font-size="10.5" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${labelAngle}, ${p.x}, ${p.y-6})">${Math.round(m.length)} mm</text>`;
+  });
+  return `
+  <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="${polyStr}" fill="var(--wd-glass, rgba(120,180,220,0.28))" stroke="var(--wd-ink)" stroke-width="2" stroke-linejoin="round"/>
+    ${labelsSvg}
+    ${isClosed ? '' : `<text x="${totalW/2 - pad}" y="${totalH - pad + 16}" font-size="10" fill="#e53935" text-anchor="middle">⚠ الشكل ما منسك 100% - راجع الأطوال/الزوايا</text>`}
+  </svg>`;
+}
+
 function buildItemSVG(it){
   if(isHandrail(it)) return buildHandrailSVG(it);
+  if(isRoom(it)) return buildRoomSVG(it);
   const W = it.width, H = it.height;
   if(!W || !H || W<=0 || H<=0) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">أدخل أبعاد صحيحة</div>';
 
@@ -8901,7 +9105,7 @@ function buildPrintSheetHTML(){
   let html = `<div class="print-letterhead">
     ${companyLogo ? `<img src="${companyLogo}" class="print-logo" alt="${companyName}"/>` : `<div class="print-company-name">${companyName}</div>`}
   </div>`;
-  const printItems = items.filter(it => !it.isCameraTemp);
+  const printItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
   // الهاندريل بيطلع بصفحة لحاله بعرض الصفحة كامل (شكله عريض وطويل وبيحتاج مساحة قراءة أوسع من باقي البنود)
   const pages = [];
   let buf = [];
@@ -8945,7 +9149,7 @@ function buildPrintSheetHTML(){
 // تلقائياً بنفس القياسات المضبوطة - بدون ما تعيد إدخالها يدوياً.
 function exportProcurementJSON(){
   try{
-    const printItems = items.filter(it => !it.isCameraTemp);
+    const printItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
     if(!printItems.length) return;
     const refInput = document.getElementById('m-ref');
     const ref = (refInput && refInput.value || '').trim();
@@ -9910,7 +10114,7 @@ function build3DRenderSVG(it){
 function open3DPreview(){
   const grid = document.getElementById('threeDGrid');
   grid.innerHTML = '';
-  const visibleItems = items.filter(it => !it.isCameraTemp);
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
   if(!visibleItems.length){
     grid.innerHTML = '<p style="color:#666;font-family:var(--wd-font-ui);padding:20px;">ما في تصاميم بعد لعرضها.</p>';
   } else {
@@ -9977,7 +10181,7 @@ function onPurchTubePresetChange(){
 }
 
 function renderPurchasingAluminum(){
-  const visibleItems = items.filter(it => !it.isCameraTemp);
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
   const tableEl = document.getElementById('purchAluminumTable');
   const totalsEl = document.getElementById('purchAluminumTotals');
   if(!visibleItems.length){
@@ -10038,7 +10242,7 @@ function handleRemoveCatalogMaterial(matId){
 
 function renderPurchasingMaterialsCatalog(){
   const catalog = loadMaterialsCatalog();
-  const visibleItems = items.filter(it => !it.isCameraTemp);
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
   const el = document.getElementById('purchMaterialsCatalog');
   if(!catalog.length){
     el.innerHTML = '<p style="color:#666;padding:6px 0;">ما في مواد بالكتالوج بعد — ضيف أول مادة فوق.</p>';
@@ -10067,7 +10271,7 @@ function renderPurchasingMaterialsCatalog(){
 
 function renderPurchasingMaterialsTable(){
   const catalog = loadMaterialsCatalog();
-  const visibleItems = items.filter(it => !it.isCameraTemp);
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
   const el = document.getElementById('purchMaterialsTable');
   if(!catalog.length){
     el.innerHTML = '<p style="color:#666;padding:6px 0;">ضيف مواد للكتالوج فوق لتظهر هون.</p>';
