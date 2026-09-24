@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-24.9';
+  var CURRENT_VERSION = '2026-09-24.10';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -5970,7 +5970,7 @@ window.wdApplyBack = function(results){
           <div style="margin:10px 0;padding:8px;border:1px dashed var(--wd-line,#555);border-radius:8px;">
             <button type="button" class="small" onclick="toggleRoomFreehandDraw()" style="width:100%;">✏️ ارسم شكل الأرضية بالفأرة (بدل التعبئة اليدوية)</button>
             <div id="roomDrawWrap" style="display:none;margin-top:8px;">
-              <p class="hint">دوس عالفراغ الفاضي لتضيف نقطة جديدة (بتلتصق تلقائيًا بأقرب نقطة أو خط موجود لو كانت قريبة منو - هيك خط جديد بيوصل خط قديم بيندمج فيه بالظبط بدون فجوة). اسحب أي نقطة موجودة لتحريكها، أو دوس عليها (بدون سحب) لحذفها. فتح الرسم عالغرفة نفسها بيرجع يعرضلك شكلها الحالي من جديد - مش لازم تبلش من الصفر.<br><b>لإضافة ضلع بمقاس دقيق (طريقتين):</b> (1) اضغط بالماوس عالفراغ الفاضي وسحب (وانت لسا ضاغط) بالاتجاه يلي بدك ياه - رح يبين لك الطول لحظيًا وانت عم تسحب، وفلّت الزر لتثبيت الضلع بهيك اتجاه وطول. (2) أو حرّك الفأرة بس (بدون ضغط) لتحدد الاتجاه، وبعدين اكتب طوله بالمم مباشرة من الكيبورد (مش لازم تدوس بأي خانة) - رح يظهر الرقم يلي عم تكتبه وخط المعاينة البرتقالي رح يتحرك بنفس الطول، ودوس Enter لتثبيت الضلع (أو Backspace لتصحيح رقم غلط، Esc لإلغائه). مجرد تحريك الفأرة لوحدو (بدون ضغط أو كتابة) ما بيحدد أو يغيّر ولا شي - القراءة بتضل "—" لحد ما تسحب أو تكتب. بديل تاني: اكتب الطول بخانة "اكتب طول دقيق..." تحت الرسمة ودوس "أضف بهذا الطول". كبّر/صغّر بدولاب الفأرة فوق الرسمة براحتك، ودوس "⛶ تكبير مساحة الرسم" لتكبير نافذة الرسم على كامل الشاشة. لما توصل آخر نقطة دوس "✅ إنهاء وتحويل لأضلاع". وإذا بدك تدوّر الشكل كامل (مش ضلع واحد) في أزرار وخانة تدوير تحت.</p>
+              <p class="hint">دوس عالفراغ الفاضي لتضيف نقطة جديدة (بتلتصق تلقائيًا بأقرب نقطة أو خط موجود لو كانت قريبة منو - هيك خط جديد بيوصل خط قديم بيندمج فيه بالظبط ويكمّل الفراغ بدون ما تضل فجوة، مثلاً خط عمودي وصل عند خط أفقي مقابلو). اسحب أي نقطة موجودة لتحريكها، أو دوس عليها (بدون سحب) لحذفها. فتح الرسم عالغرفة نفسها بيرجع يعرضلك شكلها الحالي من جديد - مش لازم تبلش من الصفر. ارسم الشكل بس تقريبيًا بدون ما تشغل بالك بالمقاسات إطلاقًا وانت عم ترسم - بعد ما تدوس "✅ إنهاء وتحويل لأضلاع" منسوي أطوال الأضلاع تلقائيًا من الرسمة، وهناك تحت (بقائمة "أضلاع الأرضية") بتقدر تعدّل كل طول لرقمو الحقيقي المضبوط، وفورًا رح تتحدث معاينة شكل الأرضية والحسابات كلها حسب هيك أرقام حقيقية. كبّر/صغّر بدولاب الفأرة فوق الرسمة براحتك، ودوس "⛶ تكبير مساحة الرسم" لتكبير نافذة الرسم على كامل الشاشة. وإذا بدك تدوّر الشكل كامل (مش ضلع واحد) في أزرار وخانة تدوير تحت.</p>
               <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
                 <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (استثناء نادر - بدون قفل ٩٠°)
               </label>
@@ -5978,11 +5978,6 @@ window.wdApplyBack = function(results){
                 <button type="button" class="small" id="roomDrawFullscreenBtn" onclick="toggleRoomDrawFullscreen()">⛶ تكبير مساحة الرسم</button>
               </div>
               <div id="roomDrawCanvasWrap" style="border:1px solid var(--wd-line,#333);border-radius:8px;margin-top:6px;overflow:auto;background:#fff;max-width:100%;"></div>
-              <div class="add-row" style="margin-top:6px;flex-wrap:wrap;align-items:center;">
-                <span id="roomDrawLiveLength" style="font-size:12px;color:var(--wd-ink-dim);white-space:nowrap;">الطول الحالي: —</span>
-                <input type="number" id="inRoomDrawExactLength" min="1" placeholder="اكتب طول دقيق بالمم..." style="width:150px;" onkeydown="if(event.key==='Enter'){event.preventDefault();commitRoomDrawExactLength();}">
-                <button type="button" class="small" onclick="commitRoomDrawExactLength()">➕ أضف بهذا الطول</button>
-              </div>
               <div class="add-row" style="margin-top:6px;flex-wrap:wrap;">
                 <button type="button" class="small" onclick="roomDrawZoomOut()">🔍− تصغير</button>
                 <button type="button" class="small" onclick="roomDrawZoomIn()">🔍+ تكبير</button>
@@ -6755,7 +6750,7 @@ let roomSegIdCounter = 1;
 // الإحداثيات صارت بالمم الحقيقية (مش بكسل بمقياس ثابت) جوا "view" قابل للزوم/التمركز، وفتح أداة
 // الرسم عالغرفة عم يعيد بناء النقاط من roomSides الحالية (roomDrawPointsFromSides) بدل ما يصفّرها.
 // gesture: state machine بسيط لتمييز "دوسة = حذف نقطة" عن "سحب = نقل نقطة" عن "دوسة بفراغ = نقطة جديدة".
-let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null, typedLength:'' };
+let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null };
 const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340; // مقاس الكانفس الثابت بالبكسل (نسبة العرض للارتفاع محفوظة بحساب mmPerPx واحد لكل من x/y)
 
 function isHandrail(it){ return it.shapeType === 'handrail'; }
@@ -8656,7 +8651,7 @@ function toggleRoomFreehandDraw(){
     cancelRoomFreehandDraw();
   } else {
     const existingPts = (it.roomSides && it.roomSides.length>=3) ? roomDrawPointsFromSides(it.roomSides) : [];
-    roomDraw = { active:true, itemId:it.id, points:existingPts, mouse:null, freeAngle:false, gesture:null, typedLength:'',
+    roomDraw = { active:true, itemId:it.id, points:existingPts, mouse:null, freeAngle:false, gesture:null,
       view: roomDrawComputeFitView(existingPts, 500) };
     const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
     if(wrap) wrap.style.display = 'block';
@@ -8666,13 +8661,11 @@ function toggleRoomFreehandDraw(){
 window.toggleRoomFreehandDraw = toggleRoomFreehandDraw;
 
 function cancelRoomFreehandDraw(){
-  roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null, typedLength:'' };
+  roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null };
   const wrap = document.getElementById('roomDrawWrap');
   if(wrap){ wrap.style.display = 'none'; wrap.classList.remove('room-draw-fullscreen'); }
   const btn = document.getElementById('roomDrawFullscreenBtn');
   if(btn) btn.textContent = '⛶ تكبير مساحة الرسم';
-  const liveEl = document.getElementById('roomDrawLiveLength');
-  if(liveEl) liveEl.textContent = 'الطول الحالي: —';
 }
 window.cancelRoomFreehandDraw = cancelRoomFreehandDraw;
 
@@ -8821,9 +8814,7 @@ window.roomDrawPointerUp = roomDrawPointerUp;
 
 function roomDrawPointerLeave(){
   if(!roomDraw.active) return;
-  // ملاحظة: ما منصفّر roomDraw.mouse هون (كان قديمًا عم ينصفّر) - لأنو هيك كان عم يخسّر اتجاه
-  // الضلع يلي كان عم يأشّر عليه المستخدم أول ما يبعد الماوس عن الرسمة (مثلاً لأنو بدو يكتب الطول
-  // من الكيبورد مباشرة، أو يدوس بخانة الطول تحت الرسمة) - هيك الاتجاه يضل محفوظ صح.
+  roomDraw.mouse = null;
   roomDraw.gesture = null;
   renderRoomDrawCanvas();
 }
@@ -8912,79 +8903,6 @@ function commitRoomDrawRotate(){
 }
 window.commitRoomDrawRotate = commitRoomDrawRotate;
 
-// إضافة نقطة جديدة بطول دقيق مكتوب بالمم (بدل الاعتماد على دقة عين الفأرة): الاتجاه منستخدم نفس
-// اتجاه الخط المطاطي الظاهر حاليًا (آخر موقع معروف للفأرة فوق الرسمة - محفوظ حتى لو بعّدت الماوس
-// عن الرسمة لتكتب الرقم، بعد ٩٠° إذا كان القفل مفعّل)، أو إذا ما كان في موقع فأرة معروف إطلاقًا
-// (مثلاً بالموبايل قبل أي لمسة عالرسمة) منكمل بنفس اتجاه آخر ضلع منرسم. هاي الدالة مشتركة بين
-// مصدرين لكتابة الطول: خانة الإدخال تحت الرسمة، أو الكتابة المباشرة من الكيبورد وانت عم تحرك الفأرة.
-function roomDrawCommitExactLength(mmLen){
-  if(!roomDraw.active || !mmLen || mmLen<=0) return;
-  const pts = roomDraw.points;
-  if(pts.length === 0){
-    pts.push({x:0,y:0});
-    roomDraw.view = roomDrawComputeFitView(pts, 500);
-    renderRoomDrawCanvas();
-    return;
-  }
-  const last = pts[pts.length-1];
-  let angleRad = 0;
-  if(roomDraw.mouse && Math.hypot(roomDraw.mouse.x-last.x, roomDraw.mouse.y-last.y) > 1){
-    const dirPt = roomDraw.freeAngle ? roomDraw.mouse : roomDrawAxisSnap(last, roomDraw.mouse);
-    angleRad = Math.atan2(dirPt.y-last.y, dirPt.x-last.x);
-  } else if(pts.length >= 2){
-    const prev = pts[pts.length-2];
-    angleRad = Math.atan2(last.y-prev.y, last.x-prev.x);
-  }
-  const raw = { x: last.x + mmLen*Math.cos(angleRad), y: last.y + mmLen*Math.sin(angleRad) };
-  const candidate = roomDrawSnapToGeometry(raw, -1);
-  pts.push(candidate);
-  renderRoomDrawCanvas();
-}
-
-function commitRoomDrawExactLength(){
-  if(!roomDraw.active) return;
-  const inp = document.getElementById('inRoomDrawExactLength');
-  const mmLen = inp ? parseFloat(inp.value) : NaN;
-  if(!mmLen || mmLen<=0){ alert('اكتب طول صحيح بالمم أكبر من صفر.'); return; }
-  roomDrawCommitExactLength(mmLen);
-  if(inp) inp.value = '';
-}
-window.commitRoomDrawExactLength = commitRoomDrawExactLength;
-
-// كتابة الطول مباشرة من الكيبورد وانت عم تحرك الفأرة (بدون ما تدوس بأي خانة): حرّك الفأرة فوق
-// الرسمة لتحديد الاتجاه، وبعدين اكتب الرقم بالمم مباشرة (0-9، ونقطة عشرية لو بدك) - رح تظهر
-// القراءة تحت الرسمة عالطول يلي عم تكتبه، ودوس Enter لتثبيت الضلع بهاد الطول بنفس الاتجاه يلي كان
-// محدد. Backspace لتصحيح رقم غلط، Escape لإلغاء الرقم يلي كتبتو والرجوع للمعاينة العادية.
-// ما منتدخل إطلاقًا لو المستخدم عم يكتب بأي خانة نصية عادية بالصفحة (activeElement) - هيك ما
-// منتعارض مع خانات ثانية متل اسم الزبون أو خانة الطول/التدوير نفسها (عندهن معالجتهن الخاصة أصلاً).
-function roomDrawGlobalKeydown(evt){
-  if(!roomDraw.active) return;
-  const ae = document.activeElement;
-  const tag = ae && ae.tagName;
-  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (ae && ae.isContentEditable)) return;
-  if(evt.key >= '0' && evt.key <= '9'){
-    roomDraw.typedLength = (roomDraw.typedLength||'') + evt.key;
-    evt.preventDefault();
-    renderRoomDrawCanvas();
-  } else if(evt.key === '.' || evt.key === ','){
-    if(!/\./.test(roomDraw.typedLength||'')) roomDraw.typedLength = (roomDraw.typedLength||'') + '.';
-    evt.preventDefault();
-    renderRoomDrawCanvas();
-  } else if(evt.key === 'Backspace'){
-    if(roomDraw.typedLength){ roomDraw.typedLength = roomDraw.typedLength.slice(0,-1); evt.preventDefault(); renderRoomDrawCanvas(); }
-  } else if(evt.key === 'Enter'){
-    if(roomDraw.typedLength){
-      evt.preventDefault();
-      const mmLen = parseFloat(roomDraw.typedLength);
-      roomDraw.typedLength = '';
-      if(mmLen>0) roomDrawCommitExactLength(mmLen); else renderRoomDrawCanvas();
-    }
-  } else if(evt.key === 'Escape'){
-    if(roomDraw.typedLength){ roomDraw.typedLength = ''; evt.preventDefault(); renderRoomDrawCanvas(); }
-  }
-}
-document.addEventListener('keydown', roomDrawGlobalKeydown);
-
 function clearRoomDrawAll(){
   if(!roomDraw.active) return;
   if(roomDraw.points.length && !confirm('متأكد بدك تمسح كل نقاط الرسم الحالي وتبلش من جديد؟')) return;
@@ -9022,37 +8940,11 @@ function renderRoomDrawCanvas(){
     closeSvg = `<line x1="${pts[pts.length-1].x}" y1="${pts[pts.length-1].y}" x2="${pts[0].x}" y2="${pts[0].y}" stroke="#bbb" stroke-width="1.5" stroke-dasharray="3,3"/>`;
   }
   const draggingNow = !!(roomDraw.gesture && roomDraw.gesture.dragging);
-  const liveEl = document.getElementById('roomDrawLiveLength');
-  const typedNum = roomDraw.typedLength ? parseFloat(roomDraw.typedLength) : NaN;
-  const typedLabel = 'الطول يلي عم تكتبه: ' + roomDraw.typedLength + ' مم (دوس Enter للتثبيت، أو Esc للإلغاء)';
-  // ما منوّري معاينة/طول الضلع الجاي لمجرد ما المستخدم حرّك الفأرة (hover عادي بدون ضغط) - هيك ما
-  // حدا يحس إنو الأداة "عم تقرر" الطول لحالها. المعاينة بتظهر بس بحالتين: (أ) المستخدم ضاغط فعليًا
-  // عالماوس وعم يسحب من فراغ فاضي لتحديد اتجاه ضلع جديد (mousedown ما زال مستمر)، أو (ب) عم يكتب
-  // رقم من الكيبورد هلق. غير هيك، القراءة بتضل "—" لحد ما يصير أحد هالشيئين.
-  const pressDraggingNewSegment = !!(roomDraw.gesture && roomDraw.gesture.pointIndex === -1);
-  const activeAiming = pressDraggingNewSegment || !!roomDraw.typedLength;
-  if(roomDraw.points.length && roomDraw.mouse && !draggingNow && activeAiming){
+  if(roomDraw.points.length && roomDraw.mouse && !draggingNow){
     const lastMm = roomDraw.points[roomDraw.points.length-1];
-    let targetMm = roomDrawNextPointCandidate(roomDraw.mouse);
-    if(typedNum > 0){
-      // بدل ما نعتمد مسافة الفأرة الفعلية، منستخدم نفس اتجاهها بس بالطول يلي عم يكتبه المستخدم
-      // بالضبط - هيك المعاينة (الخط البرتقالي) بتعكس تمامًا شو رح يترسم لما يدوس Enter.
-      const dirPt = roomDraw.freeAngle ? roomDraw.mouse : roomDrawAxisSnap(lastMm, roomDraw.mouse);
-      const angleRad = Math.atan2(dirPt.y-lastMm.y, dirPt.x-lastMm.x);
-      targetMm = { x: lastMm.x + typedNum*Math.cos(angleRad), y: lastMm.y + typedNum*Math.sin(angleRad) };
-    }
+    const targetMm = roomDrawNextPointCandidate(roomDraw.mouse);
     const last = mmToPx(lastMm), target = mmToPx(targetMm);
     rubberSvg = `<line x1="${last.x}" y1="${last.y}" x2="${target.x}" y2="${target.y}" stroke="#e0862a" stroke-width="2" stroke-dasharray="5,4"/>`;
-    if(liveEl){
-      if(roomDraw.typedLength){
-        liveEl.textContent = typedLabel;
-      } else {
-        const distMm = Math.hypot(targetMm.x-lastMm.x, targetMm.y-lastMm.y);
-        liveEl.textContent = 'الطول الحالي: ' + Math.round(distMm) + ' مم';
-      }
-    }
-  } else if(liveEl){
-    liveEl.textContent = roomDraw.typedLength ? typedLabel : 'الطول الحالي: —';
   }
   wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;height:auto;aspect-ratio:${W}/${H};max-width:${W}px;cursor:crosshair;touch-action:none;user-select:none;" onmousedown="roomDrawPointerDown(event)" onmousemove="roomDrawPointerMove(event)" onmouseup="roomDrawPointerUp(event)" onmouseleave="roomDrawPointerLeave()" onwheel="roomDrawCanvasWheel(event)">
     ${gridLines}${closeSvg}${pathSvg}${rubberSvg}
