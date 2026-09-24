@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-24.1';
+  var CURRENT_VERSION = '2026-09-24.2';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -5745,8 +5745,23 @@ window.wdApplyBack = function(results){
             <label>ارتفاع الغرفة الافتراضي (مم) - بيُستخدم كارتفاع مبدئي لأي ضلع جديد لما ينصمم</label>
             <input type="number" id="inRoomHeight" min="1000" oninput="onRoomHeightChange()" value="2500">
           </div>
+          <div style="margin:10px 0;padding:8px;border:1px dashed var(--wd-line,#555);border-radius:8px;">
+            <button type="button" class="small" onclick="toggleRoomFreehandDraw()" style="width:100%;">✏️ ارسم شكل الأرضية بالفأرة (بدل التعبئة اليدوية)</button>
+            <div id="roomDrawWrap" style="display:none;margin-top:8px;">
+              <p class="hint">دوس نقطة نقطة حوالين محيط الأرضية بالترتيب - الخط بيقفل تلقائيًا أفقي أو عمودي (زاوية قائمة). لما توصل آخر نقطة دوس "✅ إنهاء وتحويل لأضلاع" وبيتحول الرسم لقائمة أضلاع تحت (الأطوال تقريبية بالبداية - ظبطها لأرقامها الحقيقية بالمم بعدين).</p>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
+                <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (استثناء نادر - بدون قفل ٩٠°)
+              </label>
+              <div id="roomDrawCanvasWrap" style="border:1px solid var(--wd-line,#333);border-radius:8px;margin-top:6px;overflow:auto;background:#fff;max-width:100%;"></div>
+              <div class="add-row" style="margin-top:6px;flex-wrap:wrap;">
+                <button type="button" class="small" onclick="undoRoomDrawPoint()">↩️ تراجع عن آخر نقطة</button>
+                <button type="button" class="small" onclick="finishRoomFreehandDraw()">✅ إنهاء وتحويل لأضلاع</button>
+                <button type="button" class="small danger" onclick="cancelRoomFreehandDraw()">✖️ إلغاء الرسم</button>
+              </div>
+            </div>
+          </div>
           <label style="margin-top:8px;">أضلاع الأرضية (بالترتيب حول الغرفة)</label>
-          <p class="hint">كل ضلع = طوله بالمم + الزاوية الداخلية بينه وبين الضلع يلي بعده (افتراضي 90° لغرفة مستطيلة عادية). دوس "🎨 صمم" لتحويل الضلع لبند تصميم عادي (زجاج/باب/هاندريل) - بينضاف تلقائيًا كسطر جديد بجدول عرض السعر فوق.</p>
+          <p class="hint">كل ضلع = طوله بالمم + الزاوية الداخلية بينه وبين الضلع يلي بعده (افتراضي 90° لغرفة مستطيلة عادية). دوس "🎨 صمم" لتحويل الضلع (أو جزء منو) لبند تصميم عادي (زجاج/باب/هاندريل) - بينضاف تلقائيًا كسطر جديد بجدول عرض السعر فوق. مو شرط الضلع كامل يكون تصميم أو حائط - دوس "➕ قسّم لجزء" لو بدك جزء منو بس (مثلاً متر ونص حائط اسمنتي وباقي الضلع زجاج)، وبعدين حوّل كل جزء لحاله بزر "🧱 حوّله حائط" / "🎨 رجّعه تصميم".</p>
           <div id="roomSidesList"></div>
           <div class="add-row" style="margin-top:6px;">
             <button onclick="addRoomSideFromControls()" class="small" style="flex:1;">+ ضلع جديد</button>
@@ -6489,6 +6504,14 @@ let hrSegIdCounter = 1;
 // 🆕 2026-09-24: طلب حمدي - أداة "غرفة/مجلس" (مخطط أرضية بعدة أضلاع، كل ضلع بيصير بند تصميم عادي
 // متكامل مع جدول عرض السعر). هاد العداد لمعرّفات أضلاع الغرفة (roomSides)، نفس فكرة hrSegIdCounter.
 let roomSideIdCounter = 1;
+// 🆕 2026-09-24: طلب حمدي - جزء من ضلع (مش شرط الضلع كامل) ممكن يكون حائط/جدار وجزء تاني منو
+// تصميم عادي (مثلاً 1.5 متر حائط وباقي الضلع زجاج). هاد العداد لمعرّفات هاي "الأقسام" (segments)
+// جوا كل ضلع.
+let roomSegIdCounter = 1;
+// 🆕 2026-09-24: حالة "الرسم بالفأرة" لمخطط الأرضية (بديل أسرع من تعبئة كل طول/زاوية يدويًا) - شوف
+// شرح أوسع فوق دالة renderRoomDrawCanvas تحت.
+let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false };
+const ROOM_DRAW_W = 460, ROOM_DRAW_H = 340, ROOM_DRAW_MM_PER_PX = 25;
 
 function isHandrail(it){ return it.shapeType === 'handrail'; }
 function isRoom(it){ return it.shapeType === 'room'; }
@@ -6680,7 +6703,10 @@ function makeItem(type){
   // ("🎨 صمم") بيصير بند تصميم عادي مستقل (نافذة/باب/هاندريل) بسطره الخاص بجدول عرض السعر.
   if(type === 'room'){
     it.roomHeight = 2500;
-    it.roomSides = [0,1,2,3].map(()=>({ id:'rs'+(roomSideIdCounter++), length:3000, angleDeg:90, rowUid:null }));
+    it.roomSides = [0,1,2,3].map(()=>({
+      id:'rs'+(roomSideIdCounter++), length:3000, angleDeg:90,
+      segments:[{ id:'rg'+(roomSegIdCounter++), length:3000, kind:'design', rowUid:null }]
+    }));
   }
   return it;
 }
@@ -7025,6 +7051,7 @@ function loadSelectedIntoControls(){
 
   // 🆕 2026-09-24: "غرفة/مجلس" - لوحة تحكم مختلفة كليًا (أضلاع + زوايا)، منعزلة عن باقي أنواع البنود
   const room = isRoom(it);
+  if(roomDraw.active && (!room || roomDraw.itemId !== it.id)) cancelRoomFreehandDraw();
   document.getElementById('roomBlock').style.display = room ? 'block' : 'none';
   if(room){
     document.getElementById('handrailBlock').style.display = 'none';
@@ -8208,11 +8235,26 @@ function onRoomHeightChange(){
 }
 window.onRoomHeightChange = onRoomHeightChange;
 
+// 🧱 طول الضلع (side.length) صار "مُشتق" دايمًا من مجموع أطوال أقسامه (segments) - شوف الشرح فوق
+// buildRoomSVG. ensureRoomSideSegments() بتضمن إنو أي ضلع (حتى ولا كان جاي من نسخة قديمة بدون
+// segments) إله عالأقل قسم وحد افتراضي (تصميم عادي، بكامل طول الضلع).
+function ensureRoomSideSegments(side){
+  if(!side.segments || !side.segments.length){
+    side.segments = [{ id:'rg'+(roomSegIdCounter++), length: side.length||3000, kind:'design', rowUid:null }];
+  }
+  return side.segments;
+}
+function syncRoomSideLength(side){
+  side.length = Math.max(1, (side.segments||[]).reduce((a,s)=>a + (s.length||0), 0));
+}
+
 function addRoomSide(itemId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   pushHistory();
   if(!it.roomSides) it.roomSides = [];
-  it.roomSides.push({ id:'rs'+(roomSideIdCounter++), length:3000, angleDeg:90, rowUid:null });
+  const length = 3000;
+  it.roomSides.push({ id:'rs'+(roomSideIdCounter++), length, angleDeg:90,
+    segments:[{ id:'rg'+(roomSegIdCounter++), length, kind:'design', rowUid:null }] });
   renderRoomSidesUI(it);
   renderGallery();
 }
@@ -8237,32 +8279,255 @@ function onRoomSideField(itemId, sideId, field, value){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const s = (it.roomSides||[]).find(x=>x.id===sideId); if(!s) return;
   pushHistory();
-  if(field==='length') s.length = Math.max(1, parseFloat(value)||1);
   if(field==='angleDeg') s.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
   renderRoomSidesUI(it);
   renderGallery();
 }
 window.onRoomSideField = onRoomSideField;
 
-// 🎨 "صمم" - بيحوّل هاد الضلع لبند تصميم عادي متكامل بجدول عرض السعر (نفس آلية openDesignerFromToolbar
-// بالضبط: بند جديد بجدول #qty-rows، بعدين إعادة تحميل كل الأسطر جوا المصمم)، وبيفتحله لوحة التحكم
-// العادية مباشرة (زجاج/باب/هاندريل...) - تمامًا متل أي بند تاني.
-function designRoomSide(itemId, sideId){
+// ➕ "قسّم لجزء" - طلب حمدي 2026-09-24: مو شرط الضلع كامل يكون حائط أو تصميم، ممكن جزء منو بس
+// (مثلاً 1.5 متر حائط اسمنتي وباقي الضلع زجاج). بيقسم آخر قسم بالضلع لنص، والنص التاني بيصير
+// قسم جديد افتراضيًا "حائط" (الأكتر شيوعًا إنو هيك قسم جديد هو الحائط، وتقدر ترجعه تصميم بزر).
+function addRoomSideSegment(itemId, sideId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
   pushHistory();
-  let tr = side.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+side.rowUid+'"]') : null;
+  const last = side.segments[side.segments.length-1];
+  let newLen;
+  if(last.length >= 100){
+    newLen = Math.max(50, Math.round(last.length/2/10)*10);
+    last.length = Math.max(50, last.length - newLen);
+  } else {
+    newLen = 500;
+  }
+  side.segments.push({ id:'rg'+(roomSegIdCounter++), length:newLen, kind:'wall', rowUid:null });
+  syncRoomSideLength(side);
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.addRoomSideSegment = addRoomSideSegment;
+
+function removeRoomSideSegment(itemId, sideId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  if(side.segments.length <= 1) return;
+  const idx = side.segments.findIndex(g=>g.id===segId); if(idx<0) return;
+  pushHistory();
+  const removed = side.segments[idx];
+  if(idx > 0){ side.segments[idx-1].length += removed.length; }
+  else { side.segments[1].length += removed.length; }
+  side.segments.splice(idx,1);
+  syncRoomSideLength(side);
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.removeRoomSideSegment = removeRoomSideSegment;
+
+function onRoomSegField(itemId, sideId, segId, field, value){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
+  pushHistory();
+  if(field==='length') seg.length = Math.max(50, parseFloat(value)||50);
+  syncRoomSideLength(side);
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.onRoomSegField = onRoomSegField;
+
+// 🧱 تبديل جزء بين "تصميم عادي" (زجاج/باب/هاندريل - بند بجدول عرض السعر) و"حائط/جدار اسمنتي"
+// (مجرد علامة بالمخطط، بدون أي سطر بالعرض - مش شغلة شركة الألمنيوم). لو الجزء كان مصمم/مربوط
+// بسطر، بيسأل تأكيد الأول لأنو رح يفك الربط (السطر نفسه بيضل موجود لحاله).
+function toggleRoomSegKind(itemId, sideId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
+  const goingToWall = seg.kind !== 'wall';
+  if(goingToWall && seg.rowUid){
+    if(!confirm('هاد الجزء حاليًا مصمم ومربوط بسطر بجدول عرض السعر. تحويله لحائط/جدار رح يفك الربط (السطر بجدول العرض رح يضل موجود لحاله بدون ما ينحذف، بس ما رح يضل مربوط فيه). بدك تكمل؟')) return;
+  }
+  pushHistory();
+  seg.kind = goingToWall ? 'wall' : 'design';
+  if(goingToWall) seg.rowUid = null;
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.toggleRoomSegKind = toggleRoomSegKind;
+
+// ✏️ رسم شكل الأرضية بالفأرة (اختياري) - بديل أسرع لتعبئة الطول/الزاوية يدويًا لكل ضلع، خصوصًا
+// للأشكال الغير منتظمة (درجات/فروقات بالحيطان متل سكتش حمدي 2026-09-24). المستخدم بيدوس نقطة
+// نقطة حوالين محيط الأرض، والخط بينقفل تلقائيًا عالزاوية القائمة الأقرب (أفقي/عمودي) إلا إذا
+// فعّل "زاوية حرة". لما يخلص وبيدوس "إنهاء"، منحسب طول تقريبي (بمقياس رسم ثابت، لسا لازم يتظبط
+// لرقمه الحقيقي بالمم بعدين) وزاوية داخلية حقيقية (محسوبة رياضيًا من اتجاه كل ضلع بالرسمة - مش
+// تقريب) لكل ضلع، ومنعبي فيها قائمة الأضلاع تحت (roomSides) بنفس القاعدة يلي buildRoomSVG مبني عليها.
+function toggleRoomFreehandDraw(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  const wrap = document.getElementById('roomDrawWrap');
+  if(roomDraw.active){
+    cancelRoomFreehandDraw();
+  } else {
+    roomDraw = { active:true, itemId:it.id, points:[], mouse:null, freeAngle:false };
+    const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
+    if(wrap) wrap.style.display = 'block';
+    renderRoomDrawCanvas();
+  }
+}
+window.toggleRoomFreehandDraw = toggleRoomFreehandDraw;
+
+function cancelRoomFreehandDraw(){
+  roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false };
+  const wrap = document.getElementById('roomDrawWrap'); if(wrap) wrap.style.display = 'none';
+}
+window.cancelRoomFreehandDraw = cancelRoomFreehandDraw;
+
+function onRoomDrawFreeAngleToggle(){
+  const chk = document.getElementById('inRoomDrawFreeAngle');
+  roomDraw.freeAngle = !!(chk && chk.checked);
+  renderRoomDrawCanvas();
+}
+window.onRoomDrawFreeAngleToggle = onRoomDrawFreeAngleToggle;
+
+function roomDrawSnapPoint(last, raw){
+  const dx = raw.x - last.x, dy = raw.y - last.y;
+  return Math.abs(dx) >= Math.abs(dy) ? { x: raw.x, y: last.y } : { x: last.x, y: raw.y };
+}
+
+function roomDrawEventPoint(evt){
+  const svg = evt.currentTarget;
+  const rect = svg.getBoundingClientRect();
+  const scaleX = ROOM_DRAW_W / rect.width, scaleY = ROOM_DRAW_H / rect.height;
+  return { x: (evt.clientX - rect.left) * scaleX, y: (evt.clientY - rect.top) * scaleY };
+}
+
+function roomDrawCanvasClick(evt){
+  if(!roomDraw.active) return;
+  let pt = roomDrawEventPoint(evt);
+  if(roomDraw.points.length > 0 && !roomDraw.freeAngle){
+    pt = roomDrawSnapPoint(roomDraw.points[roomDraw.points.length-1], pt);
+  }
+  roomDraw.points.push(pt);
+  roomDraw.mouse = pt;
+  renderRoomDrawCanvas();
+}
+window.roomDrawCanvasClick = roomDrawCanvasClick;
+
+function roomDrawCanvasMove(evt){
+  if(!roomDraw.active) return;
+  roomDraw.mouse = roomDrawEventPoint(evt);
+  renderRoomDrawCanvas();
+}
+window.roomDrawCanvasMove = roomDrawCanvasMove;
+
+function roomDrawCanvasLeave(){
+  if(!roomDraw.active) return;
+  roomDraw.mouse = null;
+  renderRoomDrawCanvas();
+}
+window.roomDrawCanvasLeave = roomDrawCanvasLeave;
+
+function undoRoomDrawPoint(){
+  if(!roomDraw.active) return;
+  roomDraw.points.pop();
+  renderRoomDrawCanvas();
+}
+window.undoRoomDrawPoint = undoRoomDrawPoint;
+
+function renderRoomDrawCanvas(){
+  const wrap = document.getElementById('roomDrawCanvasWrap');
+  if(!wrap) return;
+  const W = ROOM_DRAW_W, H = ROOM_DRAW_H, grid = 20;
+  let gridLines = '';
+  for(let gx=0; gx<=W; gx+=grid) gridLines += `<line x1="${gx}" y1="0" x2="${gx}" y2="${H}" stroke="#eee" stroke-width="1"/>`;
+  for(let gy=0; gy<=H; gy+=grid) gridLines += `<line x1="0" y1="${gy}" x2="${W}" y2="${gy}" stroke="#eee" stroke-width="1"/>`;
+  const pts = roomDraw.points;
+  let pathSvg = '', closeSvg = '', rubberSvg = '';
+  if(pts.length){
+    pathSvg += `<polyline points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="#0f88cd" stroke-width="2.5"/>`;
+    pts.forEach((p,i)=>{ pathSvg += `<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${i===0?'#1e7a3d':'#0f88cd'}"/><text x="${p.x+7}" y="${p.y-7}" font-size="10" fill="#666">${i+1}</text>`; });
+  }
+  if(pts.length > 2){
+    closeSvg = `<line x1="${pts[pts.length-1].x}" y1="${pts[pts.length-1].y}" x2="${pts[0].x}" y2="${pts[0].y}" stroke="#bbb" stroke-width="1.5" stroke-dasharray="3,3"/>`;
+  }
+  if(pts.length && roomDraw.mouse){
+    const last = pts[pts.length-1];
+    const target = roomDraw.freeAngle ? roomDraw.mouse : roomDrawSnapPoint(last, roomDraw.mouse);
+    rubberSvg = `<line x1="${last.x}" y1="${last.y}" x2="${target.x}" y2="${target.y}" stroke="#e0862a" stroke-width="2" stroke-dasharray="5,4"/>`;
+  }
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;cursor:crosshair;touch-action:none;" onclick="roomDrawCanvasClick(event)" onmousemove="roomDrawCanvasMove(event)" onmouseleave="roomDrawCanvasLeave()">
+    ${gridLines}${closeSvg}${pathSvg}${rubberSvg}
+  </svg>`;
+}
+
+// عند "إنهاء وتحويل لأضلاع": منحسب لكل ضلع طوله (تقريبي بمقياس ثابت) وزاويته الداخلية الحقيقية
+// من اتجاه الخط قبله وبعده (نفس معادلة buildRoomSVG بالضبط بس بالعكس: من نقاط لزاوية بدل من
+// زاوية لنقاط) - جُرّبت ونجحت على شكل L فيه زاوية عاكسة (270°) وطلعت مطابقة تمامًا للمتوقع.
+function finishRoomFreehandDraw(){
+  if(!roomDraw.active) return;
+  const it = items.find(i=>i.id===roomDraw.itemId);
+  if(!it){ cancelRoomFreehandDraw(); return; }
+  const pts = roomDraw.points;
+  if(pts.length < 3){ alert('لازم عالأقل 3 نقاط لتشكيل أرضية مغلقة (كل نقطة = زاوية بالأرضية).'); return; }
+  const hasDesigned = (it.roomSides||[]).some(s => (s.segments||[]).some(g=>g.rowUid));
+  if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تستبدل قائمة الأضلاع بالكامل بالشكل الجديد يلي رسمتو. البنود يلي كانت مصممة رح تضل موجودة بجدول عرض السعر (ما رح تنحذف) بس ما رح تضل مربوطة بضلع بعد هلق. بدك تكمل؟')) return;
+  pushHistory();
+  const n = pts.length;
+  const dirs = [];
+  for(let i=0; i<n; i++){
+    const a = pts[i], b = pts[(i+1)%n];
+    dirs.push(Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI);
+  }
+  const newSides = [];
+  for(let i=0; i<n; i++){
+    const a = pts[i], b = pts[(i+1)%n];
+    const pxLen = Math.hypot(b.x-a.x, b.y-a.y);
+    const mmLen = Math.max(50, Math.round((pxLen * ROOM_DRAW_MM_PER_PX) / 50) * 50);
+    let diff = dirs[(i+1)%n] - dirs[i];
+    diff = ((diff % 360) + 360) % 360;
+    let interior = 180 - diff;
+    if(interior <= 0) interior += 360;
+    if(interior >= 360) interior -= 360;
+    interior = Math.max(1, Math.min(359, Math.round(interior)));
+    newSides.push({ id:'rs'+(roomSideIdCounter++), length: mmLen, angleDeg: interior,
+      segments:[{ id:'rg'+(roomSegIdCounter++), length: mmLen, kind:'design', rowUid:null }] });
+  }
+  it.roomSides = newSides;
+  cancelRoomFreehandDraw();
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.finishRoomFreehandDraw = finishRoomFreehandDraw;
+
+// 🎨 "صمم" - بيحوّل هاد الجزء (segment) من الضلع لبند تصميم عادي متكامل بجدول عرض السعر (نفس آلية
+// openDesignerFromToolbar بالضبط: بند جديد بجدول #qty-rows بعرض = طول هاد الجزء بالذات (مش
+// بالضرورة طول الضلع كامل، إذا كان الضلع مقسوم لأكتر من جزء)، بعدين إعادة تحميل كل الأسطر جوا
+// المصمم، وبيفتحله لوحة التحكم العادية مباشرة (زجاج/باب/هاندريل...) - تمامًا متل أي بند تاني.
+function designRoomSideSegment(itemId, sideId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
+  if(seg.kind === 'wall'){ alert('هاد الجزء محدد حاليًا كـ"حائط/جدار" - حوّله لتصميم أول (زر 🎨) لو بدك تصممه.'); return; }
+  pushHistory();
+  let tr = seg.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]') : null;
   if(!tr){
-    const idx = it.roomSides.indexOf(side) + 1;
-    addQtyRow(Math.round(side.length), Math.round(it.roomHeight||2500), '1', '');
+    const sideIdx = it.roomSides.indexOf(side) + 1;
+    const segIdx = side.segments.indexOf(seg) + 1;
+    addQtyRow(Math.round(seg.length), Math.round(it.roomHeight||2500), '1', '');
     const rows = document.querySelectorAll('#qty-rows tr');
     tr = rows[rows.length-1];
     const nameInput = tr.querySelector('.item-input');
     if(nameInput){
-      nameInput.value = (it.label||'غرفة') + ' - ضلع ' + idx;
-      tr.dataset.itemName = nameInput.value;
+      const label = side.segments.length > 1
+        ? (it.label||'غرفة') + ' - ضلع ' + sideIdx + ' - جزء ' + segIdx
+        : (it.label||'غرفة') + ' - ضلع ' + sideIdx;
+      nameInput.value = label;
+      tr.dataset.itemName = label;
     }
-    side.rowUid = ensureRowUid(tr);
+    seg.rowUid = ensureRowUid(tr);
   }
   renumber();
   const rowData = Array.from(document.querySelectorAll('#qty-rows tr')).map(rowTr=>{
@@ -8276,32 +8541,49 @@ function designRoomSide(itemId, sideId){
     return { uid, itemName, w, h, refCode, savedDesign };
   });
   WD.loadFromRows(rowData);
-  const target = items.find(i=>i.sourceRowUid === side.rowUid);
+  const target = items.find(i=>i.sourceRowUid === seg.rowUid);
   if(target) selectItem(target.id);
   renderGallery();
 }
-window.designRoomSide = designRoomSide;
+window.designRoomSideSegment = designRoomSideSegment;
 
 function renderRoomSidesUI(it){
   const list = document.getElementById('roomSidesList');
   if(!list) return;
   const sides = it.roomSides || [];
   list.innerHTML = sides.map((s, idx)=>{
-    const linkedTr = s.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+s.rowUid+'"]') : null;
-    const linkedName = linkedTr ? ((linkedTr.querySelector('.item-input')||{}).value || '') : '';
-    const statusHtml = s.rowUid
-      ? `<span style="font-size:11px;color:var(--wd-ok,#1e7a3d);">✓ مصمم: ${escAttr(linkedName || ('ضلع '+(idx+1)))}</span>`
-      : `<span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">لسا ما انصمم</span>`;
+    const segs = ensureRoomSideSegments(s);
+    const segsHtml = segs.map((seg, segIdx)=>{
+      const isWall = seg.kind === 'wall';
+      const linkedTr = seg.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]') : null;
+      const linkedName = linkedTr ? ((linkedTr.querySelector('.item-input')||{}).value || '') : '';
+      const designHtml = isWall
+        ? `<span style="font-size:11px;color:#8d6e63;">🧱 حائط/جدار (بدون سطر بالعرض)</span>`
+        : `<button class="small" onclick="designRoomSideSegment(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;">🎨 ${seg.rowUid ? 'عدّل التصميم' : 'صمم'}</button>
+           ${seg.rowUid
+             ? `<span style="font-size:11px;color:var(--wd-ok,#1e7a3d);">✓ مصمم: ${escAttr(linkedName || ('جزء '+(segIdx+1)))}</span>`
+             : `<span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">لسا ما انصمم</span>`}`;
+      return `
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 6px 4px 22px;border-radius:6px;margin-bottom:4px;${isWall?'background:rgba(141,110,99,0.08);':''}">
+        ${segs.length>1 ? `<span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);min-width:40px;">جزء ${segIdx+1}</span>` : ''}
+        <input type="number" min="50" style="width:74px;" value="${Math.round(seg.length)}" onchange="onRoomSegField(${it.id},'${s.id}','${seg.id}','length',this.value)" title="طول هاد الجزء (مم)">
+        <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
+        <button class="small" onclick="toggleRoomSegKind(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;" title="حوّل هاد الجزء بس (مش الضلع كامل) بين تصميم عادي وحائط/جدار">${isWall ? '🎨 رجّعه تصميم' : '🧱 حوّله حائط'}</button>
+        ${designHtml}
+        ${segs.length>1 ? `<button class="small danger" onclick="removeRoomSideSegment(${it.id},'${s.id}','${seg.id}')" title="حذف هاد الجزء (بينضم طوله للجزء يلي قبلو)" style="margin-inline-start:auto;">✕</button>` : ''}
+      </div>`;
+    }).join('');
     return `
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:6px;">
-      <span style="font-size:12px;font-weight:600;min-width:50px;">ضلع ${idx+1}</span>
-      <input type="number" min="1" style="width:80px;" value="${Math.round(s.length)}" onchange="onRoomSideField(${it.id},'${s.id}','length',this.value)" title="طول الضلع (مم)">
-      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
-      <input type="number" min="1" max="359" style="width:64px;" value="${Math.round(s.angleDeg)}" onchange="onRoomSideField(${it.id},'${s.id}','angleDeg',this.value)" title="الزاوية الداخلية بين هاد الضلع واللي بعده (افتراضي 90°)">
-      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">°</span>
-      <button class="small" onclick="designRoomSide(${it.id},'${s.id}')" style="font-size:10.5px;">🎨 ${s.rowUid ? 'عدّل التصميم' : 'صمم'}</button>
-      ${statusHtml}
-      <button class="small danger" onclick="removeRoomSide(${it.id},'${s.id}')" title="حذف الضلع" style="margin-inline-start:auto;">×</button>
+    <div style="border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:6px;padding-bottom:4px;">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 6px 2px 6px;">
+        <span style="font-size:12px;font-weight:700;min-width:50px;">ضلع ${idx+1}</span>
+        <input type="number" min="1" max="359" style="width:64px;" value="${Math.round(s.angleDeg)}" onchange="onRoomSideField(${it.id},'${s.id}','angleDeg',this.value)" title="الزاوية الداخلية بين هاد الضلع واللي بعده (افتراضي 90°)">
+        <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">°</span>
+        <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);margin-inline-start:6px;">الطول الكلي: <b>${Math.round(s.length)}</b> مم${segs.length>1 ? (' (من '+segs.length+' أقسام)') : ''}</span>
+        <button class="small" onclick="addRoomSideSegment(${it.id},'${s.id}')" style="font-size:10px;margin-inline-start:auto;" title="قسّم هاد الضلع لجزء إضافي (مثلاً جزء حائط اسمنتي وجزء زجاج)">➕ قسّم لجزء</button>
+        <button class="small danger" onclick="removeRoomSide(${it.id},'${s.id}')" title="حذف الضلع كامل">× حذف الضلع</button>
+      </div>
+      ${segsHtml}
     </div>`;
   }).join('');
   const previewEl = document.getElementById('roomFloorPreview');
@@ -8316,11 +8598,9 @@ function buildRoomSVG(it){
   if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">ضيف 3 أضلاع عالأقل</div>';
   let bearing = 0, x = 0, y = 0;
   const pts = [{x, y}];
-  const mids = [];
   sides.forEach(s=>{
     const rad = bearing * Math.PI/180;
     const nx = x + s.length*Math.cos(rad), ny = y + s.length*Math.sin(rad);
-    mids.push({ x:(x+nx)/2, y:(y+ny)/2, length:s.length, angle:bearing });
     x = nx; y = ny;
     pts.push({x, y});
     bearing += (180 - (s.angleDeg||90)); // الزاوية الخارجية = 180 - الزاوية الداخلية
@@ -8337,16 +8617,35 @@ function buildRoomSVG(it){
   const closureGap = Math.hypot(pts[pts.length-1].x - pts[0].x, pts[pts.length-1].y - pts[0].y);
   const isClosed = closureGap < Math.max(50, rangeW*0.03);
   const totalW = rangeW*scale + pad*2, totalH = rangeH*scale + pad*2;
-  let labelsSvg = '';
-  mids.forEach(m=>{
-    const p = toPx(m);
-    let labelAngle = m.angle % 360; if(labelAngle < 0) labelAngle += 360;
-    if(labelAngle > 90 && labelAngle < 270) labelAngle -= 180; // نص فوق رأسه - منقلبه ليضل مقروء
-    labelsSvg += `<text x="${p.x}" y="${p.y-6}" font-size="10.5" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${labelAngle}, ${p.x}, ${p.y-6})">${Math.round(m.length)} mm</text>`;
-  });
+  // 🧱 2026-09-24: طلب حمدي - ضلع (أو حتى واجهة كاملة) ممكن يكون كله أو *جزء* منو بس "حائط/جدار
+  // اسمنتي" بدل تصميم زجاج عادي (مثلاً 1.5 متر حائط وباقي الضلع زجاج). كل ضلع بمشي عليه (طول+زاوية)
+  // زي ما هو دايمًا بغض النظر عن الأقسام - هون بس منقسم كل حافة (edge) بالمخطط لأجزاء ملوّنة نسبةً
+  // لطول كل قسم (segment) جواها، ومنحط أيقونة 🧱 جنب طول أي قسم حائط حتى يتميز بالمخطط.
+  let edgesSvg = '', labelsSvg = '';
+  for(let i=0; i<sides.length; i++){
+    const side = sides[i];
+    const p1 = pxPts[i], p2 = pxPts[i+1];
+    const segs = (side.segments && side.segments.length) ? side.segments : [{ length:side.length, kind:'design' }];
+    const totalLen = segs.reduce((a,g)=>a+(g.length||0),0) || side.length || 1;
+    let dirDeg = Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI;
+    dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
+    if(dirDeg > 90 && dirDeg < 270) dirDeg -= 180; // نص فوق رأسه - منقلبه ليضل مقروء
+    let cum = 0;
+    segs.forEach(seg=>{
+      const f0 = cum/totalLen; cum += (seg.length||0); const f1 = cum/totalLen;
+      const sx1 = p1.x + (p2.x-p1.x)*f0, sy1 = p1.y + (p2.y-p1.y)*f0;
+      const sx2 = p1.x + (p2.x-p1.x)*f1, sy2 = p1.y + (p2.y-p1.y)*f1;
+      const isWall = seg.kind === 'wall';
+      edgesSvg += `<line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${isWall ? '#8d6e63' : 'var(--wd-ink)'}" stroke-width="${isWall ? 5 : 2}" stroke-linecap="round"/>`;
+      const mx = (sx1+sx2)/2, my = (sy1+sy2)/2;
+      const wallTag = isWall ? '🧱 ' : '';
+      labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="${isWall ? '#8d6e63' : 'var(--wd-ink)'}" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my-6})">${wallTag}${Math.round(seg.length)} mm</text>`;
+    });
+  }
   return `
   <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
-    <polygon points="${polyStr}" fill="var(--wd-glass, rgba(120,180,220,0.28))" stroke="var(--wd-ink)" stroke-width="2" stroke-linejoin="round"/>
+    <polygon points="${polyStr}" fill="var(--wd-glass, rgba(120,180,220,0.28))" stroke="none"/>
+    ${edgesSvg}
     ${labelsSvg}
     ${isClosed ? '' : `<text x="${totalW/2 - pad}" y="${totalH - pad + 16}" font-size="10" fill="#e53935" text-anchor="middle">⚠ الشكل ما منسك 100% - راجع الأطوال/الزوايا</text>`}
   </svg>`;
