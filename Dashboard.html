@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-23.3';
+  var CURRENT_VERSION = '2026-09-24.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -923,6 +923,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="clientsTabBtn">👥 العملاء</span>
         <span class="nav-pill" id="catalogsTabBtn">📚 الكتالوجات</span>
         <span class="nav-pill" id="pmpTabBtn">🗓 جدول المشاريع</span>
+        <span class="nav-pill" id="draftsDesignsTabBtn">📂 المسودات والتصاميم</span>
         <span class="nav-pill" id="backupTabBtn">📦 نسخة احتياطية</span>
         <span class="nav-pill" id="syncStatusPill" title="مزامنة تلقائية مع جوجل درايف لكل الفريق - اضغط للربط أول مرة أو لإعادة المحاولة">🔄 مزامنة الفريق</span>
         <span class="nav-pill" id="usersTabBtn" style="display:none;">👤 المستخدمين</span>
@@ -1509,6 +1510,36 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <p style="margin:0 0 4px;">يحق للشركة إبلاغ الزبائن في حال حدوث أي تغيير على هذا الجدول، بحيث يواكب الجدول التنفيذ الفعلي للمشروع، سواء كان التغيير في التواريخ المذكورة سلبيًا أو إيجابيًا. ويُعتمد الجدول بتواريخه المعدّلة كوثيقة رسمية لتنفيذ المشروع.</p>
         <p style="margin:0;font-family:&#39;Inter&#39;,sans-serif;" dir="ltr">The company reserves the right to notify clients of any changes to this schedule, so that it remains aligned with the actual execution of the project — whether such changes to the stated dates are negative or positive. The schedule, with its updated dates, shall be adopted as the official document for project execution.</p>
       </div>
+    </div>
+
+  </div>
+
+  <!-- 🆕 2026-09-24: طلب حمدي - "سجل للمسودات تبع عروض الأسعار... وسجل للتصاميم" حتى يقدر يرجع
+       يكمل عروض أسعار أو تصاميم ناقصة. الاتنين متزامنين مع جوجل درايف (مجلدي _Drafts/_Designs تحت
+       نفس مجلد كل فرع) - شوف scanDriveSubfolderAcrossBranches/openDraftFromLog/openDesignFromLog
+       تحت لتفاصيل القراءة والفتح، ونفس آلية merzona-pending-load الموجودة أصلًا لفتح عرض سعر قديم. -->
+  <div id="draftsDesignsView" style="display:none;">
+
+    <div class="panel">
+      <div class="controls" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
+        <p class="panel-title" style="margin:0;">📝 مسودات عروض الأسعار (غير مكتملة)</p>
+        <button class="export-btn" id="refreshDraftsDesignsBtn">🔄 تحديث</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0 12px;">
+        عروض أسعار حفظتها كمسودة ("💾 حفظ كمسودة" جوا أداة عرض السعر) قبل ما تخلص فيها - افتحها من هون لتكملها. بمجرد ما تحفظ العرض حفظًا نهائيًا، بتنشال تلقائيًا من هالقائمة.
+      </p>
+      <div id="draftsListArea"><p style="font-size:12.5px;color:var(--muted);">اضغط "🔄 تحديث" لجلب المسودات من جوجل درايف.</p></div>
+    </div>
+
+    <div class="panel">
+      <div class="controls" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
+        <p class="panel-title" style="margin:0;">🎨 سجل التصاميم</p>
+        <button class="export-btn" id="refreshDesignsBtn">🔄 تحديث</button>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0 12px;">
+        تصاميم محفوظة ("💾 حفظ التصميم" جوا رسّام النوافذ والأبواب) - إما مرتبطة برقم مرجعي لعرض سعر، أو تصميم حر باسمه الخاص.
+      </p>
+      <div id="designsListArea"><p style="font-size:12.5px;color:var(--muted);">اضغط "🔄 تحديث" لجلب التصاميم من جوجل درايف.</p></div>
     </div>
 
   </div>
@@ -2485,6 +2516,7 @@ function hideAllViews(){
   document.getElementById('quotationsView').style.display = 'none';
   document.getElementById('catalogsView').style.display = 'none';
   document.getElementById('pmpView').style.display = 'none';
+  document.getElementById('draftsDesignsView').style.display = 'none';
   document.getElementById('quotationView').style.display = 'none';
   document.getElementById('designerView').style.display = 'none';
   document.getElementById('procurementView').style.display = 'none';
@@ -2496,6 +2528,7 @@ function hideAllViews(){
   document.getElementById('quotationsTabBtn').classList.remove('active');
   document.getElementById('catalogsTabBtn').classList.remove('active');
   document.getElementById('pmpTabBtn').classList.remove('active');
+  document.getElementById('draftsDesignsTabBtn').classList.remove('active');
   document.getElementById('quotationTabBtn').classList.remove('active');
   document.getElementById('designerTabBtn').classList.remove('active');
   document.getElementById('procurementTabBtn').classList.remove('active');
@@ -2548,6 +2581,12 @@ function showPmpView(){
   document.getElementById('pmpView').style.display = 'block';
   document.getElementById('pmpTabBtn').classList.add('active');
   populatePmpRefSelect();
+}
+function showDraftsDesignsView(){
+  hideAllViews();
+  document.getElementById('draftsDesignsView').style.display = 'block';
+  document.getElementById('draftsDesignsTabBtn').classList.add('active');
+  refreshDraftsAndDesigns();
 }
 // عرض السعر (رسّام النوافذ والأبواب) - أداة مستقلة محمّلة داخل نفس الصفحة (iframe)
 // بيتحمّل أول مرة بس (lazy load) لتسريع فتح الداشبورد
@@ -2704,6 +2743,10 @@ document.getElementById('quotationsTabBtn').addEventListener('click', ()=>{
 document.getElementById('pmpTabBtn').addEventListener('click', ()=>{
   const inPmp = document.getElementById('pmpView').style.display !== 'none';
   if(inPmp) showDashboardView(); else showPmpView();
+});
+document.getElementById('draftsDesignsTabBtn').addEventListener('click', ()=>{
+  const inDraftsDesigns = document.getElementById('draftsDesignsView').style.display !== 'none';
+  if(inDraftsDesigns) showDashboardView(); else showDraftsDesignsView();
 });
 document.getElementById('catalogsTabBtn').addEventListener('click', ()=>{
   const inCatalogs = document.getElementById('catalogsView').style.display !== 'none';
@@ -2910,6 +2953,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     clientsTabBtn: 'clients',
     catalogsTabBtn: 'catalogs',
     pmpTabBtn: 'pmp',
+    draftsDesignsTabBtn: 'quotationsLog',
     backupTabBtn: 'backup',
     syncStatusPill: 'teamSync',
   };
@@ -4851,6 +4895,162 @@ async function openQuotationWithLatestTool(ref){
   }
 }
 window.openQuotationWithLatestTool = openQuotationWithLatestTool;
+
+/* ================= سجل المسودات والتصاميم (تبويب "📂 المسودات والتصاميم") =================
+   🆕 2026-09-24: طلب حمدي - سجل مسودات عروض الأسعار (لحتى يرجع يكملها) + سجل تصاميم (مرتبطة برقم
+   مرجعي أو حرة باسمها). كل مسودة/تصميم بينحفظ (من أداة عرض السعر - saveDraftToDrive/saveDesignToDrive)
+   كملف JSON مستقل جوا مجلد "_Drafts" أو "_Designs" تحت مجلد كل فرع (نفس فكرة DRIVE_ROOTS_BY_BRANCH_DASH
+   يلي فحص عروض الأسعار نفسها مبني عليها) - هون منفحص المجلدين عبر الفرعين ومنعرض لائحة بسيطة،
+   وفتح أي عنصر منها بيستخدم بالضبط نفس آلية "🔓 آخر نسخة" الموجودة أصلًا (merzona-pending-load) -
+   بس بمفتاح إضافي (merzona-pending-design-load) للتصاميم الحرة غير المرتبطة بعرض سعر مفتوح. */
+
+// بيرجع {id,name,mimeType}[] لكل ملفات JSON (مش مجلدات) جوا مجلد فرعي معيّن (subfolderName) تحت
+// جذر كل فرع (uae/syria) - أو [] لو المجلد الفرعي هاد لسا ما انعمل (يعني ولا مسودة/تصميم اتحفظ بعد).
+async function scanDriveSubfolderAcrossBranches(token, subfolderName){
+  const results = [];
+  for(const branch of Object.keys(DRIVE_ROOTS_BY_BRANCH_DASH)){
+    const rootId = DRIVE_ROOTS_BY_BRANCH_DASH[branch];
+    try{
+      const q = encodeURIComponent(`name = '${subfolderName}' and '${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+      const res = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+        headers: { Authorization: 'Bearer ' + token }
+      }, 15000);
+      const data = await res.json();
+      const folderId = data.files && data.files[0] && data.files[0].id;
+      if(!folderId) continue;
+      const children = await listDriveFolderChildren(token, folderId);
+      for(const f of children){
+        if(f.mimeType === 'application/vnd.google-apps.folder') continue;
+        if(!/\.json$/i.test(f.name)) continue;
+        try{
+          const text = await downloadDriveFileText(token, f.id);
+          const obj = JSON.parse(text);
+          obj.__fileId = f.id;
+          obj.__branch = branch;
+          results.push(obj);
+        }catch(e){ console.warn('[سجل المسودات/التصاميم] تعذّر قراءة ملف', f.name, e); }
+      }
+    }catch(e){ console.warn('[سجل المسودات/التصاميم] تعذّر فحص مجلد ' + subfolderName + ' لفرع ' + branch, e); }
+  }
+  return results;
+}
+
+async function refreshDraftsAndDesigns(){
+  const draftsArea = document.getElementById('draftsListArea');
+  const designsArea = document.getElementById('designsListArea');
+  if(draftsArea) draftsArea.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">⏳ عم نجيب المسودات من جوجل درايف...</p>';
+  if(designsArea) designsArea.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">⏳ عم نجيب التصاميم من جوجل درايف...</p>';
+  try{
+    const token = await getDashGoogleAccessToken(false);
+    const [drafts, designs] = await Promise.all([
+      scanDriveSubfolderAcrossBranches(token, '_Drafts'),
+      scanDriveSubfolderAcrossBranches(token, '_Designs')
+    ]);
+    drafts.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+    designs.sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
+    renderDraftsList(drafts);
+    renderDesignsList(designs);
+  }catch(e){
+    console.error('[سجل المسودات/التصاميم] فشل الجلب:', e);
+    if(draftsArea) draftsArea.innerHTML = '<p style="font-size:12.5px;color:var(--danger);">صار خطأ وإحنا عم نجيب المسودات: ' + escapeHtml((e && e.message) || e) + '</p>';
+    if(designsArea) designsArea.innerHTML = '<p style="font-size:12.5px;color:var(--danger);">صار خطأ وإحنا عم نجيب التصاميم: ' + escapeHtml((e && e.message) || e) + '</p>';
+  }
+}
+window.refreshDraftsAndDesigns = refreshDraftsAndDesigns;
+
+function renderDraftsList(drafts){
+  const area = document.getElementById('draftsListArea');
+  if(!area) return;
+  if(!drafts.length){ area.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">ما في أي مسودة محفوظة حاليًا.</p>'; return; }
+  area.innerHTML = drafts.map(d=>{
+    const when = d.savedAt ? new Date(d.savedAt).toLocaleString('ar') : '';
+    const label = escapeHtml(d.label || d.ref || d.client || 'مسودة بدون اسم');
+    const sub = [d.client ? ('الزبون: ' + escapeHtml(d.client)) : '', when].filter(Boolean).join(' — ');
+    return `<div class="controls" style="justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0;flex-wrap:wrap;">
+      <div><b style="font-size:13px;">${label}</b><br><span style="font-size:11.5px;color:var(--muted);">${sub}</span></div>
+      <div class="controls" style="gap:6px;">
+        <button class="export-btn open-draft-btn" data-file-id="${escapeHtml(d.__fileId)}" data-branch="${escapeHtml(d.__branch)}">🔓 افتح وكمّل</button>
+        <button class="export-btn delete-draft-btn" style="border-color:var(--danger);color:var(--danger);" data-file-id="${escapeHtml(d.__fileId)}">🗑 حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+  area.querySelectorAll('.open-draft-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openDraftFromLog(btn.dataset.fileId, drafts));
+  });
+  area.querySelectorAll('.delete-draft-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteDriveJsonFile(btn.dataset.fileId, 'المسودة', refreshDraftsAndDesigns));
+  });
+}
+
+function renderDesignsList(designs){
+  const area = document.getElementById('designsListArea');
+  if(!area) return;
+  if(!designs.length){ area.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">ما في أي تصميم محفوظ حاليًا.</p>'; return; }
+  area.innerHTML = designs.map(d=>{
+    const when = d.savedAt ? new Date(d.savedAt).toLocaleString('ar') : '';
+    const label = escapeHtml(d.label || d.ref || d.name || 'تصميم بدون اسم');
+    const kind = d.ref ? ('مرتبط بالرقم المرجعي: ' + escapeHtml(d.ref)) : 'تصميم حر';
+    const sub = [kind, when].filter(Boolean).join(' — ');
+    return `<div class="controls" style="justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0;flex-wrap:wrap;">
+      <div><b style="font-size:13px;">${label}</b><br><span style="font-size:11.5px;color:var(--muted);">${sub}</span></div>
+      <div class="controls" style="gap:6px;">
+        <button class="export-btn open-design-btn" data-file-id="${escapeHtml(d.__fileId)}">🔓 افتح وكمّل</button>
+        <button class="export-btn delete-design-btn" style="border-color:var(--danger);color:var(--danger);" data-file-id="${escapeHtml(d.__fileId)}">🗑 حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+  area.querySelectorAll('.open-design-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openDesignFromLog(btn.dataset.fileId, designs));
+  });
+  area.querySelectorAll('.delete-design-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteDriveJsonFile(btn.dataset.fileId, 'التصميم', refreshDraftsAndDesigns));
+  });
+}
+
+// فتح مسودة: نفس آلية "🔓 آخر نسخة" بالضبط (merzona-pending-load + إعادة تحميل حقيقية لأداة عرض
+// السعر) - المسودة نفسها هيي envelope.data (نفس شكل captureFullQuotationData()، وفيها draftId
+// أصلًا - شوف saveDraftToDrive بأداة عرض السعر) فمنبعتها هيك مباشرة بدون أي تحويل إضافي.
+function openDraftFromLog(fileId, cachedList){
+  const envelope = (cachedList||[]).find(d=>d.__fileId===fileId);
+  if(!envelope || !envelope.data){ alert('تعذّر إيجاد بيانات هاي المسودة - جرّب "🔄 تحديث" وأعد المحاولة.'); return; }
+  localStorage.setItem('merzona-pending-load', JSON.stringify(envelope.data));
+  localStorage.setItem('merzona_sync_connected', '1');
+  openQuotationWithFreshLoad();
+}
+
+// فتح تصميم: مفتاح مختلف (merzona-pending-design-load) - index.html بيلتقطه ويفتح أداة رسّام
+// النوافذ والأبواب تلقائيًا ببنود التصميم مباشرة (شوف pendingDesignLoad/openDesignerWithImportedItems
+// جوا index.html) بدون المرور بجدول الكميات إطلاقًا.
+function openDesignFromLog(fileId, cachedList){
+  const envelope = (cachedList||[]).find(d=>d.__fileId===fileId);
+  if(!envelope){ alert('تعذّر إيجاد بيانات هاد التصميم - جرّب "🔄 تحديث" وأعد المحاولة.'); return; }
+  localStorage.setItem('merzona-pending-design-load', JSON.stringify({
+    designId: envelope.designId, name: envelope.name,
+    designItems: envelope.designItems, designNextId: envelope.designNextId
+  }));
+  localStorage.setItem('merzona_sync_connected', '1');
+  openQuotationWithFreshLoad();
+}
+
+// حذف (ترحيل - trashed:true، مش حذف نهائي - نفس اتفاقية بقية النظام) ملف مسودة/تصميم من جوجل درايف.
+async function deleteDriveJsonFile(fileId, whatLabel, onDone){
+  if(!confirm('متأكد بدك تحذف هاي ' + whatLabel + '؟ (بتنترحّل بجوجل درايف - بتقدر تسترجعها يدويًا من سلة المهملات فيه لو غيّرت رأيك)')) return;
+  try{
+    const token = await getDashGoogleAccessToken(false);
+    await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trashed: true })
+    }, 15000);
+    if(onDone) onDone();
+  }catch(e){
+    console.error('[سجل المسودات/التصاميم] فشل الحذف:', e);
+    alert('صار خطأ وإحنا عم نحذف: ' + ((e && e.message) || e));
+  }
+}
+
+document.getElementById('refreshDraftsDesignsBtn').addEventListener('click', refreshDraftsAndDesigns);
+document.getElementById('refreshDesignsBtn').addEventListener('click', refreshDraftsAndDesigns);
 
 /* ================= رفع عرض سعر قديم (ملف HTML محفوظ يدويًا) للنظام =================
    حالة نادرة: عرض سعر تم الشغل عليه وحفظه كملف HTML على الجهاز، بس ما انحفظ أبدًا بجوجل درايف
