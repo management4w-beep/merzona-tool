@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-24.4';
+  var CURRENT_VERSION = '2026-09-24.5';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -1517,6 +1517,7 @@
 <div class="toolbar" id="mainToolbar">
   <button class="primary" onclick="doPrint()">🖨️ Print</button>
   <button id="driveSaveBtn" class="primary" onclick="saveToGoogleDrive(event)">☁️ حفظ لجوجل درايف</button>
+  <button id="saveDraftBtn" onclick="saveDraftToDrive(event)" title="احفظ عرض السعر (حتى لو ناقص) كمسودة بجوجل درايف - بتقدر ترجعله وتكمله لاحقًا من تبويب &quot;المسودات والتصاميم&quot; بلوحة التحكم">💾 حفظ كمسودة</button>
   <button id="quotationUndoBtn" onclick="undoQuotation()" disabled title="تراجع عن آخر تعديل بعرض السعر (البنود، الأسعار، بيانات العميل...)">↩️ تراجع</button>
   <button class="primary" onclick="openDesignerFromToolbar()">🎨 صمّم النوافذ والأبواب</button>
   <button type="button" class="toolbar-more-btn" onclick="toggleToolbarMore(event)">☰ المزيد</button>
@@ -3665,11 +3666,18 @@ function captureFullQuotationData(){
   // رمز التوقيع الإلكتروني تبع هالعرض - لازم يترافق مع بيانات العرض المحفوظة عالدرايف حتى
   // يقدر سيرفر الواتساب (whatsapp-server) يتحقق منه لما الزبون يفتح رابط التوقيع.
   try{ data.signToken = ensureSignToken(data.fields['m-ref']); }catch(e){}
+  // 🆕 2026-09-24: ربط سجل المسودات (شوف الشرح فوق قرب تعريف currentDraftId) - null لو هاد العرض
+  // لسا ما انحفظ كمسودة عالدرايف ولا مرة (عرض سعر عادي جديد).
+  data.draftId = currentDraftId || null;
   return data;
 }
 
 function applyFullQuotationData(data){
   if(!data) return;
+  // 🆕 2026-09-24: أي لقطة كاملة منطبّقها (فتح مسودة قديمة، تراجع، استرجاع مسودة محلية) لازم ترجع
+  // تربط currentDraftId بنفس القيمة المحفوظة فيها - هيك "حفظ كمسودة" التالي بيحدّث نفس ملف الـJSON
+  // عالدرايف بدل ما ينشئ ملف تاني مكرر.
+  currentDraftId = data.draftId || null;
   try{
     // منفضي كل الجداول أول (نفس خطوة resetAll) قبل ما نطبّق بيانات العرض القديم - حتى ما تختلط
     // مع أي بنود افتراضية كانت انزرعت للتو (seedDefaults) قبل ما توصل بيانات التحميل.
@@ -3718,6 +3726,17 @@ function applyFullQuotationData(data){
     syncPage2Header();
   }catch(e){ console.error('applyFullQuotationData failed', e); }
 }
+
+// 🆕 2026-09-24: طلب حمدي - "لازم يكون فيه سجل للمسودات تبع عروض الأسعار... وسجل للتصاميم" (سجلّين
+// متزامنين مع جوجل درايف، جوا Dashboard.html). هاد المعرّف (draftId) بيربط أي "حفظة كمسودة" بنفس
+// ملف الـJSON عالدرايف مهما تكرر الحفظ (تحديث بدل ما ننشئ ملف جديد كل مرة) - شوف saveDraftToDrive/
+// findFileInFolder/updateDriveFileContent تحت. currentDesignId/currentDesignName نفس الفكرة
+// بالضبط بس لتصاميم أداة "رسّام النوافذ والأبواب" المستقلة عن أي رقم مرجعي (تصميم "حر").
+// مهم: مضفناهم كـdraftId جوا captureFullQuotationData/applyFullQuotationData نفسها (تحت) - هيك أي
+// لقطة (تراجع، مسودة محلية بالمتصفح، حفظ نهائي بالدرايف) بتحمل نفس الربط تلقائيًا بدون كود إضافي.
+let currentDraftId = null;
+let currentDesignId = null;
+let currentDesignName = null;
 
 /* ================= مسودة محلية (Draft) - حماية من فقدان العمل عند تعليق/إغلاق المتصفح فجأة =================
    🆕 2026-09-02: طلب من حمدي بعد ما فقد عرض سعر كامل (كان عم يدخل بنود كتيرة) بسبب تعليق المتصفح
@@ -4571,6 +4590,160 @@ async function uploadFileToDriveFolder(filename, mimeType, blob, parentId, token
   return res.json();
 }
 
+// 🆕 2026-09-24: طلب حمدي - سجل مسودات عروض الأسعار + سجل التصاميم (شوف الشرح قرب تعريف
+// currentDraftId فوق). uploadFileToDriveFolder فوق دايمًا بينشئ ملف جديد ولا مرة بيحدّث ملف موجود -
+// فمحتاجين هون طريقة "دوّر عليه، وإذا موجود حدّثه (PATCH) وإلا أنشئه" حتى تكرار "حفظ كمسودة"/"حفظ
+// التصميم" لنفس العنصر يحدّث نفس الملف عالدرايف بدل ما ينشئ نسخة جديدة مكررة كل مرة.
+async function findFileInFolder(name, parentId, token){
+  const safeName = name.replace(/'/g, "\\'");
+  const q = encodeURIComponent(`name = '${safeName}' and '${parentId}' in parents and trashed = false`);
+  const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: 'Bearer ' + token }
+  }, 20000);
+  const data = await res.json();
+  return (data.files && data.files.length) ? data.files[0].id : null;
+}
+
+async function updateDriveFileContent(fileId, blob, token){
+  const res = await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type || 'application/octet-stream' },
+    body: blob
+  }, 35000);
+  return res.json();
+}
+
+async function saveJsonToDriveFolder(filename, obj, parentId, token){
+  const blob = new Blob([JSON.stringify(obj)], {type:'application/json'});
+  const existingId = await findFileInFolder(filename, parentId, token);
+  if(existingId){
+    await updateDriveFileContent(existingId, blob, token);
+    return existingId;
+  }
+  const created = await uploadFileToDriveFolder(filename, 'application/json', blob, parentId, token);
+  return created && created.id;
+}
+
+function generateDraftId(){ return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+function generateDesignId(){ return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+async function saveDraftToDrive(evt){
+  const btn = evt && evt.target;
+  const originalLabel = btn ? btn.textContent : null;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نحفظ المسودة...'; }
+  try{
+    const token = await getGoogleAccessToken();
+    if(!currentDraftId) currentDraftId = generateDraftId();
+    const data = captureFullQuotationData(); // بتحمل draftId تلقائيًا لأنو currentDraftId اتحدد فوق
+    const refRaw = (data.fields && data.fields['m-ref']) || '';
+    const clientName = (data.fields && data.fields['m-client']) || '';
+    const branch = getBranchFromRef(refRaw);
+    const rootFolderId = getDriveRootFolderIdForBranch(branch);
+    const draftsFolderId = await findOrCreateDriveFolder('_Drafts', rootFolderId, token);
+    const label = refRaw || clientName || 'مسودة بدون رقم مرجعي';
+    const envelope = {
+      schema: 'merzona-draft-v1', draftId: currentDraftId, label, ref: refRaw || null,
+      client: clientName || null, branch, savedAt: Date.now(), data
+    };
+    await saveJsonToDriveFolder(currentDraftId + '.json', envelope, draftsFolderId, token);
+    if(btn){
+      btn.textContent = '✅ انحفظت المسودة';
+      setTimeout(()=>{ if(btn){ btn.textContent = originalLabel; btn.disabled = false; } }, 1800);
+    }
+  }catch(e){
+    console.error('[حفظ كمسودة] فشل:', e);
+    alert('تعذّر حفظ المسودة: ' + ((e && e.message) || e));
+    if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
+  }
+}
+window.saveDraftToDrive = saveDraftToDrive;
+
+// بتنحذف (تنترحّل - trashed:true، مش حذف نهائي) المسودة المرتبطة تلقائيًا بعد ما العرض ينحفظ بشكل
+// نهائي عالدرايف (خلص شغلها - ما عاد داعي تضل ظاهرة بسجل "المسودات" بالداشبورد). ما منوقف عملية
+// الحفظ النهائي أبدًا لو هاي فشلت لأي سبب (best-effort فقط).
+async function cleanupDraftAfterFinalSave(refRaw){
+  if(!currentDraftId) return;
+  const draftIdToClean = currentDraftId;
+  try{
+    const token = await getGoogleAccessToken();
+    const branch = getBranchFromRef(refRaw || '');
+    const rootFolderId = getDriveRootFolderIdForBranch(branch);
+    const draftsFolderId = await findOrCreateDriveFolder('_Drafts', rootFolderId, token);
+    const fileId = await findFileInFolder(draftIdToClean + '.json', draftsFolderId, token);
+    if(fileId){
+      await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trashed: true })
+      }, 15000);
+    }
+  }catch(e){ console.warn('[مسودة] تعذّر ترحيل ملف المسودة بعد الحفظ النهائي (غير معيق - العرض اتحفظ تمام):', e); }
+  finally{ currentDraftId = null; }
+}
+
+// 🆕 2026-09-24: "حفظ التصميم" - زر جوا أداة رسّام النوافذ والأبواب نفسها (طلب حمدي صراحة: المصمم
+// يلي جوا أداة عرض السعر، مش designer.html المنفصلة). لو عرض السعر إله رقم مرجعي حاليًا، التصميم
+// بينحفظ مرتبط فيه تلقائيًا؛ لو لسا ما في رقم مرجعي (تصميم حر/مستقل)، لازم يتسمّى يدويًا حتى يتميز
+// عن باقي التصاميم الحرة بسجل "المسودات والتصاميم" بالداشبورد.
+async function saveDesignToDrive(){
+  if(window.__flushDesignSave__) window.__flushDesignSave__(); // نضمن آخر تعديل عالرسمة محفوظ قبل ما ناخد نسخة تصدير
+  const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
+  if(!exported || !Array.isArray(exported.items) || !exported.items.length){
+    alert('ما في أي بند تصميم لحفظه حاليًا.');
+    return;
+  }
+  const refRaw = (document.getElementById('m-ref') && document.getElementById('m-ref').value || '').trim();
+  let designName = currentDesignName;
+  if(!refRaw){
+    designName = (prompt('هاد تصميم حر (مش مرتبط برقم مرجعي لعرض سعر حاليًا) - اكتب اسم يميّزه عن باقي التصاميم:', currentDesignName || '') || '').trim();
+    if(!designName){ return; } // المستخدم ألغى أو ترك الاسم فاضي - ما منحفظ بدون اسم لتصميم حر
+    currentDesignName = designName;
+  }
+  const btn = document.getElementById('saveDesignBtn');
+  const originalLabel = btn ? btn.textContent : null;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نحفظ التصميم...'; }
+  try{
+    const token = await getGoogleAccessToken();
+    if(!currentDesignId) currentDesignId = generateDesignId();
+    const branch = getBranchFromRef(refRaw);
+    const rootFolderId = getDriveRootFolderIdForBranch(branch);
+    const designsFolderId = await findOrCreateDriveFolder('_Designs', rootFolderId, token);
+    const label = refRaw || designName || 'تصميم بدون اسم';
+    const envelope = {
+      schema: 'merzona-design-v1', designId: currentDesignId, label,
+      ref: refRaw || null, name: refRaw ? null : designName, branch, savedAt: Date.now(),
+      designItems: exported.items, designNextId: exported.nextId
+    };
+    await saveJsonToDriveFolder(currentDesignId + '.json', envelope, designsFolderId, token);
+    if(btn){
+      btn.textContent = '✅ انحفظ التصميم';
+      setTimeout(()=>{ if(btn){ btn.textContent = originalLabel; btn.disabled = false; } }, 1800);
+    }
+  }catch(e){
+    console.error('[حفظ التصميم] فشل:', e);
+    alert('تعذّر حفظ التصميم: ' + ((e && e.message) || e));
+    if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
+  }
+}
+window.saveDesignToDrive = saveDesignToDrive;
+
+// بتفتح أداة رسّام النوافذ والأبواب مباشرة ببنود تصميم جاهزة (مسترجعة من سجل "المسودات والتصاميم"
+// بالداشبورد) - بدون المرور بجدول الكميات/openDesignerFromToolbar إطلاقًا (لازم هيك تحديدًا حتى
+// تصميم "حر" غير مرتبط بأي عرض سعر مفتوح حاليًا يقدر ينفتح بدون ما يحتاج بند بجدول الكميات أول).
+function openDesignerWithImportedItems(designItems, designNextId){
+  const overlay = document.getElementById('wdOverlay');
+  if(overlay) overlay.style.display = 'block';
+  if(document.body.classList.contains('mode-mobile')){
+    let pref = null;
+    try{ pref = localStorage.getItem('merzona-wd-header-collapsed'); }catch(e){}
+    setWdHeaderCollapsed(pref === null ? true : pref === '1');
+  } else {
+    setWdHeaderCollapsed(false);
+  }
+  if(window.__applyDesignItemsImport__) window.__applyDesignItemsImport__(designItems, designNextId);
+}
+window.openDesignerWithImportedItems = openDesignerWithImportedItems;
+
 const SAVE_BTN_LABEL = '☁️ حفظ لجوجل درايف';
 let driveSaveCancelled = false;
 let driveSaveInProgress = false;
@@ -4641,6 +4814,9 @@ async function saveToGoogleDrive(evt){
     // أداة عرض السعر شغالة جوا إطار الداشبورد نفسها أو بتبويب منفصل لحاله - هيك أي حفظة جديدة بتنعكس
     // بالداشبورد فورًا بدل ما تستنى دورة مزامنة تلقائية لاحقة.
     try{ localStorage.setItem('merzona_last_quotation_saved_at', String(Date.now())); }catch(e){}
+    // 🆕 2026-09-24: خلص الحفظ النهائي بنجاح - لو هاد العرض كان محفوظ كـ"مسودة" قبل هيك، منرحّلها
+    // (best-effort، ما بتوقف أو تأخر ظهور رسالة النجاح) حتى ما تضل ظاهرة بسجل المسودات بالداشبورد.
+    cleanupDraftAfterFinalSave(document.getElementById('m-ref') && document.getElementById('m-ref').value).catch(()=>{});
     // إرسال إشعار واتساب لمجموعة Tasks - بالخلفية وبدون ما ينتظره المستخدم، وبدون ما يأثر على نجاح الحفظ.
     // منبعت نفس ملف الـ PDF يلي تخزّن بجوجل درايف عشان ينرفق مباشرة مع الرسالة.
     // 🔧 2026-08-24: قبل هيك كان الفشل هون بيسجّل بس بالـ console (يعني مخفي تمامًا عن المستخدم) - فكانت
@@ -5398,6 +5574,19 @@ try{
 }catch(e){}
 const alreadyHasContent = document.querySelectorAll('#qty-rows tr, #acc-rows .bi-row, #pay-rows .pay-row, #alum-spec-rows .bi-row').length > 0;
 
+// 🆕 2026-09-24: نفس فكرة merzona-pending-load فوق بالضبط بس لسجل "التصاميم" (زر "🔓 افتح" من تبويب
+// المسودات والتصاميم بالداشبورد لتصميم قائم) - منستورد بنود التصميم مباشرة (بدون المرور بجدول
+// الكميات إطلاقًا) ومنفتح أداة "رسّام النوافذ والأبواب" تلقائيًا فور ما تجهز، شوف
+// openDesignerWithImportedItems/saveDesignToDrive تحت لتفاصيل الحفظ.
+let pendingDesignLoad = null;
+try{
+  const rawPendingDesign = localStorage.getItem('merzona-pending-design-load');
+  if(rawPendingDesign){
+    localStorage.removeItem('merzona-pending-design-load');
+    pendingDesignLoad = JSON.parse(rawPendingDesign);
+  }
+}catch(e){}
+
 if(pendingQuotationLoad){
   // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
   // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
@@ -5412,6 +5601,26 @@ if(pendingQuotationLoad){
 }
 setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل مكتبة جوجل
 
+// شوف الشرح فوق قرب تعريف pendingDesignLoad - نفس تأجيل التطبيق (tick واحد) يلي معمول
+// لـpendingQuotationLoad، لنفس السبب بالضبط (استنى تعريف الجسور تبع قسم التصميم بآخر الملف).
+// 🔧 2026-09-24: setTimeout(...,0) وحيد (نفس أسلوب pendingQuotationLoad فوق) مش مضمون دايمًا كافي هون -
+// جسر window.__applyDesignItemsImport__ بينعرّف بقسم تصميم النوافذ والأبواب (سكريبت منفصل بآخر
+// الملف)، وبظروف معيّنة (مثلًا إعادة تحميل الصفحة أثناء مشاكل شبكة/مصادقة) ممكن هالسكريبت يتأخر
+// شوي عن التنفيذ. منعيد المحاولة كل 50ms لغاية ما الجسر يجهز (سقف أقصى ~2 ثانية) بدل ما نخاطر إنو
+// الاستيراد يفشل بصمت لو صار توقيت غير معتاد.
+function runWhenDesignBridgeReady(fn, attemptsLeft){
+  if(typeof window.__applyDesignItemsImport__ === 'function'){ fn(); return; }
+  if(attemptsLeft <= 0){ console.warn('[تصميم] تعذّر إيجاد جسر استيراد بنود التصميم (window.__applyDesignItemsImport__) بعد عدة محاولات - جرّب تحديث الصفحة يدويًا.'); return; }
+  setTimeout(()=> runWhenDesignBridgeReady(fn, attemptsLeft-1), 50);
+}
+if(pendingDesignLoad){
+  runWhenDesignBridgeReady(()=>{
+    currentDesignId = pendingDesignLoad.designId || null;
+    currentDesignName = pendingDesignLoad.name || null;
+    openDesignerWithImportedItems(pendingDesignLoad.designItems, pendingDesignLoad.designNextId);
+  }, 40);
+}
+
 // 🆕 محاولة استرجاع مسودة محفوظة تلقائيًا محليًا (شوف تعريف DRAFT_STORAGE_KEY/isDraftMeaningful/
 // clearDraft/saveDraftFromSnapshot فوق بقسم "مسودة محلية"). هاي منفصلة تمامًا عن الفرع فوق (يلي بيقرر
 // شو يظهر بالنموذج أول ما تفتح الصفحة - القالب الفاضي الافتراضي مخبوز أصلًا بنفس الملف، فـ
@@ -5419,7 +5628,7 @@ setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل 
 // هون منتحقق بشكل مستقل: هل في مسودة محلية فيها فعلاً بيانات كتبها المستخدم (isDraftMeaningful) -
 // إذا آه، منسأل إذا بدو يكملها، بغض النظر شو ظهر بالنموذج قبل هيك. ما منسويها إلا لو ما في طلب
 // تحميل صريح من لوحة التحكم (pendingQuotationLoad) - هيك ما نتعارض مع فتح عرض سعر محدد قصدًا.
-if(!pendingQuotationLoad){
+if(!pendingQuotationLoad && !pendingDesignLoad){
   try{
     const rawDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
     const parsedDraft = rawDraft ? JSON.parse(rawDraft) : null;
@@ -5558,6 +5767,7 @@ window.wdApplyBack = function(results){
     </div>
     <div class="wd-action-controls">
       <button class="wd-save-btn" onclick="wdSaveAndClose()">✅ استخدم هذا التصميم واحفظه للبند</button>
+      <button id="saveDesignBtn" onclick="saveDesignToDrive()" title="احفظ هالتصميم بسجل التصاميم بجوجل درايف - بتقدر ترجعله لاحقًا من تبويب &quot;المسودات والتصاميم&quot; بلوحة التحكم">💾 حفظ التصميم</button>
       <button class="wd-close-btn" onclick="wdCloseOverlay()">✕ إغلاق بدون حفظ</button>
     </div>
     <div class="print-controls">
