@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-24.10';
+  var CURRENT_VERSION = '2026-09-24.16';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -1350,6 +1350,17 @@
   .threeD-bg-btns{ display:flex; gap:6px; }
   .threeD-bg-btn{ background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.35); color:#fff; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:var(--wd-font-ui); }
   .threeD-bg-btn.active{ background:#00E5FF; color:#0b1620; border-color:#00E5FF; }
+
+  /* 🆕 2026-09-24: طلب حمدي - مشهد ثري دي حقيقي قابل للتدوير للغرفة كاملة + تصدير فيديو 360° */
+  #room3DOverlay{
+    display:none;
+    position:fixed; inset:0; z-index:10700;
+    background:#0b1620;
+  }
+  #room3DOverlay .threeD-topbar{ position:relative; }
+  #room3DCanvasWrap{ width:100%; height:calc(100vh - 60px); touch-action:none; }
+  #room3DCanvasWrap canvas{ display:block; width:100% !important; height:100% !important; }
+  #room3DRecordBtn.recording{ background:#c62828; border-color:#c62828; }
   #purchasingOverlay{
     display:none;
     position:fixed; inset:0; z-index:10600;
@@ -1505,6 +1516,9 @@
 <script src="https://accounts.google.com/gsi/client" async="" defer=""></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<!-- 🆕 2026-09-24: طلب حمدي - مكتبة ثري دي حقيقية (THREE.js) للمشهد القابل للتدوير + تصدير فيديو 360° -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <style id="googleidentityservice_button_styles">.qJTHM{-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;color:#202124;direction:ltr;-webkit-touch-callout:none;font-family:Roboto-Regular,arial,sans-serif;-webkit-font-smoothing:antialiased;font-weight:400;margin:0;overflow:hidden;-webkit-text-size-adjust:100%}.ynRLnc{left:-9999px;position:absolute;top:-9999px}.L6cTce{display:none}.bltWBb{overflow-wrap:break-word;word-break:break-word}.hSRGPd{color:#1a73e8;cursor:pointer;font-weight:500;text-decoration:none}.Bz112c-W3lGp{height:16px;width:16px}.Bz112c-E3DyYd{height:20px;width:20px}.Bz112c-r9oPif{height:24px;width:24px}.Bz112c-u2z5K{height:36px;width:36px}.Bz112c-uaxL4e{border-radius:10px}.LgbsSe-Bz112c{display:block}.S9gUrf-YoZ4jf{border:none;margin:0;padding:0}.S9gUrf-YoZ4jf *{border:none;margin:0;padding:0}.fFW7wc-ibnC6b>.aZ2wEe>div{border-color:#4285f4}.P1ekSe-ZMv3u{-webkit-transition:height .2s linear;transition:height .2s linear}.P1ekSe-ZMv3u>div:first-child{background-color:#1a73e8!important;-webkit-transition:width .3s linear;transition:width .3s linear}.P1ekSe-ZMv3u>div:nth-child(2){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.P1ekSe-ZMv3u>div:nth-child(3){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.haAclf{display:inline-block}.nsm7Bb-HzV7m-LgbsSe{border-radius:4px;box-sizing:border-box;-webkit-transition:background-color .218s,border-color .218s;transition:background-color .218s,border-color .218s;-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;-webkit-appearance:none;background-color:#fff;background-image:none;border:1px solid #dadce0;color:#3c4043;cursor:pointer;font-family:Google Sans,arial,sans-serif;font-size:.875rem;height:40px;letter-spacing:.25px;outline:none;overflow:hidden;padding:0 12px;position:relative;text-align:center;vertical-align:middle;white-space:nowrap;width:auto}@media screen and (-ms-high-contrast:active){.nsm7Bb-HzV7m-LgbsSe{border:2px solid windowText;color:windowText}}@media screen and (preferes-contrast:more){.nsm7Bb-HzV7m-LgbsSe{color:#000}}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe{font-size:.875rem;height:32px;letter-spacing:.25px;padding:0 10px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe{font-size:.6875rem;height:20px;letter-spacing:.3px;padding:0 8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe{padding:0;width:40px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe{width:32px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe{width:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK{border-radius:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.pSzOP-SxQuSe{border-radius:16px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.purZT-SxQuSe{border-radius:10px}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc{border:1px solid #8e918f;background-color:#131314;color:#e3e3e3}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc{border:none;color:#fff}.nsm7Bb-HzV7m-LgbsSe.MFS4be-v3pZbf-Ia7Qfc{background-color:#1a73e8}.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{background-color:#202124;color:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{color:#fff}}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:18px;margin-right:8px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:14px;min-width:14px;width:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:10px;min-width:10px;width:10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin-left:8px;margin-right:-4px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:10px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:4px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:3px;border-bottom-left-radius:3px;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;-webkit-box-align:center;-webkit-align-items:center;align-items:center;background-color:#fff;height:36px;margin-left:-10px;margin-right:12px;min-width:36px;width:36px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c,.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:28px;margin-left:-8px;margin-right:10px;min-width:28px;width:28px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:16px;margin-left:-6px;margin-right:8px;min-width:16px;width:16px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:3px;margin-left:2px;margin-right:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:8px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-bN97Pc-sM5MNb{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;-webkit-flex-direction:row;-webkit-box-orient:horizontal;-webkit-box-direction:normal;flex-direction:row;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;-webkit-flex-wrap:nowrap;flex-wrap:nowrap;height:100%;position:relative;width:100%}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX{-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:1;-webkit-box-flex:1;flex-grow:1;font-family:Google Sans,arial,sans-serif;font-weight:500;overflow:hidden;text-overflow:ellipsis;vertical-align:top}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-weight:300}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:0;-webkit-box-flex:0;flex-grow:0}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-MJoBVe{-webkit-transition:background-color .218s;transition:background-color .218s;bottom:0;left:0;position:absolute;right:0;top:0}.nsm7Bb-HzV7m-LgbsSe:focus,.nsm7Bb-HzV7m-LgbsSe:hover{box-shadow:none;border-color:rgb(210,227,252);outline:none}.nsm7Bb-HzV7m-LgbsSe:focus-within{outline:2px solid #00639b;border-color:transparent}.nsm7Bb-HzV7m-LgbsSe:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.08)}.nsm7Bb-HzV7m-LgbsSe:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.1)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.08)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.12)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.24)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.32)}.nsm7Bb-HzV7m-LgbsSe .n1UuX-DkfjY{border-radius:50%;display:-webkit-box;display:-webkit-flex;display:flex;height:20px;margin-left:-4px;margin-right:8px;min-width:20px;width:20px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-family:Roboto;font-size:12px;text-align:left}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .fmcmS,.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .ssJRIf{overflow:hidden;text-overflow:ellipsis}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;color:#5f6368;fill:#5f6368;font-size:11px;font-weight:400}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.i5vt6e-to915-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#c4c7c5;fill:#c4c7c5}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#e8eaed;fill:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff,.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#000;fill:#000}}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .Bz112c{height:18px;margin:-3px -3px -3px 2px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:0;border-bottom-left-radius:0;border-top-right-radius:3px;border-bottom-right-radius:3px;margin-left:12px;margin-right:-10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.L5Fo6c-sM5MNb{border:0;display:block;left:0;position:relative;top:0}.L5Fo6c-bF1uUb{border-radius:4px;bottom:0;cursor:pointer;left:0;position:absolute;right:0;top:0}.L5Fo6c-bF1uUb:focus{border:none;outline:none}sentinel{}</style><style id="dynamicPageStyle">@page{ size: 210mm 297mm; margin: 12mm; }</style></head>
 <body data-prefilled="1" class="">
 
@@ -5970,7 +5984,7 @@ window.wdApplyBack = function(results){
           <div style="margin:10px 0;padding:8px;border:1px dashed var(--wd-line,#555);border-radius:8px;">
             <button type="button" class="small" onclick="toggleRoomFreehandDraw()" style="width:100%;">✏️ ارسم شكل الأرضية بالفأرة (بدل التعبئة اليدوية)</button>
             <div id="roomDrawWrap" style="display:none;margin-top:8px;">
-              <p class="hint">دوس عالفراغ الفاضي لتضيف نقطة جديدة (بتلتصق تلقائيًا بأقرب نقطة أو خط موجود لو كانت قريبة منو - هيك خط جديد بيوصل خط قديم بيندمج فيه بالظبط ويكمّل الفراغ بدون ما تضل فجوة، مثلاً خط عمودي وصل عند خط أفقي مقابلو). اسحب أي نقطة موجودة لتحريكها، أو دوس عليها (بدون سحب) لحذفها. فتح الرسم عالغرفة نفسها بيرجع يعرضلك شكلها الحالي من جديد - مش لازم تبلش من الصفر. ارسم الشكل بس تقريبيًا بدون ما تشغل بالك بالمقاسات إطلاقًا وانت عم ترسم - بعد ما تدوس "✅ إنهاء وتحويل لأضلاع" منسوي أطوال الأضلاع تلقائيًا من الرسمة، وهناك تحت (بقائمة "أضلاع الأرضية") بتقدر تعدّل كل طول لرقمو الحقيقي المضبوط، وفورًا رح تتحدث معاينة شكل الأرضية والحسابات كلها حسب هيك أرقام حقيقية. كبّر/صغّر بدولاب الفأرة فوق الرسمة براحتك، ودوس "⛶ تكبير مساحة الرسم" لتكبير نافذة الرسم على كامل الشاشة. وإذا بدك تدوّر الشكل كامل (مش ضلع واحد) في أزرار وخانة تدوير تحت.</p>
+              <p class="hint">دوس عالفراغ الفاضي لتضيف نقطة جديدة (بتلتصق تلقائيًا بأقرب نقطة أو خط موجود لو كانت قريبة منو - هيك خط جديد بيوصل خط قديم بيندمج فيه بالظبط ويكمّل الفراغ بدون ما تضل فجوة، مثلاً خط عمودي وصل عند خط أفقي مقابلو). اسحب أي نقطة موجودة لتحريكها (مثلاً لتوصلها بالظبط مع نقطة أو خط تاني وتسكّر الشكل). كليك عادي (بدون سحب) عالنقطة ما بيعمل ولا شي - آمن تدوسها وانت ماشي عليها أو عم تسكّر الشكل. لحذف نقطة فعليًا: double-click (دوستين سريعتين) عليها. فتح الرسم عالغرفة نفسها بيرجع يعرضلك شكلها الحالي من جديد - مش لازم تبلش من الصفر. ارسم الشكل بس تقريبيًا بدون ما تشغل بالك بالمقاسات إطلاقًا وانت عم ترسم - بعد ما تدوس "✅ إنهاء وتحويل لأضلاع" منسوي أطوال الأضلاع تلقائيًا من الرسمة، وهناك تحت (بقائمة "أضلاع الأرضية") بتقدر تعدّل كل طول لرقمو الحقيقي المضبوط، وفورًا رح تتحدث معاينة شكل الأرضية والحسابات كلها حسب هيك أرقام حقيقية. كبّر/صغّر بدولاب الفأرة فوق الرسمة براحتك، ودوس "⛶ تكبير مساحة الرسم" لتكبير نافذة الرسم على كامل الشاشة. وإذا بدك تدوّر الشكل كامل (مش ضلع واحد) في أزرار وخانة تدوير تحت.</p>
               <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
                 <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (استثناء نادر - بدون قفل ٩٠°)
               </label>
@@ -6002,8 +6016,11 @@ window.wdApplyBack = function(results){
           <div class="add-row" style="margin-top:6px;">
             <button onclick="addRoomSideFromControls()" class="small" style="flex:1;">+ ضلع جديد</button>
           </div>
-          <label style="margin-top:10px;">مخطط الأرضية (تخطيطي - من فوق)</label>
+          <label style="margin-top:10px;">مسقط الأرضية Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
           <div id="roomFloorPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
+          <div class="add-row" style="margin-top:8px;">
+            <button onclick="openRoom3D()" class="small" style="flex:1;">🏠 مشهد ثري دي حقيقي (منظور Elevation + تدوير + فيديو)</button>
+          </div>
         </div>
 
         <div class="row2" id="normalDimsRow" style="display: grid;">
@@ -6192,6 +6209,18 @@ window.wdApplyBack = function(results){
     </div>
   </div>
   <div class="threeD-grid" id="threeDGrid"></div>
+</div>
+
+<div id="room3DOverlay">
+  <div class="threeD-topbar">
+    <span>🏠 مشهد ثري دي حقيقي - <span id="room3DTitle"></span></span>
+    <div style="display:flex; gap:8px;">
+      <button class="camera-close-btn" id="room3DRecordBtn" onclick="recordRoom3DVideo()">🎥 سجّل وحمّل فيديو 360°</button>
+      <button class="camera-close-btn" onclick="closeRoom3D()">✕ إغلاق</button>
+    </div>
+  </div>
+  <div id="room3DCanvasWrap"></div>
+  <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف الغرفة من كل زاوية، أو دوس "🎥 سجّل وحمّل فيديو 360°" لتسجيل دورة كاملة تلقائية حوالين الغرفة وتنزيلها كملف فيديو (webm) جاهز ترسلو للزبون.</p>
 </div>
 
 <div id="purchasingOverlay">
@@ -8107,7 +8136,11 @@ function renderNode(it, node, x, y, w, h, scale, isDoor, out, netMap){
 }
 
 function classifyItem(it){
-  if(it.shapeType === 'room') return { en:'Room / Majlis', ar:'غرفة/مجلس' };
+  // 🆕 2026-09-24: طلب حمدي - المسقط (مخطط الأرضية من فوق) اسمو "مسقط Plan"، ومنظور كل جدار/ضلع
+  // (بعد ما ينصمم زي بند عادي) اسمو "منظور Elevation" - بدل التصنيف العام (كرتن وول...) يلي كان
+  // مربك (ظاهر متلو متل رسمة تانية مالها معنى).
+  if(it.shapeType === 'room') return { en:'Plan', ar:'مسقط' };
+  if(it.isRoomWallElevation) return { en:'Elevation', ar:'منظور' };
   if(it.shapeType === 'foldingDoor') return { en:'Folding Door', ar:'باب فولدينغ' };
   if(it.shapeType === 'slidingDoor') return { en:'Sliding Door', ar:'باب سحّاب' };
   if(it.shapeType === 'slidingWindow') return { en:'Sliding Window', ar:'شباك سحّاب' };
@@ -8796,16 +8829,30 @@ function roomDrawPointerUp(evt){
   if(g.dragging){
     // خلص السحب - النقطة تحدثت مباشرة أثناء roomDrawPointerMove.
   } else if(g.pointIndex > -1){
-    // دوسة بسيطة (بدون سحب) عالنقطة نفسها = حذفها.
-    if(roomDraw.points.length <= 3){
-      alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
+    // دوسة بسيطة (بدون سحب) عالنقطة نفسها: منتحقق يدويًا إذا هاي ثاني دوسة سريعة عالنقطة نفسها
+    // (خلال أقل من 400ms من آخر دوسة عليها) = "double-click" مقصود = نحذفها فعليًا. غير هيك (دوسة
+    // وحدة بس) ما منعمل ولا شي (no-op). هاد مهم جدًا: لما توصل آخر نقطة وبدك "توصلها" مع أول نقطة
+    // لتسكّر الشكل، أكيد رح تدوس عالنقطة الأولى بكليك عادي واحد بدون سحب - قبل هيك كان هاد الكليك
+    // عم يحذفها بالغلط (وبالتالي الخط كامل يلي متصل فيها كان عم يختفي). ملاحظة تقنية: منتحقق
+    // بالتوقيت يدويًا (مش باستخدام حدث "dblclick" الجاهز من المتصفح) لأنو منعيد بناء الـ SVG كامل
+    // (innerHTML) بعد كل دوسة، وهيك بيفسد تتبّع المتصفح الداخلي للنقر المزدوج على نفس العنصر.
+    const now = Date.now();
+    const lc = roomDraw.lastClick;
+    if(lc && lc.pointIndex === g.pointIndex && (now - lc.time) < 400){
+      if(roomDraw.points.length <= 3){
+        alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
+      } else {
+        roomDraw.points.splice(g.pointIndex, 1);
+      }
+      roomDraw.lastClick = null;
     } else {
-      roomDraw.points.splice(g.pointIndex, 1);
+      roomDraw.lastClick = { pointIndex: g.pointIndex, time: now };
     }
   } else {
     // g موجود وgesture.pointIndex === -1: يعني كان في mousedown حقيقي بلش من فوق فراغ فاضي بنفس
     // الرسمة، وهلق وصل mouseup المطابق إلو = دوسة (أو سحب) حقيقية = نقطة جديدة.
     roomDraw.points.push(roomDrawNextPointCandidate(raw));
+    roomDraw.lastClick = null;
   }
   roomDraw.gesture = null;
   renderRoomDrawCanvas();
@@ -8990,6 +9037,523 @@ function finishRoomFreehandDraw(){
 }
 window.finishRoomFreehandDraw = finishRoomFreehandDraw;
 
+// ============================================================================
+// 🆕 2026-09-24: طلب حمدي - "المشهد 3D الحقيقي القابل للتدوير وتصدير الفيديو التلقائي 360°" (كانت
+// موعودة كمرحلة جاية بالخطة الأصلية - شوف تعليق "ROOM / MAJLIS" فوق). هون منبني مشهد ثري دي حقيقي
+// (THREE.js) للغرفة كاملة: الأرضية + كل جدار/ضلع بمكانه الصحيح (محسوب من نفس منطق buildRoomSVG)،
+// وكل جدار انصمم (منظور Elevation) بيطلع بخامة (texture) مأخوذة من تصميمه الفعلي (تقسيمات
+// الزجاج/الشيش)، وكل جدار لسا ما انصمم أو محدد "حائط" بيطلع سطح مصمت/زجاج بسيط. بعدين المستخدم فيه
+// يدوّر الكاميرا يدويًا (سحب بالماوس) أو يدوس "سجّل فيديو 360°" لتسجيل دورة كاملة تلقائية حوالين
+// الغرفة وتنزيلها كملف فيديو (webm) جاهز يرسلو للزبون مباشرة.
+let room3D = { renderer:null, scene:null, camera:null, controls:null, animId:null,
+  center:null, radius:0, cameraHeight:0, lookHeight:0, recording:false, itemId:null,
+  onResize:null };
+
+// نفس منطق المشي حول الأضلاع يلي بـbuildRoomSVG بالضبط (نسخة منفصلة بدل ما نعدّل الأصلية، حتى ما
+// نخاطر نكسر معاينة الأرضية 2D يلي شغالة ومجربة) - بيرجع نقاط المضلع بالمم.
+function computeRoomPolygonMM(it){
+  const sides = it.roomSides || [];
+  let bearing = 0, x = 0, y = 0;
+  const pts = [{x,y}];
+  sides.forEach(s=>{
+    const rad = bearing * Math.PI/180;
+    const nx = x + s.length*Math.cos(rad), ny = y + s.length*Math.sin(rad);
+    x = nx; y = ny;
+    pts.push({x,y});
+    bearing += (180 - (s.angleDeg||90));
+  });
+  return pts;
+}
+
+// خامة/texture مبسّطة لمنظور الجدار (بدون خلفية/انعكاسات/أبعاد متل build3DRenderSVG - هيدي بس
+// لتغطية سطح الحيط بالثري دي، فبتضل نظيفة). بتغطي تقسيمات الزجاج/الشيش الحقيقية من layout البند.
+function buildWallSegmentTextureSVG(item, wMM, hMM){
+  const W = Math.max(1,wMM), H = Math.max(1,hMM);
+  const frameW = Math.max(6, Math.min(W,H)*0.02);
+  const LOUVER_TYPES3D = ['louver','louver_right','louver_left'];
+  let glass = '', bars = '';
+  function walk(node,x,y,w,h){
+    if(!node) return;
+    if(node.kind === 'leaf'){
+      const isLouver = LOUVER_TYPES3D.includes(node.type);
+      if(isLouver){
+        glass += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#2a2d31"/>`;
+      } else {
+        glass += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#bcdcec" fill-opacity="0.6"/>`;
+      }
+      if(node.type && node.type !== 'plain' && !isLouver){
+        const sashW = Math.max(4, frameW*0.55);
+        bars += `<rect x="${x+sashW/2}" y="${y+sashW/2}" width="${Math.max(0,w-sashW)}" height="${Math.max(0,h-sashW)}" fill="none" stroke="#17181b" stroke-width="${sashW}"/>`;
+      }
+      return;
+    }
+    const total = node.direction==='row' ? w : h;
+    let cum = 0;
+    (node.children||[]).forEach((ch,i)=>{
+      const size = ch.frac/100*total;
+      const cx = node.direction==='row' ? x+cum : x;
+      const cy = node.direction==='row' ? y : y+cum;
+      const cw = node.direction==='row' ? size : w;
+      const chh = node.direction==='row' ? h : size;
+      walk(ch.node, cx, cy, cw, chh);
+      cum += size;
+      if(i < node.children.length-1){
+        const pos = node.direction==='row' ? x+cum : y+cum;
+        const barW = Math.max(4, frameW*0.6);
+        if(node.direction==='row') bars += `<rect x="${pos-barW/2}" y="${y}" width="${barW}" height="${h}" fill="#17181b"/>`;
+        else bars += `<rect x="${x}" y="${pos-barW/2}" width="${w}" height="${barW}" fill="#17181b"/>`;
+      }
+    });
+  }
+  const archH = item && item.archTop ? Math.max(0, Math.min(H*0.4, item.archHeight||H*0.22)) : 0;
+  const bodyH = H - archH;
+  if(item && item.layout){
+    walk(item.layout, 0, archH, W, bodyH);
+  } else {
+    glass += `<rect x="0" y="${archH}" width="${W}" height="${bodyH}" fill="#bcdcec" fill-opacity="0.6"/>`;
+  }
+  let archSvg = '';
+  if(archH > 0){
+    archSvg = `<path d="M0,${archH} A ${W/2},${archH} 0 0 1 ${W},${archH}" fill="#bcdcec" fill-opacity="0.6" stroke="#17181b" stroke-width="${Math.max(3,frameW*0.6)}"/>`;
+  }
+  const outer = `<rect x="${frameW/2}" y="${frameW/2}" width="${Math.max(0,W-frameW)}" height="${Math.max(0,H-frameW)}" fill="none" stroke="#17181b" stroke-width="${frameW}"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${Math.round(W)}" height="${Math.round(H)}">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#eef1f3"/>
+    ${archSvg}
+    ${glass}
+    ${bars}
+    ${outer}
+  </svg>`;
+}
+
+// بيحوّل نص SVG لخامة THREE.CanvasTexture (لازم Promise لأنو تحميل الصورة async).
+function svgStringToTexture(svgString, pxW, pxH){
+  return new Promise((resolve)=>{
+    try{
+      const svgBlob = new Blob([svgString], { type:'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = function(){
+        try{
+          const canvas = document.createElement('canvas');
+          canvas.width = pxW; canvas.height = pxH;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, pxW, pxH);
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.needsUpdate = true;
+          resolve(tex);
+        } catch(e){ resolve(null); }
+        finally{ URL.revokeObjectURL(url); }
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); resolve(null); };
+      img.src = url;
+    } catch(e){ resolve(null); }
+  });
+}
+
+async function buildWallSegmentMaterials(item, wMM, hMM){
+  const maxDim = 512;
+  let pxW, pxH;
+  if(wMM >= hMM){ pxW = maxDim; pxH = Math.max(32, Math.round(maxDim*hMM/wMM)); }
+  else { pxH = maxDim; pxW = Math.max(32, Math.round(maxDim*wMM/hMM)); }
+  const svg = buildWallSegmentTextureSVG(item, wMM, hMM);
+  const tex = await svgStringToTexture(svg, pxW, pxH);
+  if(tex){ tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping; }
+  const faceMat = tex
+    ? new THREE.MeshStandardMaterial({ map:tex, side:THREE.FrontSide, roughness:0.35, metalness:0.05 })
+    : new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.55, roughness:0.2 });
+  const edgeMat = new THREE.MeshStandardMaterial({ color:0x2a2d31, roughness:0.8 });
+  return [edgeMat, edgeMat, edgeMat, edgeMat, faceMat, faceMat];
+}
+
+function room3DResolveSegmentItem(seg){
+  if(!seg || seg.kind !== 'design' || !seg.rowUid) return null;
+  return items.find(i => i.sourceRowUid === seg.rowUid) || null;
+}
+
+// 🆕 2026-09-24: طلب حمدي - "خلي الثري دي تبع المصمم يكون تصميم حقيقي" - بدل ما نلزق صورة مسطحة
+// (texture) فوق صندوق للحيط المصمم، هلق منبني مجسم ثلاثي الأبعاد حقيقي: إطارات بارزة فعليًا بعمق
+// (صناديق رفيعة ببروز حقيقي، مش خطوط مرسومة)، زجاج غاطس شفاف بين الإطارات، عوارض (mullions) حقيقية
+// بين كل قسم وقسم بنفس تقسيماتك الفعلية بالمصمم، وحتى القنطرة (arch) لو موجودة كقطعة منحنية حقيقية.
+// بهيك لما تلف الكاميرا حوالين الغرفة أو تقرّب، بيبين إنو فعلاً شكل ثلاثي الأبعاد إلو عمق حقيقي مش
+// مجرد صورة ملزوقة.
+function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
+  const W = Math.max(0.05, wMM/1000), H = Math.max(0.05, hMM/1000);
+  const group = new THREE.Group();
+  const content = new THREE.Group();
+  group.add(content);
+  content.position.set(-W/2, -H/2, 0); // مركز المجموعة الكاملة عالمنتصف (نفس تحويل صندوق الحائط البسيط)
+
+  const FRAME_DEPTH = Math.min(0.09, Math.max(0.045, thicknessM));
+  const GLASS_DEPTH = Math.max(0.006, thicknessM*0.18);
+  const frameW = Math.max(0.03, Math.min(W,H)*0.032);
+  const frameMat = new THREE.MeshStandardMaterial({ color:0x1c1d20, roughness:0.55, metalness:0.25 });
+  const glassMat = new THREE.MeshPhysicalMaterial({ color:0xbfe3f0, transparent:true, opacity:0.32, roughness:0.08, metalness:0, clearcoat:0.4, side:THREE.DoubleSide });
+  const louverMat = new THREE.MeshStandardMaterial({ color:0x2a2d31, roughness:0.65, side:THREE.DoubleSide });
+  const LOUVER_TYPES3D = ['louver','louver_right','louver_left'];
+
+  function box(cx,cy,w,h,d,mat){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.006,w),Math.max(0.006,h),d), mat);
+    m.position.set(cx,cy,0);
+    content.add(m);
+    return m;
+  }
+  // إطار (برواز) حقيقي حول مستطيل - 4 عوارض منفصلة (فوق/تحت/يمين/شمال) كل وحدة صندوق ببروز حقيقي،
+  // بدل ما نعتمد على شكل بفتحة (hole) لأنو أبسط وأضمن هندسيًا.
+  function frameBorder(x,y,w,h,bw,depth){
+    bw = Math.max(0.012, Math.min(bw, w/2-0.006, h/2-0.006));
+    box(x+w/2, y+h-bw/2, w, bw, depth, frameMat);
+    box(x+w/2, y+bw/2, w, bw, depth, frameMat);
+    box(x+bw/2, y+h/2, bw, Math.max(0.01,h-2*bw), depth, frameMat);
+    box(x+w-bw/2, y+h/2, bw, Math.max(0.01,h-2*bw), depth, frameMat);
+  }
+
+  const archHeightMM = item.archTop ? Math.max(0, item.archHeight || hMM*0.22) : 0;
+  const archH = Math.min(H*0.4, archHeightMM/1000);
+  const bodyH = H - archH;
+
+  function walk(node,x,y,w,h){
+    if(!node) return;
+    if(node.kind === 'leaf'){
+      const isLouver = LOUVER_TYPES3D.includes(node.type);
+      const isPlain = !node.type || node.type === 'plain';
+      const inset = isPlain ? 0.002 : frameW*0.85;
+      const gw = Math.max(0.02, w - inset*2), gh = Math.max(0.02, h - inset*2);
+      box(x+w/2, y+h/2, gw, gh, isLouver?FRAME_DEPTH*0.6:GLASS_DEPTH, isLouver?louverMat:glassMat);
+      if(!isPlain) frameBorder(x,y,w,h,frameW,FRAME_DEPTH);
+      return;
+    }
+    const total = node.direction==='row' ? w : h;
+    let cum = 0;
+    (node.children||[]).forEach((ch,i)=>{
+      const size = ch.frac/100*total;
+      const cx = node.direction==='row' ? x+cum : x;
+      const cy = node.direction==='row' ? y : y+cum;
+      const cw = node.direction==='row' ? size : w;
+      const chh = node.direction==='row' ? h : size;
+      walk(ch.node, cx, cy, cw, chh);
+      cum += size;
+      if(i < node.children.length-1){
+        const barW = Math.max(0.03, frameW*1.1);
+        if(node.direction==='row') box(x+cum, y+h/2, barW, h, FRAME_DEPTH, frameMat);
+        else box(x+w/2, y+cum, w, barW, FRAME_DEPTH, frameMat);
+      }
+    });
+  }
+  if(item.layout) walk(item.layout, 0, 0, W, bodyH);
+  frameBorder(0,0,W,bodyH,frameW,FRAME_DEPTH); // إطار خارجي (casing) حول كامل الجسم المستطيل
+
+  if(archH > 0.01 && typeof THREE.ExtrudeGeometry !== 'undefined'){
+    const N = 16;
+    const outerArc = [];
+    for(let i=0;i<=N;i++){
+      const ang = Math.PI * i/N;
+      outerArc.push(new THREE.Vector2( W/2 + (W/2)*Math.cos(ang), bodyH + archH*Math.sin(ang) ));
+    }
+    // زجاج القنطرة: قطعة واحدة نصف بيضاوية حقيقية (مش خط مرسوم) - شكل مغلق بسيط بدون فتحة فمافي خطر
+    // مشاكل اتجاه (winding) الفتحات.
+    const glassPts = [ new THREE.Vector2(0,bodyH), new THREE.Vector2(W,bodyH) ].concat(outerArc.slice().reverse());
+    const glassGeo = new THREE.ExtrudeGeometry(new THREE.Shape(glassPts), { depth:GLASS_DEPTH, bevelEnabled:false });
+    glassGeo.translate(0,0,-GLASS_DEPTH/2);
+    content.add(new THREE.Mesh(glassGeo, glassMat));
+
+    // إطار القنطرة: شريط منحني ببروز حقيقي - قوس برّاني متبوع بالقوس الجوّاني بالعكس (حلقة مقفولة
+    // وحدة، بدون الحاجة لـShape.holes نهائيًا).
+    const rxInner = Math.max(0.02, W/2 - frameW), ryInner = Math.max(0.02, archH - frameW*0.6);
+    const innerArc = [];
+    for(let i=0;i<=N;i++){
+      const ang = Math.PI * i/N;
+      innerArc.push(new THREE.Vector2( W/2 + rxInner*Math.cos(ang), bodyH + ryInner*Math.sin(ang) ));
+    }
+    const ringPts = outerArc.concat(innerArc.slice().reverse());
+    const ringGeo = new THREE.ExtrudeGeometry(new THREE.Shape(ringPts), { depth:FRAME_DEPTH, bevelEnabled:false });
+    ringGeo.translate(0,0,-FRAME_DEPTH/2);
+    content.add(new THREE.Mesh(ringGeo, frameMat));
+
+    box(W/2, bodyH, W, Math.max(0.02,frameW*0.5), FRAME_DEPTH, frameMat); // خط الفصل (springline)
+  }
+
+  return group;
+}
+
+async function buildRoom3DScene(it, wrap){
+  const MMTOM = 1/1000;
+  const pts = computeRoomPolygonMM(it);
+  const n = it.roomSides.length;
+  const heightM = Math.max(0.5, (it.roomHeight||2500) * MMTOM);
+  const wallThicknessM = 0.12, glassThicknessM = 0.06;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xbfe0f2);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+  sun.position.set(12, 20, 9);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+  fill.position.set(-10, 8, -10);
+  scene.add(fill);
+
+  // أرضية واسعة (عشب/أرض محيطة) حتى المبنى ما يطلع طايف بالفضاء
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(300,300),
+    new THREE.MeshStandardMaterial({ color:0x8fae6e, roughness:1 })
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -0.03;
+  scene.add(ground);
+
+  // بلاطة الأرضية (شكل المضلع نفسو - مسقط Plan) - THREE.Shape بمستوى XY محلي، وبعدين بندوّر المِش
+  // كامل -90° حول X حتى يصير أفقي (محلي y -> world Z بالسالب، محلي x -> world X متل ما هو).
+  const shape = new THREE.Shape();
+  pts.slice(0,n).forEach((p,i)=>{
+    const X = p.x*MMTOM, Y = p.y*MMTOM;
+    if(i===0) shape.moveTo(X,Y); else shape.lineTo(X,Y);
+  });
+  shape.closePath();
+  const floorMesh = new THREE.Mesh(
+    new THREE.ShapeGeometry(shape),
+    new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.9, side:THREE.DoubleSide })
+  );
+  floorMesh.rotation.x = -Math.PI/2;
+  scene.add(floorMesh);
+
+  // سقف بسيط (نفس شكل الأرضية) فوق - عشان المبنى يطلع متكامل من برا
+  const roofMesh = new THREE.Mesh(
+    new THREE.ShapeGeometry(shape),
+    new THREE.MeshStandardMaterial({ color:0x5a4a3a, roughness:0.8, side:THREE.DoubleSide })
+  );
+  roofMesh.rotation.x = -Math.PI/2;
+  roofMesh.position.y = heightM + 0.02;
+  scene.add(roofMesh);
+
+  // كل ضلع -> كل جزء (segment) فيه: صندوق بمكانه وزاويته الصحيحة، بخامة تصميمه الفعلي لو موجود.
+  for(let i=0;i<n;i++){
+    const side = it.roomSides[i];
+    const segs = ensureRoomSideSegments(side);
+    const A = pts[i], B = pts[i+1];
+    const sideLenMM = Math.max(1, Math.hypot(B.x-A.x, B.y-A.y));
+    const ux = (B.x-A.x)/sideLenMM, uy = (B.y-A.y)/sideLenMM;
+    const rad = Math.atan2(uy, ux);
+    let cursor = 0;
+    for(const seg of segs){
+      const segLenMM = Math.max(1, seg.length||1);
+      const startMM = { x: A.x + ux*cursor, y: A.y + uy*cursor };
+      cursor += segLenMM;
+      const endMM = { x: A.x + ux*cursor, y: A.y + uy*cursor };
+      const midX = (startMM.x + endMM.x)/2, midY = (startMM.y + endMM.y)/2;
+      const lengthM = segLenMM * MMTOM;
+      const isWall = seg.kind === 'wall';
+      const linkedItem = room3DResolveSegmentItem(seg);
+      const thicknessM = isWall ? wallThicknessM : glassThicknessM;
+      const geo = new THREE.BoxGeometry(Math.max(0.02,lengthM), heightM, thicknessM);
+      let mesh;
+      if(isWall){
+        mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0xe4dcc9, roughness:0.95 }));
+      } else if(linkedItem && linkedItem.layout){
+        // 🆕 2026-09-24: طلب حمدي - "خلي الثري دي تصميم حقيقي" - مجسم 3D فعلي (إطارات بارزة + زجاج
+        // غاطس + عوارض حقيقية) بدل ما نلزق صورة مسطحة عالحيط.
+        mesh = buildRealWindowGroup3D(linkedItem, segLenMM, it.roomHeight||2500, thicknessM);
+      } else if(linkedItem){
+        // احتياطي للبنود يلي مالها layout شجري (هاندريل/باب شاور) - رندر مسطّح بالخامة القديمة.
+        const mats = await buildWallSegmentMaterials(linkedItem, segLenMM, it.roomHeight||2500);
+        mesh = new THREE.Mesh(geo, mats);
+      } else {
+        mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.5, roughness:0.2 }));
+      }
+      mesh.position.set(midX*MMTOM, heightM/2, -midY*MMTOM);
+      mesh.rotation.y = rad;
+      scene.add(mesh);
+    }
+  }
+
+  // كاميرا + عناصر تحكم تدوير يدوي (سحب بالماوس) - نحسب مركز ونصف قطر المبنى من نقاط المضلع.
+  const xs = pts.slice(0,n).map(p=>p.x*MMTOM), zs = pts.slice(0,n).map(p=>-p.y*MMTOM);
+  const centerX = (Math.min(...xs)+Math.max(...xs))/2;
+  const centerZ = (Math.min(...zs)+Math.max(...zs))/2;
+  const radius = Math.max(3, Math.hypot(Math.max(...xs)-Math.min(...xs), Math.max(...zs)-Math.min(...zs))/2 * 1.9 + heightM);
+  const lookHeight = heightM*0.42;
+  const cameraHeight = heightM*0.85;
+
+  const w = wrap.clientWidth || window.innerWidth;
+  const h = wrap.clientHeight || (window.innerHeight - 60);
+  // 🛠️ إصلاح 2026-09-24 (الفيديو طالع أسود): مشكلة معروفة ومكررة بمتصفحات Chrome/Edge - تسجيل
+  // فيديو (captureStream) من canvas ثلاثي الأبعاد (WebGL) بيطلع أسود بالكامل إذا انسوى الـcontext
+  // بدون alpha:true، حتى لو المشهد نفسو ظاهر عادي وصحيح عالشاشة أثناء المعاينة. الحل الموثّق: ننشئ
+  // الـrenderer بـalpha:true، وبعدين نجبر الشفافية تصير معدومة (setClearAlpha(1)) حتى الشكل يضل
+  // بالضبط متل ما كان (خلفية صلبة، بدون شفافية فعلية) بس تسجيل الفيديو يصير موثوق. عطّلنا antialias
+  // كمان كإجراء احترازي إضافي (بعض كروت الشاشة/التعريفات بيصير عندها تعارض بين antialiasing وcaptureStream).
+  const renderer = new THREE.WebGLRenderer({ antialias:false, preserveDrawingBuffer:true, alpha:true });
+  if(renderer.setClearAlpha) renderer.setClearAlpha(1);
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+  renderer.setSize(w,h);
+  wrap.innerHTML = '';
+  wrap.appendChild(renderer.domElement);
+
+  const camera = new THREE.PerspectiveCamera(50, w/h, 0.1, 1000);
+  camera.position.set(centerX + radius, cameraHeight, centerZ + radius);
+  camera.lookAt(centerX, lookHeight, centerZ);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(centerX, lookHeight, centerZ);
+  controls.minDistance = Math.max(1, radius*0.3);
+  controls.maxDistance = radius*3;
+  controls.maxPolarAngle = Math.PI*0.49; // ما نخلي الكاميرا تنط تحت الأرض
+  controls.update();
+
+  room3D.renderer = renderer;
+  room3D.scene = scene;
+  room3D.camera = camera;
+  room3D.controls = controls;
+  room3D.center = { x:centerX, z:centerZ };
+  room3D.radius = radius;
+  room3D.cameraHeight = cameraHeight;
+  room3D.lookHeight = lookHeight;
+
+  // 🛠️ ملاحظة مهمة (إصلاح 2026-09-24): لازم يكون في حلقة تصيير (render) *وحيدة فقط* للـcanvas - قبل
+  // هيك كان عندنا حلقتين requestAnimationFrame شغالين بنفس الوقت أثناء التسجيل (هاي وحلقة تانية جوا
+  // recordRoom3DVideo)، وهيك تضارب كان يخلي الفيديو المسجّل يطلع فاضي/ثابت لأنو captureStream ممكن
+  // ياخد لقطة الفريم الغلط. هلق: أثناء التسجيل هاي الحلقة نفسها يلي بتحرّك الكاميرا بدل ما نعمل حلقة
+  // ثانية موازية.
+  function animate(){
+    room3D.animId = requestAnimationFrame(animate);
+    if(room3D.recording){
+      const t = Math.min(1, (performance.now() - room3D.recordStartTime) / room3D.recordDurationMs);
+      const angle = room3D.recordStartAngle + t*Math.PI*2;
+      camera.position.x = room3D.center.x + room3D.radius*Math.cos(angle);
+      camera.position.z = room3D.center.z + room3D.radius*Math.sin(angle);
+      camera.position.y = room3D.cameraHeight;
+      camera.lookAt(room3D.center.x, room3D.lookHeight, room3D.center.z);
+      if(t >= 1) room3D._recordReachedEnd = true;
+    } else if(controls.enabled){
+      controls.update();
+    }
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  room3D.onResize = function(){
+    if(!room3D.renderer || document.getElementById('room3DOverlay').style.display === 'none') return;
+    const ww = wrap.clientWidth || window.innerWidth, hh = wrap.clientHeight || (window.innerHeight-60);
+    camera.aspect = ww/hh; camera.updateProjectionMatrix();
+    renderer.setSize(ww,hh);
+  };
+  window.addEventListener('resize', room3D.onResize);
+}
+
+async function openRoom3D(){
+  const it = getSelected();
+  if(!it || !isRoom(it)) return;
+  if(!it.roomSides || it.roomSides.length < 3){
+    alert('لازم عالأقل 3 أضلاع بالأرضية (وتكون الغرفة مرسومة/متكاملة) قبل ما تفتح المشهد ثري دي.');
+    return;
+  }
+  closeRoom3D();
+  document.getElementById('room3DOverlay').style.display = 'block';
+  document.getElementById('room3DTitle').textContent = it.label || 'غرفة';
+  room3D.itemId = it.id;
+  const wrap = document.getElementById('room3DCanvasWrap');
+  wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:var(--wd-font-ui);">⏳ عم يجهّز المشهد ثلاثي الأبعاد...</p>';
+  if(typeof THREE === 'undefined' || typeof THREE.OrbitControls === 'undefined'){
+    wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:var(--wd-font-ui);">⚠️ تعذّر تحميل مكتبة الرسم ثلاثي الأبعاد - تأكد من اتصالك بالإنترنت (المكتبة بتتحمّل من الإنترنت أول ما تفتح الأداة) وحاول من جديد.</p>';
+    return;
+  }
+  try{
+    await buildRoom3DScene(it, wrap);
+  } catch(e){
+    wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:var(--wd-font-ui);">⚠️ صار خطأ أثناء بناء المشهد: ' + escAttr(String(e && e.message || e)) + '</p>';
+  }
+}
+window.openRoom3D = openRoom3D;
+
+function closeRoom3D(){
+  if(room3D.activeRecorder){
+    try{ if(room3D.activeRecorder.state !== 'inactive') room3D.activeRecorder.stop(); }catch(e){}
+    room3D.activeRecorder = null;
+  }
+  if(room3D.animId){ cancelAnimationFrame(room3D.animId); room3D.animId = null; }
+  if(room3D.onResize){ window.removeEventListener('resize', room3D.onResize); room3D.onResize = null; }
+  if(room3D.controls){ try{ room3D.controls.dispose(); }catch(e){} }
+  if(room3D.renderer){
+    try{ renderer_dispose_safe(room3D.renderer); }catch(e){}
+  }
+  room3D.renderer = null; room3D.scene = null; room3D.camera = null; room3D.controls = null;
+  room3D.recording = false;
+  const overlay = document.getElementById('room3DOverlay');
+  if(overlay) overlay.style.display = 'none';
+  const btn = document.getElementById('room3DRecordBtn');
+  if(btn){ btn.classList.remove('recording'); btn.textContent = '🎥 سجّل وحمّل فيديو 360°'; btn.disabled = false; }
+}
+window.closeRoom3D = closeRoom3D;
+function renderer_dispose_safe(renderer){
+  renderer.dispose();
+  if(renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+}
+
+function recordRoom3DVideo(){
+  if(!room3D.renderer || room3D.recording) return;
+  const canvas = room3D.renderer.domElement;
+  if(!canvas.captureStream || typeof MediaRecorder === 'undefined'){
+    alert('متصفحك الحالي ما بيدعم تسجيل فيديو من الرسمة مباشرة. جرب Chrome أو Edge بآخر إصدار.');
+    return;
+  }
+  const btn = document.getElementById('room3DRecordBtn');
+  const camera = room3D.camera, center = room3D.center;
+  room3D.controls.enabled = false;
+  // 🛠️ إصلاح 2026-09-24: كانت حركة الكاميرا التلقائية بتنحسب بحلقة render منفصلة موازية لحلقة
+  // المعاينة العادية - هلق منخزّن بس نقطة البداية/المدة، وحلقة الـanimate الوحيدة (فوق) هي يلي بتحرّك
+  // الكاميرا وترندر، منعًا لتضارب فريمات كان يخلي الفيديو المسجَّل يطلع فاضي/ثابت عند بعض المتصفحات.
+  room3D.recordStartAngle = Math.atan2(camera.position.z - center.z, camera.position.x - center.x);
+  room3D.recordDurationMs = 10000;
+  room3D.recordStartTime = performance.now();
+  room3D._recordReachedEnd = false;
+  room3D.recording = true;
+  if(btn){ btn.classList.add('recording'); btn.textContent = '🔴 عم يسجّل... (10 ثواني)'; btn.disabled = true; }
+
+  const stream = canvas.captureStream(30);
+  let mimeType = 'video/webm;codecs=vp9';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+  let recorder;
+  try{ recorder = new MediaRecorder(stream, { mimeType }); }
+  catch(e){ recorder = new MediaRecorder(stream); }
+  room3D.activeRecorder = recorder;
+  const chunks = [];
+  recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = ()=>{
+    room3D.activeRecorder = null;
+    const blob = new Blob(chunks, { type:'video/webm' });
+    if(!blob.size){
+      alert('للأسف ما انسجل أي فيديو (طلع فاضي). جرب من جديد - ولو تكرر معك، جرب من متصفح Chrome أو Edge بآخر إصدار (بعض المتصفحات القديمة ما بتدعم تسجيل الفيديو من الرسمة مباشرة).');
+    } else {
+      const url = URL.createObjectURL(blob);
+      const it = items.find(i=>i.id===room3D.itemId);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = ((it && it.label) || 'غرفة').replace(/[^\w؀-ۿ-]+/g,'_') + '-3d-360.webm';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+    }
+    room3D.recording = false;
+    if(room3D.controls) room3D.controls.enabled = true;
+    if(btn){ btn.classList.remove('recording'); btn.textContent = '🎥 سجّل وحمّل فيديو 360°'; btn.disabled = false; }
+  };
+  // timeslice=200 (بدل ما نعطي stop() بدون أي وقفة) - بعض المتصفحات ما بتعطي أي "dataavailable" إذا
+  // انسجّل بدون timeslice وانوقف الترجيع فجأة، فيطلع الفيديو فاضي (0 بايت).
+  recorder.start(200);
+  (function watchRecordDone(){
+    if(!room3D.recording) return; // انسكّرت النافذة يدويًا أثناء التسجيل (closeRoom3D بتتكفل بالإيقاف)
+    if(room3D._recordReachedEnd){
+      if(recorder.state !== 'inactive') recorder.stop();
+      return;
+    }
+    requestAnimationFrame(watchRecordDone);
+  })();
+}
+window.recordRoom3DVideo = recordRoom3DVideo;
+// ============================================================================
+
 // 🎨 "صمم" - بيحوّل هاد الجزء (segment) من الضلع لبند تصميم عادي متكامل بجدول عرض السعر (نفس آلية
 // openDesignerFromToolbar بالضبط: بند جديد بجدول #qty-rows بعرض = طول هاد الجزء بالذات (مش
 // بالضرورة طول الضلع كامل، إذا كان الضلع مقسوم لأكتر من جزء)، بعدين إعادة تحميل كل الأسطر جوا
@@ -9031,7 +9595,12 @@ function designRoomSideSegment(itemId, sideId, segId){
   });
   WD.loadFromRows(rowData);
   const target = items.find(i=>i.sourceRowUid === seg.rowUid);
-  if(target) selectItem(target.id);
+  if(target){
+    // 🆕 2026-09-24: طلب حمدي - سمّي هاد البند "منظور Elevation" (مش "كرتن وول"/"شباك مفصلي" العام)
+    // لأنو هاد فعليًا منظور الحيط/الضلع المسطّح، مش نوع زجاج بيتحدد من التصنيف العادي.
+    target.isRoomWallElevation = true;
+    selectItem(target.id);
+  }
   renderGallery();
 }
 window.designRoomSideSegment = designRoomSideSegment;
