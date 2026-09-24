@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-24.16';
+  var CURRENT_VERSION = '2026-09-24.17';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -6021,6 +6021,15 @@ window.wdApplyBack = function(results){
           <div class="add-row" style="margin-top:8px;">
             <button onclick="openRoom3D()" class="small" style="flex:1;">🏠 مشهد ثري دي حقيقي (منظور Elevation + تدوير + فيديو)</button>
           </div>
+
+          <label style="margin-top:14px;">🏗️ السقف Ceiling</label>
+          <p class="hint">افتراضيًا شكل السقف نفس شكل الأرضية بالظبط. لو في بروز أو فرق بمكان معيّن (السقف طالع أوسع من الحيط تحتو مثلاً)، دوسي عالضلع المطلوب تحت وغيّري طولو/زاويتو براحتك - هيك بس بيتغيّر شكل السقف، والأرضية بتضل متل ما هي. لو بدك ترجعي تبلشي من جديد بنفس شكل الأرضية الحالي، دوسي "🔄 رجّعه لشكل الأرضية".</p>
+          <div id="ceilingSidesList"></div>
+          <div class="add-row" style="margin-top:6px;">
+            <button onclick="resetCeilingToFloor()" class="small" style="flex:1;">🔄 رجّعه لشكل الأرضية</button>
+          </div>
+          <label style="margin-top:10px;">مسقط السقف Ceiling Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
+          <div id="ceilingPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
         </div>
 
         <div class="row2" id="normalDimsRow" style="display: grid;">
@@ -6773,6 +6782,10 @@ let roomSideIdCounter = 1;
 // تصميم عادي (مثلاً 1.5 متر حائط وباقي الضلع زجاج). هاد العداد لمعرّفات هاي "الأقسام" (segments)
 // جوا كل ضلع.
 let roomSegIdCounter = 1;
+// 🆕 2026-09-24: طلب حمدي - "بدي كمان رسمة خاصة للسقف، افتراضيًا نفس شكل الأرضية بس فيني عدّل عليه
+// (بروزات...)" - هاد العداد لمعرّفات أضلاع السقف (ceilingSides)، بنية مشابهة لـroomSides بس أبسط
+// (طول + زاوية بس، بدون segments/تصميم - السقف مجرد شكل، مش بند بيتصمم).
+let ceilingSideIdCounter = 1;
 // 🆕 2026-09-24: حالة "الرسم بالفأرة" لمخطط الأرضية (بديل أسرع من تعبئة كل طول/زاوية يدويًا) - شوف
 // شرح أوسع فوق دالة renderRoomDrawCanvas تحت.
 // 🔧 2026-09-24 (تحديث تاني نفس اليوم): بعد ملاحظة حمدي "لما بنهي التصميم ما بعود بقدر عدل عليه"،
@@ -8521,6 +8534,38 @@ function syncRoomSideLength(side){
   side.length = Math.max(1, (side.segments||[]).reduce((a,s)=>a + (s.length||0), 0));
 }
 
+// 🆕 2026-09-24: طلب حمدي - "بدي رسمة خاصة للسقف، افتراضيًا نفس شكل الأرضية بس ممكن يكون في بروزات
+// ببعض الأماكن وبدي عدّل عليها بنفس منطق أضلاع الأرضية (اكبس عالضلع وغيّر مقاسو)". السقف هون هو
+// بس شكل (طول+زاوية لكل ضلع، بنفس عدد أضلاع الأرضية) - ما إلو تصميم/segments لأنو مش بند سعر، مجرد
+// مخطط للمساحة. أول ما نفتحه بينسخ تلقائيًا شكل الأرضية الحالي، وبعدين المستخدم بقدر يعدّل أي ضلع
+// لحالو (بروز، تغيير طول...) بدون ما يأثر على الأرضية نفسها. زر "🔄 رجّعه لشكل الأرضية" بيعمل ريست
+// كامل لو حاب يبلش من جديد بعد ما يكون عدّل الأرضية.
+function ensureCeilingSides(it){
+  if(!it.ceilingSides || it.ceilingSides.length !== (it.roomSides||[]).length){
+    it.ceilingSides = (it.roomSides||[]).map(s => ({ id:'cs'+(ceilingSideIdCounter++), length:s.length, angleDeg:s.angleDeg }));
+  }
+  return it.ceilingSides;
+}
+function resetCeilingToFloor(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.ceilingSides = (it.roomSides||[]).map(s => ({ id:'cs'+(ceilingSideIdCounter++), length:s.length, angleDeg:s.angleDeg }));
+  renderCeilingSidesUI(it);
+  renderGallery();
+}
+window.resetCeilingToFloor = resetCeilingToFloor;
+function onCeilingSideField(itemId, sideId, field, value){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  ensureCeilingSides(it);
+  const side = it.ceilingSides.find(s=>s.id===sideId); if(!side) return;
+  pushHistory();
+  if(field==='length') side.length = Math.max(1, parseFloat(value)||1);
+  if(field==='angleDeg') side.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
+  renderCeilingSidesUI(it);
+  renderGallery();
+}
+window.onCeilingSideField = onCeilingSideField;
+
 function addRoomSide(itemId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   pushHistory();
@@ -9051,11 +9096,12 @@ let room3D = { renderer:null, scene:null, camera:null, controls:null, animId:nul
 
 // نفس منطق المشي حول الأضلاع يلي بـbuildRoomSVG بالضبط (نسخة منفصلة بدل ما نعدّل الأصلية، حتى ما
 // نخاطر نكسر معاينة الأرضية 2D يلي شغالة ومجربة) - بيرجع نقاط المضلع بالمم.
-function computeRoomPolygonMM(it){
-  const sides = it.roomSides || [];
+// نفس منطق المشي حول الأضلاع (طول+زاوية داخلية لكل ضلع) - معمّمة لأي قائمة أضلاع (أرضية أو سقف)
+// حتى تصير قابلة لإعادة الاستخدام بدون ما نكرر نفس الحساب بمكان تاني.
+function computeSidesPolygonMM(sides){
   let bearing = 0, x = 0, y = 0;
   const pts = [{x,y}];
-  sides.forEach(s=>{
+  (sides||[]).forEach(s=>{
     const rad = bearing * Math.PI/180;
     const nx = x + s.length*Math.cos(rad), ny = y + s.length*Math.sin(rad);
     x = nx; y = ny;
@@ -9063,6 +9109,9 @@ function computeRoomPolygonMM(it){
     bearing += (180 - (s.angleDeg||90));
   });
   return pts;
+}
+function computeRoomPolygonMM(it){
+  return computeSidesPolygonMM(it.roomSides || []);
 }
 
 // خامة/texture مبسّطة لمنظور الجدار (بدون خلفية/انعكاسات/أبعاد متل build3DRenderSVG - هيدي بس
@@ -9317,9 +9366,17 @@ async function buildRoom3DScene(it, wrap){
   floorMesh.rotation.x = -Math.PI/2;
   scene.add(floorMesh);
 
-  // سقف بسيط (نفس شكل الأرضية) فوق - عشان المبنى يطلع متكامل من برا
+  // 🆕 2026-09-24: طلب حمدي - السقف إلو شكل خاص فيه ممكن يختلف عن الأرضية (بروزات...) - منجيبو من
+  // ceilingSides (افتراضيًا نفس شكل الأرضية، إلا إذا المستخدم عدّل عليه من لوحة "🏗️ السقف").
+  const ceilingPts = computeSidesPolygonMM(ensureCeilingSides(it));
+  const ceilingShape = new THREE.Shape();
+  ceilingPts.slice(0, ceilingPts.length-1).forEach((p,i)=>{
+    const X = p.x*MMTOM, Y = p.y*MMTOM;
+    if(i===0) ceilingShape.moveTo(X,Y); else ceilingShape.lineTo(X,Y);
+  });
+  ceilingShape.closePath();
   const roofMesh = new THREE.Mesh(
-    new THREE.ShapeGeometry(shape),
+    new THREE.ShapeGeometry(ceilingShape),
     new THREE.MeshStandardMaterial({ color:0x5a4a3a, roughness:0.8, side:THREE.DoubleSide })
   );
   roofMesh.rotation.x = -Math.PI/2;
@@ -9646,6 +9703,56 @@ function renderRoomSidesUI(it){
   }).join('');
   const previewEl = document.getElementById('roomFloorPreview');
   if(previewEl) previewEl.innerHTML = buildRoomSVG(it);
+  renderCeilingSidesUI(it); // السقف بيتحدّث لحاله كل مرة الأرضية بتتحدّث - نفس فكرة معاينة الأرضية
+}
+
+function renderCeilingSidesUI(it){
+  const list = document.getElementById('ceilingSidesList');
+  if(!list) return;
+  const sides = ensureCeilingSides(it);
+  list.innerHTML = sides.map((s, idx)=>`
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:4px;">
+      <span style="font-size:12px;font-weight:700;min-width:50px;">ضلع ${idx+1}</span>
+      <input type="number" min="1" style="width:80px;" value="${Math.round(s.length)}" onchange="onCeilingSideField(${it.id},'${s.id}','length',this.value)" title="طول هاد الضلع بالسقف (مم)">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
+      <input type="number" min="1" max="359" style="width:64px;" value="${Math.round(s.angleDeg)}" onchange="onCeilingSideField(${it.id},'${s.id}','angleDeg',this.value)" title="الزاوية الداخلية لهاد الضلع بالسقف">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">°</span>
+    </div>`).join('');
+  const previewEl = document.getElementById('ceilingPreview');
+  if(previewEl) previewEl.innerHTML = buildCeilingSVG(it);
+}
+window.renderCeilingSidesUI = renderCeilingSidesUI;
+
+// رسمة تخطيطية للسقف من فوق - نفس فكرة buildRoomSVG بالضبط بس عالأضلاع الخاصة بالسقف (بدون segments
+// لأنو السقف مجرد شكل، مش بند تصميم/سعر).
+function buildCeilingSVG(it){
+  const sides = ensureCeilingSides(it);
+  if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">لسا ما في شكل أرضية كافي (عالأقل 3 أضلاع)</div>';
+  const pts = computeSidesPolygonMM(sides);
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rangeW = Math.max(1, maxX-minX), rangeH = Math.max(1, maxY-minY);
+  const boxPx = 260;
+  const scale = Math.min(boxPx/rangeW, boxPx/rangeH);
+  const pad = 40;
+  const toPx = p => ({ x:(p.x-minX)*scale, y:(p.y-minY)*scale });
+  const pxPts = pts.map(toPx);
+  const polyStr = pxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
+  const totalW = rangeW*scale + pad*2, totalH = rangeH*scale + pad*2;
+  let labelsSvg = '';
+  for(let i=0;i<sides.length;i++){
+    const p1 = pxPts[i], p2 = pxPts[i+1];
+    let dirDeg = Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI;
+    dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
+    if(dirDeg > 90 && dirDeg < 270) dirDeg -= 180;
+    const mx = (p1.x+p2.x)/2, my = (p1.y+p2.y)/2;
+    labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my-6})">${Math.round(sides[i].length)} mm</text>`;
+  }
+  return `
+  <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="${polyStr}" fill="var(--wd-glass, rgba(160,140,110,0.28))" stroke="var(--wd-ink)" stroke-width="2"/>
+    ${labelsSvg}
+  </svg>`;
 }
 
 // رسمة تخطيطية للأرضية من فوق (2D top-down) - نمشي حول الأضلاع (طول+زاوية داخلية) بادئين من (0,0)
