@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-25.7';
+  var CURRENT_VERSION = '2026-09-25.8';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -7477,7 +7477,7 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
 // منتجاهل الفرش كليًا تلافيًا لأي تداخل بصري مع الحيطان/الأبواب.
 function buildRoomFurniture3D(scene, floorPts, n, MMTOM){
   const xs = floorPts.slice(0,n).map(p=>p.x*MMTOM);
-  const zs = floorPts.slice(0,n).map(p=>-p.y*MMTOM);
+  const zs = floorPts.slice(0,n).map(p=>p.y*MMTOM); // 🛠️ 2026-09-26: نفس إصلاح إشارة انعكاس الأرضية/السقف - لازم يتطابق مركز الفرش مع مركز الحيطان الفعلي الجديد
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minZ = Math.min(...zs), maxZ = Math.max(...zs);
   const spanX = maxX - minX, spanZ = maxZ - minZ;
@@ -7571,9 +7571,14 @@ async function buildRoom3DScene(it, wrap){
 
   // بلاطة الأرضية (شكل المضلع نفسو - مسقط Plan) - THREE.Shape بمستوى XY محلي، وبعدين بندوّر المِش
   // كامل -90° حول X حتى يصير أفقي (محلي y -> world Z بالسالب، محلي x -> world X متل ما هو).
+  // 🛠️ إصلاح 2026-09-26 (ملاحظة حمدي: "كأنه في شي معكوس لما بشوف الثري دي مقارنة بالمسقط") - مسقط
+  // الأرضية/السقف 2D (buildRoomSVG/buildCeilingSVG) بيرسم بكسل.y = مم.y مباشرة (بدون قلب إشارة).
+  // هون كان محلي Y = +مم.y، وبما إنو الدوران -90° حول X بيحول محلي Y لعالم Z بالسالب، كان عالم Z =
+  // -مم.y - أي انعكاس (مرآة) لاتجاه الدوران/الترقيم مقارنة بالمسقط 2D. الحل: نقلب الإشارة هون (محلي
+  // Y = -مم.y) حتى يصير عالم Z = +مم.y بعد الدوران - نفس اتجاه المسقط 2D بالضبط (بدون أي انعكاس).
   const shape = new THREE.Shape();
   pts.slice(0,n).forEach((p,i)=>{
-    const X = p.x*MMTOM, Y = p.y*MMTOM;
+    const X = p.x*MMTOM, Y = -p.y*MMTOM;
     if(i===0) shape.moveTo(X,Y); else shape.lineTo(X,Y);
   });
   shape.closePath();
@@ -7589,7 +7594,7 @@ async function buildRoom3DScene(it, wrap){
   const ceilingPts = computeCeilingPolygonMM(it);
   const ceilingShape = new THREE.Shape();
   ceilingPts.slice(0, ceilingPts.length-1).forEach((p,i)=>{
-    const X = p.x*MMTOM, Y = p.y*MMTOM;
+    const X = p.x*MMTOM, Y = -p.y*MMTOM; // 🛠️ 2026-09-26: نفس إصلاح انعكاس الأرضية فوق - قلب إشارة Y هون كمان
     if(i===0) ceilingShape.moveTo(X,Y); else ceilingShape.lineTo(X,Y);
   });
   ceilingShape.closePath();
@@ -7613,7 +7618,10 @@ async function buildRoom3DScene(it, wrap){
     const A = pts[i], B = pts[i+1];
     const sideLenMM = Math.max(1, Math.hypot(B.x-A.x, B.y-A.y));
     const ux = (B.x-A.x)/sideLenMM, uy = (B.y-A.y)/sideLenMM;
-    const rad = Math.atan2(uy, ux);
+    // 🛠️ إصلاح 2026-09-26 (نفس إصلاح انعكاس الأرضية/السقف فوق): بما إنو عالم Z صار = +مم.y (مش
+    // -مم.y متل قبل)، لازم زاوية دوران كل جزء تتحسب بإشارة uy مقلوبة كمان حتى يضل اتجاه كل حائط/زجاج
+    // متطابق تمامًا مع خط الضلع الحقيقي (A->B) - تأكدنا رياضيًا إنو الصيغة الجديدة صحيحة 100%.
+    const rad = Math.atan2(-uy, ux);
     let cursor = 0;
     for(const seg of segs){
       const segLenMM = Math.max(1, seg.length||1);
@@ -7640,7 +7648,7 @@ async function buildRoom3DScene(it, wrap){
       } else {
         mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.5, roughness:0.2 }));
       }
-      mesh.position.set(midX*MMTOM, heightM/2, -midY*MMTOM);
+      mesh.position.set(midX*MMTOM, heightM/2, midY*MMTOM);
       mesh.rotation.y = rad;
       scene.add(mesh);
 
@@ -7655,7 +7663,7 @@ async function buildRoom3DScene(it, wrap){
       if(segLenM >= 0.25){
         const labelScale = segLenM < 0.6 ? 0.68 : 1;
         const label = makeMMLabelSprite3D(Math.round(segLenMM) + ' mm', labelScale);
-        label.position.set(midX*MMTOM, heightM + 0.22, -midY*MMTOM);
+        label.position.set(midX*MMTOM, heightM + 0.22, midY*MMTOM);
         scene.add(label);
       }
     }
@@ -7669,7 +7677,7 @@ async function buildRoom3DScene(it, wrap){
   // 🆕 2026-09-26: منضيف نقاط السقف كمان (مش بس الأرضية) للحساب - لو في بروز سقف كبير بمكان معيّن،
   // لازم الكاميرا تأطّر المشهد كامل من البداية بدل ما يطلع جزء من البروز خارج الكادر الأولي.
   const xs = pts.slice(0,n).map(p=>p.x*MMTOM).concat(ceilingPts.slice(0,-1).map(p=>p.x*MMTOM));
-  const zs = pts.slice(0,n).map(p=>-p.y*MMTOM).concat(ceilingPts.slice(0,-1).map(p=>-p.y*MMTOM));
+  const zs = pts.slice(0,n).map(p=>p.y*MMTOM).concat(ceilingPts.slice(0,-1).map(p=>p.y*MMTOM)); // 🛠️ 2026-09-26: نفس إصلاح الإشارة فوق - لازم تتطابق مع مواقع المجسمات الفعلية الجديدة
   const centerX = (Math.min(...xs)+Math.max(...xs))/2;
   const centerZ = (Math.min(...zs)+Math.max(...zs))/2;
   const radius = Math.max(3, Math.hypot(Math.max(...xs)-Math.min(...xs), Math.max(...zs)-Math.min(...zs))/2 * 1.9 + heightM);
