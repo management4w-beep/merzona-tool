@@ -4325,52 +4325,76 @@ function getDashGoogleAccessToken(silent){
   dashTokenInFlight = (async ()=>{
     // 🔧 2026-08-24: أول محاولة هلق هي خدمة السيرفر - ما بتحتاج ولا نافذة ولا كبسة إطلاقًا (لا أول
     // مرة ولا كل ساعة). لو نجحت، خلصنا بدون ما نلمس مكتبة جوجل بالمتصفح نهائيًا.
-    // 🔧 2026-09-16: باغ حرج لقيناه بسبب شكوى حمدي "مزامنة الفريق بتضل تحمّل وما بتخلص" - لما تكون
-    // silent=false (يعني كبسة يدوية حقيقية على "🔄 مزامنة الفريق")، كنا منستنى خدمة السيرفر لمدة
-    // تصل لـ8 ثواني كاملة قبل ما نجرب المسار الاحتياطي (نافذة جوجل بالمتصفح). المشكلة: المتصفح
-    // بيعتبر "الكبسة الحقيقية" منتهية الصلاحية بعد كم ثانية بس من وقت الضغط الفعلي - فلو السيرفر
-    // تأخر أو فشل (شبكة حمدي، أو خدمة Railway واقفة مؤقتًا)، وقت ما نوصل لسطر requestAccessToken
-    // تحت، تكون "صلاحية الكبسة" خلصت من نظر المتصفح، فبيرفض يفتح نافذة جوجل بصمت (بدون أي رسالة
-    // خطأ واضحة) - وبما إنو الوضعية هون prompt:'' (غير صامتة)، مهلتها الكاملة 60 ثانية، فحمدي كان
-    // عم يحس إنو الزر "عالق" لمدة دقيقة كاملة كل مرة يضغط فيها، ولو جرب كذا مرة ورا بعض حس إنه
-    // "ما عم يشتغل نهائيًا". الحل: لو الكبسة يدوية (silent=false)، منقصر مهلة انتظار السيرفر لثانيتين
-    // ونص بس (بدل 8) - هيك لو السيرفر ما رد بسرعة، منوصل للمسار الاحتياطي وصلاحية الكبسة الحقيقية
-    // لسا طازة، فنافذة جوجل بتنفتح فعليًا بدل ما تنرفض بصمت. ما لمسنا مهلة الوضعية الصامتة (silent=true،
-    // المزامنة التلقائية بالخلفية) - هاي أصلًا ما محتاجة "كبسة حقيقية" لأنها prompt:'none'.
-    const fromServer = await fetchDashDriveTokenFromServer(silent ? 8000 : 2500);
-    if(fromServer){
-      saveCachedDashToken(fromServer.access_token, fromServer.expires_in);
+    // 🔧 2026-09-16: باغ حرج لقيناه بسبب شكوى حمدي "مزامنة الفريق بتضل تحمّل وما بتخلص" - كنا
+    // منستنى خدمة السيرفر لمدة تصل لـ8 ثواني كاملة (بالكبسة اليدوية) قبل ما نجرب المسار الاحتياطي
+    // (نافذة جوجل)، فصلاحية "الكبسة الحقيقية" كانت تخلص قبل ما نوصل لسطر requestAccessToken.
+    // قصّرنا وقتها المهلة اليدوية لثانيتين ونص - بس هاد قصّ الطلب لسيرفر Railway نفسه (AbortController
+    // كان بيلغي الطلب فعليًا)، فلو Railway كان "نايم" (cold start - شائع بالخطط المجانية وبياخد
+    // كم ثانية لأول طلب بعد فترة خمول)، أول كبسة كانت تُلغى الطلب وهو لسا عم يصحّي السيرفر، وبعدين
+    // تفشل نافذة جوجل بصمت (لأنو صلاحية الكبسة خلصت وهي عم تستنى)- فيضل حمدي يحس إنو لازم كبسة
+    // تانية (يلي هاي المرة بتلاقي Railway صاحي من الطلب الأول فبيرد بسرعة).
+    // 🔧 2026-09-25: الحل الأدق - ما منلغي طلب السيرفر إطلاقًا بالكبسة اليدوية (منعطيه مهلة كاملة
+    // زي الوضعية الصامتة)، ومنـ"سبق" له بمؤقّت قصير (1.2 ثانية) فقط لقرار "نفتح نافذة جوجل ولا لأ" -
+    // لو رد السيرفر بسرعة (أسرع من 1.2 ثا) منستخدمه ومنسكّر، بدون ما نفتح ولا نافذة. لو تأخر، منفتح
+    // نافذة جوجل فورًا (وصلاحية الكبسة لسا طازة، ما ضاعت وقت انتظار) بس بنفس الوقت منضل مستنيين رد
+    // السيرفر بالخلفية - لو وصل قبل ما حمدي يكمّل نافذة جوجل، منعتمده هو ومنقفل الموضوع (حتى لو
+    // ضلّت نافذة جوجل مفتوحة على الشاشة، حمدي بيقدر يسكّرها لأنو المسودات أصلًا طلعت).
+    const serverPromiseTimeoutMs = 8000; // نفس المهلة الكاملة بكل الحالات - ما منقص طلب Railway نفسه
+    const serverPromise = fetchDashDriveTokenFromServer(serverPromiseTimeoutMs);
+    if(silent){
+      const fromServer = await serverPromise;
+      if(fromServer){
+        saveCachedDashToken(fromServer.access_token, fromServer.expires_in);
+        return dashGoogleAccessToken;
+      }
+      throw new Error('silent-server-unavailable');
+    }
+    // كبسة يدوية حقيقية: منسابق مؤقّت قصير (1.2 ثا) ضد رد السيرفر - أول واحد يوصل بيقرر الخطوة الجاية،
+    // بدون ما نلغي طلب السيرفر بأي من الحالتين.
+    const quick = await Promise.race([
+      serverPromise.then(data => ({ kind:'server', data })),
+      new Promise(resolve => setTimeout(()=> resolve({ kind:'quick-timeout' }), 1200)),
+    ]);
+    if(quick.kind === 'server' && quick.data){
+      saveCachedDashToken(quick.data.access_token, quick.data.expires_in);
       return dashGoogleAccessToken;
     }
-    // احتياطي: السيرفر مش مربوط بعد أو مش متاح مؤقتًا - نرجع للطريقة القديمة (نافذة جوجل بالمتصفح).
+    // السيرفر ما رد لسا (أو رد بدون توكن صالح) - نفتح نافذة جوجل فورًا (صلاحية الكبسة لسا طازة)،
+    // بس منضل مستنيين رد السيرفر بالخلفية كمان لأنو ممكن يوصل قبل ما حمدي يكمّل نافذة جوجل.
     return await new Promise((resolve, reject)=>{
+      let settled = false;
+      serverPromise.then(data=>{
+        if(settled || !data) return;
+        settled = true;
+        saveCachedDashToken(data.access_token, data.expires_in);
+        resolve(dashGoogleAccessToken);
+      }).catch(()=>{});
       if(!window.google || !google.accounts || !google.accounts.oauth2){
-        reject(new Error('google-not-ready')); return;
+        if(!settled){ settled = true; reject(new Error('google-not-ready')); }
+        return;
       }
       if(!dashGoogleTokenClient){
         dashGoogleTokenClient = google.accounts.oauth2.initTokenClient({
           client_id: GOOGLE_CLIENT_ID_DASH,
           scope: DRIVE_SCOPE_DASH,
-          callback: (resp)=>{
-            if(resp.error){ reject(new Error(resp.error)); return; }
-            saveCachedDashToken(resp.access_token, resp.expires_in);
-            resolve(dashGoogleAccessToken);
-          }
+          callback: ()=>{}
         });
       }
       dashGoogleTokenClient.callback = (resp)=>{
-        if(resp.error){ reject(new Error(resp.error)); return; }
+        if(settled) return;
+        if(resp.error){ settled = true; reject(new Error(resp.error)); return; }
+        settled = true;
         saveCachedDashToken(resp.access_token, resp.expires_in);
         resolve(dashGoogleAccessToken);
       };
       // prompt:'none' = محاولة صامتة (صفحة بتفتح لحالها بدون كبسة منك) - prompt:'' = طلب صريح (كبستها بنفسك).
-      // ملاحظة: المتصفح بيمنع فتح أي نافذة جوجل نهائيًا إذا الطلب ما كان نتيجة كبسة حقيقية منك - بغض
-      // النظر عن قيمة prompt - لهيك هاد المسار احتياطي بس هلق، والمسار الأساسي فوق (خدمة السيرفر).
-      dashGoogleTokenClient.requestAccessToken({ prompt: silent ? 'none' : '' });
-      const timeoutMs = silent ? 6000 : 60000;
+      dashGoogleTokenClient.requestAccessToken({ prompt: '' });
       setTimeout(()=>{
-        if(!dashGoogleAccessToken || (dashGoogleAccessTokenExpiresAt - 60000) <= Date.now()) reject(new Error(silent ? 'silent-timeout' : 'consent-timeout'));
-      }, timeoutMs);
+        if(!settled && (!dashGoogleAccessToken || (dashGoogleAccessTokenExpiresAt - 60000) <= Date.now())){
+          settled = true;
+          reject(new Error('consent-timeout'));
+        }
+      }, 60000);
     });
   })().finally(()=>{ dashTokenInFlight = null; });
 
