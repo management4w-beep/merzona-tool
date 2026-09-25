@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-24.17';
+  var CURRENT_VERSION = '2026-09-25.2';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -5644,30 +5644,15 @@ if(pendingDesignLoad){
   }, 40);
 }
 
-// 🆕 محاولة استرجاع مسودة محفوظة تلقائيًا محليًا (شوف تعريف DRAFT_STORAGE_KEY/isDraftMeaningful/
-// clearDraft/saveDraftFromSnapshot فوق بقسم "مسودة محلية"). هاي منفصلة تمامًا عن الفرع فوق (يلي بيقرر
-// شو يظهر بالنموذج أول ما تفتح الصفحة - القالب الفاضي الافتراضي مخبوز أصلًا بنفس الملف، فـ
-// alreadyHasContent/data-prefilled بيصيروا صحيحين تقريبًا دايمًا حتى لو ما في ولا بيانات حقيقية).
-// هون منتحقق بشكل مستقل: هل في مسودة محلية فيها فعلاً بيانات كتبها المستخدم (isDraftMeaningful) -
-// إذا آه، منسأل إذا بدو يكملها، بغض النظر شو ظهر بالنموذج قبل هيك. ما منسويها إلا لو ما في طلب
-// تحميل صريح من لوحة التحكم (pendingQuotationLoad) - هيك ما نتعارض مع فتح عرض سعر محدد قصدًا.
+// 🆕 كان هون بالسابق منحاول نسترجع مسودة محفوظة تلقائيًا محليًا (localStorage) ومنسأل بنافذة تأكيد
+// "لقينا مسودة عرض سعر... بدك تكمل عليها؟" كل ما تنفتح الصفحة. طلب حمدي 2026-09-25: بعد ما صار في
+// أرشيف مسودات حقيقي (تبويب "المسودات والتصاميم" بلوحة التحكم، محفوظ بجوجل درايف - شوف saveDraftToDrive)
+// ما عاد في داعي/بيصير مزعج إنو النظام يفاجئنا بـ"كان عندك عرض سعر قديم وما كملتو" - المستخدم هلق
+// عندو مكان واضح (الأرشيف) يرجع يفتح منّو أي مسودة قصدًا لو بدو. عطّلنا نافذة التأكيد هاي نهائيًا،
+// وخلينا الحفظ المحلي (saveDraftFromSnapshot) يضل شغال بالخلفية بصمت (نسخة احتياطية بس، بدون أي
+// إزعاج للمستخدم) - clearDraft() لسا منستخدمها بأماكن تانية (متل بدء عرض سعر جديد فاضي بالنية).
 if(!pendingQuotationLoad && !pendingDesignLoad){
-  try{
-    const rawDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
-    const parsedDraft = rawDraft ? JSON.parse(rawDraft) : null;
-    if(parsedDraft && isDraftMeaningful(parsedDraft)){
-      const when = parsedDraft.savedAt ? new Date(parsedDraft.savedAt).toLocaleString('ar') : '';
-      const who = (parsedDraft.fields && parsedDraft.fields['m-client']) || '';
-      const msg = 'لقينا مسودة عرض سعر محفوظة تلقائيًا (' + (who ? ('الزبون: ' + who + ' - ') : '') + when + ').\n\nبدك تكمل عليها؟\n(اضغط إلغاء لتجاهلها والمتابعة بالنموذج الحالي - المسودة رح تنمسح)';
-      setTimeout(()=>{
-        if(confirm(msg)){
-          applyFullQuotationData(parsedDraft);
-        } else {
-          clearDraft();
-        }
-      }, 60); // شوي بعد ما يخلص الفرع فوق (والـ0ms تبع pendingQuotationLoad لو صار) حتى ما يصير تعارض ترتيب
-    }
-  }catch(e){}
+  // (نافذة الاسترجاع التلقائي انعطّلت بطلب حمدي - ما منعرض ولا منسأل شي هون)
 }
 
 try{
@@ -8066,8 +8051,17 @@ function renderNode(it, node, x, y, w, h, scale, isDoor, out, netMap){
       const apex = triangleApex(x,y,x+w,y+h,node.type);
       if(apex) out.symbols.push(handleShapeAt(apex.x, apex.y, 'var(--wd-amber)'));
     }
-    const net = netMap[node.id] || { w: w/scale, h: h/scale };
-    const mmW = Math.round(net.w), mmH = Math.round(net.h);
+    // 🆕 2026-09-25: طلب حمدي - "لما بدي دخل مقاس جزء محدد، هالمقاس بكون من برا لبرا مش من جوا لجوا".
+    // قبل هيك كان الرقم المعروض هون (يلي كمان هو نفسو الرقم القابل للضغط والتعديل عبر editLeafDim)
+    // هو مقاس الزجاج الصافي (net، بعد خصم سماكة الألمنيوم - netMap) - يعني لو دخّل المستخدم رقم قاصد
+    // فيه المقاس الإجمالي/الخارجي (زي ما بيقيس عادةً)، كان بينحسب غلط لأنو النظام كان فاهمه "مقاس صافي".
+    // هلق الرقم المعروض/القابل للتعديل هون هو المقاس الإجمالي الخارجي لهالجزء (outer، مباشرة من عرض/
+    // ارتفاع الصندوق نفسو بالبيكسل مقسوم عالمقياس) - وهاد كمان بيصحح حساب النسبة (frac) جوا editLeafDim
+    // لأنو المقاس الخارجي فعلاً متناسب خطيًا مع frac الجزء، بعكس المقاس الصافي (يلي فيه طرح ثابت لسماكة
+    // الألمنيوم مش متناسب مع frac). قياس الزجاج الصافي (net) لسا موجود وبيتحسب/يتعرض بورقة الطباعة
+    // وبخط القياس الإضافي "إجمالي (خارجي)" و"صافي" سوا (شوف buildDimensionChain/buildItemPrintSVG).
+    const outerW = w/scale, outerH = h/scale;
+    const mmW = Math.round(outerW), mmH = Math.round(outerH);
     if(w > 34 && h > 16){
       out.dims.push(`<text x="${x+w/2}" y="${y+h-16}" font-size="14" text-anchor="middle" fill="var(--wd-amber)" opacity="0.95"
         font-family="var(--wd-font-mono)" font-weight="700" style="cursor:pointer;" onclick="event.stopPropagation();editLeafDim(${it.id},'${node.id}','x',${mmW})">${mmW}</text>`);
@@ -8534,6 +8528,32 @@ function syncRoomSideLength(side){
   side.length = Math.max(1, (side.segments||[]).reduce((a,s)=>a + (s.length||0), 0));
 }
 
+// 🆕 2026-09-25: طلب حمدي - "بدي عدّل المقاسات عالمسقط وتتحدث تلقائيًا عالبنود يلي سبق صمّمتها".
+// لو الجزء (segment) هاد أصلاً متصمم (إلو rowUid - يعني عندو سطر بجدول عرض السعر وبند تصميم مربوط
+// فيه)، أي تغيير على طول الضلع (أو ارتفاع الغرفة) لازم ينعكس فورًا عالسطر بجدول العرض (خانة العرض/
+// الارتفاع) وعالبند نفسه بالمصمم - بدل ما يضلوا قيم قديمة عالقة لحد ما المستخدم يعيد فتح أداة
+// التصميم من الصفر (يلي كان ماسح أي تعديل يدوي عالبند لو مش منتبه).
+function syncRoomSegmentRowDims(it, seg){
+  if(!seg || !seg.rowUid) return;
+  const w = Math.round(seg.length);
+  const h = Math.round((it && it.roomHeight) || 2500);
+  const tr = document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]');
+  if(tr){
+    const wInput = tr.querySelector('.w-input');
+    const hInput = tr.querySelector('.h-input');
+    if(wInput) wInput.value = w;
+    if(hInput) hInput.value = h;
+    const lt = tr.querySelector('.line-total');
+    if(lt) lt.dataset.manual = '';
+  }
+  const linkedItem = items.find(i => i.sourceRowUid === seg.rowUid);
+  if(linkedItem){
+    linkedItem.width = w;
+    linkedItem.height = h;
+  }
+  if(typeof recalc === 'function') recalc();
+}
+
 // 🆕 2026-09-24: طلب حمدي - "بدي رسمة خاصة للسقف، افتراضيًا نفس شكل الأرضية بس ممكن يكون في بروزات
 // ببعض الأماكن وبدي عدّل عليها بنفس منطق أضلاع الأرضية (اكبس عالضلع وغيّر مقاسو)". السقف هون هو
 // بس شكل (طول+زاوية لكل ضلع، بنفس عدد أضلاع الأرضية) - ما إلو تصميم/segments لأنو مش بند سعر، مجرد
@@ -8651,6 +8671,7 @@ function onRoomSegField(itemId, sideId, segId, field, value){
   pushHistory();
   if(field==='length') seg.length = Math.max(50, parseFloat(value)||50);
   syncRoomSideLength(side);
+  syncRoomSegmentRowDims(it, seg); // 🆕 لو الجزء هاد متصمم أصلاً - حدّث سطر عرض السعر والبند فورًا
   renderRoomSidesUI(it);
   renderGallery();
 }
@@ -8833,6 +8854,10 @@ function roomDrawEventPoint(evt){
 // موجودة = نقلها، دوسة (بدون سحب) عالنقطة نفسها = حذفها.
 function roomDrawPointerDown(evt){
   if(!roomDraw.active) return;
+  // 🆕 2026-09-25: طلب حمدي - الزر الأساسي للرسم/السحب لازم يكون الزر الأيسر بس. قبل هيك أي زر
+  // ماوس (حتى الدولاب/الزر الأوسط أو الزر الأيمن) كان عم يفعّل نفس تصرف الكليك الأيسر (إضافة/سحب
+  // نقطة) بالغلط لو انضغط فوق الرسمة.
+  if(typeof evt.button === 'number' && evt.button !== 0) return;
   if(evt.preventDefault) evt.preventDefault();
   const raw = roomDrawEventPoint(evt);
   const idx = roomDrawFindPointNear(raw, roomDrawPxRadiusToMm(11));
@@ -10035,6 +10060,8 @@ function onDividerDblClick(e, rectEl){
 let lastDividerClick = null; // { itemId, nodeId, idx, time } - لتتبّع الضغط المزدوج يدويًا لأنه dblclick الطبيعي بينمنع بسبب preventDefault على pointerdown
 
 function onDragStart(e, rectEl){
+  // 🆕 2026-09-25: طلب حمدي - نفس منطق زر الرسم: بس الزر الأيسر بيسحب/يفصل - مش الزر الأوسط ولا الأيمن
+  if(typeof e.button === 'number' && e.button !== 0) return;
   e.preventDefault();
   e.stopPropagation();
   const itemId0 = parseInt(rectEl.dataset.item);
@@ -10992,6 +11019,7 @@ function renderCameraFrame(){
 }
 
 function camHandleDragStart(e){
+  if(typeof e.button === 'number' && e.button !== 0) return; // 🆕 2026-09-25: نفس منطق الزر الأيسر بس
   e.preventDefault();
   camHandleDrag = { corner: e.currentTarget.dataset.corner, svg: document.getElementById('cameraOverlaySvg') };
 }
@@ -11547,7 +11575,27 @@ function build3DRenderSVG(it){
   const dimTop = renderDimChain(widthChain, 'x', -18, dimColor);
   const dimSide = renderDimChain(heightChain, 'y', drawW+18, dimColor);
 
-  const bgPad = 44, topPad = 34, sidePad = 60, botPad = drawH*0.6+20;
+  // 🆕 2026-09-25: طلب حمدي - "المقاس يلي بدخّلو (عرض/ارتفاع البند) هو من برا لبرا، بدي هالمقاس يطلع
+  // عالرسمة هيك". قبل هيك، رسمة المصمم الحيّة (هون بس - ورقة الطباعة/العرض أصلًا فيها هالخط من زمان،
+  // شوف "(خارجي)" بفنكشن buildItemPrintSVG) كانت بس عم تبيّن قياس الزجاج الصافي (بعد خصم سماكة
+  // الألمنيوم - netMap) بدون أي إشارة للمقاس الإجمالي الخارجي يلي فعليًا دخّلو المستخدم. هلق منضيف
+  // خط قياس إضافي "إجمالي (خارجي)" أبعد شوي عن الرسمة (بدون ما نلغي خط الزجاج الصافي الموجود -
+  // البندين مفيدين، وحمدي عارف بوجود ميزة قياس الزجاج الصافي أصلًا وموافق تضل).
+  const outerColor = '#A15C1E';
+  const outerTopY = -34;
+  const outerSideX = drawW + 34;
+  const dimTopOuter = `
+    <line x1="0" y1="${outerTopY}" x2="${drawW}" y2="${outerTopY}" stroke="${outerColor}" stroke-width="1.2"/>
+    <line x1="0" y1="${outerTopY-5}" x2="0" y2="${outerTopY+5}" stroke="${outerColor}" stroke-width="1.2"/>
+    <line x1="${drawW}" y1="${outerTopY-5}" x2="${drawW}" y2="${outerTopY+5}" stroke="${outerColor}" stroke-width="1.2"/>
+    <text x="${drawW/2}" y="${outerTopY-9}" fill="${outerColor}" font-size="12" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(W)} mm (خارجي)</text>`;
+  const dimSideOuter = `
+    <line x1="${outerSideX}" y1="0" x2="${outerSideX}" y2="${drawH}" stroke="${outerColor}" stroke-width="1.2"/>
+    <line x1="${outerSideX-5}" y1="0" x2="${outerSideX+5}" y2="0" stroke="${outerColor}" stroke-width="1.2"/>
+    <line x1="${outerSideX-5}" y1="${drawH}" x2="${outerSideX+5}" y2="${drawH}" stroke="${outerColor}" stroke-width="1.2"/>
+    <text x="${outerSideX+13}" y="${drawH/2}" fill="${outerColor}" font-size="12" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" transform="rotate(90, ${outerSideX+13}, ${drawH/2})">${Math.round(H)} mm (خارجي)</text>`;
+
+  const bgPad = 44, topPad = 50, sidePad = 76, botPad = drawH*0.6+20;
   const vbX = -bgPad-sidePad*0.3, vbY = -bgPad-topPad;
   const vbW = drawW+bgPad*2+sidePad, vbH = drawH+bgPad+topPad+botPad;
   return `<svg viewBox="${vbX} ${vbY} ${vbW} ${vbH}" width="100%" style="max-width:520px;" xmlns="http://www.w3.org/2000/svg">
@@ -11572,6 +11620,8 @@ function build3DRenderSVG(it){
     <g pointer-events="none">${symbols}</g>
     ${dimTop}
     ${dimSide}
+    ${dimTopOuter}
+    ${dimSideOuter}
   </svg>`;
 }
 
