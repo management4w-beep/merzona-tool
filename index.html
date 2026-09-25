@@ -25,7 +25,20 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-25.6';
+  var CURRENT_VERSION = '2026-09-25.8';
+  // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
+  // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
+  // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
+  // ويعمل location.replace(...) لإعادة تحميل الصفحة بالكامل. المشكلة: كود قراءة "مسودة/تصميم معلّق"
+  // (pendingQuotationLoad/pendingDesignLoad تحت) كان عم يقرا القيمة من localStorage ويمسحها فورًا
+  // (مرة واحدة بس تستخدم) بشكل متزامن من أول لحظة تحميل، **قبل** ما فحص النسخة يخلص (الفحص شبكة/غير
+  // متزامن، فبياخد وقت أطول). فلو صار reload بسبب فحص النسخة، النسخة التانية المعاد تحميلها كانت
+  // بتلاقي localStorage فاضي (انمسح من أول تحميل) فما كانت تعرف أصلًا إنو المفروض تفتح تصميم/مسودة
+  // معيّنة - وبتضل عم تعرض أي محتوى قديم كان موجود بالصفحة (يلي حمدي كان شايفه كـ"عرض سعر"). الحل:
+  // هالمتغيّر بيصير true بس لما نتأكد 100% إنو ما رح يصير reload (فحص النسخة خلص وقرر يكمّل بنفس
+  // الصفحة) - وكود قراءة pendingQuotationLoad/pendingDesignLoad تحت رح يستنى هالمتغيّر قبل ما يلمس
+  // localStorage أبدًا، هيك القيمة بتضل محفوظة لو صار reload وتترا استرجاعها صح بالمحاولة الجديدة.
+  window.__merzonaVersionCheckSettled__ = false;
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -42,7 +55,12 @@
   function checkForUpdate(onDone){
     var bust = Date.now() + '-' + Math.random().toString(16).slice(2);
     var settled = false;
-    var timer = setTimeout(function(){ if(!settled){ settled = true; onDone(); } }, VERSION_CHECK_TIMEOUT_MS);
+    // 🆕 2026-09-25: كل مسار بالأسفل بيوصل لنتيجة "ما رح يصير reload" لازم يحط
+    // window.__merzonaVersionCheckSettled__ = true قبل ما ينادي onDone() - هيك كود قراءة
+    // pendingQuotationLoad/pendingDesignLoad (تحت بالملف) بيعرف إنو صار مسموح يلمس localStorage
+    // بأمان (ما رح تنمسح القيمة وبعدين يصير reload يضيّعها). مسار location.replace(...) وحده
+    // ما بيحط الفلاغ true (لازم يضل false لهيك حالة - الصفحة رح تنعاد تحميلها أصلًا).
+    var timer = setTimeout(function(){ if(!settled){ settled = true; window.__merzonaVersionCheckSettled__ = true; onDone(); } }, VERSION_CHECK_TIMEOUT_MS);
     fetch(VERSION_URL + '?_=' + bust, { cache: 'no-store' })
       .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data){
@@ -50,6 +68,7 @@
         var remoteVersion = data && data[TOOL_KEY];
         if(!remoteVersion || remoteVersion === CURRENT_VERSION){
           try{ sessionStorage.removeItem(RELOAD_GUARD_KEY); }catch(e){}
+          window.__merzonaVersionCheckSettled__ = true;
           onDone();
           return;
         }
@@ -61,13 +80,16 @@
         if(guard && guard.version === remoteVersion && (Date.now() - guard.at) < 60000){
           // جربنا نحدّث لهاي النسخة قبل شوي وما زبط (يمكن لسا عم تنتشر على سيرفرات جيت هاب) - منكمل
           // بالنسخة الحالية حتى ما تعلق الأداة بحلقة تحديث متكررة، ومنعاود نحاول بعد شوي من جديد.
+          window.__merzonaVersionCheckSettled__ = true;
           onDone();
           return;
         }
         try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
+        // ⚠️ هون فقط: ما منحط __merzonaVersionCheckSettled__ = true لأنو فعلاً رح يصير reload،
+        // وبدنا الفلاغ يضل false حتى النسخة الجديدة المعاد تحميلها تعمل الفحص من جديد وتقرر بنفسها.
         location.replace(location.pathname + '?_cb=' + bust + (location.hash || ''));
       })
-      .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); onDone(); } });
+      .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); window.__merzonaVersionCheckSettled__ = true; onDone(); } });
   }
 
   function showCheckingUpdate(){
@@ -5612,87 +5634,106 @@ populateAlumColorOptions();
 // إذا لوحة التحكم طلبت تحميل عرض سعر قديم بالنسخة الحالية من الأداة (زر "🔓 افتح بآخر نسخة")، البيانات
 // بتوصل هون عبر مفتاح localStorage مشترك (نفس الأصل management4w-beep.github.io/merzona-tool/).
 // منشيلها فورًا حتى لو صار refresh عادي بعدين ما تنطبّق مرتين فوق تعديلات المستخدم.
-let pendingQuotationLoad = null;
-try{
-  const rawPending = localStorage.getItem('merzona-pending-load');
-  if(rawPending){
-    localStorage.removeItem('merzona-pending-load');
-    pendingQuotationLoad = JSON.parse(rawPending);
+// 🆕 2026-09-25: كل هالمنطق (قراءة pendingQuotationLoad/pendingDesignLoad من localStorage
+// وتطبيقهم) صار ملفوف جوا دالة وحدة (runPendingLoadLogicWhenSafe) ما بتنفّذ إلا لما نتأكد
+// إنو فحص "آخر نسخة منشورة" فوق (checkForUpdate) خلص قرر يكمّل بنفس الصفحة (مش رح يصير
+// location.replace). شوف الشرح المفصّل قرب تعريف window.__merzonaVersionCheckSettled__ بأول
+// الملف - باختصار: قبل هالتعديل كان ممكن نمسح قيمة localStorage (مرة واحدة بس تستخدم) وبعدين
+// يصير reload بسبب فحص النسخة، فتضيع القيمة قبل ما تتطبق، وتفضل صفحة عرض السعر القديمة (الفاضية
+// أو يلي كانت موجودة أصلًا بالصفحة) ظاهرة - وهاد بالضبط يلي كان حمدي شايفه كـ"فتحتلي عرض السعر".
+function runPendingLoadLogicWhenSafe(attemptsLeft){
+  if(!window.__merzonaVersionCheckSettled__ && attemptsLeft > 0){
+    setTimeout(()=> runPendingLoadLogicWhenSafe(attemptsLeft-1), 50);
+    return;
   }
-}catch(e){}
-const alreadyHasContent = document.querySelectorAll('#qty-rows tr, #acc-rows .bi-row, #pay-rows .pay-row, #alum-spec-rows .bi-row').length > 0;
-
-// 🆕 2026-09-24: نفس فكرة merzona-pending-load فوق بالضبط بس لسجل "التصاميم" (زر "🔓 افتح" من تبويب
-// المسودات والتصاميم بالداشبورد لتصميم قائم) - منستورد بنود التصميم مباشرة (بدون المرور بجدول
-// الكميات إطلاقًا) ومنفتح أداة "رسّام النوافذ والأبواب" تلقائيًا فور ما تجهز، شوف
-// openDesignerWithImportedItems/saveDesignToDrive تحت لتفاصيل الحفظ.
-let pendingDesignLoad = null;
-try{
-  const rawPendingDesign = localStorage.getItem('merzona-pending-design-load');
-  if(rawPendingDesign){
-    localStorage.removeItem('merzona-pending-design-load');
-    pendingDesignLoad = JSON.parse(rawPendingDesign);
+  if(!window.__merzonaVersionCheckSettled__){
+    console.warn('[Merzona] فحص آخر نسخة منشورة أخذ وقت أطول من المتوقع - عم نكمل بقراءة أي عرض سعر/تصميم معلّق بأي حال (تفادي تعليق الأداة للأبد).');
   }
-}catch(e){}
+  let pendingQuotationLoad = null;
+  try{
+    const rawPending = localStorage.getItem('merzona-pending-load');
+    if(rawPending){
+      localStorage.removeItem('merzona-pending-load');
+      pendingQuotationLoad = JSON.parse(rawPending);
+    }
+  }catch(e){}
+  const alreadyHasContent = document.querySelectorAll('#qty-rows tr, #acc-rows .bi-row, #pay-rows .pay-row, #alum-spec-rows .bi-row').length > 0;
 
-// 🔧 2026-09-25: باغ لقيناه بطلب حمدي "لما بضغط على مسودة التصميم عم يفتحلي عرض السعر" - هاد الشرط
-// كان ناسي حالة pendingDesignLoad (فتح "تصميم" حر من الداشبورد) بالكامل، فكان دايمًا بيقع بفرع
-// seedDefaults()/renumber()+recalc() تحت (نفس فرع "عرض سعر جديد فاضي") حتى لو أصلًا فاتح تصميم حر
-// مش مرتبط بعرض سعر إطلاقًا - يعني كان عم يتولّد رقم مرجعي جديد وتاريخ وبنود افتراضية (Accessories/
-// System statement) لعرض سعر فاضي بالخلفية تحت أداة رسّام النوافذ والأبواب (wdOverlay) كل مرة يفتح
-// فيها تصميم، وهاد يلي كان طالع لحمدي كـ"عرض سعر" لو سكّر نافذة التصميم أو لو تأخر ظهورها شوي.
-// الحل: لما يكون فيه pendingDesignLoad، ما منلمس/منهيّئ صفحة عرض السعر إطلاقًا - بتضل فاضية تمامًا
-// (بدون رقم مرجعي مولَّد ولا بنود افتراضية) لحد ما حمدي يقرر هو يشتغل عليها لحالها، وأداة التصميم
-// (wdOverlay) هي يلي رح تفتح مباشرة ببنود التصميم المستوردة (شوف runWhenDesignBridgeReady تحت).
-if(pendingQuotationLoad){
-  // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
-  // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
-  setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); }, 0);
-} else if(pendingDesignLoad){
-  // تصميم حر بس (مش مرتبط بعرض سعر مفتوح) - ولا شي هون؛ رح ينفتح مباشرة بـwdOverlay تحت.
-} else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
-  renumber();
-  recalc();
-  syncPage2Header();
-} else {
-  seedDefaults();
-  syncPage2Header();
-}
-// تصميم حر بس (pendingDesignLoad): ولا داعي نقترح رقم مرجعي جديد لعرض سعر ما فتحناه أصلًا.
-if(!pendingDesignLoad){
-  setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل مكتبة جوجل
-}
+  // 🆕 2026-09-24: نفس فكرة merzona-pending-load فوق بالضبط بس لسجل "التصاميم" (زر "🔓 افتح" من تبويب
+  // المسودات والتصاميم بالداشبورد لتصميم قائم) - منستورد بنود التصميم مباشرة (بدون المرور بجدول
+  // الكميات إطلاقًا) ومنفتح أداة "رسّام النوافذ والأبواب" تلقائيًا فور ما تجهز، شوف
+  // openDesignerWithImportedItems/saveDesignToDrive تحت لتفاصيل الحفظ.
+  let pendingDesignLoad = null;
+  try{
+    const rawPendingDesign = localStorage.getItem('merzona-pending-design-load');
+    if(rawPendingDesign){
+      localStorage.removeItem('merzona-pending-design-load');
+      pendingDesignLoad = JSON.parse(rawPendingDesign);
+    }
+  }catch(e){}
 
-// شوف الشرح فوق قرب تعريف pendingDesignLoad - نفس تأجيل التطبيق (tick واحد) يلي معمول
-// لـpendingQuotationLoad، لنفس السبب بالضبط (استنى تعريف الجسور تبع قسم التصميم بآخر الملف).
-// 🔧 2026-09-24: setTimeout(...,0) وحيد (نفس أسلوب pendingQuotationLoad فوق) مش مضمون دايمًا كافي هون -
-// جسر window.__applyDesignItemsImport__ بينعرّف بقسم تصميم النوافذ والأبواب (سكريبت منفصل بآخر
-// الملف)، وبظروف معيّنة (مثلًا إعادة تحميل الصفحة أثناء مشاكل شبكة/مصادقة) ممكن هالسكريبت يتأخر
-// شوي عن التنفيذ. منعيد المحاولة كل 50ms لغاية ما الجسر يجهز (سقف أقصى ~2 ثانية) بدل ما نخاطر إنو
-// الاستيراد يفشل بصمت لو صار توقيت غير معتاد.
-function runWhenDesignBridgeReady(fn, attemptsLeft){
-  if(typeof window.__applyDesignItemsImport__ === 'function'){ fn(); return; }
-  if(attemptsLeft <= 0){ console.warn('[تصميم] تعذّر إيجاد جسر استيراد بنود التصميم (window.__applyDesignItemsImport__) بعد عدة محاولات - جرّب تحديث الصفحة يدويًا.'); return; }
-  setTimeout(()=> runWhenDesignBridgeReady(fn, attemptsLeft-1), 50);
-}
-if(pendingDesignLoad){
-  runWhenDesignBridgeReady(()=>{
-    currentDesignId = pendingDesignLoad.designId || null;
-    currentDesignName = pendingDesignLoad.name || null;
-    openDesignerWithImportedItems(pendingDesignLoad.designItems, pendingDesignLoad.designNextId);
-  }, 40);
-}
+  // 🔧 2026-09-25: باغ لقيناه بطلب حمدي "لما بضغط على مسودة التصميم عم يفتحلي عرض السعر" - هاد الشرط
+  // كان ناسي حالة pendingDesignLoad (فتح "تصميم" حر من الداشبورد) بالكامل، فكان دايمًا بيقع بفرع
+  // seedDefaults()/renumber()+recalc() تحت (نفس فرع "عرض سعر جديد فاضي") حتى لو أصلًا فاتح تصميم حر
+  // مش مرتبط بعرض سعر إطلاقًا - يعني كان عم يتولّد رقم مرجعي جديد وتاريخ وبنود افتراضية (Accessories/
+  // System statement) لعرض سعر فاضي بالخلفية تحت أداة رسّام النوافذ والأبواب (wdOverlay) كل مرة يفتح
+  // فيها تصميم، وهاد يلي كان طالع لحمدي كـ"عرض سعر" لو سكّر نافذة التصميم أو لو تأخر ظهورها شوي.
+  // الحل: لما يكون فيه pendingDesignLoad، ما منلمس/منهيّئ صفحة عرض السعر إطلاقًا - بتضل فاضية تمامًا
+  // (بدون رقم مرجعي مولَّد ولا بنود افتراضية) لحد ما حمدي يقرر هو يشتغل عليها لحالها، وأداة التصميم
+  // (wdOverlay) هي يلي رح تفتح مباشرة ببنود التصميم المستوردة (شوف runWhenDesignBridgeReady تحت).
+  if(pendingQuotationLoad){
+    // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
+    // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
+    setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); }, 0);
+  } else if(pendingDesignLoad){
+    // تصميم حر بس (مش مرتبط بعرض سعر مفتوح) - ولا شي هون؛ رح ينفتح مباشرة بـwdOverlay تحت.
+  } else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
+    renumber();
+    recalc();
+    syncPage2Header();
+  } else {
+    seedDefaults();
+    syncPage2Header();
+  }
+  // تصميم حر بس (pendingDesignLoad): ولا داعي نقترح رقم مرجعي جديد لعرض سعر ما فتحناه أصلًا.
+  if(!pendingDesignLoad){
+    setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل مكتبة جوجل
+  }
 
-// 🆕 كان هون بالسابق منحاول نسترجع مسودة محفوظة تلقائيًا محليًا (localStorage) ومنسأل بنافذة تأكيد
-// "لقينا مسودة عرض سعر... بدك تكمل عليها؟" كل ما تنفتح الصفحة. طلب حمدي 2026-09-25: بعد ما صار في
-// أرشيف مسودات حقيقي (تبويب "المسودات والتصاميم" بلوحة التحكم، محفوظ بجوجل درايف - شوف saveDraftToDrive)
-// ما عاد في داعي/بيصير مزعج إنو النظام يفاجئنا بـ"كان عندك عرض سعر قديم وما كملتو" - المستخدم هلق
-// عندو مكان واضح (الأرشيف) يرجع يفتح منّو أي مسودة قصدًا لو بدو. عطّلنا نافذة التأكيد هاي نهائيًا،
-// وخلينا الحفظ المحلي (saveDraftFromSnapshot) يضل شغال بالخلفية بصمت (نسخة احتياطية بس، بدون أي
-// إزعاج للمستخدم) - clearDraft() لسا منستخدمها بأماكن تانية (متل بدء عرض سعر جديد فاضي بالنية).
-if(!pendingQuotationLoad && !pendingDesignLoad){
-  // (نافذة الاسترجاع التلقائي انعطّلت بطلب حمدي - ما منعرض ولا منسأل شي هون)
+  // شوف الشرح فوق قرب تعريف pendingDesignLoad - نفس تأجيل التطبيق (tick واحد) يلي معمول
+  // لـpendingQuotationLoad، لنفس السبب بالضبط (استنى تعريف الجسور تبع قسم التصميم بآخر الملف).
+  // 🔧 2026-09-24: setTimeout(...,0) وحيد (نفس أسلوب pendingQuotationLoad فوق) مش مضمون دايمًا كافي هون -
+  // جسر window.__applyDesignItemsImport__ بينعرّف بقسم تصميم النوافذ والأبواب (سكريبت منفصل بآخر
+  // الملف)، وبظروف معيّنة (مثلًا إعادة تحميل الصفحة أثناء مشاكل شبكة/مصادقة) ممكن هالسكريبت يتأخر
+  // شوي عن التنفيذ. منعيد المحاولة كل 50ms لغاية ما الجسر يجهز (سقف أقصى ~2 ثانية) بدل ما نخاطر إنو
+  // الاستيراد يفشل بصمت لو صار توقيت غير معتاد.
+  function runWhenDesignBridgeReady(fn, attemptsLeft){
+    if(typeof window.__applyDesignItemsImport__ === 'function'){ fn(); return; }
+    if(attemptsLeft <= 0){ console.warn('[تصميم] تعذّر إيجاد جسر استيراد بنود التصميم (window.__applyDesignItemsImport__) بعد عدة محاولات - جرّب تحديث الصفحة يدويًا.'); return; }
+    setTimeout(()=> runWhenDesignBridgeReady(fn, attemptsLeft-1), 50);
+  }
+  if(pendingDesignLoad){
+    runWhenDesignBridgeReady(()=>{
+      currentDesignId = pendingDesignLoad.designId || null;
+      currentDesignName = pendingDesignLoad.name || null;
+      openDesignerWithImportedItems(pendingDesignLoad.designItems, pendingDesignLoad.designNextId);
+    }, 40);
+  }
+
+  // 🆕 كان هون بالسابق منحاول نسترجع مسودة محفوظة تلقائيًا محليًا (localStorage) ومنسأل بنافذة تأكيد
+  // "لقينا مسودة عرض سعر... بدك تكمل عليها؟" كل ما تنفتح الصفحة. طلب حمدي 2026-09-25: بعد ما صار في
+  // أرشيف مسودات حقيقي (تبويب "المسودات والتصاميم" بلوحة التحكم، محفوظ بجوجل درايف - شوف saveDraftToDrive)
+  // ما عاد في داعي/بيصير مزعج إنو النظام يفاجئنا بـ"كان عندك عرض سعر قديم وما كملتو" - المستخدم هلق
+  // عندو مكان واضح (الأرشيف) يرجع يفتح منّو أي مسودة قصدًا لو بدو. عطّلنا نافذة التأكيد هاي نهائيًا،
+  // وخلينا الحفظ المحلي (saveDraftFromSnapshot) يضل شغال بالخلفية بصمت (نسخة احتياطية بس، بدون أي
+  // إزعاج للمستخدم) - clearDraft() لسا منستخدمها بأماكن تانية (متل بدء عرض سعر جديد فاضي بالنية).
+  if(!pendingQuotationLoad && !pendingDesignLoad){
+    // (نافذة الاسترجاع التلقائي انعطّلت بطلب حمدي - ما منعرض ولا منسأل شي هون)
+  }
 }
+// سقف أقصى للاستنى: 200 محاولة × 50ms = 10 ثواني (أكتر شوي من VERSION_CHECK_TIMEOUT_MS=8000 فوق)
+// حتى نغطي أسوأ حالة (فحص النسخة بياخد المهلة الكاملة قبل ما يتأكد إنو ما في تحديث/فشل الفحص).
+runPendingLoadLogicWhenSafe(200);
 
 try{
   const savedMode = localStorage.getItem('merzona-layout-mode');
