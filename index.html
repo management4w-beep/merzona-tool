@@ -25,20 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-25.9';
-  // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
-  // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
-  // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
-  // ويعمل location.replace(...) لإعادة تحميل الصفحة بالكامل. المشكلة: كود قراءة "مسودة/تصميم معلّق"
-  // (pendingQuotationLoad/pendingDesignLoad تحت) كان عم يقرا القيمة من localStorage ويمسحها فورًا
-  // (مرة واحدة بس تستخدم) بشكل متزامن من أول لحظة تحميل، **قبل** ما فحص النسخة يخلص (الفحص شبكة/غير
-  // متزامن، فبياخد وقت أطول). فلو صار reload بسبب فحص النسخة، النسخة التانية المعاد تحميلها كانت
-  // بتلاقي localStorage فاضي (انمسح من أول تحميل) فما كانت تعرف أصلًا إنو المفروض تفتح تصميم/مسودة
-  // معيّنة - وبتضل عم تعرض أي محتوى قديم كان موجود بالصفحة (يلي حمدي كان شايفه كـ"عرض سعر"). الحل:
-  // هالمتغيّر بيصير true بس لما نتأكد 100% إنو ما رح يصير reload (فحص النسخة خلص وقرر يكمّل بنفس
-  // الصفحة) - وكود قراءة pendingQuotationLoad/pendingDesignLoad تحت رح يستنى هالمتغيّر قبل ما يلمس
-  // localStorage أبدًا، هيك القيمة بتضل محفوظة لو صار reload وتترا استرجاعها صح بالمحاولة الجديدة.
-  window.__merzonaVersionCheckSettled__ = false;
+  var CURRENT_VERSION = '2026-09-24.16';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -55,12 +42,7 @@
   function checkForUpdate(onDone){
     var bust = Date.now() + '-' + Math.random().toString(16).slice(2);
     var settled = false;
-    // 🆕 2026-09-25: كل مسار بالأسفل بيوصل لنتيجة "ما رح يصير reload" لازم يحط
-    // window.__merzonaVersionCheckSettled__ = true قبل ما ينادي onDone() - هيك كود قراءة
-    // pendingQuotationLoad/pendingDesignLoad (تحت بالملف) بيعرف إنو صار مسموح يلمس localStorage
-    // بأمان (ما رح تنمسح القيمة وبعدين يصير reload يضيّعها). مسار location.replace(...) وحده
-    // ما بيحط الفلاغ true (لازم يضل false لهيك حالة - الصفحة رح تنعاد تحميلها أصلًا).
-    var timer = setTimeout(function(){ if(!settled){ settled = true; window.__merzonaVersionCheckSettled__ = true; onDone(); } }, VERSION_CHECK_TIMEOUT_MS);
+    var timer = setTimeout(function(){ if(!settled){ settled = true; onDone(); } }, VERSION_CHECK_TIMEOUT_MS);
     fetch(VERSION_URL + '?_=' + bust, { cache: 'no-store' })
       .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function(data){
@@ -68,7 +50,6 @@
         var remoteVersion = data && data[TOOL_KEY];
         if(!remoteVersion || remoteVersion === CURRENT_VERSION){
           try{ sessionStorage.removeItem(RELOAD_GUARD_KEY); }catch(e){}
-          window.__merzonaVersionCheckSettled__ = true;
           onDone();
           return;
         }
@@ -80,16 +61,13 @@
         if(guard && guard.version === remoteVersion && (Date.now() - guard.at) < 60000){
           // جربنا نحدّث لهاي النسخة قبل شوي وما زبط (يمكن لسا عم تنتشر على سيرفرات جيت هاب) - منكمل
           // بالنسخة الحالية حتى ما تعلق الأداة بحلقة تحديث متكررة، ومنعاود نحاول بعد شوي من جديد.
-          window.__merzonaVersionCheckSettled__ = true;
           onDone();
           return;
         }
         try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
-        // ⚠️ هون فقط: ما منحط __merzonaVersionCheckSettled__ = true لأنو فعلاً رح يصير reload،
-        // وبدنا الفلاغ يضل false حتى النسخة الجديدة المعاد تحميلها تعمل الفحص من جديد وتقرر بنفسها.
         location.replace(location.pathname + '?_cb=' + bust + (location.hash || ''));
       })
-      .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); window.__merzonaVersionCheckSettled__ = true; onDone(); } });
+      .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); onDone(); } });
   }
 
   function showCheckingUpdate(){
@@ -2804,49 +2782,24 @@ function handleRowEnter(e){
   }
 }
 
-/* ---------- تعبير حسابي بأي حقل مقاس (1200+350-50 وبيصير 1500 لوحدو) ----------
-   بدل ما نكرر نفس المنطق بكل حقل مقاس بالسيستم، عملنا فنكشنات مشتركة:
-   - restrictMeasureChars(el): بتخلي بس الأرقام والنقطة والمسافة و+ و- بالحقل وهو عم يكتب فيه.
-   - evalMeasureExpr(raw): بتحسب نص متل "1200+350-50" وترجع الرقم النهائي (أو null إذا مش تعبير حسابي
-     حقيقي - رقم عادي لحاله، حتى لو سالب، بيرجع null قصدًا عشان يضل يتعامل معه العادي كرقم مش كتعبير).
-   - evalMeasureField(el): بتاخد أي حقل، تحسب قيمته لو كانت تعبير، وتحط الناتج مكان النص. */
-function restrictMeasureChars(el){
-  const cleaned = el.value.replace(/[^0-9+\-.\s]/g, '');
+function restrictToNumbersAndPlus(el){
+  const cleaned = el.value.replace(/[^0-9+.\s]/g, '');
   if(cleaned !== el.value){
-    const pos = (el.selectionStart==null ? cleaned.length : el.selectionStart) - (el.value.length - cleaned.length);
+    const pos = el.selectionStart - (el.value.length - cleaned.length);
     el.value = cleaned;
     if(el.setSelectionRange) el.setSelectionRange(pos, pos);
   }
 }
-// اسم قديم كان مستخدم بجدول عرض السعر بس - ضلّ موجود (alias) عشان أي مكان قديم بينادي عليه يضل يشتغل.
-function restrictToNumbersAndPlus(el){ restrictMeasureChars(el); }
-
-function evalMeasureExpr(raw){
-  if(raw == null) return null;
-  const trimmed = String(raw).trim();
-  if(!trimmed) return null;
-  // لازم يكون فيه أقله إشارة وحدة (+ أو -) بعد أول رقم عشان نعتبره "تعبير جمع/طرح حقيقي" - رقم عادي
-  // لحاله (حتى لو سالب متل "-50") منرجع له null قصدًا، يعني خليه متل ما هو وين ما كان مستخدم كرقم عادي.
-  if(!/^-?[0-9.\s]+([+-][0-9.\s]+)+$/.test(trimmed)) return null;
-  const tokens = trimmed.match(/[+-]?[0-9.\s]+/g);
-  if(!tokens || tokens.length < 2) return null;
-  let sum = 0, any = false;
-  for(const tok of tokens){
-    const n = parseFloat(tok.replace(/\s/g,''));
-    if(isNaN(n)) continue;
-    sum += n; any = true;
-  }
-  return any ? sum : null;
-}
-
-function evalMeasureField(el){
-  if(!el) return;
-  const result = evalMeasureExpr(el.value);
-  if(result !== null) el.value = Number.isInteger(result) ? String(result) : result.toFixed(2);
-}
 
 function evalSumExpression(el){
-  evalMeasureField(el);
+  const raw = el.value.trim();
+  if(/^[0-9.\s]+(\+[0-9.\s]+)+$/.test(raw)){
+    const parts = raw.split('+').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+    if(parts.length){
+      const sum = parts.reduce((a,b)=>a+b, 0);
+      el.value = Number.isInteger(sum) ? String(sum) : sum.toFixed(2);
+    }
+  }
   onDimensionInput(el);
 }
 
@@ -5634,106 +5587,88 @@ populateAlumColorOptions();
 // إذا لوحة التحكم طلبت تحميل عرض سعر قديم بالنسخة الحالية من الأداة (زر "🔓 افتح بآخر نسخة")، البيانات
 // بتوصل هون عبر مفتاح localStorage مشترك (نفس الأصل management4w-beep.github.io/merzona-tool/).
 // منشيلها فورًا حتى لو صار refresh عادي بعدين ما تنطبّق مرتين فوق تعديلات المستخدم.
-// 🆕 2026-09-25: كل هالمنطق (قراءة pendingQuotationLoad/pendingDesignLoad من localStorage
-// وتطبيقهم) صار ملفوف جوا دالة وحدة (runPendingLoadLogicWhenSafe) ما بتنفّذ إلا لما نتأكد
-// إنو فحص "آخر نسخة منشورة" فوق (checkForUpdate) خلص قرر يكمّل بنفس الصفحة (مش رح يصير
-// location.replace). شوف الشرح المفصّل قرب تعريف window.__merzonaVersionCheckSettled__ بأول
-// الملف - باختصار: قبل هالتعديل كان ممكن نمسح قيمة localStorage (مرة واحدة بس تستخدم) وبعدين
-// يصير reload بسبب فحص النسخة، فتضيع القيمة قبل ما تتطبق، وتفضل صفحة عرض السعر القديمة (الفاضية
-// أو يلي كانت موجودة أصلًا بالصفحة) ظاهرة - وهاد بالضبط يلي كان حمدي شايفه كـ"فتحتلي عرض السعر".
-function runPendingLoadLogicWhenSafe(attemptsLeft){
-  if(!window.__merzonaVersionCheckSettled__ && attemptsLeft > 0){
-    setTimeout(()=> runPendingLoadLogicWhenSafe(attemptsLeft-1), 50);
-    return;
+let pendingQuotationLoad = null;
+try{
+  const rawPending = localStorage.getItem('merzona-pending-load');
+  if(rawPending){
+    localStorage.removeItem('merzona-pending-load');
+    pendingQuotationLoad = JSON.parse(rawPending);
   }
-  if(!window.__merzonaVersionCheckSettled__){
-    console.warn('[Merzona] فحص آخر نسخة منشورة أخذ وقت أطول من المتوقع - عم نكمل بقراءة أي عرض سعر/تصميم معلّق بأي حال (تفادي تعليق الأداة للأبد).');
-  }
-  let pendingQuotationLoad = null;
-  try{
-    const rawPending = localStorage.getItem('merzona-pending-load');
-    if(rawPending){
-      localStorage.removeItem('merzona-pending-load');
-      pendingQuotationLoad = JSON.parse(rawPending);
-    }
-  }catch(e){}
-  const alreadyHasContent = document.querySelectorAll('#qty-rows tr, #acc-rows .bi-row, #pay-rows .pay-row, #alum-spec-rows .bi-row').length > 0;
+}catch(e){}
+const alreadyHasContent = document.querySelectorAll('#qty-rows tr, #acc-rows .bi-row, #pay-rows .pay-row, #alum-spec-rows .bi-row').length > 0;
 
-  // 🆕 2026-09-24: نفس فكرة merzona-pending-load فوق بالضبط بس لسجل "التصاميم" (زر "🔓 افتح" من تبويب
-  // المسودات والتصاميم بالداشبورد لتصميم قائم) - منستورد بنود التصميم مباشرة (بدون المرور بجدول
-  // الكميات إطلاقًا) ومنفتح أداة "رسّام النوافذ والأبواب" تلقائيًا فور ما تجهز، شوف
-  // openDesignerWithImportedItems/saveDesignToDrive تحت لتفاصيل الحفظ.
-  let pendingDesignLoad = null;
-  try{
-    const rawPendingDesign = localStorage.getItem('merzona-pending-design-load');
-    if(rawPendingDesign){
-      localStorage.removeItem('merzona-pending-design-load');
-      pendingDesignLoad = JSON.parse(rawPendingDesign);
-    }
-  }catch(e){}
+// 🆕 2026-09-24: نفس فكرة merzona-pending-load فوق بالضبط بس لسجل "التصاميم" (زر "🔓 افتح" من تبويب
+// المسودات والتصاميم بالداشبورد لتصميم قائم) - منستورد بنود التصميم مباشرة (بدون المرور بجدول
+// الكميات إطلاقًا) ومنفتح أداة "رسّام النوافذ والأبواب" تلقائيًا فور ما تجهز، شوف
+// openDesignerWithImportedItems/saveDesignToDrive تحت لتفاصيل الحفظ.
+let pendingDesignLoad = null;
+try{
+  const rawPendingDesign = localStorage.getItem('merzona-pending-design-load');
+  if(rawPendingDesign){
+    localStorage.removeItem('merzona-pending-design-load');
+    pendingDesignLoad = JSON.parse(rawPendingDesign);
+  }
+}catch(e){}
 
-  // 🔧 2026-09-25: باغ لقيناه بطلب حمدي "لما بضغط على مسودة التصميم عم يفتحلي عرض السعر" - هاد الشرط
-  // كان ناسي حالة pendingDesignLoad (فتح "تصميم" حر من الداشبورد) بالكامل، فكان دايمًا بيقع بفرع
-  // seedDefaults()/renumber()+recalc() تحت (نفس فرع "عرض سعر جديد فاضي") حتى لو أصلًا فاتح تصميم حر
-  // مش مرتبط بعرض سعر إطلاقًا - يعني كان عم يتولّد رقم مرجعي جديد وتاريخ وبنود افتراضية (Accessories/
-  // System statement) لعرض سعر فاضي بالخلفية تحت أداة رسّام النوافذ والأبواب (wdOverlay) كل مرة يفتح
-  // فيها تصميم، وهاد يلي كان طالع لحمدي كـ"عرض سعر" لو سكّر نافذة التصميم أو لو تأخر ظهورها شوي.
-  // الحل: لما يكون فيه pendingDesignLoad، ما منلمس/منهيّئ صفحة عرض السعر إطلاقًا - بتضل فاضية تمامًا
-  // (بدون رقم مرجعي مولَّد ولا بنود افتراضية) لحد ما حمدي يقرر هو يشتغل عليها لحالها، وأداة التصميم
-  // (wdOverlay) هي يلي رح تفتح مباشرة ببنود التصميم المستوردة (شوف runWhenDesignBridgeReady تحت).
-  if(pendingQuotationLoad){
-    // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
-    // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
-    setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); }, 0);
-  } else if(pendingDesignLoad){
-    // تصميم حر بس (مش مرتبط بعرض سعر مفتوح) - ولا شي هون؛ رح ينفتح مباشرة بـwdOverlay تحت.
-  } else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
-    renumber();
-    recalc();
-    syncPage2Header();
-  } else {
-    seedDefaults();
-    syncPage2Header();
-  }
-  // تصميم حر بس (pendingDesignLoad): ولا داعي نقترح رقم مرجعي جديد لعرض سعر ما فتحناه أصلًا.
-  if(!pendingDesignLoad){
-    setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل مكتبة جوجل
-  }
-
-  // شوف الشرح فوق قرب تعريف pendingDesignLoad - نفس تأجيل التطبيق (tick واحد) يلي معمول
-  // لـpendingQuotationLoad، لنفس السبب بالضبط (استنى تعريف الجسور تبع قسم التصميم بآخر الملف).
-  // 🔧 2026-09-24: setTimeout(...,0) وحيد (نفس أسلوب pendingQuotationLoad فوق) مش مضمون دايمًا كافي هون -
-  // جسر window.__applyDesignItemsImport__ بينعرّف بقسم تصميم النوافذ والأبواب (سكريبت منفصل بآخر
-  // الملف)، وبظروف معيّنة (مثلًا إعادة تحميل الصفحة أثناء مشاكل شبكة/مصادقة) ممكن هالسكريبت يتأخر
-  // شوي عن التنفيذ. منعيد المحاولة كل 50ms لغاية ما الجسر يجهز (سقف أقصى ~2 ثانية) بدل ما نخاطر إنو
-  // الاستيراد يفشل بصمت لو صار توقيت غير معتاد.
-  function runWhenDesignBridgeReady(fn, attemptsLeft){
-    if(typeof window.__applyDesignItemsImport__ === 'function'){ fn(); return; }
-    if(attemptsLeft <= 0){ console.warn('[تصميم] تعذّر إيجاد جسر استيراد بنود التصميم (window.__applyDesignItemsImport__) بعد عدة محاولات - جرّب تحديث الصفحة يدويًا.'); return; }
-    setTimeout(()=> runWhenDesignBridgeReady(fn, attemptsLeft-1), 50);
-  }
-  if(pendingDesignLoad){
-    runWhenDesignBridgeReady(()=>{
-      currentDesignId = pendingDesignLoad.designId || null;
-      currentDesignName = pendingDesignLoad.name || null;
-      openDesignerWithImportedItems(pendingDesignLoad.designItems, pendingDesignLoad.designNextId);
-    }, 40);
-  }
-
-  // 🆕 كان هون بالسابق منحاول نسترجع مسودة محفوظة تلقائيًا محليًا (localStorage) ومنسأل بنافذة تأكيد
-  // "لقينا مسودة عرض سعر... بدك تكمل عليها؟" كل ما تنفتح الصفحة. طلب حمدي 2026-09-25: بعد ما صار في
-  // أرشيف مسودات حقيقي (تبويب "المسودات والتصاميم" بلوحة التحكم، محفوظ بجوجل درايف - شوف saveDraftToDrive)
-  // ما عاد في داعي/بيصير مزعج إنو النظام يفاجئنا بـ"كان عندك عرض سعر قديم وما كملتو" - المستخدم هلق
-  // عندو مكان واضح (الأرشيف) يرجع يفتح منّو أي مسودة قصدًا لو بدو. عطّلنا نافذة التأكيد هاي نهائيًا،
-  // وخلينا الحفظ المحلي (saveDraftFromSnapshot) يضل شغال بالخلفية بصمت (نسخة احتياطية بس، بدون أي
-  // إزعاج للمستخدم) - clearDraft() لسا منستخدمها بأماكن تانية (متل بدء عرض سعر جديد فاضي بالنية).
-  if(!pendingQuotationLoad && !pendingDesignLoad){
-    // (نافذة الاسترجاع التلقائي انعطّلت بطلب حمدي - ما منعرض ولا منسأل شي هون)
-  }
+if(pendingQuotationLoad){
+  // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
+  // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
+  setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); }, 0);
+} else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
+  renumber();
+  recalc();
+  syncPage2Header();
+} else {
+  seedDefaults();
+  syncPage2Header();
 }
-// سقف أقصى للاستنى: 200 محاولة × 50ms = 10 ثواني (أكتر شوي من VERSION_CHECK_TIMEOUT_MS=8000 فوق)
-// حتى نغطي أسوأ حالة (فحص النسخة بياخد المهلة الكاملة قبل ما يتأكد إنو ما في تحديث/فشل الفحص).
-runPendingLoadLogicWhenSafe(200);
+setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل مكتبة جوجل
+
+// شوف الشرح فوق قرب تعريف pendingDesignLoad - نفس تأجيل التطبيق (tick واحد) يلي معمول
+// لـpendingQuotationLoad، لنفس السبب بالضبط (استنى تعريف الجسور تبع قسم التصميم بآخر الملف).
+// 🔧 2026-09-24: setTimeout(...,0) وحيد (نفس أسلوب pendingQuotationLoad فوق) مش مضمون دايمًا كافي هون -
+// جسر window.__applyDesignItemsImport__ بينعرّف بقسم تصميم النوافذ والأبواب (سكريبت منفصل بآخر
+// الملف)، وبظروف معيّنة (مثلًا إعادة تحميل الصفحة أثناء مشاكل شبكة/مصادقة) ممكن هالسكريبت يتأخر
+// شوي عن التنفيذ. منعيد المحاولة كل 50ms لغاية ما الجسر يجهز (سقف أقصى ~2 ثانية) بدل ما نخاطر إنو
+// الاستيراد يفشل بصمت لو صار توقيت غير معتاد.
+function runWhenDesignBridgeReady(fn, attemptsLeft){
+  if(typeof window.__applyDesignItemsImport__ === 'function'){ fn(); return; }
+  if(attemptsLeft <= 0){ console.warn('[تصميم] تعذّر إيجاد جسر استيراد بنود التصميم (window.__applyDesignItemsImport__) بعد عدة محاولات - جرّب تحديث الصفحة يدويًا.'); return; }
+  setTimeout(()=> runWhenDesignBridgeReady(fn, attemptsLeft-1), 50);
+}
+if(pendingDesignLoad){
+  runWhenDesignBridgeReady(()=>{
+    currentDesignId = pendingDesignLoad.designId || null;
+    currentDesignName = pendingDesignLoad.name || null;
+    openDesignerWithImportedItems(pendingDesignLoad.designItems, pendingDesignLoad.designNextId);
+  }, 40);
+}
+
+// 🆕 محاولة استرجاع مسودة محفوظة تلقائيًا محليًا (شوف تعريف DRAFT_STORAGE_KEY/isDraftMeaningful/
+// clearDraft/saveDraftFromSnapshot فوق بقسم "مسودة محلية"). هاي منفصلة تمامًا عن الفرع فوق (يلي بيقرر
+// شو يظهر بالنموذج أول ما تفتح الصفحة - القالب الفاضي الافتراضي مخبوز أصلًا بنفس الملف، فـ
+// alreadyHasContent/data-prefilled بيصيروا صحيحين تقريبًا دايمًا حتى لو ما في ولا بيانات حقيقية).
+// هون منتحقق بشكل مستقل: هل في مسودة محلية فيها فعلاً بيانات كتبها المستخدم (isDraftMeaningful) -
+// إذا آه، منسأل إذا بدو يكملها، بغض النظر شو ظهر بالنموذج قبل هيك. ما منسويها إلا لو ما في طلب
+// تحميل صريح من لوحة التحكم (pendingQuotationLoad) - هيك ما نتعارض مع فتح عرض سعر محدد قصدًا.
+if(!pendingQuotationLoad && !pendingDesignLoad){
+  try{
+    const rawDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
+    const parsedDraft = rawDraft ? JSON.parse(rawDraft) : null;
+    if(parsedDraft && isDraftMeaningful(parsedDraft)){
+      const when = parsedDraft.savedAt ? new Date(parsedDraft.savedAt).toLocaleString('ar') : '';
+      const who = (parsedDraft.fields && parsedDraft.fields['m-client']) || '';
+      const msg = 'لقينا مسودة عرض سعر محفوظة تلقائيًا (' + (who ? ('الزبون: ' + who + ' - ') : '') + when + ').\n\nبدك تكمل عليها؟\n(اضغط إلغاء لتجاهلها والمتابعة بالنموذج الحالي - المسودة رح تنمسح)';
+      setTimeout(()=>{
+        if(confirm(msg)){
+          applyFullQuotationData(parsedDraft);
+        } else {
+          clearDraft();
+        }
+      }, 60); // شوي بعد ما يخلص الفرع فوق (والـ0ms تبع pendingQuotationLoad لو صار) حتى ما يصير تعارض ترتيب
+    }
+  }catch(e){}
+}
 
 try{
   const savedMode = localStorage.getItem('merzona-layout-mode');
@@ -5952,7 +5887,7 @@ window.wdApplyBack = function(results){
           </div>
           <div id="showerLeftBlock" style="display:none;margin-top:6px;margin-bottom:10px;">
             <label>عرض اللوح الثابت اليسار (مم)</label>
-            <input type="text" inputmode="decimal" id="inShowerLeftWidth" min="100" oninput="restrictMeasureChars(this);onShowerSideWidthChange('left')" onblur="evalMeasureField(this);onShowerSideWidthChange('left')" value="600">
+            <input type="number" id="inShowerLeftWidth" min="100" oninput="onShowerSideWidthChange('left')" value="600">
           </div>
           <div class="check-row" style="margin-top:6px;">
             <input type="checkbox" id="inShowerRightPanel" onchange="onShowerSidePanelToggle('right')" value="on">
@@ -5960,7 +5895,7 @@ window.wdApplyBack = function(results){
           </div>
           <div id="showerRightBlock" style="display:none;margin-top:6px;">
             <label>عرض اللوح الثابت اليمين (مم)</label>
-            <input type="text" inputmode="decimal" id="inShowerRightWidth" min="100" oninput="restrictMeasureChars(this);onShowerSideWidthChange('right')" onblur="evalMeasureField(this);onShowerSideWidthChange('right')" value="600">
+            <input type="number" id="inShowerRightWidth" min="100" oninput="onShowerSideWidthChange('right')" value="600">
           </div>
           <p class="hint" style="margin-top:8px;">تقدر تفعّل الطرفين مع بعض (زجاج ثابت يمين ويسار الباب بنفس الوقت).</p>
 
@@ -5974,11 +5909,11 @@ window.wdApplyBack = function(results){
             <div class="row2" style="margin-top:8px;">
               <div>
                 <label>ارتفاع الجزء العلوي (مم)</label>
-                <input type="text" inputmode="decimal" id="inFrostTopH" min="0" oninput="restrictMeasureChars(this);onFrostZoneChange()" onblur="evalMeasureField(this);onFrostZoneChange()" value="700">
+                <input type="number" id="inFrostTopH" min="0" oninput="onFrostZoneChange()" value="700">
               </div>
               <div>
                 <label>ارتفاع الجزء السفلي (مم)</label>
-                <input type="text" inputmode="decimal" id="inFrostBottomH" min="0" oninput="restrictMeasureChars(this);onFrostZoneChange()" onblur="evalMeasureField(this);onFrostZoneChange()" value="500">
+                <input type="number" id="inFrostBottomH" min="0" oninput="onFrostZoneChange()" value="500">
               </div>
             </div>
             <p class="hint" style="margin-top:6px;">"علوي/سفلي شفاف": الجزءين فوق وتحت بيضلوا شفافين بالكامل والوسط بس مضبب.<br>"خطوط علوي/سفلي": نفس المسافتين بس بيصير فيهم خطوط تضبيب متقطعة بدل الشفافية الكاملة، والوسط بيضل مضبب 100%.</p>
@@ -6012,7 +5947,7 @@ window.wdApplyBack = function(results){
             <div class="row2" style="margin-top:8px;">
               <div>
                 <label id="hrLenLabel">الطول الإجمالي (مم)</label>
-                <input type="text" inputmode="decimal" id="inHrLength" min="100" oninput="restrictMeasureChars(this);onHandrailLengthChange()" onblur="evalMeasureField(this);onHandrailLengthChange()" value="4800">
+                <input type="number" id="inHrLength" min="100" oninput="onHandrailLengthChange()" value="4800">
               </div>
               <div>
                 <label>عدد الألواح</label>
@@ -6033,7 +5968,7 @@ window.wdApplyBack = function(results){
 
           <div style="margin-top:8px;">
             <label>ارتفاع الزجاج (مم) - افتراضي 1200، قابل للتعديل</label>
-            <input type="text" inputmode="decimal" id="inHrHeight" min="200" oninput="restrictMeasureChars(this);onHandrailHeightChange()" onblur="evalMeasureField(this);onHandrailHeightChange()" value="1200">
+            <input type="number" id="inHrHeight" min="200" oninput="onHandrailHeightChange()" value="1200">
           </div>
           <p class="hint" style="margin-top:8px;">فاصل ثابت 5mm بين كل لوح وللي جنبه. كل الألواح بنفس الجزء الواحد لازم تكون متساوية بالمقاس.</p>
         </div>
@@ -6044,18 +5979,12 @@ window.wdApplyBack = function(results){
         <div style="margin-top:10px; display:none;" id="roomBlock">
           <div>
             <label>ارتفاع الغرفة الافتراضي (مم) - بيُستخدم كارتفاع مبدئي لأي ضلع جديد لما ينصمم</label>
-            <input type="text" inputmode="decimal" id="inRoomHeight" min="1000" oninput="restrictMeasureChars(this);onRoomHeightChange()" onblur="evalMeasureField(this);onRoomHeightChange()" value="2500">
+            <input type="number" id="inRoomHeight" min="1000" oninput="onRoomHeightChange()" value="2500">
           </div>
           <div style="margin:10px 0;padding:8px;border:1px dashed var(--wd-line,#555);border-radius:8px;">
             <button type="button" class="small" onclick="toggleRoomFreehandDraw()" style="width:100%;">✏️ ارسم شكل الأرضية بالفأرة (بدل التعبئة اليدوية)</button>
             <div id="roomDrawWrap" style="display:none;margin-top:8px;">
               <p class="hint">دوس عالفراغ الفاضي لتضيف نقطة جديدة (بتلتصق تلقائيًا بأقرب نقطة أو خط موجود لو كانت قريبة منو - هيك خط جديد بيوصل خط قديم بيندمج فيه بالظبط ويكمّل الفراغ بدون ما تضل فجوة، مثلاً خط عمودي وصل عند خط أفقي مقابلو). اسحب أي نقطة موجودة لتحريكها (مثلاً لتوصلها بالظبط مع نقطة أو خط تاني وتسكّر الشكل). كليك عادي (بدون سحب) عالنقطة ما بيعمل ولا شي - آمن تدوسها وانت ماشي عليها أو عم تسكّر الشكل. لحذف نقطة فعليًا: double-click (دوستين سريعتين) عليها. فتح الرسم عالغرفة نفسها بيرجع يعرضلك شكلها الحالي من جديد - مش لازم تبلش من الصفر. ارسم الشكل بس تقريبيًا بدون ما تشغل بالك بالمقاسات إطلاقًا وانت عم ترسم - بعد ما تدوس "✅ إنهاء وتحويل لأضلاع" منسوي أطوال الأضلاع تلقائيًا من الرسمة، وهناك تحت (بقائمة "أضلاع الأرضية") بتقدر تعدّل كل طول لرقمو الحقيقي المضبوط، وفورًا رح تتحدث معاينة شكل الأرضية والحسابات كلها حسب هيك أرقام حقيقية. كبّر/صغّر بدولاب الفأرة فوق الرسمة براحتك، ودوس "⛶ تكبير مساحة الرسم" لتكبير نافذة الرسم على كامل الشاشة. وإذا بدك تدوّر الشكل كامل (مش ضلع واحد) في أزرار وخانة تدوير تحت.</p>
-              <div class="shape-toggle" style="margin-bottom:8px;">
-                <button type="button" id="btnRoomDrawModeCursor" onclick="setRoomDrawMode('cursor')" class="active">🖱️ مؤشر (تحديد وتحريك)</button>
-                <button type="button" id="btnRoomDrawModePen" onclick="setRoomDrawMode('pen')">✏️ قلم (رسم خطوط)</button>
-                <button type="button" id="btnRoomDrawModeEraser" onclick="setRoomDrawMode('eraser')">🧹 ممحاة (محي نقطة/خط)</button>
-              </div>
-              <p class="hint" id="roomDrawModeHint" style="margin-top:-4px;"></p>
               <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
                 <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (استثناء نادر - بدون قفل ٩٠°)
               </label>
@@ -6092,25 +6021,16 @@ window.wdApplyBack = function(results){
           <div class="add-row" style="margin-top:8px;">
             <button onclick="openRoom3D()" class="small" style="flex:1;">🏠 مشهد ثري دي حقيقي (منظور Elevation + تدوير + فيديو)</button>
           </div>
-
-          <label style="margin-top:14px;">🏗️ السقف Ceiling</label>
-          <p class="hint">افتراضيًا شكل السقف نفس شكل الأرضية بالظبط. لو في بروز أو فرق بمكان معيّن (السقف طالع أوسع من الحيط تحتو مثلاً)، دوسي عالضلع المطلوب تحت وغيّري طولو/زاويتو براحتك - هيك بس بيتغيّر شكل السقف، والأرضية بتضل متل ما هي. لو بدك ترجعي تبلشي من جديد بنفس شكل الأرضية الحالي، دوسي "🔄 رجّعه لشكل الأرضية".</p>
-          <div id="ceilingSidesList"></div>
-          <div class="add-row" style="margin-top:6px;">
-            <button onclick="resetCeilingToFloor()" class="small" style="flex:1;">🔄 رجّعه لشكل الأرضية</button>
-          </div>
-          <label style="margin-top:10px;">مسقط السقف Ceiling Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
-          <div id="ceilingPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
         </div>
 
         <div class="row2" id="normalDimsRow" style="display: grid;">
           <div>
             <label>العرض الكلي (مم)</label>
-            <input type="text" inputmode="decimal" id="inWidth" min="200" oninput="restrictMeasureChars(this);onDimsChange()" onblur="evalMeasureField(this);onDimsChange()" value="1200">
+            <input type="number" id="inWidth" min="200" oninput="onDimsChange()" value="1200">
           </div>
           <div>
             <label>الارتفاع الكلي (مم)</label>
-            <input type="text" inputmode="decimal" id="inHeight" min="200" oninput="restrictMeasureChars(this);onDimsChange()" onblur="evalMeasureField(this);onDimsChange()" value="1400">
+            <input type="number" id="inHeight" min="200" oninput="onDimsChange()" value="1400">
           </div>
         </div>
         <div style="margin-top: 10px; display: block;" id="hingeThicknessBlock">
@@ -6122,11 +6042,11 @@ window.wdApplyBack = function(results){
           <div class="row2">
             <div>
               <label>سماكة الفريم الخارجي (مم)</label>
-              <input type="text" inputmode="decimal" id="inFrameThickness" step="0.1" oninput="restrictMeasureChars(this);onSlidingThicknessChange()" onblur="evalMeasureField(this);onSlidingThicknessChange()" value="">
+              <input type="number" id="inFrameThickness" step="0.1" oninput="onSlidingThicknessChange()" value="">
             </div>
             <div>
               <label>سماكة الدرفة (مم)</label>
-              <input type="text" inputmode="decimal" id="inLeafThickness" step="0.1" oninput="restrictMeasureChars(this);onSlidingThicknessChange()" onblur="evalMeasureField(this);onSlidingThicknessChange()" value="">
+              <input type="number" id="inLeafThickness" step="0.1" oninput="onSlidingThicknessChange()" value="">
             </div>
           </div>
           <p class="hint" style="margin-top:5px;">الفريم بينخصم مرة وحدة من الخارج على كل الأطراف، وسماكة الدرفة بتنخصم من جوانب كل درفة لحالها (كل درفة إلها إطارها الخاص حوالين زجاجها).</p>
@@ -6137,7 +6057,7 @@ window.wdApplyBack = function(results){
         </div>
         <div id="archHeightWrap" style="display:none;">
           <label>ارتفاع القوس (مم)</label>
-          <input type="text" inputmode="decimal" id="inArchHeight" min="50" oninput="restrictMeasureChars(this);onDimsChange()" onblur="evalMeasureField(this);onDimsChange()" value="300">
+          <input type="number" id="inArchHeight" min="50" oninput="onDimsChange()" value="300">
         </div>
       </div>
 
@@ -6322,7 +6242,7 @@ window.wdApplyBack = function(results){
           <option value="6.6">6.60 م</option>
           <option value="custom">مخصص...</option>
         </select>
-        <input type="text" inputmode="decimal" id="purchTubeLenCustom" step="0.01" min="0.5" placeholder="مثلاً 5.8" oninput="restrictMeasureChars(this);renderPurchasingAluminum()" onblur="evalMeasureField(this);renderPurchasingAluminum()" style="display:none; width:110px; padding:8px 10px; border:1px solid #ddd; border-radius:7px; font-size:13px;" value="">
+        <input type="number" id="purchTubeLenCustom" step="0.01" min="0.5" placeholder="مثلاً 5.8" oninput="renderPurchasingAluminum()" style="display:none; width:110px; padding:8px 10px; border:1px solid #ddd; border-radius:7px; font-size:13px;" value="">
       </div>
       <div id="purchAluminumTable"></div>
       <div id="purchAluminumTotals" style="margin-top:16px; padding-top:14px; border-top:1px dashed #ddd; font-size:15px;"></div>
@@ -6853,23 +6773,13 @@ let roomSideIdCounter = 1;
 // تصميم عادي (مثلاً 1.5 متر حائط وباقي الضلع زجاج). هاد العداد لمعرّفات هاي "الأقسام" (segments)
 // جوا كل ضلع.
 let roomSegIdCounter = 1;
-// 🆕 2026-09-24: طلب حمدي - "بدي كمان رسمة خاصة للسقف، افتراضيًا نفس شكل الأرضية بس فيني عدّل عليه
-// (بروزات...)" - هاد العداد لمعرّفات أضلاع السقف (ceilingSides)، بنية مشابهة لـroomSides بس أبسط
-// (طول + زاوية بس، بدون segments/تصميم - السقف مجرد شكل، مش بند بيتصمم).
-let ceilingSideIdCounter = 1;
 // 🆕 2026-09-24: حالة "الرسم بالفأرة" لمخطط الأرضية (بديل أسرع من تعبئة كل طول/زاوية يدويًا) - شوف
 // شرح أوسع فوق دالة renderRoomDrawCanvas تحت.
 // 🔧 2026-09-24 (تحديث تاني نفس اليوم): بعد ملاحظة حمدي "لما بنهي التصميم ما بعود بقدر عدل عليه"،
 // الإحداثيات صارت بالمم الحقيقية (مش بكسل بمقياس ثابت) جوا "view" قابل للزوم/التمركز، وفتح أداة
 // الرسم عالغرفة عم يعيد بناء النقاط من roomSides الحالية (roomDrawPointsFromSides) بدل ما يصفّرها.
 // gesture: state machine بسيط لتمييز "دوسة = حذف نقطة" عن "سحب = نقل نقطة" عن "دوسة بفراغ = نقطة جديدة".
-// 🆕 2026-09-25: طلب حمدي - 3 أوضاع واضحة بدل ما يكون الماوس "دايمًا عم يرسم": mode='cursor' (الافتراضي،
-// مؤشر تحديد/تحريك بس - كليك عالفراغ ما بيعمل ولا شي، بس كليك عالنقطة أو الضلع بيحدده وبتقدر تسحبه)،
-// mode='pen' (قلم - كليك عالفراغ بيضيف نقطة/خط جديد، نفس السلوك التاريخي)، mode='eraser' (ممحاة -
-// كليك عالنقطة بيحذفها فورًا بدون داعي لـ double-click). selectedPointIdx/selectedSegIdx: أي نقطة أو
-// ضلع محدد حاليًا بوضع "مؤشر" (لتلوينه/تمييزه بالرسمة وتسهيل مسك طرفيه بالضبط).
-let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
-  mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1 };
+let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null };
 const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340; // مقاس الكانفس الثابت بالبكسل (نسبة العرض للارتفاع محفوظة بحساب mmPerPx واحد لكل من x/y)
 
 function isHandrail(it){ return it.shapeType === 'handrail'; }
@@ -6974,7 +6884,7 @@ function renderHandrailSegmentsUI(it){
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;padding:6px;background:#f4f5f7;border-radius:4px;">
       <span style="font-size:12px;font-weight:600;min-width:64px;">${seg.type==='flight'?'🪜 مائل':'▬ استراحة'} ${idx+1}</span>
       <input type="number" min="1" step="1" style="width:56px;" value="${seg.panelCount}" onchange="onHrSegField(${it.id},'${seg.id}','panelCount',this.value)" title="عدد الألواح">
-      <input type="text" inputmode="decimal" min="1" style="width:84px;" value="${Math.round(seg.totalLength)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegField(${it.id},'${seg.id}','totalLength',this.value)" title="الطول الإجمالي (مم) - تقدر تكتب مثلاً 4800+350">
+      <input type="number" min="1" style="width:84px;" value="${Math.round(seg.totalLength)}" onchange="onHrSegField(${it.id},'${seg.id}','totalLength',this.value)" title="الطول الإجمالي (مم)">
       <button class="small danger" style="margin-right:auto;" onclick="removeHandrailSegment(${it.id},'${seg.id}')" ${segs.length<=1?'disabled':''}>×</button>
     </div>`;
     // 🆕 2026-09-23: طلب حمدي - الاستراحة أحيانًا بتكون أعلى من الدرج قبلها (وبيصير الدرج يلي بعدها أعلى منها كمان)
@@ -6984,7 +6894,7 @@ function renderHandrailSegmentsUI(it){
     const riseRow = (seg.type === 'landing') ? `
     <div style="display:flex;gap:6px;align-items:center;margin:-2px 0 6px;padding:0 6px 6px 6px;flex-wrap:wrap;">
       <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);min-width:64px;">⬆ فرق الارتفاع</span>
-      <input type="text" inputmode="decimal" min="0" step="0.5" style="width:64px;" value="${seg.riseCm||0}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegField(${it.id},'${seg.id}','riseCm',this.value)" title="فرق ارتفاع الأرض تحت الاستراحة كلها (سم) - 0 يعني بنفس مستوى الدرج قبلها">
+      <input type="number" min="0" step="0.5" style="width:64px;" value="${seg.riseCm||0}" onchange="onHrSegField(${it.id},'${seg.id}','riseCm',this.value)" title="فرق ارتفاع الأرض تحت الاستراحة كلها (سم) - 0 يعني بنفس مستوى الدرج قبلها">
       <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">سم</span>
       <button class="small${seg.inclined?' active':''}" style="font-size:10.5px;${seg.inclined?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentIncline(${it.id},'${seg.id}')" title="بالوضعين، فرق الارتفاع بيصير قفزة كاملة قبل الاستراحة (هي نفسها بترتفع عن الأرض بشكل كامل، مو نص وطرف). الفرق بينهم بس شكل القطعة: مستوية = مسطحة، مائلة = شكلها ميلان متل الدرج بالزبط">${seg.inclined ? '🔀 مائلة' : '▬ مستوية'}</button>
     </div>` : '';
@@ -7262,7 +7172,7 @@ function editShowerSideWidth(id, side){
   const cur = side==='left' ? (it.showerLeftWidth||600) : (it.showerRightWidth||600);
   const val = prompt('عرض اللوح الثابت الجديد (مم):', Math.round(cur));
   if(val===null) return;
-  const n = evalMeasureExpr(val) ?? parseFloat(val); if(isNaN(n) || n<=0) return;
+  const n = parseFloat(val); if(isNaN(n) || n<=0) return;
   pushHistory();
   if(side==='left') it.showerLeftWidth = n; else it.showerRightWidth = n;
   loadSelectedIntoControls();
@@ -7730,9 +7640,9 @@ function toggleArchMerge(itemId){
 function editTotalDim(itemId, axis, currentMM){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const label = axis === 'w' ? 'العرض الكلي' : 'الارتفاع الكلي';
-  const input = prompt(`أدخل ${label} الجديد بالمليمتر (تقدر تكتب مثلاً 1200+350):`, Math.round(currentMM));
+  const input = prompt(`أدخل ${label} الجديد بالمليمتر:`, Math.round(currentMM));
   if(input === null) return;
-  const newMM = evalMeasureExpr(input) ?? parseFloat(input);
+  const newMM = parseFloat(input);
   if(!newMM || newMM <= 0) return;
   pushHistory();
   if(axis === 'w') it.width = newMM; else it.height = newMM;
@@ -7751,9 +7661,9 @@ function editLeafDim(itemId, leafId, axis, currentMM){
     alert('هذا القياس هو نفس القياس الكلي — عدّله من حقل ' + (axis==='x' ? '"العرض الكلي"' : '"الارتفاع الكلي"') + ' بالأعلى.');
     return;
   }
-  const input = prompt('أدخل القياس الجديد بالمليمتر (تقدر تكتب مثلاً 1200+350):', Math.round(currentMM));
+  const input = prompt('أدخل القياس الجديد بالمليمتر:', Math.round(currentMM));
   if(input === null) return;
-  const newMM = evalMeasureExpr(input) ?? parseFloat(input);
+  const newMM = parseFloat(input);
   if(!newMM || newMM <= 0) return;
   const { splitNode, idx } = gov;
   const target = splitNode.children[idx];
@@ -7766,15 +7676,6 @@ function editLeafDim(itemId, leafId, axis, currentMM){
   others.forEach(ch => ch.frac = remaining/others.length);
   renderGallery();
 }
-
-function editRoomSegLengthFromSVG(itemId, sideId, segId, currentMM){
-  const input = prompt('الطول الجديد بالمليمتر (من برا لبرا) - تقدر تكتب مثلاً 3000+250:', Math.round(currentMM));
-  if(input === null) return;
-  const newMM = evalMeasureExpr(input) ?? parseFloat(input);
-  if(!newMM || newMM <= 0) return;
-  onRoomSegField(itemId, sideId, segId, 'length', newMM);
-}
-window.editRoomSegLengthFromSVG = editRoomSegLengthFromSVG;
 
 /* ---------- SVG RENDERING ---------- */
 let frostedCounter = 0;
@@ -8152,17 +8053,8 @@ function renderNode(it, node, x, y, w, h, scale, isDoor, out, netMap){
       const apex = triangleApex(x,y,x+w,y+h,node.type);
       if(apex) out.symbols.push(handleShapeAt(apex.x, apex.y, 'var(--wd-amber)'));
     }
-    // 🆕 2026-09-25: طلب حمدي - "لما بدي دخل مقاس جزء محدد، هالمقاس بكون من برا لبرا مش من جوا لجوا".
-    // قبل هيك كان الرقم المعروض هون (يلي كمان هو نفسو الرقم القابل للضغط والتعديل عبر editLeafDim)
-    // هو مقاس الزجاج الصافي (net، بعد خصم سماكة الألمنيوم - netMap) - يعني لو دخّل المستخدم رقم قاصد
-    // فيه المقاس الإجمالي/الخارجي (زي ما بيقيس عادةً)، كان بينحسب غلط لأنو النظام كان فاهمه "مقاس صافي".
-    // هلق الرقم المعروض/القابل للتعديل هون هو المقاس الإجمالي الخارجي لهالجزء (outer، مباشرة من عرض/
-    // ارتفاع الصندوق نفسو بالبيكسل مقسوم عالمقياس) - وهاد كمان بيصحح حساب النسبة (frac) جوا editLeafDim
-    // لأنو المقاس الخارجي فعلاً متناسب خطيًا مع frac الجزء، بعكس المقاس الصافي (يلي فيه طرح ثابت لسماكة
-    // الألمنيوم مش متناسب مع frac). قياس الزجاج الصافي (net) لسا موجود وبيتحسب/يتعرض بورقة الطباعة
-    // وبخط القياس الإضافي "إجمالي (خارجي)" و"صافي" سوا (شوف buildDimensionChain/buildItemPrintSVG).
-    const outerW = w/scale, outerH = h/scale;
-    const mmW = Math.round(outerW), mmH = Math.round(outerH);
+    const net = netMap[node.id] || { w: w/scale, h: h/scale };
+    const mmW = Math.round(net.w), mmH = Math.round(net.h);
     if(w > 34 && h > 16){
       out.dims.push(`<text x="${x+w/2}" y="${y+h-16}" font-size="14" text-anchor="middle" fill="var(--wd-amber)" opacity="0.95"
         font-family="var(--wd-font-mono)" font-weight="700" style="cursor:pointer;" onclick="event.stopPropagation();editLeafDim(${it.id},'${node.id}','x',${mmW})">${mmW}</text>`);
@@ -8585,9 +8477,9 @@ function editHandrailTotal(id){
     return;
   }
   const cur = Math.round(getHandrailTotalLength(it));
-  const val = prompt('الطول الإجمالي الجديد (مم) - تقدر تكتب مثلاً 4800+350:', cur);
+  const val = prompt('الطول الإجمالي الجديد (مم):', cur);
   if(val===null) return;
-  const n = evalMeasureExpr(val) ?? parseFloat(val);
+  const n = parseFloat(val);
   if(isNaN(n) || n<=0) return;
   pushHistory();
   if(it.hrDimMode === 'panel'){
@@ -8613,12 +8505,6 @@ function onRoomHeightChange(){
   const it = getSelected(); if(!it || !isRoom(it)) return;
   pushHistory();
   it.roomHeight = Math.max(1000, parseFloat(document.getElementById('inRoomHeight').value)||2500);
-  // 🆕 لما يتغيّر ارتفاع الغرفة، لازم ينعكس فورًا على كل قسم متصمَّم مسبقًا (بند بجدول السعر + عنصر التصميم المرتبط)
-  (it.roomSides||[]).forEach(side=>{
-    (side.segments||[]).forEach(seg=>{ syncRoomSegmentRowDims(it, seg); });
-  });
-  renderRoomSidesUI(it);
-  renderGallery();
 }
 window.onRoomHeightChange = onRoomHeightChange;
 
@@ -8634,64 +8520,6 @@ function ensureRoomSideSegments(side){
 function syncRoomSideLength(side){
   side.length = Math.max(1, (side.segments||[]).reduce((a,s)=>a + (s.length||0), 0));
 }
-
-// 🆕 2026-09-25: طلب حمدي - "بدي عدّل المقاسات عالمسقط وتتحدث تلقائيًا عالبنود يلي سبق صمّمتها".
-// لو الجزء (segment) هاد أصلاً متصمم (إلو rowUid - يعني عندو سطر بجدول عرض السعر وبند تصميم مربوط
-// فيه)، أي تغيير على طول الضلع (أو ارتفاع الغرفة) لازم ينعكس فورًا عالسطر بجدول العرض (خانة العرض/
-// الارتفاع) وعالبند نفسه بالمصمم - بدل ما يضلوا قيم قديمة عالقة لحد ما المستخدم يعيد فتح أداة
-// التصميم من الصفر (يلي كان ماسح أي تعديل يدوي عالبند لو مش منتبه).
-function syncRoomSegmentRowDims(it, seg){
-  if(!seg || !seg.rowUid) return;
-  const w = Math.round(seg.length);
-  const h = Math.round((it && it.roomHeight) || 2500);
-  const tr = document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]');
-  if(tr){
-    const wInput = tr.querySelector('.w-input');
-    const hInput = tr.querySelector('.h-input');
-    if(wInput) wInput.value = w;
-    if(hInput) hInput.value = h;
-    const lt = tr.querySelector('.line-total');
-    if(lt) lt.dataset.manual = '';
-  }
-  const linkedItem = items.find(i => i.sourceRowUid === seg.rowUid);
-  if(linkedItem){
-    linkedItem.width = w;
-    linkedItem.height = h;
-  }
-  if(typeof recalc === 'function') recalc();
-}
-
-// 🆕 2026-09-24: طلب حمدي - "بدي رسمة خاصة للسقف، افتراضيًا نفس شكل الأرضية بس ممكن يكون في بروزات
-// ببعض الأماكن وبدي عدّل عليها بنفس منطق أضلاع الأرضية (اكبس عالضلع وغيّر مقاسو)". السقف هون هو
-// بس شكل (طول+زاوية لكل ضلع، بنفس عدد أضلاع الأرضية) - ما إلو تصميم/segments لأنو مش بند سعر، مجرد
-// مخطط للمساحة. أول ما نفتحه بينسخ تلقائيًا شكل الأرضية الحالي، وبعدين المستخدم بقدر يعدّل أي ضلع
-// لحالو (بروز، تغيير طول...) بدون ما يأثر على الأرضية نفسها. زر "🔄 رجّعه لشكل الأرضية" بيعمل ريست
-// كامل لو حاب يبلش من جديد بعد ما يكون عدّل الأرضية.
-function ensureCeilingSides(it){
-  if(!it.ceilingSides || it.ceilingSides.length !== (it.roomSides||[]).length){
-    it.ceilingSides = (it.roomSides||[]).map(s => ({ id:'cs'+(ceilingSideIdCounter++), length:s.length, angleDeg:s.angleDeg }));
-  }
-  return it.ceilingSides;
-}
-function resetCeilingToFloor(){
-  const it = getSelected(); if(!it || !isRoom(it)) return;
-  pushHistory();
-  it.ceilingSides = (it.roomSides||[]).map(s => ({ id:'cs'+(ceilingSideIdCounter++), length:s.length, angleDeg:s.angleDeg }));
-  renderCeilingSidesUI(it);
-  renderGallery();
-}
-window.resetCeilingToFloor = resetCeilingToFloor;
-function onCeilingSideField(itemId, sideId, field, value){
-  const it = items.find(i=>i.id===itemId); if(!it) return;
-  ensureCeilingSides(it);
-  const side = it.ceilingSides.find(s=>s.id===sideId); if(!side) return;
-  pushHistory();
-  if(field==='length') side.length = Math.max(1, parseFloat(value)||1);
-  if(field==='angleDeg') side.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
-  renderCeilingSidesUI(it);
-  renderGallery();
-}
-window.onCeilingSideField = onCeilingSideField;
 
 function addRoomSide(itemId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
@@ -8778,7 +8606,6 @@ function onRoomSegField(itemId, sideId, segId, field, value){
   pushHistory();
   if(field==='length') seg.length = Math.max(50, parseFloat(value)||50);
   syncRoomSideLength(side);
-  syncRoomSegmentRowDims(it, seg); // 🆕 لو الجزء هاد متصمم أصلاً - حدّث سطر عرض السعر والبند فورًا
   renderRoomSidesUI(it);
   renderGallery();
 }
@@ -8858,10 +8685,8 @@ function toggleRoomFreehandDraw(){
   } else {
     const existingPts = (it.roomSides && it.roomSides.length>=3) ? roomDrawPointsFromSides(it.roomSides) : [];
     roomDraw = { active:true, itemId:it.id, points:existingPts, mouse:null, freeAngle:false, gesture:null,
-      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1,
       view: roomDrawComputeFitView(existingPts, 500) };
     const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
-    updateRoomDrawModeButtons();
     if(wrap) wrap.style.display = 'block';
     renderRoomDrawCanvas();
   }
@@ -8869,42 +8694,13 @@ function toggleRoomFreehandDraw(){
 window.toggleRoomFreehandDraw = toggleRoomFreehandDraw;
 
 function cancelRoomFreehandDraw(){
-  roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
-    mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1 };
+  roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null };
   const wrap = document.getElementById('roomDrawWrap');
   if(wrap){ wrap.style.display = 'none'; wrap.classList.remove('room-draw-fullscreen'); }
   const btn = document.getElementById('roomDrawFullscreenBtn');
   if(btn) btn.textContent = '⛶ تكبير مساحة الرسم';
 }
 window.cancelRoomFreehandDraw = cancelRoomFreehandDraw;
-
-// 🆕 وضع الرسم الحالي: 'cursor' (مؤشر تحديد/تحريك بس) / 'pen' (قلم - رسم خطوط جديدة) / 'eraser' (ممحاة - حذف نقاط/خطوط)
-function setRoomDrawMode(mode){
-  if(!roomDraw.active) return;
-  roomDraw.mode = mode;
-  roomDraw.gesture = null;
-  roomDraw.selectedPointIdx = -1;
-  roomDraw.selectedSegIdx = -1;
-  updateRoomDrawModeButtons();
-  renderRoomDrawCanvas();
-}
-window.setRoomDrawMode = setRoomDrawMode;
-
-function updateRoomDrawModeButtons(){
-  const map = { cursor:'btnRoomDrawModeCursor', pen:'btnRoomDrawModePen', eraser:'btnRoomDrawModeEraser' };
-  Object.keys(map).forEach(m=>{
-    const btn = document.getElementById(map[m]);
-    if(btn) btn.classList.toggle('active', roomDraw.mode === m);
-  });
-  const hints = {
-    cursor: '🖱️ وضع المؤشر: دوس على أي نقطة أو ضلع لتحدده، واسحب أي نقطة (طرف البداية أو النهاية تبع الضلع) لتحركها/تصغّرها/تكبّرها. كليك بالفراغ ما بيضيف ولا نقطة.',
-    pen: '✏️ وضع القلم: دوس بالفراغ لتضيف نقطة جديدة (خط جديد بيوصل آخر نقطة فيه). اسحب أي نقطة موجودة لتحريكها. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص الرسم، أو دوس على أي نقطة تانية موجودة لتوصلها بخط جديد.',
-    eraser: '🧹 وضع الممحاة: دوس على أي نقطة لحذفها فورًا (بيلتحم الخطين المتصلين فيها ببعض). لازم يضل عالأقل 3 نقاط.',
-  };
-  const hintEl = document.getElementById('roomDrawModeHint');
-  if(hintEl) hintEl.textContent = hints[roomDraw.mode] || '';
-}
-window.updateRoomDrawModeButtons = updateRoomDrawModeButtons;
 
 function onRoomDrawFreeAngleToggle(){
   const chk = document.getElementById('inRoomDrawFreeAngle');
@@ -8979,29 +8775,6 @@ function roomDrawFindPointNear(pt, radiusMm){
   return -1;
 }
 
-// 🆕 لوضع "مؤشر": منلاقي أقرب ضلع (خط بين نقطتين متتاليتين) لنقطة معيّنة - بيرجع index النقطة يلي
-// بيبلّش منها الضلع (نفس ترقيم segsHtml بـ buildRoomSVG: الضلع i بين النقطة i والنقطة i+1).
-function roomDrawFindSegmentNear(pt, radiusMm){
-  const pts = roomDraw.points;
-  const n = pts.length;
-  if(n < 2) return -1;
-  const edgeCount = n>=3 ? n : n-1; // شكل مغلق (≥3 نقاط) = عدد أضلاع مساوي لعدد النقاط، غير هيك خط مفتوح
-  let best = -1, bestD = radiusMm;
-  for(let i=0; i<edgeCount; i++){
-    const j = (i+1)%n;
-    const a = pts[i], b = pts[j];
-    const abx = b.x-a.x, aby = b.y-a.y;
-    const lenSq = abx*abx + aby*aby;
-    if(lenSq < 1) continue;
-    let t = ((pt.x-a.x)*abx + (pt.y-a.y)*aby) / lenSq;
-    t = Math.max(0, Math.min(1, t));
-    const px = a.x + abx*t, py = a.y + aby*t;
-    const d = Math.hypot(px-pt.x, py-pt.y);
-    if(d <= bestD){ bestD = d; best = i; }
-  }
-  return best;
-}
-
 function roomDrawEventPoint(evt){
   const svg = evt.currentTarget;
   const rect = svg.getBoundingClientRect();
@@ -9011,35 +8784,13 @@ function roomDrawEventPoint(evt){
   return { x: v.x0 + (px/ROOM_DRAW_PX_W)*v.w, y: v.y0 + (py/ROOM_DRAW_PX_H)*v.h };
 }
 
-// آلة حالات بسيطة (mousedown/move/up) - سلوكها بيختلف حسب roomDraw.mode:
-// 'pen' (قلم): دوسة عالفراغ = نقطة جديدة، سحب نقطة موجودة = نقلها، double-click عالنقطة نفسها = حذفها.
-// 'cursor' (مؤشر - الافتراضي): دوسة عالفراغ ما بتعمل ولا شي (ولا تضيف نقطة) - بس بتحدد أقرب ضلع لو
-//   كان قريب؛ دوسة عالنقطة = تحديدها؛ سحب نقطة موجودة = نقلها (تصغير/تكبير/تحريك الضلع مباشرة).
-// 'eraser' (ممحاة): دوسة عالنقطة = حذفها فورًا (بدون داعي لسحب أو double-click).
+// آلة حالات بسيطة (mousedown/move/up) لتمييز 3 حركات: دوسة عالفراغ = نقطة جديدة، سحب نقطة
+// موجودة = نقلها، دوسة (بدون سحب) عالنقطة نفسها = حذفها.
 function roomDrawPointerDown(evt){
   if(!roomDraw.active) return;
-  // 🆕 2026-09-25: طلب حمدي - الزر الأساسي للرسم/السحب لازم يكون الزر الأيسر بس. قبل هيك أي زر
-  // ماوس (حتى الدولاب/الزر الأوسط أو الزر الأيمن) كان عم يفعّل نفس تصرف الكليك الأيسر (إضافة/سحب
-  // نقطة) بالغلط لو انضغط فوق الرسمة.
-  if(typeof evt.button === 'number' && evt.button !== 0) return;
   if(evt.preventDefault) evt.preventDefault();
   const raw = roomDrawEventPoint(evt);
   const idx = roomDrawFindPointNear(raw, roomDrawPxRadiusToMm(11));
-  if(roomDraw.mode === 'eraser'){
-    if(idx > -1){
-      if(roomDraw.points.length <= 3){
-        alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
-      } else {
-        roomDraw.points.splice(idx, 1);
-        roomDraw.selectedPointIdx = -1;
-        roomDraw.selectedSegIdx = -1;
-      }
-    }
-    roomDraw.gesture = null;
-    roomDraw.mouse = raw;
-    renderRoomDrawCanvas();
-    return;
-  }
   roomDraw.gesture = { startClientX: evt.clientX, startClientY: evt.clientY, pointIndex: idx, dragging:false };
   roomDraw.mouse = raw;
 }
@@ -9075,78 +8826,33 @@ function roomDrawPointerUp(evt){
     renderRoomDrawCanvas();
     return;
   }
-  if(roomDraw.mode === 'cursor'){
-    // وضع المؤشر: ما منضيف ولا نحذف نقاط هون إطلاقًا - بس تحديد/تحريك.
-    if(g.dragging){
-      // خلص السحب (تصغير/تكبير/تحريك الضلع) - النقطة تحدثت مباشرة أثناء roomDrawPointerMove.
-      // منخليها "محددة" بصريًا بعد ما تحركت حتى يشوف حمدي أي نقطة عدّل عليها.
-      roomDraw.selectedPointIdx = g.pointIndex;
-      roomDraw.selectedSegIdx = -1;
-    } else if(g.pointIndex > -1){
-      // كليك عادي (بدون سحب) عالنقطة = تحديدها بس (تصفير أي تحديد سابق لضلع كامل).
-      roomDraw.selectedPointIdx = g.pointIndex;
-      roomDraw.selectedSegIdx = -1;
-    } else {
-      // كليك بالفراغ: لو قريب من ضلع (خط بين نقطتين) منحدد الضلع كامل (طرفيه صارو أوضح بالرسمة)،
-      // غير هيك منشيل أي تحديد حالي (المستخدم دوس بعيد عن كل شي = بدو يلغي التحديد).
-      const segIdx = roomDrawFindSegmentNear(raw, roomDrawPxRadiusToMm(11));
-      if(segIdx > -1){
-        roomDraw.selectedSegIdx = segIdx;
-        roomDraw.selectedPointIdx = -1;
+  if(g.dragging){
+    // خلص السحب - النقطة تحدثت مباشرة أثناء roomDrawPointerMove.
+  } else if(g.pointIndex > -1){
+    // دوسة بسيطة (بدون سحب) عالنقطة نفسها: منتحقق يدويًا إذا هاي ثاني دوسة سريعة عالنقطة نفسها
+    // (خلال أقل من 400ms من آخر دوسة عليها) = "double-click" مقصود = نحذفها فعليًا. غير هيك (دوسة
+    // وحدة بس) ما منعمل ولا شي (no-op). هاد مهم جدًا: لما توصل آخر نقطة وبدك "توصلها" مع أول نقطة
+    // لتسكّر الشكل، أكيد رح تدوس عالنقطة الأولى بكليك عادي واحد بدون سحب - قبل هيك كان هاد الكليك
+    // عم يحذفها بالغلط (وبالتالي الخط كامل يلي متصل فيها كان عم يختفي). ملاحظة تقنية: منتحقق
+    // بالتوقيت يدويًا (مش باستخدام حدث "dblclick" الجاهز من المتصفح) لأنو منعيد بناء الـ SVG كامل
+    // (innerHTML) بعد كل دوسة، وهيك بيفسد تتبّع المتصفح الداخلي للنقر المزدوج على نفس العنصر.
+    const now = Date.now();
+    const lc = roomDraw.lastClick;
+    if(lc && lc.pointIndex === g.pointIndex && (now - lc.time) < 400){
+      if(roomDraw.points.length <= 3){
+        alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
       } else {
-        roomDraw.selectedPointIdx = -1;
-        roomDraw.selectedSegIdx = -1;
+        roomDraw.points.splice(g.pointIndex, 1);
       }
+      roomDraw.lastClick = null;
+    } else {
+      roomDraw.lastClick = { pointIndex: g.pointIndex, time: now };
     }
   } else {
-    // وضع القلم (السلوك التاريخي الأصلي): دوسة عالفراغ = نقطة جديدة، سحب نقطة = نقلها،
-    // double-click عالنقطة نفسها = حذفها.
-    if(g.dragging){
-      // خلص السحب - النقطة تحدثت مباشرة أثناء roomDrawPointerMove.
-    } else if(g.pointIndex > -1){
-      // دوسة بسيطة (بدون سحب) عالنقطة نفسها: منتحقق يدويًا إذا هاي ثاني دوسة سريعة عالنقطة نفسها
-      // (خلال أقل من 400ms من آخر دوسة عليها) = "double-click" مقصود = نحذفها فعليًا. ملاحظة تقنية:
-      // منتحقق بالتوقيت يدويًا (مش باستخدام حدث "dblclick" الجاهز من المتصفح) لأنو منعيد بناء الـ SVG
-      // كامل (innerHTML) بعد كل دوسة، وهيك بيفسد تتبّع المتصفح الداخلي للنقر المزدوج على نفس العنصر.
-      const now = Date.now();
-      const lc = roomDraw.lastClick;
-      if(lc && lc.pointIndex === g.pointIndex && (now - lc.time) < 400){
-        if(roomDraw.points.length <= 3){
-          alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
-        } else {
-          roomDraw.points.splice(g.pointIndex, 1);
-        }
-        roomDraw.lastClick = null;
-      } else {
-        roomDraw.lastClick = { pointIndex: g.pointIndex, time: now };
-        // 🆕 2026-09-25: باغ قديم لقيناه بطلب حمدي - "عم ارسم اخر خط بين نقطتين، وحط المؤشر على
-        // النقطة اللي بدي وصل الخط فيها، وما عم يقبل يرسم الخط". السبب: قبل هالتعديل، كليك عادي
-        // (بدون سحب) فوق نقطة موجودة كان "no-op" تمامًا (ما منعمل ولا شي) - مقصود بس لمنع الحذف
-        // بالغلط (شوف الشرح يلي كان هون فوق)، بس هيك خلى إنو ما في ولا طريقة توصل خط جديد لنقطة
-        // موجودة أصلًا (غير آخر نقطة انضافت). الحل: كليك عادي عالنقطة الأولى (بعد ما صار عندك 3
-        // نقاط عالأقل) = نفس معنى "إنهاء وتحويل لأضلاع" (تسكير الشكل من هون بالضبط - نفس تصرف أي
-        // برنامج رسم مضلعات/CAD). كليك عادي عالنقطة الأخيرة نفسها (يلي هي أصلًا آخر نقطة بالرسمة) =
-        // ما في داعي نضيف شي (نفس مكانها بالضبط). كليك عادي عالنقطة أي نقطة تانية موجودة (نص الشكل
-        // مثلاً) = منضيف نقطة جديدة بنفس مكان هاي النقطة بالضبط - هيك بيترسم خط حقيقي من آخر نقطة
-        // لهون، بدون ما نلمس/نحرّك النقطة الأصلية إطلاقًا.
-        const isLastPointItself = (g.pointIndex === roomDraw.points.length - 1);
-        if(!isLastPointItself){
-          if(g.pointIndex === 0 && roomDraw.points.length >= 3){
-            finishRoomFreehandDraw();
-            return;
-          } else {
-            const target = roomDraw.points[g.pointIndex];
-            roomDraw.points.push({ x: target.x, y: target.y });
-            roomDraw.lastClick = null;
-          }
-        }
-      }
-    } else {
-      // g موجود وgesture.pointIndex === -1: يعني كان في mousedown حقيقي بلش من فوق فراغ فاضي بنفس
-      // الرسمة، وهلق وصل mouseup المطابق إلو = دوسة (أو سحب) حقيقية = نقطة جديدة.
-      roomDraw.points.push(roomDrawNextPointCandidate(raw));
-      roomDraw.lastClick = null;
-    }
+    // g موجود وgesture.pointIndex === -1: يعني كان في mousedown حقيقي بلش من فوق فراغ فاضي بنفس
+    // الرسمة، وهلق وصل mouseup المطابق إلو = دوسة (أو سحب) حقيقية = نقطة جديدة.
+    roomDraw.points.push(roomDrawNextPointCandidate(raw));
+    roomDraw.lastClick = null;
   }
   roomDraw.gesture = null;
   renderRoomDrawCanvas();
@@ -9272,70 +8978,23 @@ function renderRoomDrawCanvas(){
   const gy0 = Math.floor(v.y0/step)*step, gy1 = Math.ceil((v.y0+v.h)/step)*step;
   for(let gy=gy0; gy<=gy1; gy+=step){ const py = mmToPx({x:v.x0,y:gy}).y; gridLines += `<line x1="0" y1="${py.toFixed(1)}" x2="${W}" y2="${py.toFixed(1)}" stroke="#eee" stroke-width="1"/>`; }
   const pts = roomDraw.points.map(mmToPx);
-  const n = pts.length;
-  // 🆕 2026-09-25: أي نقطة "بالضوء" حاليًا (محددة لحالها بوضع المؤشر، أو طرف ضلع محدد كامل) - بتتلوّن
-  // ومقاسها بيكبر شوي بالرسمة حتى يبين واضح وين بالضبط ماسك حمدي/رح يمسك ليسحب.
-  const highlightPts = new Set();
-  if(roomDraw.selectedPointIdx > -1 && roomDraw.selectedPointIdx < n) highlightPts.add(roomDraw.selectedPointIdx);
-  if(roomDraw.selectedSegIdx > -1 && n > 1){
-    const si = roomDraw.selectedSegIdx, sj = (si+1)%n;
-    highlightPts.add(si); highlightPts.add(sj);
-  }
-  let pathSvg = '', closeSvg = '', rubberSvg = '', segHighlightSvg = '';
+  let pathSvg = '', closeSvg = '', rubberSvg = '';
   if(pts.length){
     pathSvg += `<polyline points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="#0f88cd" stroke-width="2.5"/>`;
-  }
-  if(roomDraw.selectedSegIdx > -1 && n > 1){
-    const a = pts[roomDraw.selectedSegIdx], b = pts[(roomDraw.selectedSegIdx+1)%n];
-    if(a && b) segHighlightSvg = `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#e0862a" stroke-width="5" stroke-linecap="round" opacity="0.85"/>`;
-  }
-  if(pts.length){
-    pts.forEach((p,i)=>{
-      const isFirst = i===0;
-      let fill = isFirst ? '#1e7a3d' : '#0f88cd';
-      if(roomDraw.mode === 'eraser') fill = isFirst ? '#8b3a3a' : '#c0392b';
-      const isHi = highlightPts.has(i);
-      const r = isHi ? 8 : 6;
-      const stroke = isHi ? '#e0862a' : '#fff';
-      const strokeW = isHi ? 3 : 1.5;
-      pathSvg += `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeW}"/><text x="${p.x+8}" y="${p.y-8}" font-size="10" fill="#666">${i+1}</text>`;
-    });
+    pts.forEach((p,i)=>{ pathSvg += `<circle cx="${p.x}" cy="${p.y}" r="6" fill="${i===0?'#1e7a3d':'#0f88cd'}" stroke="#fff" stroke-width="1.5"/><text x="${p.x+8}" y="${p.y-8}" font-size="10" fill="#666">${i+1}</text>`; });
   }
   if(pts.length > 2){
     closeSvg = `<line x1="${pts[pts.length-1].x}" y1="${pts[pts.length-1].y}" x2="${pts[0].x}" y2="${pts[0].y}" stroke="#bbb" stroke-width="1.5" stroke-dasharray="3,3"/>`;
   }
   const draggingNow = !!(roomDraw.gesture && roomDraw.gesture.dragging);
-  // خط الـ"مطاط" (معاينة الخط الجاي) بس بوضع القلم - بوضع المؤشر/الممحاة ما في نقطة جديدة رح تنضاف.
-  if(roomDraw.mode === 'pen' && roomDraw.points.length && roomDraw.mouse && !draggingNow){
+  if(roomDraw.points.length && roomDraw.mouse && !draggingNow){
     const lastMm = roomDraw.points[roomDraw.points.length-1];
     const targetMm = roomDrawNextPointCandidate(roomDraw.mouse);
     const last = mmToPx(lastMm), target = mmToPx(targetMm);
     rubberSvg = `<line x1="${last.x}" y1="${last.y}" x2="${target.x}" y2="${target.y}" stroke="#e0862a" stroke-width="2" stroke-dasharray="5,4"/>`;
   }
-  // 🆕 2026-09-25: طلب حمدي - مؤشر متل الأوتوكاد: خطين (أفقي وعمودي) عابرين لكامل الرسمة من مكان
-  // الماوس بالضبط، مع رقمين واضحين (X وY بالمليمتر) يبيّنوا وين هاي النقطة تمامًا على كل محور - هيك
-  // بيقدر يحاذي نقطة جديدة مع نقطة موجودة (نفس X أو نفس Y) بس ينظر للرقمين، حتى وهو عم يسحب نقطة.
-  let crosshairSvg = '';
-  if(roomDraw.mouse){
-    const mp = mmToPx(roomDraw.mouse);
-    const xLabel = Math.round(roomDraw.mouse.x), yLabel = Math.round(roomDraw.mouse.y);
-    const boxW = 92, boxH = 30;
-    let boxX = mp.x + 12, boxY = mp.y - boxH - 8;
-    if(boxX + boxW > W) boxX = mp.x - boxW - 12;
-    if(boxY < 2) boxY = mp.y + 12;
-    crosshairSvg = `
-      <line x1="${mp.x.toFixed(1)}" y1="0" x2="${mp.x.toFixed(1)}" y2="${H}" stroke="#e0862a" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/>
-      <line x1="0" y1="${mp.y.toFixed(1)}" x2="${W}" y2="${mp.y.toFixed(1)}" stroke="#e0862a" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/>
-      <text x="${(mp.x+3).toFixed(1)}" y="12" font-size="10" font-weight="700" fill="#e0862a" font-family="monospace">${xLabel}</text>
-      <text x="3" y="${(mp.y-4).toFixed(1)}" font-size="10" font-weight="700" fill="#e0862a" font-family="monospace">${yLabel}</text>
-      <rect x="${boxX.toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxW}" height="${boxH}" rx="4" fill="rgba(20,20,22,0.82)"/>
-      <text x="${(boxX+8).toFixed(1)}" y="${(boxY+13).toFixed(1)}" font-size="10.5" fill="#ffe08a" font-family="monospace">X: ${xLabel} mm</text>
-      <text x="${(boxX+8).toFixed(1)}" y="${(boxY+25).toFixed(1)}" font-size="10.5" fill="#ffe08a" font-family="monospace">Y: ${yLabel} mm</text>
-    `;
-  }
-  const cursorStyle = roomDraw.mode === 'pen' ? 'crosshair' : (roomDraw.mode === 'eraser' ? 'cell' : 'default');
-  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;height:auto;aspect-ratio:${W}/${H};max-width:${W}px;cursor:${cursorStyle};touch-action:none;user-select:none;" onmousedown="roomDrawPointerDown(event)" onmousemove="roomDrawPointerMove(event)" onmouseup="roomDrawPointerUp(event)" onmouseleave="roomDrawPointerLeave()" onwheel="roomDrawCanvasWheel(event)">
-    ${gridLines}${closeSvg}${segHighlightSvg}${pathSvg}${rubberSvg}${crosshairSvg}
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;height:auto;aspect-ratio:${W}/${H};max-width:${W}px;cursor:crosshair;touch-action:none;user-select:none;" onmousedown="roomDrawPointerDown(event)" onmousemove="roomDrawPointerMove(event)" onmouseup="roomDrawPointerUp(event)" onmouseleave="roomDrawPointerLeave()" onwheel="roomDrawCanvasWheel(event)">
+    ${gridLines}${closeSvg}${pathSvg}${rubberSvg}
   </svg>`;
 }
 
@@ -9392,12 +9051,11 @@ let room3D = { renderer:null, scene:null, camera:null, controls:null, animId:nul
 
 // نفس منطق المشي حول الأضلاع يلي بـbuildRoomSVG بالضبط (نسخة منفصلة بدل ما نعدّل الأصلية، حتى ما
 // نخاطر نكسر معاينة الأرضية 2D يلي شغالة ومجربة) - بيرجع نقاط المضلع بالمم.
-// نفس منطق المشي حول الأضلاع (طول+زاوية داخلية لكل ضلع) - معمّمة لأي قائمة أضلاع (أرضية أو سقف)
-// حتى تصير قابلة لإعادة الاستخدام بدون ما نكرر نفس الحساب بمكان تاني.
-function computeSidesPolygonMM(sides){
+function computeRoomPolygonMM(it){
+  const sides = it.roomSides || [];
   let bearing = 0, x = 0, y = 0;
   const pts = [{x,y}];
-  (sides||[]).forEach(s=>{
+  sides.forEach(s=>{
     const rad = bearing * Math.PI/180;
     const nx = x + s.length*Math.cos(rad), ny = y + s.length*Math.sin(rad);
     x = nx; y = ny;
@@ -9405,9 +9063,6 @@ function computeSidesPolygonMM(sides){
     bearing += (180 - (s.angleDeg||90));
   });
   return pts;
-}
-function computeRoomPolygonMM(it){
-  return computeSidesPolygonMM(it.roomSides || []);
 }
 
 // خامة/texture مبسّطة لمنظور الجدار (بدون خلفية/انعكاسات/أبعاد متل build3DRenderSVG - هيدي بس
@@ -9516,40 +9171,6 @@ function room3DResolveSegmentItem(seg){
   return items.find(i => i.sourceRowUid === seg.rowUid) || null;
 }
 
-// 🆕 2026-09-25: طلب حمدي - "بدي الأبعاد اللي مذكورة تكون واقعية وحقيقية عالثري دي" - مش بس نثق إنو
-// الهندسة صحيحة رياضيًا (وهيي فعلًا صحيحة - كل جزء بياخد بالضبط طولو الحقيقي بالمم مباشرة بالمشهد،
-// شوف segLenMM جوا buildRoom3DScene تحت)، بل منّورّي الرقم الحقيقي (مم) فعليًا معلّق فوق كل جزء
-// بالمشهد الثلاثي الأبعاد نفسو - هيك المستخدم بيقدر يتأكد بعينو مباشرة إنو الرقم يلي كاتبه هو
-// بالضبط يلي طالع، بدل ما يعتمد بس عالانطباع البصري (يلي ممكن ياخد فكرة غلط بسبب منظور الكاميرا -
-// الأشياء الأبعد عن الكاميرا بتبين أصغر بأي مشهد ثلاثي الأبعاد حقيقي، تمامًا متل الصورة الفوتوغرافية،
-// وهاد طبيعي وليس خطأ بالمقاس).
-function makeMMLabelSprite3D(text){
-  const canvas = document.createElement('canvas');
-  const padX = 22;
-  canvas.width = 256; canvas.height = 96;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.font = 'bold 44px monospace';
-  const textW = ctx.measureText(text).width;
-  const boxW = Math.min(canvas.width, textW + padX*2);
-  const boxX = (canvas.width-boxW)/2;
-  ctx.fillStyle = 'rgba(20,20,22,0.82)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(boxX, 18, boxW, 60, 12); else ctx.rect(boxX, 18, boxW, 60);
-  ctx.fill();
-  ctx.fillStyle = '#ffe08a';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, canvas.width/2, 48);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:true });
-  const sprite = new THREE.Sprite(mat);
-  const worldH = 0.32; // ارتفاع ثابت بالمتر بالعالم الحقيقي - عريضة كفاية تنقرا وقريبة كفاية ما تصير مزعجة
-  sprite.scale.set(worldH * (canvas.width/canvas.height), worldH, 1);
-  return sprite;
-}
-
 // 🆕 2026-09-24: طلب حمدي - "خلي الثري دي تبع المصمم يكون تصميم حقيقي" - بدل ما نلزق صورة مسطحة
 // (texture) فوق صندوق للحيط المصمم، هلق منبني مجسم ثلاثي الأبعاد حقيقي: إطارات بارزة فعليًا بعمق
 // (صناديق رفيعة ببروز حقيقي، مش خطوط مرسومة)، زجاج غاطس شفاف بين الإطارات، عوارض (mullions) حقيقية
@@ -9565,10 +9186,7 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
 
   const FRAME_DEPTH = Math.min(0.09, Math.max(0.045, thicknessM));
   const GLASS_DEPTH = Math.max(0.006, thicknessM*0.18);
-  // 🆕 2026-09-25: طلب حمدي - "التقسيمات (نوافذ/أبواب) مو موضحة عالثري دي" - كبّرنا الحد الأدنى لعرض
-  // الإطار/العارضة شوي (كان ممكن يصير رفيع جدًا وغير محسوس بصريًا من بعيد بمقاسات الغرفة الكبيرة)
-  // حتى تضل التقسيمات واضحة للعين حتى من زاوية بعيدة، بدون ما نأثر عالمقاس الحقيقي للزجاج/الفتحة نفسها.
-  const frameW = Math.max(0.045, Math.min(W,H)*0.035);
+  const frameW = Math.max(0.03, Math.min(W,H)*0.032);
   const frameMat = new THREE.MeshStandardMaterial({ color:0x1c1d20, roughness:0.55, metalness:0.25 });
   const glassMat = new THREE.MeshPhysicalMaterial({ color:0xbfe3f0, transparent:true, opacity:0.32, roughness:0.08, metalness:0, clearcoat:0.4, side:THREE.DoubleSide });
   const louverMat = new THREE.MeshStandardMaterial({ color:0x2a2d31, roughness:0.65, side:THREE.DoubleSide });
@@ -9616,7 +9234,7 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
       walk(ch.node, cx, cy, cw, chh);
       cum += size;
       if(i < node.children.length-1){
-        const barW = Math.max(0.05, frameW*1.3);
+        const barW = Math.max(0.03, frameW*1.1);
         if(node.direction==='row') box(x+cum, y+h/2, barW, h, FRAME_DEPTH, frameMat);
         else box(x+w/2, y+cum, w, barW, FRAME_DEPTH, frameMat);
       }
@@ -9699,17 +9317,9 @@ async function buildRoom3DScene(it, wrap){
   floorMesh.rotation.x = -Math.PI/2;
   scene.add(floorMesh);
 
-  // 🆕 2026-09-24: طلب حمدي - السقف إلو شكل خاص فيه ممكن يختلف عن الأرضية (بروزات...) - منجيبو من
-  // ceilingSides (افتراضيًا نفس شكل الأرضية، إلا إذا المستخدم عدّل عليه من لوحة "🏗️ السقف").
-  const ceilingPts = computeSidesPolygonMM(ensureCeilingSides(it));
-  const ceilingShape = new THREE.Shape();
-  ceilingPts.slice(0, ceilingPts.length-1).forEach((p,i)=>{
-    const X = p.x*MMTOM, Y = p.y*MMTOM;
-    if(i===0) ceilingShape.moveTo(X,Y); else ceilingShape.lineTo(X,Y);
-  });
-  ceilingShape.closePath();
+  // سقف بسيط (نفس شكل الأرضية) فوق - عشان المبنى يطلع متكامل من برا
   const roofMesh = new THREE.Mesh(
-    new THREE.ShapeGeometry(ceilingShape),
+    new THREE.ShapeGeometry(shape),
     new THREE.MeshStandardMaterial({ color:0x5a4a3a, roughness:0.8, side:THREE.DoubleSide })
   );
   roofMesh.rotation.x = -Math.PI/2;
@@ -9753,12 +9363,6 @@ async function buildRoom3DScene(it, wrap){
       mesh.position.set(midX*MMTOM, heightM/2, -midY*MMTOM);
       mesh.rotation.y = rad;
       scene.add(mesh);
-
-      // 🆕 2026-09-25: بطاقة صغيرة معلّقة فوق كل جزء بتبيّن طولو الحقيقي بالمم - إثبات مباشر إنو
-      // المقاس المرسوم مطابق تمامًا لللي دخّله المستخدم، بغض النظر شو الانطباع البصري من بعيد.
-      const label = makeMMLabelSprite3D(Math.round(segLenMM) + ' mm');
-      label.position.set(midX*MMTOM, heightM + 0.22, -midY*MMTOM);
-      scene.add(label);
     }
   }
 
@@ -10020,7 +9624,7 @@ function renderRoomSidesUI(it){
       return `
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 6px 4px 22px;border-radius:6px;margin-bottom:4px;${isWall?'background:rgba(141,110,99,0.08);':''}">
         ${segs.length>1 ? `<span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);min-width:40px;">جزء ${segIdx+1}</span>` : ''}
-        <input type="text" inputmode="decimal" min="50" style="width:74px;" value="${Math.round(seg.length)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onRoomSegField(${it.id},'${s.id}','${seg.id}','length',this.value)" title="طول هاد الجزء (مم) - تقدر تكتب مثلاً 3000+250">
+        <input type="number" min="50" style="width:74px;" value="${Math.round(seg.length)}" onchange="onRoomSegField(${it.id},'${s.id}','${seg.id}','length',this.value)" title="طول هاد الجزء (مم)">
         <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
         <button class="small" onclick="toggleRoomSegKind(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;" title="حوّل هاد الجزء بس (مش الضلع كامل) بين تصميم عادي وحائط/جدار">${isWall ? '🎨 رجّعه تصميم' : '🧱 حوّله حائط'}</button>
         ${designHtml}
@@ -10042,56 +9646,6 @@ function renderRoomSidesUI(it){
   }).join('');
   const previewEl = document.getElementById('roomFloorPreview');
   if(previewEl) previewEl.innerHTML = buildRoomSVG(it);
-  renderCeilingSidesUI(it); // السقف بيتحدّث لحاله كل مرة الأرضية بتتحدّث - نفس فكرة معاينة الأرضية
-}
-
-function renderCeilingSidesUI(it){
-  const list = document.getElementById('ceilingSidesList');
-  if(!list) return;
-  const sides = ensureCeilingSides(it);
-  list.innerHTML = sides.map((s, idx)=>`
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:4px;">
-      <span style="font-size:12px;font-weight:700;min-width:50px;">ضلع ${idx+1}</span>
-      <input type="text" inputmode="decimal" min="1" style="width:80px;" value="${Math.round(s.length)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onCeilingSideField(${it.id},'${s.id}','length',this.value)" title="طول هاد الضلع بالسقف (مم) - تقدر تكتب مثلاً 3000+250">
-      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
-      <input type="number" min="1" max="359" style="width:64px;" value="${Math.round(s.angleDeg)}" onchange="onCeilingSideField(${it.id},'${s.id}','angleDeg',this.value)" title="الزاوية الداخلية لهاد الضلع بالسقف">
-      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">°</span>
-    </div>`).join('');
-  const previewEl = document.getElementById('ceilingPreview');
-  if(previewEl) previewEl.innerHTML = buildCeilingSVG(it);
-}
-window.renderCeilingSidesUI = renderCeilingSidesUI;
-
-// رسمة تخطيطية للسقف من فوق - نفس فكرة buildRoomSVG بالضبط بس عالأضلاع الخاصة بالسقف (بدون segments
-// لأنو السقف مجرد شكل، مش بند تصميم/سعر).
-function buildCeilingSVG(it){
-  const sides = ensureCeilingSides(it);
-  if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">لسا ما في شكل أرضية كافي (عالأقل 3 أضلاع)</div>';
-  const pts = computeSidesPolygonMM(sides);
-  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  const rangeW = Math.max(1, maxX-minX), rangeH = Math.max(1, maxY-minY);
-  const boxPx = 260;
-  const scale = Math.min(boxPx/rangeW, boxPx/rangeH);
-  const pad = 40;
-  const toPx = p => ({ x:(p.x-minX)*scale, y:(p.y-minY)*scale });
-  const pxPts = pts.map(toPx);
-  const polyStr = pxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
-  const totalW = rangeW*scale + pad*2, totalH = rangeH*scale + pad*2;
-  let labelsSvg = '';
-  for(let i=0;i<sides.length;i++){
-    const p1 = pxPts[i], p2 = pxPts[i+1];
-    let dirDeg = Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI;
-    dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
-    if(dirDeg > 90 && dirDeg < 270) dirDeg -= 180;
-    const mx = (p1.x+p2.x)/2, my = (p1.y+p2.y)/2;
-    labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my-6})">${Math.round(sides[i].length)} mm</text>`;
-  }
-  return `
-  <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
-    <polygon points="${polyStr}" fill="var(--wd-glass, rgba(160,140,110,0.28))" stroke="var(--wd-ink)" stroke-width="2"/>
-    ${labelsSvg}
-  </svg>`;
 }
 
 // رسمة تخطيطية للأرضية من فوق (2D top-down) - نمشي حول الأضلاع (طول+زاوية داخلية) بادئين من (0,0)
@@ -10125,17 +9679,11 @@ function buildRoomSVG(it){
   // اسمنتي" بدل تصميم زجاج عادي (مثلاً 1.5 متر حائط وباقي الضلع زجاج). كل ضلع بمشي عليه (طول+زاوية)
   // زي ما هو دايمًا بغض النظر عن الأقسام - هون بس منقسم كل حافة (edge) بالمخطط لأجزاء ملوّنة نسبةً
   // لطول كل قسم (segment) جواها، ومنحط أيقونة 🧱 جنب طول أي قسم حائط حتى يتميز بالمخطط.
-  // 🆕 2026-09-25: طلب حمدي - "اخترت المسقط وماعم اقدر عدل المقاسات من عليه - من على الصورة بقصد
-  // متل اي بند آخر". بالتصاميم العادية (نافذة/باب) الرقم المرسوم فوق الرسمة نفسو قابل للضغط والتعديل
-  // مباشرة (editLeafDim) - نفس المنطق هلق صار متاح هون: كل رقم طول مرسوم فوق المسقط قابل للضغط
-  // (بدل ما تضطر تنزل لقائمة الحقول تحت) وبيفتح نفس آلية onRoomSegField الموجودة أصلًا.
-  // ensureRoomSideSegments(side) بدل الاعتماد على fallback مؤقت بدون id حقيقي - لازم id حقيقي لكل
-  // قسم حتى نقدر نناديه من onclick بالرسمة.
   let edgesSvg = '', labelsSvg = '';
   for(let i=0; i<sides.length; i++){
     const side = sides[i];
     const p1 = pxPts[i], p2 = pxPts[i+1];
-    const segs = ensureRoomSideSegments(side);
+    const segs = (side.segments && side.segments.length) ? side.segments : [{ length:side.length, kind:'design' }];
     const totalLen = segs.reduce((a,g)=>a+(g.length||0),0) || side.length || 1;
     let dirDeg = Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI;
     dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
@@ -10149,7 +9697,7 @@ function buildRoomSVG(it){
       edgesSvg += `<line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${isWall ? '#8d6e63' : 'var(--wd-ink)'}" stroke-width="${isWall ? 5 : 2}" stroke-linecap="round"/>`;
       const mx = (sx1+sx2)/2, my = (sy1+sy2)/2;
       const wallTag = isWall ? '🧱 ' : '';
-      labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="${isWall ? '#8d6e63' : 'var(--wd-ink)'}" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" style="cursor:pointer;" transform="rotate(${dirDeg}, ${mx}, ${my-6})" onclick="event.stopPropagation();editRoomSegLengthFromSVG(${it.id},'${side.id}','${seg.id}',${Math.round(seg.length)})">${wallTag}${Math.round(seg.length)} mm</text>`;
+      labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="${isWall ? '#8d6e63' : 'var(--wd-ink)'}" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my-6})">${wallTag}${Math.round(seg.length)} mm</text>`;
     });
   }
   return `
@@ -10380,8 +9928,6 @@ function onDividerDblClick(e, rectEl){
 let lastDividerClick = null; // { itemId, nodeId, idx, time } - لتتبّع الضغط المزدوج يدويًا لأنه dblclick الطبيعي بينمنع بسبب preventDefault على pointerdown
 
 function onDragStart(e, rectEl){
-  // 🆕 2026-09-25: طلب حمدي - نفس منطق زر الرسم: بس الزر الأيسر بيسحب/يفصل - مش الزر الأوسط ولا الأيمن
-  if(typeof e.button === 'number' && e.button !== 0) return;
   e.preventDefault();
   e.stopPropagation();
   const itemId0 = parseInt(rectEl.dataset.item);
@@ -11339,7 +10885,6 @@ function renderCameraFrame(){
 }
 
 function camHandleDragStart(e){
-  if(typeof e.button === 'number' && e.button !== 0) return; // 🆕 2026-09-25: نفس منطق الزر الأيسر بس
   e.preventDefault();
   camHandleDrag = { corner: e.currentTarget.dataset.corner, svg: document.getElementById('cameraOverlaySvg') };
 }
@@ -11895,27 +11440,7 @@ function build3DRenderSVG(it){
   const dimTop = renderDimChain(widthChain, 'x', -18, dimColor);
   const dimSide = renderDimChain(heightChain, 'y', drawW+18, dimColor);
 
-  // 🆕 2026-09-25: طلب حمدي - "المقاس يلي بدخّلو (عرض/ارتفاع البند) هو من برا لبرا، بدي هالمقاس يطلع
-  // عالرسمة هيك". قبل هيك، رسمة المصمم الحيّة (هون بس - ورقة الطباعة/العرض أصلًا فيها هالخط من زمان،
-  // شوف "(خارجي)" بفنكشن buildItemPrintSVG) كانت بس عم تبيّن قياس الزجاج الصافي (بعد خصم سماكة
-  // الألمنيوم - netMap) بدون أي إشارة للمقاس الإجمالي الخارجي يلي فعليًا دخّلو المستخدم. هلق منضيف
-  // خط قياس إضافي "إجمالي (خارجي)" أبعد شوي عن الرسمة (بدون ما نلغي خط الزجاج الصافي الموجود -
-  // البندين مفيدين، وحمدي عارف بوجود ميزة قياس الزجاج الصافي أصلًا وموافق تضل).
-  const outerColor = '#A15C1E';
-  const outerTopY = -34;
-  const outerSideX = drawW + 34;
-  const dimTopOuter = `
-    <line x1="0" y1="${outerTopY}" x2="${drawW}" y2="${outerTopY}" stroke="${outerColor}" stroke-width="1.2"/>
-    <line x1="0" y1="${outerTopY-5}" x2="0" y2="${outerTopY+5}" stroke="${outerColor}" stroke-width="1.2"/>
-    <line x1="${drawW}" y1="${outerTopY-5}" x2="${drawW}" y2="${outerTopY+5}" stroke="${outerColor}" stroke-width="1.2"/>
-    <text x="${drawW/2}" y="${outerTopY-9}" fill="${outerColor}" font-size="12" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(W)} mm (خارجي)</text>`;
-  const dimSideOuter = `
-    <line x1="${outerSideX}" y1="0" x2="${outerSideX}" y2="${drawH}" stroke="${outerColor}" stroke-width="1.2"/>
-    <line x1="${outerSideX-5}" y1="0" x2="${outerSideX+5}" y2="0" stroke="${outerColor}" stroke-width="1.2"/>
-    <line x1="${outerSideX-5}" y1="${drawH}" x2="${outerSideX+5}" y2="${drawH}" stroke="${outerColor}" stroke-width="1.2"/>
-    <text x="${outerSideX+13}" y="${drawH/2}" fill="${outerColor}" font-size="12" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" transform="rotate(90, ${outerSideX+13}, ${drawH/2})">${Math.round(H)} mm (خارجي)</text>`;
-
-  const bgPad = 44, topPad = 50, sidePad = 76, botPad = drawH*0.6+20;
+  const bgPad = 44, topPad = 34, sidePad = 60, botPad = drawH*0.6+20;
   const vbX = -bgPad-sidePad*0.3, vbY = -bgPad-topPad;
   const vbW = drawW+bgPad*2+sidePad, vbH = drawH+bgPad+topPad+botPad;
   return `<svg viewBox="${vbX} ${vbY} ${vbW} ${vbH}" width="100%" style="max-width:520px;" xmlns="http://www.w3.org/2000/svg">
@@ -11940,8 +11465,6 @@ function build3DRenderSVG(it){
     <g pointer-events="none">${symbols}</g>
     ${dimTop}
     ${dimSide}
-    ${dimTopOuter}
-    ${dimSideOuter}
   </svg>`;
 }
 
