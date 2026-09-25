@@ -4935,13 +4935,22 @@ async function scanDriveSubfolderAcrossBranches(token, subfolderName){
   return results;
 }
 
-async function refreshDraftsAndDesigns(){
+// 🆕 2026-09-25: طلب حمدي - "لما بفتح تبويب المسودات ما عم يطلع شي قبل ما اضغط تحديث". السبب: هاد
+// الفنكشن كان دايمًا بيطلب توكن جوجل بوضعية "غير صامتة" (silent=false) حتى لما ينادى تلقائيًا فور
+// فتح التبويب (showDraftsDesignsView تحت) - يعني أول ما تفتح التبويب، لو ما في توكن صالح محفوظ
+// وخدمة السيرفر ما ردّت، كان بيحاول يفتح نافذة تسجيل دخول جوجل حقيقية بدون أي "كبسة" مستخدم حقيقية
+// ورا هالطلب تحديدًا (فتح التبويب نفسه مش بالضرورة كافي بنظر المتصفح) - فبيتحجب صامتًا (popup blocked)
+// ومنقعد عالنص "⏳ عم نجيب..." أو رسالة خطأ لحد ما يضغط "🔄 تحديث" يدويًا (كبسة حقيقية طازة بتنجح).
+// الحل: فرّقنا بين النداء التلقائي (تلقائي = صامت، prompt:none، بدون أي نافذة - إذا ما في توكن جاهز
+// هلق منعرض رسالة بسيطة "اضغط تحديث" بدل ما نعلق) والنداء اليدوي من زر "🔄 تحديث" (تفاعلي حقيقي،
+// مسموح يفتح نافذة جوجل لو احتاج).
+async function refreshDraftsAndDesigns(silent){
   const draftsArea = document.getElementById('draftsListArea');
   const designsArea = document.getElementById('designsListArea');
   if(draftsArea) draftsArea.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">⏳ عم نجيب المسودات من جوجل درايف...</p>';
   if(designsArea) designsArea.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">⏳ عم نجيب التصاميم من جوجل درايف...</p>';
   try{
-    const token = await getDashGoogleAccessToken(false);
+    const token = await getDashGoogleAccessToken(silent !== false);
     const [drafts, designs] = await Promise.all([
       scanDriveSubfolderAcrossBranches(token, '_Drafts'),
       scanDriveSubfolderAcrossBranches(token, '_Designs')
@@ -4952,8 +4961,13 @@ async function refreshDraftsAndDesigns(){
     renderDesignsList(designs);
   }catch(e){
     console.error('[سجل المسودات/التصاميم] فشل الجلب:', e);
-    if(draftsArea) draftsArea.innerHTML = '<p style="font-size:12.5px;color:var(--danger);">صار خطأ وإحنا عم نجيب المسودات: ' + escapeHtml((e && e.message) || e) + '</p>';
-    if(designsArea) designsArea.innerHTML = '<p style="font-size:12.5px;color:var(--danger);">صار خطأ وإحنا عم نجيب التصاميم: ' + escapeHtml((e && e.message) || e) + '</p>';
+    // لو كان النداء صامت (تلقائي عند فتح التبويب) وفشل لأنو ما لقى توكن جاهز بصمت (لسا ما سجّل
+    // دخول بهالجلسة)، منعرض رسالة بسيطة توجّه لزر التحديث بدل رسالة خطأ تقنية مخيفة - الزر بيفتح
+    // نافذة جوجل تفاعليًا لو احتاج (silent=false).
+    const friendlyMsg = '<p style="font-size:12.5px;color:var(--muted);">اضغط "🔄 تحديث" لجلب المسودات/التصاميم من جوجل درايف.</p>';
+    const isAuthIssue = silent !== false;
+    if(draftsArea) draftsArea.innerHTML = isAuthIssue ? friendlyMsg : ('<p style="font-size:12.5px;color:var(--danger);">صار خطأ وإحنا عم نجيب المسودات: ' + escapeHtml((e && e.message) || e) + '</p>');
+    if(designsArea) designsArea.innerHTML = isAuthIssue ? friendlyMsg : ('<p style="font-size:12.5px;color:var(--danger);">صار خطأ وإحنا عم نجيب التصاميم: ' + escapeHtml((e && e.message) || e) + '</p>');
   }
 }
 window.refreshDraftsAndDesigns = refreshDraftsAndDesigns;
@@ -5010,26 +5024,57 @@ function renderDesignsList(designs){
 // فتح مسودة: نفس آلية "🔓 آخر نسخة" بالضبط (merzona-pending-load + إعادة تحميل حقيقية لأداة عرض
 // السعر) - المسودة نفسها هيي envelope.data (نفس شكل captureFullQuotationData()، وفيها draftId
 // أصلًا - شوف saveDraftToDrive بأداة عرض السعر) فمنبعتها هيك مباشرة بدون أي تحويل إضافي.
-function openDraftFromLog(fileId, cachedList){
-  const envelope = (cachedList||[]).find(d=>d.__fileId===fileId);
-  if(!envelope || !envelope.data){ alert('تعذّر إيجاد بيانات هاي المسودة - جرّب "🔄 تحديث" وأعد المحاولة.'); return; }
-  localStorage.setItem('merzona-pending-load', JSON.stringify(envelope.data));
-  localStorage.setItem('merzona_sync_connected', '1');
-  openQuotationWithFreshLoad();
+// 🔧 2026-09-25: باغ خطير لقيناه بطلب حمدي "عدّلت مقاسات، حفظت كمسودة، رجعتلها لقيت المقاسات راحت
+// ورجعت متل قبل" - السبب: كنا معتمدين على `cachedList` (لائحة المسودات يلي انجابت آخر مرة انفتح
+// فيها التبويب/انضغط تحديث)، فلو المستخدم عدّل وحفظ نسخة جديدة من نفس المسودة بعدين رجع فتحها من
+// نفس التبويب (بدون ما يسكره ويرجع يفتحه، يعني بدون refreshDraftsAndDesigns جديد)، كان عم ينفتح
+// المحتوى القديم المخزّن بالـcachedList مش آخر نسخة محفوظة فعليًا عالدرايف. الحل: منجيب محتوى الملف
+// من جوجل درايف مباشرة بلحظة الضغط (بنفس fileId) - هيك مضمون دايمًا آخر نسخة محفوظة، بغض النظر
+// عن قدم اللائحة المعروضة.
+async function openDraftFromLog(fileId, cachedList){
+  const btn = document.querySelector('.open-draft-btn[data-file-id="'+CSS.escape(fileId)+'"]');
+  const originalLabel = btn ? btn.textContent : null;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نجيب آخر نسخة...'; }
+  try{
+    const token = await getDashGoogleAccessToken(false);
+    const text = await downloadDriveFileText(token, fileId);
+    const envelope = JSON.parse(text);
+    if(!envelope || !envelope.data) throw new Error('empty-draft-data');
+    localStorage.setItem('merzona-pending-load', JSON.stringify(envelope.data));
+    localStorage.setItem('merzona_sync_connected', '1');
+    openQuotationWithFreshLoad();
+  }catch(e){
+    console.error('[فتح مسودة] فشل جلب آخر نسخة:', e);
+    alert('تعذّر جلب آخر نسخة من هاي المسودة: ' + ((e && e.message) || e) + '\n\nجرّب "🔄 تحديث" وأعد المحاولة.');
+    if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
+  }
 }
 
 // فتح تصميم: مفتاح مختلف (merzona-pending-design-load) - index.html بيلتقطه ويفتح أداة رسّام
 // النوافذ والأبواب تلقائيًا ببنود التصميم مباشرة (شوف pendingDesignLoad/openDesignerWithImportedItems
 // جوا index.html) بدون المرور بجدول الكميات إطلاقًا.
-function openDesignFromLog(fileId, cachedList){
-  const envelope = (cachedList||[]).find(d=>d.__fileId===fileId);
-  if(!envelope){ alert('تعذّر إيجاد بيانات هاد التصميم - جرّب "🔄 تحديث" وأعد المحاولة.'); return; }
-  localStorage.setItem('merzona-pending-design-load', JSON.stringify({
-    designId: envelope.designId, name: envelope.name,
-    designItems: envelope.designItems, designNextId: envelope.designNextId
-  }));
-  localStorage.setItem('merzona_sync_connected', '1');
-  openQuotationWithFreshLoad();
+// 🔧 2026-09-25: نفس تصحيح openDraftFromLog فوق بالضبط - منجيب آخر نسخة محفوظة مباشرة من الدرايف
+// بلحظة الضغط، مش من لائحة قديمة ممكن تكون تجاوزها الزمن.
+async function openDesignFromLog(fileId, cachedList){
+  const btn = document.querySelector('.open-design-btn[data-file-id="'+CSS.escape(fileId)+'"]');
+  const originalLabel = btn ? btn.textContent : null;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نجيب آخر نسخة...'; }
+  try{
+    const token = await getDashGoogleAccessToken(false);
+    const text = await downloadDriveFileText(token, fileId);
+    const envelope = JSON.parse(text);
+    if(!envelope) throw new Error('empty-design-data');
+    localStorage.setItem('merzona-pending-design-load', JSON.stringify({
+      designId: envelope.designId, name: envelope.name,
+      designItems: envelope.designItems, designNextId: envelope.designNextId
+    }));
+    localStorage.setItem('merzona_sync_connected', '1');
+    openQuotationWithFreshLoad();
+  }catch(e){
+    console.error('[فتح تصميم] فشل جلب آخر نسخة:', e);
+    alert('تعذّر جلب آخر نسخة من هاد التصميم: ' + ((e && e.message) || e) + '\n\nجرّب "🔄 تحديث" وأعد المحاولة.');
+    if(btn){ btn.disabled = false; btn.textContent = originalLabel; }
+  }
 }
 
 // حذف (ترحيل - trashed:true، مش حذف نهائي - نفس اتفاقية بقية النظام) ملف مسودة/تصميم من جوجل درايف.
@@ -5049,8 +5094,8 @@ async function deleteDriveJsonFile(fileId, whatLabel, onDone){
   }
 }
 
-document.getElementById('refreshDraftsDesignsBtn').addEventListener('click', refreshDraftsAndDesigns);
-document.getElementById('refreshDesignsBtn').addEventListener('click', refreshDraftsAndDesigns);
+document.getElementById('refreshDraftsDesignsBtn').addEventListener('click', ()=> refreshDraftsAndDesigns(false));
+document.getElementById('refreshDesignsBtn').addEventListener('click', ()=> refreshDraftsAndDesigns(false));
 
 /* ================= رفع عرض سعر قديم (ملف HTML محفوظ يدويًا) للنظام =================
    حالة نادرة: عرض سعر تم الشغل عليه وحفظه كملف HTML على الجهاز، بس ما انحفظ أبدًا بجوجل درايف
