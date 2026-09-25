@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-27.14';
+  var CURRENT_VERSION = '2026-09-25.2';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -1420,6 +1420,32 @@
     background: transparent; border:1px solid var(--wd-line); color: var(--wd-ink-dim);
     padding:9px 14px; border-radius:7px; font-family: var(--wd-font-ui); font-weight:700;
     font-size:13px; cursor:pointer;
+  }
+
+  /* 🆕 نقل ميزة "غرفة/مجلس" من index.html - نفس الـCSS بالضبط لأداة رسم الأرضية بملء الشاشة */
+  #roomDrawWrap{
+    position:fixed; inset:0; z-index:9999; background:var(--wd-bg,#fff);
+    display:flex; flex-direction:column; box-sizing:border-box;
+  }
+  #roomDrawWrap .rd-header{
+    flex:0 0 auto; padding:10px 14px; border-bottom:1px solid var(--wd-line,#333);
+    overflow-y:auto; max-height:44vh; box-sizing:border-box;
+  }
+  #roomDrawWrap .rd-stage{
+    flex:1 1 auto; min-height:80px; position:relative; background:#f4f4f4; overflow:hidden;
+  }
+  #roomDrawWrap .rd-footer{
+    flex:0 0 auto; padding:8px 14px; border-top:1px solid var(--wd-line,#333);
+    overflow-x:auto; box-sizing:border-box;
+  }
+  #roomDrawCanvasWrap{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  }
+  #roomDrawLenBoxWrap{ position:absolute; z-index:5; display:none; pointer-events:auto; }
+  #roomDrawLenInput{
+    width:112px; padding:5px 8px; border:2px solid #e0862a; border-radius:6px;
+    font-size:13px; font-family:var(--wd-font-mono,monospace); background:#fff; color:#111;
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
   }
 
 </style>
@@ -4817,6 +4843,9 @@ window.wdApplyBack = function(results){
         <div class="add-row" style="margin-top:6px;">
           <button onclick="addItem('handrail')" style="flex:1;">🛡️ + هاندريل (درابزين) جديد</button>
         </div>
+        <div class="add-row" style="margin-top:6px;">
+          <button onclick="addItem('room')" style="flex:1;">🏛️ + غرفة/مجلس جديد</button>
+        </div>
       </div>
 
       <div class="field-block">
@@ -4946,6 +4975,77 @@ window.wdApplyBack = function(results){
             <input type="number" id="inHrHeight" min="200" oninput="onHandrailHeightChange()" value="1200">
           </div>
           <p class="hint" style="margin-top:8px;">فاصل ثابت 5mm بين كل لوح وللي جنبه. كل الألواح بنفس الجزء الواحد لازم تكون متساوية بالمقاس.</p>
+        </div>
+
+        <!-- 🆕 نقل ميزة "غرفة/مجلس" كاملة من index.html: مخطط أرضية بعدة أضلاع (طول + زاوية لكل ضلع)،
+             كل ضلع بيصير بند تصميم عادي مستقل بجدول عرض السعر لما ينصمم. -->
+        <div style="margin-top:10px; display:none;" id="roomBlock">
+          <div>
+            <label>ارتفاع الغرفة الافتراضي (مم) - بيُستخدم كارتفاع مبدئي لأي ضلع جديد لما ينصمم</label>
+            <input type="text" inputmode="decimal" id="inRoomHeight" min="1000" oninput="restrictMeasureChars(this);onRoomHeightChange()" onblur="evalMeasureField(this);onRoomHeightChange()" value="2500">
+          </div>
+          <div style="margin:10px 0;padding:8px;border:1px dashed var(--wd-line,#555);border-radius:8px;">
+            <button type="button" class="small" onclick="toggleRoomFreehandDraw()" style="width:100%;">✏️ ارسم شكل الأرضية بالفأرة (بدل التعبئة اليدوية)</button>
+            <div id="roomDrawWrap" style="display:none;">
+              <div class="rd-header">
+                <div class="add-row" style="margin-bottom:6px;">
+                  <button type="button" class="small danger" style="flex:1;font-weight:700;" onclick="startRoomDrawFresh()">🆕 ابدأ رسمة فاضية من نقطة أنا بحددها (يمسح الشكل الحالي كامل)</button>
+                </div>
+                <div class="shape-toggle" style="margin-bottom:8px;">
+                  <button type="button" id="btnRoomDrawModeCursor" onclick="setRoomDrawMode('cursor')" class="active">🖱️ مؤشر (تحديد وتحريك)</button>
+                  <button type="button" id="btnRoomDrawModePen" onclick="setRoomDrawMode('pen')">✏️ قلم (رسم خطوط)</button>
+                  <button type="button" id="btnRoomDrawModeEraser" onclick="setRoomDrawMode('eraser')">🧹 ممحاة (محي نقطة/خط)</button>
+                </div>
+                <p class="hint" id="roomDrawModeHint" style="margin-top:-4px;"></p>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
+                  <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (استثناء نادر - بدون قفل ٩٠°)
+                </label>
+                <p class="hint">فتح الرسم بيعرضلك تلقائيًا شكل الغرفة الحالي (مربع 3×3م افتراضيًا لغرفة جديدة) - هاد مش شرط تبلش منّو. دوس الزر الأحمر فوق أي وقت بدك تمسح كل شي وتبلش من الصفر: أول كليك بعدها بيصير هو نقطة البداية بالظبط وين ما حطيت الماوس. بوضع القلم: دوس عالفراغ لتضيف نقطة (خط جديد قفل تلقائيًا أفقي أو عمودي دايمًا - 90° بالظبط - إلا لو فعّلت "زاوية حرة" فوق). أثناء الرسم بتقدر كمان تكتب طول الضلع الجاي بالأرقام بصندوق الكتابة العائم قرب المؤشر وتدوس Enter بدل ما تسحب بالماوس - أدق وأسرع. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص، أو double-click عالنقطة لحذفها. اسحب أي نقطة بوضع المؤشر لتحريكها (قفل 90° شغال بالسحب كمان). كبّر/صغّر بدولاب الفأرة، ودوّر الشكل كامل من الأزرار تحت لو احتجت.</p>
+              </div>
+              <div class="rd-stage">
+                <div id="roomDrawCanvasWrap"></div>
+                <div id="roomDrawLenBoxWrap">
+                  <input type="text" inputmode="decimal" id="roomDrawLenInput" placeholder="طول الضلع..." autocomplete="off"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();roomDrawCommitTypedLength();}">
+                </div>
+              </div>
+              <div class="rd-footer">
+                <div class="add-row" style="flex-wrap:wrap;">
+                  <button type="button" class="small" onclick="roomDrawZoomOut()">🔍− تصغير</button>
+                  <button type="button" class="small" onclick="roomDrawZoomIn()">🔍+ تكبير</button>
+                  <button type="button" class="small" onclick="roomDrawZoomFit()">↔️ ملائمة العرض</button>
+                  <button type="button" class="small" onclick="undoRoomDrawPoint()">↩️ تراجع عن آخر نقطة</button>
+                  <button type="button" class="small danger" onclick="clearRoomDrawAll()">🗑️ امسح كل النقاط</button>
+                  <button type="button" class="small" onclick="finishRoomFreehandDraw()">✅ إنهاء وتحويل لأضلاع</button>
+                  <button type="button" class="small danger" onclick="cancelRoomFreehandDraw()">✖️ إلغاء الرسم</button>
+                </div>
+                <div class="add-row" style="margin-top:6px;flex-wrap:wrap;align-items:center;">
+                  <span style="font-size:12px;color:var(--wd-ink-dim);white-space:nowrap;">تدوير الرسمة كاملة:</span>
+                  <button type="button" class="small" onclick="roomDrawRotate(-15)">↺ 15°</button>
+                  <button type="button" class="small" onclick="roomDrawRotate(15)">15° ↻</button>
+                  <input type="number" id="inRoomDrawRotateDeg" step="1" placeholder="زاوية بالدرجات..." style="width:130px;" onkeydown="if(event.key==='Enter'){event.preventDefault();commitRoomDrawRotate();}">
+                  <button type="button" class="small" onclick="commitRoomDrawRotate()">🔄 دوّر بهاي الزاوية</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <label style="margin-top:8px;">أضلاع الأرضية (بالترتيب حول الغرفة)</label>
+          <p class="hint">كل ضلع = طوله بالمم + الزاوية الداخلية بينه وبين الضلع يلي بعده (افتراضي 90° لغرفة مستطيلة عادية). دوس "🎨 صمم" لتحويل الضلع (أو جزء منو) لبند تصميم عادي (زجاج/باب/هاندريل) - بينضاف تلقائيًا كسطر جديد بجدول عرض السعر فوق. مو شرط الضلع كامل يكون تصميم أو حائط - دوس "➕ قسّم لجزء" لو بدك جزء منو بس (مثلاً متر ونص حائط اسمنتي وباقي الضلع زجاج)، وبعدين حوّل كل جزء لحاله بزر "🧱 حوّله حائط" / "🎨 رجّعه تصميم".</p>
+          <div id="roomSidesList"></div>
+          <div class="add-row" style="margin-top:6px;">
+            <button onclick="addRoomSideFromControls()" class="small" style="flex:1;">+ ضلع جديد</button>
+          </div>
+          <label style="margin-top:10px;">مسقط الأرضية Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
+          <div id="roomFloorPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
+
+          <label style="margin-top:14px;">🏗️ السقف Ceiling</label>
+          <p class="hint">افتراضيًا شكل السقف نفس شكل الأرضية بالظبط. لو في بروز أو فرق بمكان معيّن (السقف طالع أوسع من الحيط تحتو مثلاً)، دوسي عالضلع المطلوب تحت وغيّري طولو/زاويتو براحتك - هيك بس بيتغيّر شكل السقف، والأرضية بتضل متل ما هي. لو بدك ترجعي تبلشي من جديد بنفس شكل الأرضية الحالي، دوسي "🔄 رجّعه لشكل الأرضية".</p>
+          <div id="ceilingSidesList"></div>
+          <div class="add-row" style="margin-top:6px;">
+            <button onclick="resetCeilingToFloor()" class="small" style="flex:1;">🔄 رجّعه لشكل الأرضية</button>
+          </div>
+          <label style="margin-top:10px;">مسقط السقف Ceiling Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
+          <div id="ceilingPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
         </div>
 
         <div class="row2" id="normalDimsRow" style="display: grid;">
@@ -5680,7 +5780,7 @@ function getPrintAvailPx(pageItemCount, forceFullFill){
   return { availW: Math.max(150, cellW), availH: Math.max(120, cellH) };
 }
 
-const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل' };
+const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل', room:'غرفة/مجلس' };
 const HANDRAIL_GAP_MM = 5;
 // مواقع أزواج مسامير Stand Off أفقيًا داخل عرض اللوح - كل زوج بيصير عنده مسمارين (فوق وتحت) - قابل للتوسيع لأكتر من زوجين للألواح الكبيرة
 function getStandoffPairPositions(pairs){
@@ -5693,6 +5793,1258 @@ function getStandoffPairPositions(pairs){
 let hrSegIdCounter = 1;
 
 function isHandrail(it){ return it.shapeType === 'handrail'; }
+
+/* ================= 🆕 نقل ميزة "غرفة/مجلس" كاملة من index.html ================= */
+let roomSideIdCounter = 1;
+let roomSegIdCounter = 1;
+let ceilingSideIdCounter = 1;
+let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
+  mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
+const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340;
+let roomDrawResizeHandler = null;
+let roomDrawWrapHome = null;
+function isRoom(it){ return it.shapeType === 'room'; }
+
+function rotateRoomPlan(itemId){
+  const it = items.find(i=>i.id===itemId); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.roomPlanRotationDeg = ((it.roomPlanRotationDeg||0) + 90) % 360;
+  renderGallery();
+}
+window.rotateRoomPlan = rotateRoomPlan;
+
+function editRoomSegLengthFromSVG(itemId, sideId, segId, currentMM){
+  const input = prompt('الطول الجديد بالمليمتر (من برا لبرا) - تقدر تكتب مثلاً 3000+250:', Math.round(currentMM));
+  if(input === null) return;
+  const newMM = evalMeasureExpr(input) ?? parseFloat(input);
+  if(!newMM || newMM <= 0) return;
+  onRoomSegField(itemId, sideId, segId, 'length', newMM);
+}
+window.editRoomSegLengthFromSVG = editRoomSegLengthFromSVG;
+
+function onRoomHeightChange(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.roomHeight = Math.max(1000, parseFloat(document.getElementById('inRoomHeight').value)||2500);
+  // 🆕 لما يتغيّر ارتفاع الغرفة، لازم ينعكس فورًا على كل قسم متصمَّم مسبقًا (بند بجدول السعر + عنصر التصميم المرتبط)
+  (it.roomSides||[]).forEach(side=>{
+    (side.segments||[]).forEach(seg=>{ syncRoomSegmentRowDims(it, seg); });
+  });
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.onRoomHeightChange = onRoomHeightChange;
+
+function ensureRoomSideSegments(side){
+  if(!side.segments || !side.segments.length){
+    side.segments = [{ id:'rg'+(roomSegIdCounter++), length: side.length||3000, kind:'design', rowUid:null }];
+  }
+  return side.segments;
+}
+
+function syncRoomSideLength(side){
+  side.length = Math.max(1, (side.segments||[]).reduce((a,s)=>a + (s.length||0), 0));
+}
+
+function syncRoomSegmentRowDims(it, seg){
+  if(!seg || !seg.rowUid) return;
+  const w = Math.round(seg.length);
+  const h = Math.round((it && it.roomHeight) || 2500);
+  const tr = document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]');
+  if(tr){
+    const wInput = tr.querySelector('.w-input');
+    const hInput = tr.querySelector('.h-input');
+    if(wInput) wInput.value = w;
+    if(hInput) hInput.value = h;
+    const lt = tr.querySelector('.line-total');
+    if(lt) lt.dataset.manual = '';
+  }
+  const linkedItem = items.find(i => i.sourceRowUid === seg.rowUid);
+  if(linkedItem){
+    linkedItem.width = w;
+    linkedItem.height = h;
+  }
+  if(typeof recalc === 'function') recalc();
+}
+
+function addRoomSide(itemId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  pushHistory();
+  if(!it.roomSides) it.roomSides = [];
+  const length = 3000;
+  it.roomSides.push({ id:'rs'+(roomSideIdCounter++), length, angleDeg:90,
+    segments:[{ id:'rg'+(roomSegIdCounter++), length, kind:'design', rowUid:null }] });
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.addRoomSide = addRoomSide;
+
+function addRoomSideFromControls(){
+  const it = getSelected(); if(it) addRoomSide(it.id);
+}
+window.addRoomSideFromControls = addRoomSideFromControls;
+
+function removeRoomSide(itemId, sideId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  if((it.roomSides||[]).length <= 3){ alert('لازم يبقى عالأقل 3 أضلاع لتشكيل مساحة مغلقة.'); return; }
+  pushHistory();
+  it.roomSides = it.roomSides.filter(s=>s.id!==sideId);
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.removeRoomSide = removeRoomSide;
+
+function onRoomSideField(itemId, sideId, field, value){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const s = (it.roomSides||[]).find(x=>x.id===sideId); if(!s) return;
+  pushHistory();
+  if(field==='angleDeg') s.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.onRoomSideField = onRoomSideField;
+
+function addRoomSideSegment(itemId, sideId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  pushHistory();
+  const last = side.segments[side.segments.length-1];
+  let newLen;
+  if(last.length >= 100){
+    newLen = Math.max(50, Math.round(last.length/2/10)*10);
+    last.length = Math.max(50, last.length - newLen);
+  } else {
+    newLen = 500;
+  }
+  side.segments.push({ id:'rg'+(roomSegIdCounter++), length:newLen, kind:'wall', rowUid:null });
+  syncRoomSideLength(side);
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.addRoomSideSegment = addRoomSideSegment;
+
+function removeRoomSideSegment(itemId, sideId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  if(side.segments.length <= 1) return;
+  const idx = side.segments.findIndex(g=>g.id===segId); if(idx<0) return;
+  pushHistory();
+  const removed = side.segments[idx];
+  if(idx > 0){ side.segments[idx-1].length += removed.length; }
+  else { side.segments[1].length += removed.length; }
+  side.segments.splice(idx,1);
+  syncRoomSideLength(side);
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.removeRoomSideSegment = removeRoomSideSegment;
+
+function onRoomSegField(itemId, sideId, segId, field, value){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
+  pushHistory();
+  if(field==='length') seg.length = Math.max(50, parseFloat(value)||50);
+  syncRoomSideLength(side);
+  syncRoomSegmentRowDims(it, seg); // 🆕 لو الجزء هاد متصمم أصلاً - حدّث سطر عرض السعر والبند فورًا
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.onRoomSegField = onRoomSegField;
+
+function toggleRoomSegKind(itemId, sideId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
+  const goingToWall = seg.kind !== 'wall';
+  if(goingToWall && seg.rowUid){
+    if(!confirm('هاد الجزء حاليًا مصمم ومربوط بسطر بجدول عرض السعر. تحويله لحائط/جدار رح يفك الربط (السطر بجدول العرض رح يضل موجود لحاله بدون ما ينحذف، بس ما رح يضل مربوط فيه). بدك تكمل؟')) return;
+  }
+  pushHistory();
+  seg.kind = goingToWall ? 'wall' : 'design';
+  if(goingToWall) seg.rowUid = null;
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.toggleRoomSegKind = toggleRoomSegKind;
+
+function roomDrawPointsFromSides(sides){
+  let bearing = 0, x = 0, y = 0;
+  const pts = [{x, y}];
+  (sides||[]).forEach(s=>{
+    const rad = bearing * Math.PI/180;
+    const nx = x + (s.length||0)*Math.cos(rad), ny = y + (s.length||0)*Math.sin(rad);
+    x = nx; y = ny;
+    pts.push({x, y});
+    bearing += (180 - (s.angleDeg||90));
+  });
+  pts.pop(); // آخر نقطة المفروض ترجع تلاقي أول نقطة (شكل مقفول) - منشيلها لأنها تكرار
+  return pts;
+}
+
+function roomDrawComputeFitView(points, paddingMm){
+  const pad = (paddingMm!=null) ? paddingMm : 500;
+  let minX=-1500, maxX=1500, minY=-1100, maxY=1100;
+  if(points && points.length){
+    const xs = points.map(p=>p.x), ys = points.map(p=>p.y);
+    minX = Math.min(...xs)-pad; maxX = Math.max(...xs)+pad;
+    minY = Math.min(...ys)-pad; maxY = Math.max(...ys)+pad;
+  }
+  const bboxW = Math.max(1, maxX-minX), bboxH = Math.max(1, maxY-minY);
+  const mmPerPx = Math.max(bboxW/ROOM_DRAW_PX_W, bboxH/ROOM_DRAW_PX_H);
+  const w = ROOM_DRAW_PX_W*mmPerPx, h = ROOM_DRAW_PX_H*mmPerPx;
+  const cx = (minX+maxX)/2, cy = (minY+maxY)/2;
+  return { x0: cx - w/2, y0: cy - h/2, w, h };
+}
+
+function toggleRoomFreehandDraw(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  const wrap = document.getElementById('roomDrawWrap');
+  if(roomDraw.active){
+    cancelRoomFreehandDraw();
+  } else {
+    const existingPts = (it.roomSides && it.roomSides.length>=3) ? roomDrawPointsFromSides(it.roomSides) : [];
+    roomDraw = { active:true, itemId:it.id, points:existingPts, mouse:null, freeAngle:false, gesture:null,
+      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null,
+      closedLoop: existingPts.length >= 3,
+      view: roomDrawComputeFitView(existingPts, 500) };
+    const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
+    updateRoomDrawModeButtons();
+    if(wrap && wrap.parentElement !== document.body){
+      roomDrawWrapHome = { parent: wrap.parentElement, nextSibling: wrap.nextSibling };
+      document.body.appendChild(wrap);
+    }
+    if(wrap) wrap.style.display = 'flex';
+    if(!roomDrawResizeHandler){
+      roomDrawResizeHandler = () => { if(roomDraw.active) renderRoomDrawCanvas(); };
+      window.addEventListener('resize', roomDrawResizeHandler);
+    }
+    renderRoomDrawCanvas();
+  }
+}
+window.toggleRoomFreehandDraw = toggleRoomFreehandDraw;
+
+function startRoomDrawFresh(){
+  if(!roomDraw.active) return;
+  if(roomDraw.points.length && !confirm('رح يمسح الشكل الحالي كامل وتبلش رسمة فاضية تمامًا - أول كليك جاي رح يصير نقطة البداية بالظبط وين ما تحطها. متأكد؟')) return;
+  roomDraw.points = [];
+  roomDraw.selectedPointIdx = -1;
+  roomDraw.selectedSegIdx = -1;
+  roomDraw.gesture = null;
+  roomDraw.lastClick = null;
+  roomDraw.view = roomDrawComputeFitView([], 1500);
+  roomDraw.closedLoop = false;
+  setRoomDrawMode('pen');
+  renderRoomDrawCanvas();
+}
+window.startRoomDrawFresh = startRoomDrawFresh;
+
+function cancelRoomFreehandDraw(){
+  roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
+    mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
+  const wrap = document.getElementById('roomDrawWrap');
+  if(wrap) wrap.style.display = 'none';
+  // منرجّع #roomDrawWrap لمكانه الأصلي جوا لوحة التحكم (شوف الشرح فوق toggleRoomFreehandDraw) - حتى
+  // باقي الصفحة (مثلاً لو حدا يفتش عناصر الغرفة بلوحة التحكم وهو الرسم مسكّر) تضل شغالة طبيعي.
+  if(wrap && roomDrawWrapHome && wrap.parentElement === document.body){
+    if(roomDrawWrapHome.nextSibling && roomDrawWrapHome.nextSibling.parentElement === roomDrawWrapHome.parent){
+      roomDrawWrapHome.parent.insertBefore(wrap, roomDrawWrapHome.nextSibling);
+    } else {
+      roomDrawWrapHome.parent.appendChild(wrap);
+    }
+  }
+  roomDrawWrapHome = null;
+  const lenBox = document.getElementById('roomDrawLenBoxWrap');
+  if(lenBox) lenBox.style.display = 'none';
+  if(roomDrawResizeHandler){ window.removeEventListener('resize', roomDrawResizeHandler); roomDrawResizeHandler = null; }
+}
+window.cancelRoomFreehandDraw = cancelRoomFreehandDraw;
+
+function setRoomDrawMode(mode){
+  if(!roomDraw.active) return;
+  roomDraw.mode = mode;
+  roomDraw.gesture = null;
+  roomDraw.selectedPointIdx = -1;
+  roomDraw.selectedSegIdx = -1;
+  updateRoomDrawModeButtons();
+  renderRoomDrawCanvas();
+}
+window.setRoomDrawMode = setRoomDrawMode;
+
+function updateRoomDrawModeButtons(){
+  const map = { cursor:'btnRoomDrawModeCursor', pen:'btnRoomDrawModePen', eraser:'btnRoomDrawModeEraser' };
+  Object.keys(map).forEach(m=>{
+    const btn = document.getElementById(map[m]);
+    if(btn) btn.classList.toggle('active', roomDraw.mode === m);
+  });
+  const hints = {
+    cursor: '🖱️ وضع المؤشر: دوس على أي نقطة أو ضلع لتحدده، واسحب أي نقطة (طرف البداية أو النهاية تبع الضلع) لتحركها/تصغّرها/تكبّرها. كليك بالفراغ ما بيضيف ولا نقطة.',
+    pen: '✏️ وضع القلم: دوس بالفراغ لتضيف نقطة جديدة (خط جديد بيوصل آخر نقطة فيه). اسحب أي نقطة موجودة لتحريكها. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص الرسم، أو دوس على أي نقطة تانية موجودة لتوصلها بخط جديد.',
+    eraser: '🧹 وضع الممحاة: دوس على أي نقطة لحذفها فورًا (بيلتحم الخطين المتصلين فيها ببعض). لازم يضل عالأقل 3 نقاط.',
+  };
+  const hintEl = document.getElementById('roomDrawModeHint');
+  if(hintEl) hintEl.textContent = hints[roomDraw.mode] || '';
+}
+window.updateRoomDrawModeButtons = updateRoomDrawModeButtons;
+
+function onRoomDrawFreeAngleToggle(){
+  const chk = document.getElementById('inRoomDrawFreeAngle');
+  roomDraw.freeAngle = !!(chk && chk.checked);
+  renderRoomDrawCanvas();
+}
+window.onRoomDrawFreeAngleToggle = onRoomDrawFreeAngleToggle;
+
+function roomDrawAxisSnap(last, raw){
+  const dx = raw.x - last.x, dy = raw.y - last.y;
+  return Math.abs(dx) >= Math.abs(dy) ? { x: raw.x, y: last.y } : { x: last.x, y: raw.y };
+}
+
+function roomDrawPxRadiusToMm(px){
+  const v = roomDraw.view || roomDrawComputeFitView(roomDraw.points, 500);
+  return px * (v.w/ROOM_DRAW_PX_W);
+}
+
+function roomDrawSnapToGeometry(candidate, excludeIndex){
+  const radiusMm = roomDrawPxRadiusToMm(12);
+  const pts = roomDraw.points;
+  let best = null, bestD = radiusMm;
+  pts.forEach((p,i)=>{
+    if(i===excludeIndex) return;
+    const d = Math.hypot(p.x-candidate.x, p.y-candidate.y);
+    if(d <= bestD){ bestD = d; best = { x:p.x, y:p.y }; }
+  });
+  if(best) return best;
+  const n = pts.length;
+  // 🆕 2026-09-26: طلب حمدي - وهو عم يرسم، صار حاسّ إنو في "مغناطيس" عم يوجّه/يحرّك خطه لحاله بلا
+  // ما يقصد. السبب: قبل هيك كنا هون بنعتبر حتى "ضلع الإغلاق" الوهمي (من آخر نقطة لأول نقطة - يلي
+  // لسا ما انرسم فعليًا، بس هو خط معاينة رمادي منقّط بيبيّن وين رح يسكر الشكل لو دوس إنهاء هلق) ضلع
+  // حقيقي منلزّق فيه أي نقطة جديدة قريبة منه (edge snap) - فكان أي نقطة يحطها قريبة من هاد الخط
+  // التخيّلي بتنجذب/تتزحلق عليه لحالها، حتى لو مو قاصد يسكر هون إطلاقًا. الحل: منلزّق بس بالأضلاع
+  // يلي هو فعليًا رسمها (0-1، 1-2، ...)، مش بضلع الإغلاق الوهمي - هيك ما في التصاق/مغناطيس إلا وهو
+  // قاصد فعلًا (بيضل فيك تسكر الشكل بالظبط لو كبست عالنقطة الأولى نفسها - هيك مغطى بالـ"vertex snap"
+  // فوق، منفصل تمامًا عن edge snap هون).
+  const edgeCount = Math.max(0, n-1);
+  let bestEdge = null, bestEdgeD = radiusMm;
+  for(let i=0; i<edgeCount; i++){
+    const j = (i+1)%n;
+    if(i===excludeIndex || j===excludeIndex) continue;
+    const a = pts[i], b = pts[j];
+    const abx = b.x-a.x, aby = b.y-a.y;
+    const lenSq = abx*abx + aby*aby;
+    if(lenSq < 1) continue;
+    let t = ((candidate.x-a.x)*abx + (candidate.y-a.y)*aby) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const px = a.x + abx*t, py = a.y + aby*t;
+    const d = Math.hypot(px-candidate.x, py-candidate.y);
+    if(d <= bestEdgeD){ bestEdgeD = d; bestEdge = { x:px, y:py }; }
+  }
+  if(bestEdge) return bestEdge;
+  return candidate;
+}
+
+function roomDrawNextPointCandidate(rawMm){
+  const pts = roomDraw.points;
+  let candidate = rawMm;
+  // 🆕 2026-09-25: طلب حمدي - "الخط يجب أن يكون دائمًا 90 درجة حصرًا" - باغ كان موجود: بعد قفل
+  // الاتجاه لأفقي/عمودي (roomDrawAxisSnap)، كان بيصير كمان "التصاق بالهندسة" (roomDrawSnapToGeometry
+  // تحت) يجذب النقطة لأقرب نقطة/خط موجود - ولو هيك التصاق ما كان بالظبط عالمحور المقفول، كان عم
+  // "يفتح" القفل شوي ويرجّع ميلان بسيط (مش 90° مضبوطة). الحل: منثبّت المحور المقفول (X أو Y، أيّهم
+  // كان بيساوي آخر نقطة) يدويًا بعد الالتصاق بالهندسة كمان - هيك التصاق الهندسة بيأثر بس على المحور
+  // التاني (الحر)، وقفل 90° بيضل مضبوط 100% دايمًا لما "زاوية حرة" مطفية.
+  let lockedAxis = null;
+  if(pts.length > 0 && !roomDraw.freeAngle){
+    const last = pts[pts.length-1];
+    candidate = roomDrawAxisSnap(last, candidate);
+    lockedAxis = (candidate.y === last.y) ? 'y' : 'x';
+  }
+  candidate = roomDrawSnapToGeometry(candidate, -1);
+  if(lockedAxis === 'y') candidate.y = pts[pts.length-1].y;
+  else if(lockedAxis === 'x') candidate.x = pts[pts.length-1].x;
+  return candidate;
+}
+
+function roomDrawFindPointNear(pt, radiusMm){
+  const pts = roomDraw.points;
+  for(let i=0; i<pts.length; i++){
+    if(Math.hypot(pts[i].x-pt.x, pts[i].y-pt.y) <= radiusMm) return i;
+  }
+  return -1;
+}
+
+function roomDrawFindSegmentNear(pt, radiusMm){
+  const pts = roomDraw.points;
+  const n = pts.length;
+  if(n < 2) return -1;
+  const edgeCount = n>=3 ? n : n-1; // شكل مغلق (≥3 نقاط) = عدد أضلاع مساوي لعدد النقاط، غير هيك خط مفتوح
+  let best = -1, bestD = radiusMm;
+  for(let i=0; i<edgeCount; i++){
+    const j = (i+1)%n;
+    const a = pts[i], b = pts[j];
+    const abx = b.x-a.x, aby = b.y-a.y;
+    const lenSq = abx*abx + aby*aby;
+    if(lenSq < 1) continue;
+    let t = ((pt.x-a.x)*abx + (pt.y-a.y)*aby) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const px = a.x + abx*t, py = a.y + aby*t;
+    const d = Math.hypot(px-pt.x, py-pt.y);
+    if(d <= bestD){ bestD = d; best = i; }
+  }
+  return best;
+}
+
+function roomDrawEventPoint(evt){
+  const svg = evt.currentTarget;
+  const rect = svg.getBoundingClientRect();
+  const px = (evt.clientX - rect.left) * (ROOM_DRAW_PX_W / rect.width);
+  const py = (evt.clientY - rect.top) * (ROOM_DRAW_PX_H / rect.height);
+  const v = roomDraw.view || roomDrawComputeFitView(roomDraw.points, 500);
+  return { x: v.x0 + (px/ROOM_DRAW_PX_W)*v.w, y: v.y0 + (py/ROOM_DRAW_PX_H)*v.h };
+}
+
+function roomDrawPointerDown(evt){
+  if(!roomDraw.active) return;
+  // 🆕 2026-09-25: طلب حمدي - الزر الأساسي للرسم/السحب لازم يكون الزر الأيسر بس. قبل هيك أي زر
+  // ماوس (حتى الدولاب/الزر الأوسط أو الزر الأيمن) كان عم يفعّل نفس تصرف الكليك الأيسر (إضافة/سحب
+  // نقطة) بالغلط لو انضغط فوق الرسمة.
+  if(typeof evt.button === 'number' && evt.button !== 0) return;
+  if(evt.preventDefault) evt.preventDefault();
+  const raw = roomDrawEventPoint(evt);
+  const idx = roomDrawFindPointNear(raw, roomDrawPxRadiusToMm(11));
+  if(roomDraw.mode === 'eraser'){
+    if(idx > -1){
+      if(roomDraw.points.length <= 3){
+        alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
+      } else {
+        roomDraw.points.splice(idx, 1);
+        roomDraw.selectedPointIdx = -1;
+        roomDraw.selectedSegIdx = -1;
+      }
+    }
+    roomDraw.gesture = null;
+    roomDraw.mouse = raw;
+    renderRoomDrawCanvas();
+    return;
+  }
+  // 🆕 2026-09-25: طلب حمدي - "لازم كل شي يكون 90 درجة بالستاندارد حتى لو بدو يزيد المقاس" - لسحب
+  // نقطة موجودة بشكل يضمن قفل 90° على **الضلعين المجاورين** (يلي قبلها ويلي بعدها) مع بعض، منلتقط
+  // صورة "مجمّدة" لكل النقاط لحظة بدء السحب (قبل أي تحريك) - هيك حسابات القفل بالأسفل (roomDrawPointerMove)
+  // بتقارن دايمًا مع الشكل الأصلي الثابت، مش مع نسخة ربما اتغيّرت جزئيًا بحركة ماوس سابقة بنفس السحبة
+  // (بيمنع تراكم أخطاء تقريب صغيرة مع كل حركة ماوس).
+  const dragOrigPoints = (idx > -1) ? roomDraw.points.map(p=>({x:p.x,y:p.y})) : null;
+  roomDraw.gesture = { startClientX: evt.clientX, startClientY: evt.clientY, pointIndex: idx, dragging:false, dragOrigPoints };
+  roomDraw.mouse = raw;
+}
+window.roomDrawPointerDown = roomDrawPointerDown;
+
+function roomDrawPointerMove(evt){
+  if(!roomDraw.active) return;
+  const raw = roomDrawEventPoint(evt);
+  roomDraw.mouse = raw;
+  const g = roomDraw.gesture;
+  if(g && g.pointIndex > -1){
+    const movedPx = Math.hypot(evt.clientX-g.startClientX, evt.clientY-g.startClientY);
+    if(movedPx > 4) g.dragging = true;
+    if(g.dragging){
+      // 🆕 2026-09-25: طلب حمدي (بعد ما شاف نتيجة فعلية فيها ضلع مايل) - "لازم كل شي 90 درجة
+      // بالستاندارد حتى لو بدو يزيد المقاس، بس الشكل يطلع صح". قفل محور واحد بس (بالنسبة للنقطة
+      // يلي قبلها فقط - النسخة الأولى من هالإصلاح) كان يضمن الضلع "قبل" النقطة المسحوبة يضل قائم،
+      // بس الضلع "بعدها" (لنقطة تالتة) كان ممكن يميل لأنو ما كان مقفول أبدًا. الحل الكامل: منقارن
+      // مع الشكل "المجمّد" لحظة بدء السحب (g.dragOrigPoints) لنعرف اتجاه كل ضلع مجاور الأصلي (أفقي
+      // أو عمودي)، ومنحرّك النقطة المسحوبة بمحور واحد حر بس (نفس قبل)، وبعدين لو تحريك هالمحور
+      // بالذات هو نفسو يلي بيحدد استقامة الضلع "بعدها"، منزحزح النقطة التالية بنفس المقدار (delta)
+      // حتى يضل ذاك الضلع قائم كمان بدون ما نلمس زاويته - النتيجة: كل الزوايا تضل 90° بالظبط أثناء
+      // السحب، وبس طول الضلعين المجاورين هو يلي بيتغيّر (بالظبط متل طلب حمدي).
+      const orig = g.dragOrigPoints;
+      const n = orig ? orig.length : 0;
+      let candidate = raw;
+      if(!roomDraw.freeAngle && orig && n > 2){
+        const i = g.pointIndex;
+        // 🆕 2026-09-26: طلب حمدي - "عم ارسم، وصلت نقطة، وحبيت عدّل نقطة البداية، بلاقي ما بقدر
+        // غيّرها أبدًا". السبب: هون كنا دايمًا نعتبر أول نقطة وآخر نقطة "جيران" (زي مضلع مقفول)
+        // حتى أثناء رسم خط لسا مفتوح (قبل ما يتسكّر الشكل فعليًا) - فسحب أول نقطة كان عم يفترض
+        // في ضلع إغلاق حقيقي مع آخر نقطة (rooDraw.points[نهاية]) ويزحزحها هي كمان بالغلط، وينتج
+        // شكل مشوّه/نقطتين فوق بعض. الحل: roomDraw.closedLoop بيحدد هل فعلاً في ضلع إغلاق حقيقي
+        // (شكل معاد فتحه للتعديل) أو لسا خط مفتوح (رسمة جديدة/"ابدأ من جديد" لسا ما تسكّرت) - فقط
+        // بالحالة الأولى منعتبر أول/آخر نقطة جيران عبر "الالتفاف" (wrap-around).
+        const wrap = roomDraw.closedLoop;
+        const prevIdx = (i === 0) ? (wrap ? n-1 : -1) : i-1;
+        const nextIdx = (i === n-1) ? (wrap ? 0 : -1) : i+1;
+        const hasPrev = prevIdx !== -1 && prevIdx !== i;
+        const hasNext = nextIdx !== -1 && nextIdx !== i && nextIdx !== prevIdx;
+        if(hasPrev && hasNext){
+          const origI = orig[i], origPrev = orig[prevIdx], origNext = orig[nextIdx];
+          const edgePrevWasHoriz = Math.abs(origI.y - origPrev.y) < 0.01;
+          candidate = edgePrevWasHoriz ? { x: raw.x, y: origPrev.y } : { x: origPrev.x, y: raw.y };
+          candidate = roomDrawSnapToGeometry(candidate, i);
+          // نثبّت المحور المقفول تاني بعد الالتصاق بالهندسة (نفس فكرة roomDrawNextPointCandidate) -
+          // حتى الالتصاق ما يفتح قفل الـ90° شوي.
+          if(edgePrevWasHoriz) candidate.y = origPrev.y; else candidate.x = origPrev.x;
+          const deltaX = candidate.x - origI.x, deltaY = candidate.y - origI.y;
+          const edgeNextWasHoriz = Math.abs(origNext.y - origI.y) < 0.01;
+          let newNext;
+          if(edgeNextWasHoriz){
+            // الضلع الجاي كان أفقي (y ثابت) - لازم يضل كذلك: لو تحريكنا كان بمحور Y (يعني الضلع
+            // يلي قبلها كان عمودي)، لازم نزحزح Y تبع النقطة الجاية بنفس المقدار. لو تحريكنا كان
+            // بمحور X، ما في داعي لمس النقطة الجاية أصلًا (y ما تغيّر عندها أصلًا).
+            newNext = edgePrevWasHoriz ? origNext : { x: origNext.x, y: origNext.y + deltaY };
+          } else {
+            // الضلع الجاي كان عمودي (x ثابت) - بالعكس: لو تحريكنا كان بمحور X لازم نزحزح X تبع
+            // النقطة الجاية بنفس المقدار، وإلا ما في داعي لمسها.
+            newNext = (!edgePrevWasHoriz) ? origNext : { x: origNext.x + deltaX, y: origNext.y };
+          }
+          roomDraw.points[nextIdx] = newNext;
+        } else if(hasPrev || hasNext){
+          // 🆕 نقطة طرفية بخط لسا مفتوح (أول أو آخر نقطة قبل ما يتسكّر الشكل) - إلها جار حقيقي
+          // واحد بس، فمنقفل الضلع المتصل فيه بس (بدون ما نلمس أي نقطة تانية - ما في ضلع إغلاق
+          // حقيقي لنحافظ عليه أصلًا).
+          const origI = orig[i];
+          const anchorIdx = hasPrev ? prevIdx : nextIdx;
+          const origAnchor = orig[anchorIdx];
+          const edgeWasHoriz = Math.abs(origI.y - origAnchor.y) < 0.01;
+          candidate = edgeWasHoriz ? { x: raw.x, y: origAnchor.y } : { x: origAnchor.x, y: raw.y };
+          candidate = roomDrawSnapToGeometry(candidate, i);
+          if(edgeWasHoriz) candidate.y = origAnchor.y; else candidate.x = origAnchor.x;
+        } else {
+          candidate = roomDrawSnapToGeometry(raw, g.pointIndex);
+        }
+      } else {
+        candidate = roomDrawSnapToGeometry(candidate, g.pointIndex);
+      }
+      roomDraw.points[g.pointIndex] = candidate;
+    }
+  }
+  renderRoomDrawCanvas();
+}
+window.roomDrawPointerMove = roomDrawPointerMove;
+
+function roomDrawPointerUp(evt){
+  if(!roomDraw.active) return;
+  const raw = roomDrawEventPoint(evt);
+  const g = roomDraw.gesture;
+  if(!g){
+    // مهم: "mouseup" ممكن توصل للرسمة بدون "mousedown" مطابق سجّلناه إحنا قبلها على نفس الرسمة -
+    // مثلاً لو المستخدم ضغط بمكان تاني بالصفحة (خانة، زر، إلخ) وسحب وفلّت الزر وهو الماوس صار فوق
+    // الرسمة (المتصفح بيبعت mouseup لأي عنصر تحت المؤشر لحظة الإفلات، مش شرط لنفس العنصر يلي
+    // انضغط عليه أول مرة). قبل هيك كنا هون عم نضيف نقطة جديدة بالغلط بأي إفلات "يتيم" متل هيك، وهيك
+    // كان عم يبين إنو "عم تنضاف نقطة لحالها من دون ما نضغط عالرسمة". هلق: بدون gesture مسجّل
+    // فعليًا (يعني بدون mousedown حقيقي بلش من فوق الرسمة نفسها)، ما منضيف ولا نغيّر شي إطلاقًا.
+    renderRoomDrawCanvas();
+    return;
+  }
+  if(roomDraw.mode === 'cursor'){
+    // وضع المؤشر: ما منضيف ولا نحذف نقاط هون إطلاقًا - بس تحديد/تحريك.
+    if(g.dragging){
+      // خلص السحب (تصغير/تكبير/تحريك الضلع) - النقطة تحدثت مباشرة أثناء roomDrawPointerMove.
+      // منخليها "محددة" بصريًا بعد ما تحركت حتى يشوف حمدي أي نقطة عدّل عليها.
+      roomDraw.selectedPointIdx = g.pointIndex;
+      roomDraw.selectedSegIdx = -1;
+    } else if(g.pointIndex > -1){
+      // كليك عادي (بدون سحب) عالنقطة = تحديدها بس (تصفير أي تحديد سابق لضلع كامل).
+      roomDraw.selectedPointIdx = g.pointIndex;
+      roomDraw.selectedSegIdx = -1;
+    } else {
+      // كليك بالفراغ: لو قريب من ضلع (خط بين نقطتين) منحدد الضلع كامل (طرفيه صارو أوضح بالرسمة)،
+      // غير هيك منشيل أي تحديد حالي (المستخدم دوس بعيد عن كل شي = بدو يلغي التحديد).
+      const segIdx = roomDrawFindSegmentNear(raw, roomDrawPxRadiusToMm(11));
+      if(segIdx > -1){
+        roomDraw.selectedSegIdx = segIdx;
+        roomDraw.selectedPointIdx = -1;
+      } else {
+        roomDraw.selectedPointIdx = -1;
+        roomDraw.selectedSegIdx = -1;
+      }
+    }
+  } else {
+    // وضع القلم (السلوك التاريخي الأصلي): دوسة عالفراغ = نقطة جديدة، سحب نقطة = نقلها،
+    // double-click عالنقطة نفسها = حذفها.
+    if(g.dragging){
+      // خلص السحب - النقطة تحدثت مباشرة أثناء roomDrawPointerMove.
+    } else if(g.pointIndex > -1){
+      // دوسة بسيطة (بدون سحب) عالنقطة نفسها: منتحقق يدويًا إذا هاي ثاني دوسة سريعة عالنقطة نفسها
+      // (خلال أقل من 400ms من آخر دوسة عليها) = "double-click" مقصود = نحذفها فعليًا. ملاحظة تقنية:
+      // منتحقق بالتوقيت يدويًا (مش باستخدام حدث "dblclick" الجاهز من المتصفح) لأنو منعيد بناء الـ SVG
+      // كامل (innerHTML) بعد كل دوسة، وهيك بيفسد تتبّع المتصفح الداخلي للنقر المزدوج على نفس العنصر.
+      const now = Date.now();
+      const lc = roomDraw.lastClick;
+      if(lc && lc.pointIndex === g.pointIndex && (now - lc.time) < 400){
+        if(roomDraw.points.length <= 3){
+          alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
+        } else {
+          roomDraw.points.splice(g.pointIndex, 1);
+        }
+        roomDraw.lastClick = null;
+      } else {
+        roomDraw.lastClick = { pointIndex: g.pointIndex, time: now };
+        // 🆕 2026-09-25: باغ قديم لقيناه بطلب حمدي - "عم ارسم اخر خط بين نقطتين، وحط المؤشر على
+        // النقطة اللي بدي وصل الخط فيها، وما عم يقبل يرسم الخط". السبب: قبل هالتعديل، كليك عادي
+        // (بدون سحب) فوق نقطة موجودة كان "no-op" تمامًا (ما منعمل ولا شي) - مقصود بس لمنع الحذف
+        // بالغلط (شوف الشرح يلي كان هون فوق)، بس هيك خلى إنو ما في ولا طريقة توصل خط جديد لنقطة
+        // موجودة أصلًا (غير آخر نقطة انضافت). الحل: كليك عادي عالنقطة الأولى (بعد ما صار عندك 3
+        // نقاط عالأقل) = نفس معنى "إنهاء وتحويل لأضلاع" (تسكير الشكل من هون بالضبط - نفس تصرف أي
+        // برنامج رسم مضلعات/CAD). كليك عادي عالنقطة الأخيرة نفسها (يلي هي أصلًا آخر نقطة بالرسمة) =
+        // ما في داعي نضيف شي (نفس مكانها بالضبط). كليك عادي عالنقطة أي نقطة تانية موجودة (نص الشكل
+        // مثلاً) = منضيف نقطة جديدة بنفس مكان هاي النقطة بالضبط - هيك بيترسم خط حقيقي من آخر نقطة
+        // لهون، بدون ما نلمس/نحرّك النقطة الأصلية إطلاقًا.
+        const isLastPointItself = (g.pointIndex === roomDraw.points.length - 1);
+        if(!isLastPointItself){
+          if(g.pointIndex === 0 && roomDraw.points.length >= 3){
+            finishRoomFreehandDraw();
+            return;
+          } else {
+            // 🆕 2026-09-25: باغ لقيناه بطلب حمدي - كان هون منضيف نقطة جديدة بنفس إحداثيات النقطة
+            // المستهدفة **مباشرة** (نسخ خام)، بدون ما يمر بقفل الـ90° إطلاقًا - فلو هاي النقطة
+            // المستهدفة ما كانت أصلًا عالمحور الأفقي/العمودي تبع آخر نقطة (مثلاً كانت نقطة قديمة من
+            // شكل مختلف)، كان بيتولّد ضلع مايل حقيقي بالشكل النهائي. الحل: منمرر هدف النقطة عبر نفس
+            // خط أنابيب القفل يلي بيستخدمه أي نقطة جديدة عادي (roomDrawNextPointCandidate) - هيك
+            // الضلع الجديد بيضل قائم 90° بالضبط دايمًا، حتى لو هيك ما بيوصل بالظبط لنفس مكان النقطة
+            // المستهدفة (وهاد بالضبط يلي طلبه حمدي: "المقاس ممكن يزيد شوي بس المهم الشكل يطلع صح").
+            roomDraw.points.push(roomDrawNextPointCandidate(roomDraw.points[g.pointIndex]));
+            roomDraw.lastClick = null;
+          }
+        }
+      }
+    } else {
+      // g موجود وgesture.pointIndex === -1: يعني كان في mousedown حقيقي بلش من فوق فراغ فاضي بنفس
+      // الرسمة، وهلق وصل mouseup المطابق إلو = دوسة (أو سحب) حقيقية = نقطة جديدة.
+      roomDraw.points.push(roomDrawNextPointCandidate(raw));
+      roomDraw.lastClick = null;
+    }
+  }
+  roomDraw.gesture = null;
+  renderRoomDrawCanvas();
+}
+window.roomDrawPointerUp = roomDrawPointerUp;
+
+function roomDrawPointerLeave(){
+  if(!roomDraw.active) return;
+  // 🆕 2026-09-25: طلب حمدي - صندوق كتابة طول الضلع بالكيبورد لازم يضل شغال بمكانه (وخط المطاط
+  // والمؤشر المتقاطع ما يختفوا) حتى لو طلع الماوس عن حدود الرسمة (مثلاً عم يروح يدوس بصندوق
+  // الكتابة العائم يلي فوق الرسمة بالضبط, أو بأي زر تاني بشريط الأدوات) - قبل هيك كان أي خروج
+  // للماوس عن الـSVG بيصفّر روح الاتجاه/المؤشر فورًا، فيصير صندوق الكتابة يختفي بمجرد ما يحاول
+  // يوصله الماوس. بوضع القلم ولسا في نقاط عالرسمة: منخلي آخر موقع ماوس معروف زي ما هو.
+  if(roomDraw.mode === 'pen' && roomDraw.points.length){
+    roomDraw.gesture = null;
+    return;
+  }
+  roomDraw.mouse = null;
+  roomDraw.gesture = null;
+  renderRoomDrawCanvas();
+}
+window.roomDrawPointerLeave = roomDrawPointerLeave;
+
+function undoRoomDrawPoint(){
+  if(!roomDraw.active) return;
+  roomDraw.points.pop();
+  renderRoomDrawCanvas();
+}
+window.undoRoomDrawPoint = undoRoomDrawPoint;
+
+function roomDrawZoom(factor, anchorMm){
+  if(!roomDraw.active) return;
+  const v = roomDraw.view || roomDrawComputeFitView(roomDraw.points, 500);
+  const anchor = anchorMm || { x: v.x0 + v.w/2, y: v.y0 + v.h/2 };
+  let mmPerPx = (v.w/ROOM_DRAW_PX_W) * factor;
+  mmPerPx = Math.max(3, Math.min(300, mmPerPx));
+  const w = ROOM_DRAW_PX_W*mmPerPx, h = ROOM_DRAW_PX_H*mmPerPx;
+  const fracX = (anchor.x - v.x0)/v.w, fracY = (anchor.y - v.y0)/v.h;
+  roomDraw.view = { x0: anchor.x - fracX*w, y0: anchor.y - fracY*h, w, h };
+  renderRoomDrawCanvas();
+}
+
+function roomDrawZoomIn(){ roomDrawZoom(0.8); }
+
+function roomDrawZoomOut(){ roomDrawZoom(1.25); }
+
+function roomDrawZoomFit(){
+  if(!roomDraw.active) return;
+  roomDraw.view = roomDrawComputeFitView(roomDraw.points, 500);
+  renderRoomDrawCanvas();
+}
+
+function roomDrawCanvasWheel(evt){
+  if(!roomDraw.active) return;
+  if(evt.preventDefault) evt.preventDefault();
+  const raw = roomDrawEventPoint(evt);
+  const factor = evt.deltaY > 0 ? 1.12 : 0.89;
+  roomDrawZoom(factor, raw);
+}
+window.roomDrawCanvasWheel = roomDrawCanvasWheel;
+
+function roomDrawRotate(deg){
+  if(!roomDraw.active || roomDraw.points.length < 2) return;
+  const rad = deg * Math.PI/180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const pts = roomDraw.points;
+  const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+  const cy = pts.reduce((s,p)=>s+p.y,0)/pts.length;
+  roomDraw.points = pts.map(p=>{
+    const dx = p.x-cx, dy = p.y-cy;
+    return { x: cx + dx*cos - dy*sin, y: cy + dx*sin + dy*cos };
+  });
+  roomDraw.view = roomDrawComputeFitView(roomDraw.points, 500);
+  renderRoomDrawCanvas();
+}
+window.roomDrawRotate = roomDrawRotate;
+
+function commitRoomDrawRotate(){
+  if(!roomDraw.active) return;
+  const inp = document.getElementById('inRoomDrawRotateDeg');
+  const deg = inp ? parseFloat(inp.value) : NaN;
+  if(!deg){ alert('اكتب زاوية دوران بالدرجات (رقم غير صفر) - مثلاً 30 أو 90-.'); return; }
+  roomDrawRotate(deg);
+  if(inp) inp.value = '';
+}
+window.commitRoomDrawRotate = commitRoomDrawRotate;
+
+function clearRoomDrawAll(){
+  if(!roomDraw.active) return;
+  if(roomDraw.points.length && !confirm('متأكد بدك تمسح كل نقاط الرسم الحالي وتبلش من جديد؟')) return;
+  roomDraw.points = [];
+  roomDraw.gesture = null;
+  roomDraw.view = roomDrawComputeFitView([], 1500);
+  renderRoomDrawCanvas();
+}
+window.clearRoomDrawAll = clearRoomDrawAll;
+
+function renderRoomDrawCanvas(){
+  const wrap = document.getElementById('roomDrawCanvasWrap');
+  if(!wrap) return;
+  if(!roomDraw.view) roomDraw.view = roomDrawComputeFitView(roomDraw.points, 500);
+  const v = roomDraw.view;
+  const W = ROOM_DRAW_PX_W, H = ROOM_DRAW_PX_H;
+  const mmToPx = p => ({ x: (p.x - v.x0)/v.w*W, y: (p.y - v.y0)/v.h*H });
+  // شبكة تكيّفية (خطوة "مضبوطة" مثل 100/200/500/1000مم حسب مستوى الزوم) حتى تضل مقروءة بأي تكبير.
+  const rawStep = v.w/10;
+  const mag = Math.pow(10, Math.floor(Math.log10(Math.max(1,rawStep))));
+  let step = mag*10;
+  for(const s of [1,2,5,10]){ if(mag*s >= rawStep){ step = mag*s; break; } }
+  let gridLines = '';
+  const gx0 = Math.floor(v.x0/step)*step, gx1 = Math.ceil((v.x0+v.w)/step)*step;
+  for(let gx=gx0; gx<=gx1; gx+=step){ const px = mmToPx({x:gx,y:v.y0}).x; gridLines += `<line x1="${px.toFixed(1)}" y1="0" x2="${px.toFixed(1)}" y2="${H}" stroke="#eee" stroke-width="1"/>`; }
+  const gy0 = Math.floor(v.y0/step)*step, gy1 = Math.ceil((v.y0+v.h)/step)*step;
+  for(let gy=gy0; gy<=gy1; gy+=step){ const py = mmToPx({x:v.x0,y:gy}).y; gridLines += `<line x1="0" y1="${py.toFixed(1)}" x2="${W}" y2="${py.toFixed(1)}" stroke="#eee" stroke-width="1"/>`; }
+  const pts = roomDraw.points.map(mmToPx);
+  const n = pts.length;
+  // 🆕 2026-09-25: أي نقطة "بالضوء" حاليًا (محددة لحالها بوضع المؤشر، أو طرف ضلع محدد كامل) - بتتلوّن
+  // ومقاسها بيكبر شوي بالرسمة حتى يبين واضح وين بالضبط ماسك حمدي/رح يمسك ليسحب.
+  const highlightPts = new Set();
+  if(roomDraw.selectedPointIdx > -1 && roomDraw.selectedPointIdx < n) highlightPts.add(roomDraw.selectedPointIdx);
+  if(roomDraw.selectedSegIdx > -1 && n > 1){
+    const si = roomDraw.selectedSegIdx, sj = (si+1)%n;
+    highlightPts.add(si); highlightPts.add(sj);
+  }
+  let pathSvg = '', closeSvg = '', rubberSvg = '', segHighlightSvg = '';
+  if(pts.length){
+    pathSvg += `<polyline points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="#0f88cd" stroke-width="2.5"/>`;
+  }
+  if(roomDraw.selectedSegIdx > -1 && n > 1){
+    const a = pts[roomDraw.selectedSegIdx], b = pts[(roomDraw.selectedSegIdx+1)%n];
+    if(a && b) segHighlightSvg = `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#e0862a" stroke-width="5" stroke-linecap="round" opacity="0.85"/>`;
+  }
+  if(pts.length){
+    pts.forEach((p,i)=>{
+      const isFirst = i===0;
+      let fill = isFirst ? '#1e7a3d' : '#0f88cd';
+      if(roomDraw.mode === 'eraser') fill = isFirst ? '#8b3a3a' : '#c0392b';
+      const isHi = highlightPts.has(i);
+      const r = isHi ? 8 : 6;
+      const stroke = isHi ? '#e0862a' : '#fff';
+      const strokeW = isHi ? 3 : 1.5;
+      pathSvg += `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeW}"/><text x="${p.x+8}" y="${p.y-8}" font-size="10" fill="#666">${i+1}</text>`;
+    });
+  }
+  if(pts.length > 2){
+    closeSvg = `<line x1="${pts[pts.length-1].x}" y1="${pts[pts.length-1].y}" x2="${pts[0].x}" y2="${pts[0].y}" stroke="#bbb" stroke-width="1.5" stroke-dasharray="3,3"/>`;
+  }
+  const draggingNow = !!(roomDraw.gesture && roomDraw.gesture.dragging);
+  // خط الـ"مطاط" (معاينة الخط الجاي) بس بوضع القلم - بوضع المؤشر/الممحاة ما في نقطة جديدة رح تنضاف.
+  if(roomDraw.mode === 'pen' && roomDraw.points.length && roomDraw.mouse && !draggingNow){
+    const lastMm = roomDraw.points[roomDraw.points.length-1];
+    const targetMm = roomDrawNextPointCandidate(roomDraw.mouse);
+    const last = mmToPx(lastMm), target = mmToPx(targetMm);
+    rubberSvg = `<line x1="${last.x}" y1="${last.y}" x2="${target.x}" y2="${target.y}" stroke="#e0862a" stroke-width="2" stroke-dasharray="5,4"/>`;
+  }
+  // 🆕 2026-09-25: طلب حمدي - مؤشر متل الأوتوكاد: خطين (أفقي وعمودي) عابرين لكامل الرسمة من مكان
+  // الماوس بالضبط، مع رقمين واضحين (X وY بالمليمتر) يبيّنوا وين هاي النقطة تمامًا على كل محور - هيك
+  // بيقدر يحاذي نقطة جديدة مع نقطة موجودة (نفس X أو نفس Y) بس ينظر للرقمين، حتى وهو عم يسحب نقطة.
+  let crosshairSvg = '';
+  if(roomDraw.mouse){
+    const mp = mmToPx(roomDraw.mouse);
+    const xLabel = Math.round(roomDraw.mouse.x), yLabel = Math.round(roomDraw.mouse.y);
+    const boxW = 92, boxH = 30;
+    let boxX = mp.x + 12, boxY = mp.y - boxH - 8;
+    if(boxX + boxW > W) boxX = mp.x - boxW - 12;
+    if(boxY < 2) boxY = mp.y + 12;
+    crosshairSvg = `
+      <line x1="${mp.x.toFixed(1)}" y1="0" x2="${mp.x.toFixed(1)}" y2="${H}" stroke="#e0862a" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/>
+      <line x1="0" y1="${mp.y.toFixed(1)}" x2="${W}" y2="${mp.y.toFixed(1)}" stroke="#e0862a" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/>
+      <text x="${(mp.x+3).toFixed(1)}" y="12" font-size="10" font-weight="700" fill="#e0862a" font-family="monospace">${xLabel}</text>
+      <text x="3" y="${(mp.y-4).toFixed(1)}" font-size="10" font-weight="700" fill="#e0862a" font-family="monospace">${yLabel}</text>
+      <rect x="${boxX.toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxW}" height="${boxH}" rx="4" fill="rgba(20,20,22,0.82)"/>
+      <text x="${(boxX+8).toFixed(1)}" y="${(boxY+13).toFixed(1)}" font-size="10.5" fill="#ffe08a" font-family="monospace">X: ${xLabel} mm</text>
+      <text x="${(boxX+8).toFixed(1)}" y="${(boxY+25).toFixed(1)}" font-size="10.5" fill="#ffe08a" font-family="monospace">Y: ${yLabel} mm</text>
+    `;
+  }
+  const cursorStyle = roomDraw.mode === 'pen' ? 'crosshair' : (roomDraw.mode === 'eraser' ? 'cell' : 'default');
+  // 🆕 2026-09-25: طلب حمدي - مساحة رسم كبيرة بملء الشاشة بدون أي تشويه/ميلان بصري. قبل هيك كنا
+  // بنعتمد على CSS (aspect-ratio/width:100%) لضبط مقاس الـSVG المعروض - بس بوضع "ملء الشاشة" (كان
+  // زر تبديلي، هلق صار دايمًا) كنا منفرض width/height:100% بدون علاقة بنسبة العرض:الارتفاع
+  // الحقيقية (460:340)، فكان المتصفح يمطط الرسمة مطّ غير متساوي بمحوري X/Y - وهيك أي زاوية 90°
+  // حقيقية بالمم كانت تظهر بصريًا مايلة على الشاشة (رغم إنها 90° صح بالحسابات!). الحل: منحسب هون
+  // بالجافاسكربت (مش CSS) أكبر مقاس فعلي بالبكسل يحافظ بالظبط على نسبة 460:340 ضمن مساحة .rd-stage
+  // المتوفرة حاليًا، ومنثبته كعرض/ارتفاع صريح بالبكسل - هيك rect.width/rect.height يلي بيستخدمها
+  // roomDrawEventPoint() لتحويل نقرة الماوس لإحداثيات بالمم بتضل مطابقة تمامًا لنسبة الرسمة الحقيقية
+  // دايمًا، بغض النظر عن شكل الشاشة (عريضة أو طويلة أو موبايل).
+  const stage = wrap.parentElement;
+  const stageRect = stage ? stage.getBoundingClientRect() : { width: 900, height: 600 };
+  const availW = Math.max(100, stageRect.width - 24), availH = Math.max(100, stageRect.height - 24);
+  let renderW = availW, renderH = renderW * (H/W);
+  if(renderH > availH){ renderH = availH; renderW = renderH * (W/H); }
+  renderW = Math.round(renderW); renderH = Math.round(renderH);
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:${renderW}px;height:${renderH}px;cursor:${cursorStyle};touch-action:none;user-select:none;background:#fff;border:1px solid var(--wd-line,#333);border-radius:8px;" onmousedown="roomDrawPointerDown(event)" onmousemove="roomDrawPointerMove(event)" onmouseup="roomDrawPointerUp(event)" onmouseleave="roomDrawPointerLeave()" onwheel="roomDrawCanvasWheel(event)">
+    ${gridLines}${closeSvg}${segHighlightSvg}${pathSvg}${rubberSvg}${crosshairSvg}
+  </svg>`;
+  positionRoomDrawLenBox();
+}
+
+function positionRoomDrawLenBox(){
+  const boxWrap = document.getElementById('roomDrawLenBoxWrap');
+  const canvasWrap = document.getElementById('roomDrawCanvasWrap');
+  if(!boxWrap || !canvasWrap) return;
+  const svg = canvasWrap.querySelector('svg');
+  const showBox = roomDraw.active && roomDraw.mode === 'pen' && roomDraw.points.length > 0 && roomDraw.mouse && svg;
+  if(!showBox){ boxWrap.style.display = 'none'; return; }
+  const stage = canvasWrap.parentElement;
+  if(!stage) return;
+  const svgRect = svg.getBoundingClientRect();
+  const stageRect = stage.getBoundingClientRect();
+  const v = roomDraw.view;
+  const fracX = (roomDraw.mouse.x - v.x0)/v.w, fracY = (roomDraw.mouse.y - v.y0)/v.h;
+  let left = svgRect.left - stageRect.left + fracX*svgRect.width + 16;
+  let top = svgRect.top - stageRect.top + fracY*svgRect.height + 16;
+  const boxW = 130, boxH = 40;
+  if(left + boxW > stageRect.width) left = Math.max(4, left - boxW - 32);
+  if(top + boxH > stageRect.height) top = Math.max(4, top - boxH - 32);
+  boxWrap.style.left = left + 'px';
+  boxWrap.style.top = top + 'px';
+  boxWrap.style.display = 'block';
+  // 🆕 2026-09-26: طلب حمدي الأساسي كان "من بداية الرسم يكون في مربع فعّال مع الكيبورد يوخد
+  // الأرقام فورًا" - بس الصندوق كان بس "يظهر" (display:block) من دون ما ياخد التركيز (focus)
+  // فعليًا أبدًا، فكان لازم كبسة كليك يدوية عليه أول قبل ما يقبل أي كتابة - وحمدي جرب يكتب المقاس
+  // مباشرة بدون كليك (متل ما الأداة وعدّاه) فما استجاب الصندوق إطلاقًا. الحل: طالما الصندوق ظاهر
+  // وما هو أصلًا هو العنصر الحالي المركَّز عليه (document.activeElement) - منركّز عليه تلقائيًا، حتى
+  // يضل جاهز للكتابة فورًا بأي لحظة بدون ما يحتاج يدوس عليه بالماوس قبل.
+  const inp = document.getElementById('roomDrawLenInput');
+  if(inp && document.activeElement !== inp){
+    try{ inp.focus({ preventScroll:true }); }catch(e){ try{ inp.focus(); }catch(e2){} }
+  }
+}
+window.positionRoomDrawLenBox = positionRoomDrawLenBox;
+
+function roomDrawCommitTypedLength(){
+  if(!roomDraw.active || roomDraw.mode !== 'pen') return;
+  const pts = roomDraw.points;
+  const inp = document.getElementById('roomDrawLenInput');
+  if(!pts.length){
+    alert('حدد أول نقطة بالرسمة بكليك عالفراغ الفاضي (مكانها مش مهم، بس نقطة بداية) - وبعدها استخدم هاد الصندوق لباقي الأطوال بالأرقام.');
+    return;
+  }
+  const rawVal = inp ? inp.value.trim() : '';
+  // 🆕 2026-09-26: باغ حقيقي كان موجود - evalMeasureExpr() بالتصميم بترجع null لرقم عادي لحاله (متل
+  // "2500" بدون + أو -)، لأنو مصممة لحالات تانية بالأداة (شوف تعريفها فوق) وبتعتمد على المستدعي إنو
+  // يرجع للرقم الخام لو رجّعت null. هون كنا ناقصين هالخطوة، فأي طول عادي (الحالة الأغلب - أكتر
+  // المستخدمين بيكتبوا رقم لحاله بدون جمع/طرح) كان دايمًا يطلع "اكتب طول صحيح" رغم إنو الرقم صحيح
+  // 100%! نفس المنطق يلي مستخدم بباقي أماكن الأداة (evalMeasureExpr(x) ?? parseFloat(x)).
+  const len = evalMeasureExpr(rawVal) ?? parseFloat(rawVal);
+  if(!len || isNaN(len) || len <= 0){
+    alert('اكتب طول صحيح بالمليمتر (رقم أكبر من صفر) - ممكن كمان تجمع/تطرح متل 3000+250.');
+    return;
+  }
+  const last = pts[pts.length-1];
+  let dirX = null, dirY = null;
+  if(roomDraw.mouse){
+    const dx = roomDraw.mouse.x - last.x, dy = roomDraw.mouse.y - last.y;
+    if(Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001){
+      if(!roomDraw.freeAngle){
+        if(Math.abs(dx) >= Math.abs(dy)){ dirX = dx>=0?1:-1; dirY = 0; }
+        else { dirX = 0; dirY = dy>=0?1:-1; }
+      } else {
+        const mag = Math.hypot(dx,dy) || 1;
+        dirX = dx/mag; dirY = dy/mag;
+      }
+    }
+  }
+  if(dirX === null){
+    // ما في اتجاه واضح من الماوس (مثلاً بلش الرسم وبعده ما حرك الماوس إطلاقًا) - منكمل بنفس اتجاه
+    // آخر ضلع مرسوم (نفس المنطق يلي بيحسبو finishRoomFreehandDraw لتحديد الزوايا)، وإلا (أول ضلع
+    // إطلاقًا) منفتراض يمين كبداية منطقية.
+    if(pts.length >= 2){
+      const prev = pts[pts.length-2];
+      const ddx = last.x-prev.x, ddy = last.y-prev.y;
+      const mag = Math.hypot(ddx,ddy) || 1;
+      dirX = ddx/mag; dirY = ddy/mag;
+    } else { dirX = 1; dirY = 0; }
+  }
+  const next = { x: last.x + dirX*len, y: last.y + dirY*len };
+  roomDraw.points.push(next);
+  roomDraw.lastClick = null;
+  if(inp) inp.value = '';
+  renderRoomDrawCanvas();
+  setTimeout(()=>{ const el = document.getElementById('roomDrawLenInput'); if(el) el.focus(); }, 0);
+}
+window.roomDrawCommitTypedLength = roomDrawCommitTypedLength;
+
+function roomDrawRepairClosingEdge(pts){
+  const n = pts.length;
+  if(n < 3) return pts;
+  const first = pts[0], last = pts[n-1], prev = pts[n-2];
+  const alreadyOk = Math.abs(last.x-first.x) < 0.01 || Math.abs(last.y-first.y) < 0.01;
+  if(alreadyOk) return pts;
+  const prevEdgeIsHoriz = Math.abs(last.y - prev.y) < 0.01;
+  const prevEdgeIsVert = Math.abs(last.x - prev.x) < 0.01;
+  if(!prevEdgeIsHoriz && !prevEdgeIsVert) return pts; // آخر ضلع مرسوم كان أصلًا زاوية حرة - ما منلمسه
+  // ما منحرك ولا منقصر أي ضلع مرسوم فعليًا (المستخدم صرّح: المقاس ممكن يزيد بس الشكل لازم يصير صح).
+  // بدل تحريك آخر نقطة، منضيف نقطة زاوية وسيطة تشكل ضلعين (L) يوصلوا آخر نقطة بنقطة البداية
+  // بزاوية 90 درجة تمامًا على الطرفين، والضلع الأخير المرسوم يبقى متل ما هو تمامًا.
+  const corner = prevEdgeIsHoriz ? { x: last.x, y: first.y } : { x: first.x, y: last.y };
+  const repaired = pts.slice();
+  repaired.push(corner);
+  return repaired;
+}
+
+function roomDrawDedupePoints(pts){
+  if(pts.length < 2) return pts.slice();
+  const out = [pts[0]];
+  for(let i=1;i<pts.length;i++){
+    const p = pts[i], prev = out[out.length-1];
+    if(Math.abs(p.x-prev.x) > 0.5 || Math.abs(p.y-prev.y) > 0.5) out.push(p);
+  }
+  if(out.length > 1){
+    const f = out[0], l = out[out.length-1];
+    if(Math.abs(l.x-f.x) < 0.5 && Math.abs(l.y-f.y) < 0.5) out.pop();
+  }
+  return out;
+}
+
+function finishRoomFreehandDraw(){
+  if(!roomDraw.active) return;
+  const it = items.find(i=>i.id===roomDraw.itemId);
+  if(!it){ cancelRoomFreehandDraw(); return; }
+  if(roomDraw.points.length < 3){ alert('لازم عالأقل 3 نقاط لتشكيل أرضية مغلقة (كل نقطة = زاوية بالأرضية).'); return; }
+  const dedupedPts = roomDrawDedupePoints(roomDraw.points);
+  if(dedupedPts.length < 3){ alert('لازم عالأقل 3 نقاط لتشكيل أرضية مغلقة (كل نقطة = زاوية بالأرضية).'); return; }
+  const pts = roomDrawRepairClosingEdge(dedupedPts);
+  const hasDesigned = (it.roomSides||[]).some(s => (s.segments||[]).some(g=>g.rowUid));
+  if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تستبدل قائمة الأضلاع بالكامل بالشكل الجديد يلي رسمتو. البنود يلي كانت مصممة رح تضل موجودة بجدول عرض السعر (ما رح تنحذف) بس ما رح تضل مربوطة بضلع بعد هلق. بدك تكمل؟')) return;
+  pushHistory();
+  const n = pts.length;
+  const dirs = [];
+  for(let i=0; i<n; i++){
+    const a = pts[i], b = pts[(i+1)%n];
+    dirs.push(Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI);
+  }
+  const newSides = [];
+  for(let i=0; i<n; i++){
+    const a = pts[i], b = pts[(i+1)%n];
+    const mmLen = Math.max(50, Math.round(Math.hypot(b.x-a.x, b.y-a.y)/10)*10);
+    let diff = dirs[(i+1)%n] - dirs[i];
+    diff = ((diff % 360) + 360) % 360;
+    let interior = 180 - diff;
+    if(interior <= 0) interior += 360;
+    if(interior >= 360) interior -= 360;
+    interior = Math.max(1, Math.min(359, Math.round(interior)));
+    newSides.push({ id:'rs'+(roomSideIdCounter++), length: mmLen, angleDeg: interior,
+      segments:[{ id:'rg'+(roomSegIdCounter++), length: mmLen, kind:'design', rowUid:null }] });
+  }
+  it.roomSides = newSides;
+  cancelRoomFreehandDraw();
+  renderRoomSidesUI(it);
+  renderGallery();
+}
+window.finishRoomFreehandDraw = finishRoomFreehandDraw;
+
+function renderRoomSidesUI(it){
+  const list = document.getElementById('roomSidesList');
+  if(!list) return;
+  const sides = it.roomSides || [];
+  list.innerHTML = sides.map((s, idx)=>{
+    const segs = ensureRoomSideSegments(s);
+    const segsHtml = segs.map((seg, segIdx)=>{
+      const isWall = seg.kind === 'wall';
+      const linkedTr = seg.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]') : null;
+      const linkedName = linkedTr ? ((linkedTr.querySelector('.item-input')||{}).value || '') : '';
+      const designHtml = isWall
+        ? `<span style="font-size:11px;color:#8d6e63;">🧱 حائط/جدار (بدون سطر بالعرض)</span>`
+        : `<button class="small" onclick="designRoomSideSegment(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;">🎨 ${seg.rowUid ? 'عدّل التصميم' : 'صمم'}</button>
+           ${seg.rowUid
+             ? `<span style="font-size:11px;color:var(--wd-ok,#1e7a3d);">✓ مصمم: ${escAttr(linkedName || ('جزء '+(segIdx+1)))}</span>`
+             : `<span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">لسا ما انصمم</span>`}`;
+      return `
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 6px 4px 22px;border-radius:6px;margin-bottom:4px;${isWall?'background:rgba(141,110,99,0.08);':''}">
+        ${segs.length>1 ? `<span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);min-width:40px;">جزء ${segIdx+1}</span>` : ''}
+        <input type="text" inputmode="decimal" min="50" style="width:74px;" value="${Math.round(seg.length)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onRoomSegField(${it.id},'${s.id}','${seg.id}','length',this.value)" title="طول هاد الجزء (مم) - تقدر تكتب مثلاً 3000+250">
+        <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
+        <button class="small" onclick="toggleRoomSegKind(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;" title="حوّل هاد الجزء بس (مش الضلع كامل) بين تصميم عادي وحائط/جدار">${isWall ? '🎨 رجّعه تصميم' : '🧱 حوّله حائط'}</button>
+        ${designHtml}
+        ${segs.length>1 ? `<button class="small danger" onclick="removeRoomSideSegment(${it.id},'${s.id}','${seg.id}')" title="حذف هاد الجزء (بينضم طوله للجزء يلي قبلو)" style="margin-inline-start:auto;">✕</button>` : ''}
+      </div>`;
+    }).join('');
+    return `
+    <div style="border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:6px;padding-bottom:4px;">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 6px 2px 6px;">
+        <span style="font-size:12px;font-weight:700;min-width:50px;">ضلع ${idx+1}</span>
+        <input type="number" min="1" max="359" style="width:64px;" value="${Math.round(s.angleDeg)}" onchange="onRoomSideField(${it.id},'${s.id}','angleDeg',this.value)" title="الزاوية الداخلية بين هاد الضلع واللي بعده (افتراضي 90°)">
+        <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">°</span>
+        <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);margin-inline-start:6px;">الطول الكلي: <b>${Math.round(s.length)}</b> مم${segs.length>1 ? (' (من '+segs.length+' أقسام)') : ''}</span>
+        <button class="small" onclick="addRoomSideSegment(${it.id},'${s.id}')" style="font-size:10px;margin-inline-start:auto;" title="قسّم هاد الضلع لجزء إضافي (مثلاً جزء حائط اسمنتي وجزء زجاج)">➕ قسّم لجزء</button>
+        <button class="small danger" onclick="removeRoomSide(${it.id},'${s.id}')" title="حذف الضلع كامل">× حذف الضلع</button>
+      </div>
+      ${segsHtml}
+    </div>`;
+  }).join('');
+  const previewEl = document.getElementById('roomFloorPreview');
+  if(previewEl) previewEl.innerHTML = buildRoomSVG(it);
+  renderCeilingSidesUI(it); // السقف بيتحدّث لحاله كل مرة الأرضية بتتحدّث - نفس فكرة معاينة الأرضية
+}
+
+function buildRoomSVG(it){
+  const sides = it.roomSides || [];
+  if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">ضيف 3 أضلاع عالأقل</div>';
+  // 🆕 2026-09-26: طلب حمدي - بعد ما يخلص رسم المسقط، يقدر يدوّره (زر 🔄 دوّر المسقط بفوق الكرت) من
+  // دون ما يرجع يفتح أداة الرسم كامل. الدوران هون بس "بصري" (وين تبلش الرسمة تتجه) - ما بيغيّر ولا
+  // طول ضلع ولا زاوية داخلية حقيقية إطلاقًا (الشكل نفسه بالضبط، بس مبيّن بزاوية دوران مختلفة).
+  let bearing = it.roomPlanRotationDeg || 0, x = 0, y = 0;
+  const pts = [{x, y}];
+  sides.forEach(s=>{
+    const rad = bearing * Math.PI/180;
+    const nx = x + s.length*Math.cos(rad), ny = y + s.length*Math.sin(rad);
+    x = nx; y = ny;
+    pts.push({x, y});
+    bearing += (180 - (s.angleDeg||90)); // الزاوية الخارجية = 180 - الزاوية الداخلية
+  });
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rangeW = Math.max(1, maxX-minX), rangeH = Math.max(1, maxY-minY);
+  const boxPx = 260;
+  const scale = Math.min(boxPx/rangeW, boxPx/rangeH);
+  const pad = 40;
+  const toPx = p => ({ x:(p.x-minX)*scale, y:(p.y-minY)*scale });
+  const pxPts = pts.map(toPx);
+  const polyStr = pxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
+  const closureGap = Math.hypot(pts[pts.length-1].x - pts[0].x, pts[pts.length-1].y - pts[0].y);
+  const isClosed = closureGap < Math.max(50, rangeW*0.03);
+  const totalW = rangeW*scale + pad*2, totalH = rangeH*scale + pad*2;
+  // 🧱 2026-09-24: طلب حمدي - ضلع (أو حتى واجهة كاملة) ممكن يكون كله أو *جزء* منو بس "حائط/جدار
+  // اسمنتي" بدل تصميم زجاج عادي (مثلاً 1.5 متر حائط وباقي الضلع زجاج). كل ضلع بمشي عليه (طول+زاوية)
+  // زي ما هو دايمًا بغض النظر عن الأقسام - هون بس منقسم كل حافة (edge) بالمخطط لأجزاء ملوّنة نسبةً
+  // لطول كل قسم (segment) جواها، ومنحط أيقونة 🧱 جنب طول أي قسم حائط حتى يتميز بالمخطط.
+  // 🆕 2026-09-25: طلب حمدي - "اخترت المسقط وماعم اقدر عدل المقاسات من عليه - من على الصورة بقصد
+  // متل اي بند آخر". بالتصاميم العادية (نافذة/باب) الرقم المرسوم فوق الرسمة نفسو قابل للضغط والتعديل
+  // مباشرة (editLeafDim) - نفس المنطق هلق صار متاح هون: كل رقم طول مرسوم فوق المسقط قابل للضغط
+  // (بدل ما تضطر تنزل لقائمة الحقول تحت) وبيفتح نفس آلية onRoomSegField الموجودة أصلًا.
+  // ensureRoomSideSegments(side) بدل الاعتماد على fallback مؤقت بدون id حقيقي - لازم id حقيقي لكل
+  // قسم حتى نقدر نناديه من onclick بالرسمة.
+  let edgesSvg = '', labelsSvg = '';
+  for(let i=0; i<sides.length; i++){
+    const side = sides[i];
+    const p1 = pxPts[i], p2 = pxPts[i+1];
+    const segs = ensureRoomSideSegments(side);
+    const totalLen = segs.reduce((a,g)=>a+(g.length||0),0) || side.length || 1;
+    let dirDeg = Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI;
+    dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
+    if(dirDeg > 90 && dirDeg < 270) dirDeg -= 180; // نص فوق رأسه - منقلبه ليضل مقروء
+    let cum = 0;
+    segs.forEach(seg=>{
+      const f0 = cum/totalLen; cum += (seg.length||0); const f1 = cum/totalLen;
+      const sx1 = p1.x + (p2.x-p1.x)*f0, sy1 = p1.y + (p2.y-p1.y)*f0;
+      const sx2 = p1.x + (p2.x-p1.x)*f1, sy2 = p1.y + (p2.y-p1.y)*f1;
+      const isWall = seg.kind === 'wall';
+      edgesSvg += `<line x1="${sx1}" y1="${sy1}" x2="${sx2}" y2="${sy2}" stroke="${isWall ? '#8d6e63' : 'var(--wd-ink)'}" stroke-width="${isWall ? 5 : 2}" stroke-linecap="round"/>`;
+      const mx = (sx1+sx2)/2, my = (sy1+sy2)/2;
+      const wallTag = isWall ? '🧱 ' : '';
+      labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="${isWall ? '#8d6e63' : 'var(--wd-ink)'}" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" style="cursor:pointer;" transform="rotate(${dirDeg}, ${mx}, ${my-6})" onclick="event.stopPropagation();editRoomSegLengthFromSVG(${it.id},'${side.id}','${seg.id}',${Math.round(seg.length)})">${wallTag}${Math.round(seg.length)} mm</text>`;
+    });
+  }
+  return `
+  <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="${polyStr}" fill="var(--wd-glass, rgba(120,180,220,0.28))" stroke="none"/>
+    ${edgesSvg}
+    ${labelsSvg}
+    ${isClosed ? '' : `<text x="${totalW/2 - pad}" y="${totalH - pad + 16}" font-size="10" fill="#e53935" text-anchor="middle">⚠ الشكل ما منسك 100% - راجع الأطوال/الزوايا</text>`}
+  </svg>`;
+}
+
+function designRoomSideSegment(itemId, sideId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  ensureRoomSideSegments(side);
+  const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
+  if(seg.kind === 'wall'){ alert('هاد الجزء محدد حاليًا كـ"حائط/جدار" - حوّله لتصميم أول (زر 🎨) لو بدك تصممه.'); return; }
+  pushHistory();
+  let tr = seg.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]') : null;
+  if(!tr){
+    const sideIdx = it.roomSides.indexOf(side) + 1;
+    const segIdx = side.segments.indexOf(seg) + 1;
+    addQtyRow(Math.round(seg.length), Math.round(it.roomHeight||2500), '1', '');
+    const rows = document.querySelectorAll('#qty-rows tr');
+    tr = rows[rows.length-1];
+    const nameInput = tr.querySelector('.item-input');
+    if(nameInput){
+      const label = side.segments.length > 1
+        ? (it.label||'غرفة') + ' - ضلع ' + sideIdx + ' - جزء ' + segIdx
+        : (it.label||'غرفة') + ' - ضلع ' + sideIdx;
+      nameInput.value = label;
+      tr.dataset.itemName = label;
+    }
+    seg.rowUid = ensureRowUid(tr);
+  }
+  renumber();
+  const rowData = Array.from(document.querySelectorAll('#qty-rows tr')).map(rowTr=>{
+    const uid = ensureRowUid(rowTr);
+    const itemName = (rowTr.querySelector('.item-input')||{}).value || '';
+    const w = parseFloat((rowTr.querySelector('.w-input')||{}).value) || 0;
+    const h = parseFloat((rowTr.querySelector('.h-input')||{}).value) || 0;
+    const refCode = (rowTr.querySelector('.row-code')||{}).textContent || '';
+    const linkedIdx = findItemIndexByName(itemName);
+    const savedDesign = linkedIdx>=0 ? (ITEMS[linkedIdx].design || null) : null;
+    return { uid, itemName, w, h, refCode, savedDesign };
+  });
+  WD.loadFromRows(rowData);
+  const target = items.find(i=>i.sourceRowUid === seg.rowUid);
+  if(target){
+    // 🆕 2026-09-24: طلب حمدي - سمّي هاد البند "منظور Elevation" (مش "كرتن وول"/"شباك مفصلي" العام)
+    // لأنو هاد فعليًا منظور الحيط/الضلع المسطّح، مش نوع زجاج بيتحدد من التصنيف العادي.
+    target.isRoomWallElevation = true;
+    selectItem(target.id);
+  }
+  renderGallery();
+}
+window.designRoomSideSegment = designRoomSideSegment;
+function restrictMeasureChars(el){
+  const cleaned = el.value.replace(/[^0-9+\-.\s]/g, '');
+  if(cleaned !== el.value){
+    const pos = (el.selectionStart==null ? cleaned.length : el.selectionStart) - (el.value.length - cleaned.length);
+    el.value = cleaned;
+    if(el.setSelectionRange) el.setSelectionRange(pos, pos);
+  }
+}
+
+function evalMeasureExpr(raw){
+  if(raw == null) return null;
+  const trimmed = String(raw).trim();
+  if(!trimmed) return null;
+  // لازم يكون فيه أقله إشارة وحدة (+ أو -) بعد أول رقم عشان نعتبره "تعبير جمع/طرح حقيقي" - رقم عادي
+  // لحاله (حتى لو سالب متل "-50") منرجع له null قصدًا، يعني خليه متل ما هو وين ما كان مستخدم كرقم عادي.
+  if(!/^-?[0-9.\s]+([+-][0-9.\s]+)+$/.test(trimmed)) return null;
+  const tokens = trimmed.match(/[+-]?[0-9.\s]+/g);
+  if(!tokens || tokens.length < 2) return null;
+  let sum = 0, any = false;
+  for(const tok of tokens){
+    const n = parseFloat(tok.replace(/\s/g,''));
+    if(isNaN(n)) continue;
+    sum += n; any = true;
+  }
+  return any ? sum : null;
+}
+
+function evalMeasureField(el){
+  if(!el) return;
+  const result = evalMeasureExpr(el.value);
+  if(result !== null) el.value = Number.isInteger(result) ? String(result) : result.toFixed(2);
+}
+
+function ensureCeilingSides(it){
+  if(!it.ceilingSides || it.ceilingSides.length !== (it.roomSides||[]).length){
+    it.ceilingSides = (it.roomSides||[]).map(s => ({ id:'cs'+(ceilingSideIdCounter++), length:s.length, angleDeg:s.angleDeg }));
+  }
+  return it.ceilingSides;
+}
+
+function resetCeilingToFloor(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.ceilingSides = (it.roomSides||[]).map(s => ({ id:'cs'+(ceilingSideIdCounter++), length:s.length, angleDeg:s.angleDeg }));
+  renderCeilingSidesUI(it);
+  renderGallery();
+}
+window.resetCeilingToFloor = resetCeilingToFloor;
+
+function onCeilingSideField(itemId, sideId, field, value){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  ensureCeilingSides(it);
+  const side = it.ceilingSides.find(s=>s.id===sideId); if(!side) return;
+  pushHistory();
+  if(field==='length') side.length = Math.max(1, parseFloat(value)||1);
+  if(field==='angleDeg') side.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
+  renderCeilingSidesUI(it);
+  renderGallery();
+}
+window.onCeilingSideField = onCeilingSideField;
+
+function renderCeilingSidesUI(it){
+  const list = document.getElementById('ceilingSidesList');
+  if(!list) return;
+  const sides = ensureCeilingSides(it);
+  list.innerHTML = sides.map((s, idx)=>`
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:4px;">
+      <span style="font-size:12px;font-weight:700;min-width:50px;">ضلع ${idx+1}</span>
+      <input type="text" inputmode="decimal" min="1" style="width:80px;" value="${Math.round(s.length)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onCeilingSideField(${it.id},'${s.id}','length',this.value)" title="طول هاد الضلع بالسقف (مم) - تقدر تكتب مثلاً 3000+250">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
+      <input type="number" min="1" max="359" style="width:64px;" value="${Math.round(s.angleDeg)}" onchange="onCeilingSideField(${it.id},'${s.id}','angleDeg',this.value)" title="الزاوية الداخلية لهاد الضلع بالسقف">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">°</span>
+    </div>`).join('');
+  const previewEl = document.getElementById('ceilingPreview');
+  if(previewEl) previewEl.innerHTML = buildCeilingSVG(it);
+}
+window.renderCeilingSidesUI = renderCeilingSidesUI;
+
+function buildCeilingSVG(it){
+  const sides = ensureCeilingSides(it);
+  if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">لسا ما في شكل أرضية كافي (عالأقل 3 أضلاع)</div>';
+  const pts = computeSidesPolygonMM(sides);
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rangeW = Math.max(1, maxX-minX), rangeH = Math.max(1, maxY-minY);
+  const boxPx = 260;
+  const scale = Math.min(boxPx/rangeW, boxPx/rangeH);
+  const pad = 40;
+  const toPx = p => ({ x:(p.x-minX)*scale, y:(p.y-minY)*scale });
+  const pxPts = pts.map(toPx);
+  const polyStr = pxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
+  const totalW = rangeW*scale + pad*2, totalH = rangeH*scale + pad*2;
+  let labelsSvg = '';
+  for(let i=0;i<sides.length;i++){
+    const p1 = pxPts[i], p2 = pxPts[i+1];
+    let dirDeg = Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI;
+    dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
+    if(dirDeg > 90 && dirDeg < 270) dirDeg -= 180;
+    const mx = (p1.x+p2.x)/2, my = (p1.y+p2.y)/2;
+    labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my-6})">${Math.round(sides[i].length)} mm</text>`;
+  }
+  return `
+  <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="${polyStr}" fill="var(--wd-glass, rgba(160,140,110,0.28))" stroke="var(--wd-ink)" stroke-width="2"/>
+    ${labelsSvg}
+  </svg>`;
+}
+function computeSidesPolygonMM(sides){
+  let bearing = 0, x = 0, y = 0;
+  const pts = [{x,y}];
+  (sides||[]).forEach(s=>{
+    const rad = bearing * Math.PI/180;
+    const nx = x + s.length*Math.cos(rad), ny = y + s.length*Math.sin(rad);
+    x = nx; y = ny;
+    pts.push({x,y});
+    bearing += (180 - (s.angleDeg||90));
+  });
+  return pts;
+}
+/* ================= نهاية ميزة الغرفة/المجلس المنقولة ================= */
+
 
 // أجزاء الدرج (مائل / استراحة) - بتتأكد إنو في جزء وحد عالأقل، وبترجع المصفوفة
 function ensureHandrailSegments(it){
@@ -5784,7 +7136,7 @@ function makeItem(type){
   } else {
     layout = makeSplit('col', [{frac:70,node:leaf()},{frac:30,node:leaf()}]);
   }
-  return {
+  const it = {
     id: nextId++,
     label: label + ' ' + (items.filter(i=>i.shapeType===type).length + 1),
     shapeType: type,
@@ -5826,6 +7178,15 @@ function makeItem(type){
     hrGlassHeight: 1200,
     layout
   };
+  // 🆕 نقل ميزة "غرفة/مجلس" من index.html - مخطط أرضية بعدة أضلاع
+  if(type === 'room'){
+    it.roomHeight = 2500;
+    it.roomSides = [0,1,2,3].map(()=>({
+      id:'rs'+(roomSideIdCounter++), length:3000, angleDeg:90,
+      segments:[{ id:'rg'+(roomSegIdCounter++), length:3000, kind:'design', rowUid:null }]
+    }));
+  }
+  return it;
 }
 
 function addItem(type){
@@ -6151,6 +7512,19 @@ function loadSelectedIntoControls(){
   });
   renderTemplateSections();
   if(!it) return;
+
+  // 🆕 نقل ميزة "غرفة/مجلس" من index.html - لوحة تحكم مختلفة كليًا (أضلاع + زوايا)، منعزلة عن باقي أنواع البنود
+  const room = isRoom(it);
+  if(roomDraw.active && (!room || roomDraw.itemId !== it.id)) cancelRoomFreehandDraw();
+  document.getElementById('roomBlock').style.display = room ? 'block' : 'none';
+  if(room){
+    document.getElementById('handrailBlock').style.display = 'none';
+    document.getElementById('normalDimsRow').style.display = 'none';
+    document.getElementById('inArch').closest('.check-row').style.display = 'none';
+    document.getElementById('inRoomHeight').value = it.roomHeight || 2500;
+    renderRoomSidesUI(it);
+    return;
+  }
 
   const hr = isHandrail(it);
   const isShower = isShowerDoor(it);
@@ -6957,6 +8331,8 @@ function renderNode(it, node, x, y, w, h, scale, isDoor, out, netMap){
 }
 
 function classifyItem(it){
+  if(it.shapeType === 'room') return { en:'Plan', ar:'مسقط' };
+  if(it.isRoomWallElevation) return { en:'Elevation', ar:'منظور' };
   if(it.shapeType === 'foldingDoor') return { en:'Folding Door', ar:'باب فولدينغ' };
   if(it.shapeType === 'slidingDoor') return { en:'Sliding Door', ar:'باب سحّاب' };
   if(it.shapeType === 'slidingWindow') return { en:'Sliding Window', ar:'شباك سحّاب' };
@@ -7229,6 +8605,7 @@ window.editHandrailTotal = editHandrailTotal;
 
 function buildItemSVG(it){
   if(isHandrail(it)) return buildHandrailSVG(it);
+  if(isRoom(it)) return buildRoomSVG(it);
   const W = it.width, H = it.height;
   if(!W || !H || W<=0 || H<=0) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">أدخل أبعاد صحيحة</div>';
 
@@ -8170,6 +9547,7 @@ function renderGallery(){
     head.onclick = () => selectItem(it.id);
     head.innerHTML = `<span class="name">${it.label}${it.refCode ? ` <span style="opacity:0.6;font-weight:400;">(${it.refCode})</span>` : ''}</span>
       ${isHandrail(it) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
+      ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();rotateRoomPlan(${it.id})" title="دوّر المسقط 90° (بس شكل العرض - ما بيغيّر أي مقاس أو زاوية حقيقية)">🔄 دوّر المسقط</button>` : ''}
       <span class="type-badge">${SHAPE_LABELS[it.shapeType] || 'شباك'}</span>`;
     const canvasDiv = document.createElement('div');
     canvasDiv.className = 'card-canvas';
@@ -8303,7 +9681,12 @@ WD.loadFromRows = function(rowData){
   // مرجعي فعلي وجلب بنوده - فما بدنا نحافظ على أي "بند مستقل" مش مرتبط بسطر بالجدول (كان ينضاف يدوي
   // بجلسة سابقة، أو باقي من رفرنس تاني) متل ما بيصير بالمصمم المدمج جوا أداة عروض الأسعار (index.html)
   // لما يعاد فتحه لنفس عرض السعر. هون كل ما نحمّل رفرنس، بدنا بس البنود المرتبطة فعليًا بسطور جدوله.
-  items = newItems;
+  // 🆕 استثناء ضروري لميزة "غرفة/مجلس" المنقولة: بند الغرفة نفسو أبدًا مش مرتبط بسطر بجدول عرض
+  // السعر (بس أضلاعه/أجزاءه هني يلي بيصير الها سطر لما تنصمم) - فلو ما استثنيناه هون، أي ضغطة على
+  // "🎨 صمم" لأي جزء من الغرفة كانت رح تمسح بند الغرفة نفسو فورًا (لأنو مش موجود بـnewItems ولا إلو
+  // sourceRowUid). منحافظ عليه دايمًا بغض النظر عن حالة جدول السطور.
+  const standaloneRoomItems = items.filter(it => isRoom(it));
+  items = newItems.concat(standaloneRoomItems);
   selectedId = items.length ? items[0].id : null;
   historyStack = [];
   renderChips(); loadSelectedIntoControls(); renderGallery(); updateUndoButton();

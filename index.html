@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.3';
+  var CURRENT_VERSION = '2026-09-26.4';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -6907,7 +6907,7 @@ let ceilingSideIdCounter = 1;
 // كليك عالنقطة بيحذفها فورًا بدون داعي لـ double-click). selectedPointIdx/selectedSegIdx: أي نقطة أو
 // ضلع محدد حاليًا بوضع "مؤشر" (لتلوينه/تمييزه بالرسمة وتسهيل مسك طرفيه بالضبط).
 let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
-  mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null };
+  mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
 const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340; // مقاس الكانفس الثابت بالبكسل (نسبة العرض للارتفاع محفوظة بحساب mmPerPx واحد لكل من x/y)
 
 function isHandrail(it){ return it.shapeType === 'handrail'; }
@@ -8921,8 +8921,13 @@ function toggleRoomFreehandDraw(){
     cancelRoomFreehandDraw();
   } else {
     const existingPts = (it.roomSides && it.roomSides.length>=3) ? roomDrawPointsFromSides(it.roomSides) : [];
+    // 🆕 closedLoop: existingPts (شكل جاهز محمّل من roomSides) بيمثّل مضلع مقفول فعليًا (في ضلع
+    // إغلاق حقيقي بين آخر نقطة وأول نقطة) - فمنقفل الزاوية 90° بالسحب باعتبار أول/آخر نقطة جيران.
+    // شكل فاضي (غرفة جديدة قبل ما ترسم، أو بعد "ابدأ رسمة فاضية") لسا خط مفتوح، ما في ضلع إغلاق
+    // حقيقي بعد - شوف startRoomDrawFresh() وroomDrawPointerMove() تحت.
     roomDraw = { active:true, itemId:it.id, points:existingPts, mouse:null, freeAngle:false, gesture:null,
       mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null,
+      closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
     const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
     updateRoomDrawModeButtons();
@@ -8955,6 +8960,9 @@ function startRoomDrawFresh(){
   roomDraw.gesture = null;
   roomDraw.lastClick = null;
   roomDraw.view = roomDrawComputeFitView([], 1500);
+  // 🆕 رسمة فاضية جديدة = خط مفتوح (ما في ضلع إغلاق حقيقي بعد بين أول/آخر نقطة) - شوف الشرح
+  // فوق toggleRoomFreehandDraw() وroomDrawPointerMove() تحت.
+  roomDraw.closedLoop = false;
   setRoomDrawMode('pen');
   renderRoomDrawCanvas();
 }
@@ -8962,7 +8970,7 @@ window.startRoomDrawFresh = startRoomDrawFresh;
 
 function cancelRoomFreehandDraw(){
   roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
-    mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null };
+    mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
   const wrap = document.getElementById('roomDrawWrap');
   if(wrap) wrap.style.display = 'none';
   // منرجّع #roomDrawWrap لمكانه الأصلي جوا لوحة التحكم (شوف الشرح فوق toggleRoomFreehandDraw) - حتى
@@ -9196,9 +9204,19 @@ function roomDrawPointerMove(evt){
       let candidate = raw;
       if(!roomDraw.freeAngle && orig && n > 2){
         const i = g.pointIndex;
-        const prevIdx = (i === 0) ? n-1 : i-1;
-        const nextIdx = (i === n-1) ? 0 : i+1;
-        if(prevIdx !== i && nextIdx !== i && prevIdx !== nextIdx){
+        // 🆕 2026-09-26: طلب حمدي - "عم ارسم، وصلت نقطة، وحبيت عدّل نقطة البداية، بلاقي ما بقدر
+        // غيّرها أبدًا". السبب: هون كنا دايمًا نعتبر أول نقطة وآخر نقطة "جيران" (زي مضلع مقفول)
+        // حتى أثناء رسم خط لسا مفتوح (قبل ما يتسكّر الشكل فعليًا) - فسحب أول نقطة كان عم يفترض
+        // في ضلع إغلاق حقيقي مع آخر نقطة (rooDraw.points[نهاية]) ويزحزحها هي كمان بالغلط، وينتج
+        // شكل مشوّه/نقطتين فوق بعض. الحل: roomDraw.closedLoop بيحدد هل فعلاً في ضلع إغلاق حقيقي
+        // (شكل معاد فتحه للتعديل) أو لسا خط مفتوح (رسمة جديدة/"ابدأ من جديد" لسا ما تسكّرت) - فقط
+        // بالحالة الأولى منعتبر أول/آخر نقطة جيران عبر "الالتفاف" (wrap-around).
+        const wrap = roomDraw.closedLoop;
+        const prevIdx = (i === 0) ? (wrap ? n-1 : -1) : i-1;
+        const nextIdx = (i === n-1) ? (wrap ? 0 : -1) : i+1;
+        const hasPrev = prevIdx !== -1 && prevIdx !== i;
+        const hasNext = nextIdx !== -1 && nextIdx !== i && nextIdx !== prevIdx;
+        if(hasPrev && hasNext){
           const origI = orig[i], origPrev = orig[prevIdx], origNext = orig[nextIdx];
           const edgePrevWasHoriz = Math.abs(origI.y - origPrev.y) < 0.01;
           candidate = edgePrevWasHoriz ? { x: raw.x, y: origPrev.y } : { x: origPrev.x, y: raw.y };
@@ -9220,6 +9238,17 @@ function roomDrawPointerMove(evt){
             newNext = (!edgePrevWasHoriz) ? origNext : { x: origNext.x + deltaX, y: origNext.y };
           }
           roomDraw.points[nextIdx] = newNext;
+        } else if(hasPrev || hasNext){
+          // 🆕 نقطة طرفية بخط لسا مفتوح (أول أو آخر نقطة قبل ما يتسكّر الشكل) - إلها جار حقيقي
+          // واحد بس، فمنقفل الضلع المتصل فيه بس (بدون ما نلمس أي نقطة تانية - ما في ضلع إغلاق
+          // حقيقي لنحافظ عليه أصلًا).
+          const origI = orig[i];
+          const anchorIdx = hasPrev ? prevIdx : nextIdx;
+          const origAnchor = orig[anchorIdx];
+          const edgeWasHoriz = Math.abs(origI.y - origAnchor.y) < 0.01;
+          candidate = edgeWasHoriz ? { x: raw.x, y: origAnchor.y } : { x: origAnchor.x, y: raw.y };
+          candidate = roomDrawSnapToGeometry(candidate, i);
+          if(edgeWasHoriz) candidate.y = origAnchor.y; else candidate.x = origAnchor.x;
         } else {
           candidate = roomDrawSnapToGeometry(raw, g.pointIndex);
         }
