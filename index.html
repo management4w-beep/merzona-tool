@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.10';
+  var CURRENT_VERSION = '2026-09-26.11';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10017,6 +10017,44 @@ function makeMMLabelSprite3D(text, scale){
   return sprite;
 }
 
+// 🆕 2026-09-26 (طلب/ملاحظة حمدي: "البنود عند النظر للثري دي مقلوبة الخارج داخل...بمكان وضعت الباب
+// عليسار فطلع عليمين، وبمكان تاني عالعكس") - تحققنا رياضيًا (محاكاة كاملة لكل جدار بغرف مختلفة، حتى
+// غرفة L غير محدبة) إنو مطابقة يسار/يمين كل بند مع جداره صحيحة ومتّسقة 100% لكل جدران الغرفة (مافي
+// خلل بالكود نفسه بيقلب بعض الجدران وبيسيب غيرها) - المشكلة الحقيقية إنو لما بتصممي البند بلوحة
+// الرسم العادية (منظور "من الخارج" العام) ما في أي إشارة بتقلك مسبقًا أي طرف رح يصير بداية الجدار
+// وأي طرف رح يصير نهايته بالغرفة الفعلية، فمافي طريقة تعرفي مسبقًا هل رح "يطلع" متل ما قصدتي أو
+// معكوس. الحل العملي: زر "↔️ اقلب بالثري دي" لكل جزء مصمم (شوف renderRoomSidesUI) - بيقلب بس تمثيل
+// هاد الجزء بالمشهد ثلاثي الأبعاد أفقيًا (يسار<->يمين، والمفصلة/المقبض بيتبدلوا تلقائيًا كمان)
+// بدون ما يغيّر ولا شي بالتصميم الأصلي نفسه (نفس البند، نفس السطر بعرض السعر، نفس مقاساته) - قابل
+// للتشغيل/الإلغاء بأي وقت لكل جدار لحاله.
+//
+// التنفيذ: بدل ما نعتمد على mesh.scale.x=-1 (انعكاس حقيقي على مستوى المجسم) يلي ممكن يقلب اتجاه كل
+// وجوه الصناديق (winding) ويخليها تختفي مع خامات FrontSide متل frameMat/handleMat، منقلب بس البيانات
+// المنطقية (شجرة layout) قبل ما توصل لـbuildRealWindowGroup3D: بنعكس ترتيب أي تقسيم أفقي (direction
+// 'row') وبنبدّل نوع كل ورقة (tri_left<->tri_right..الخ) حتى تنقلب جهة المفصلة كمان - نفس نتيجة
+// انعكاس حقيقي بالضبط، بس بدون أي خطر اختفاء/انقلاب أوجه (كل عنصر يترسم زي العادة تمامًا، بس بمكان
+// مختلف يعكس الصورة تمامًا).
+const FLIP3D_LEAF_TYPE_MAP = {
+  tri_left:'tri_right', tri_right:'tri_left',
+  louver_left:'louver_right', louver_right:'louver_left',
+  slide_left:'slide_right', slide_right:'slide_left',
+  shwr_lh:'shwr_rh', shwr_rh:'shwr_lh',
+  shwr_lv:'shwr_rv', shwr_rv:'shwr_lv',
+};
+function mirrorLeafType3D(type){
+  return FLIP3D_LEAF_TYPE_MAP[type] || type; // باقي الأنواع (plain/fold/tri_up/tri_down..) بدون جهة يسار/يمين - تضل متل ما هي
+}
+function mirrorLayoutNode3D(node){
+  if(!node) return node;
+  if(node.kind === 'leaf') return Object.assign({}, node, { type: mirrorLeafType3D(node.type) });
+  const children = (node.children||[]).map(ch => Object.assign({}, ch, { node: mirrorLayoutNode3D(ch.node) }));
+  if(node.direction === 'row') children.reverse(); // انعكاس أفقي حقيقي = عكس ترتيب الأعمدة (row)، بس مش الصفوف (column) العمودية
+  return Object.assign({}, node, { children });
+}
+function mirrorItemLayoutForFlip3D(item){
+  return Object.assign({}, item, { layout: mirrorLayoutNode3D(item.layout) });
+}
+
 // 🆕 2026-09-24: طلب حمدي - "خلي الثري دي تبع المصمم يكون تصميم حقيقي" - بدل ما نلزق صورة مسطحة
 // (texture) فوق صندوق للحيط المصمم، هلق منبني مجسم ثلاثي الأبعاد حقيقي: إطارات بارزة فعليًا بعمق
 // (صناديق رفيعة ببروز حقيقي، مش خطوط مرسومة)، زجاج غاطس شفاف بين الإطارات، عوارض (mullions) حقيقية
@@ -10249,6 +10287,69 @@ function buildRoomFurniture3D(scene, floorPts, n, MMTOM){
   scene.add(group);
 }
 
+// 🆕 2026-09-26 (طلب حمدي: "حبذا لو يتم وضع زرع خارجي في التصميم الثري دي") - زرع/نباتات بسيطة
+// حوالين محيط المبنى من الخارج (بروز عن كل حائط للخارج بمسافة أمان صغيرة)، تنويع بسيط بين شجيرة
+// (كرة مفلطحة خضراء) وشجرة صغيرة (جذع + تاج مخروطي)، موزّعة بمسافات معقولة على طول كل ضلع - كل
+// الأشكال من THREE.js أولية بسيطة (بدون أي ملفات موديل خارجية، بنفس أسلوب فرش الغرفة الداخلي فوق).
+// اتجاه "للخارج" لكل ضلع بيتحسب بنفس طريقة outward-normal المتحقق منها رياضيًا (بعيدًا عن مركز
+// المبنى) - وبنفس مقياس/إشارة تحويل مم->عالم المستخدم بباقي المشهد (بعد إصلاح انعكاس المسقط).
+function buildExteriorLandscaping3D(scene, floorPts, n, MMTOM){
+  let cx=0, cy=0;
+  for(let i=0;i<n;i++){ cx += floorPts[i].x; cy += floorPts[i].y; }
+  cx/=n; cy/=n;
+
+  const bushMatA = new THREE.MeshStandardMaterial({ color:0x4c7a3a, roughness:0.95 });
+  const bushMatB = new THREE.MeshStandardMaterial({ color:0x5d8f46, roughness:0.95 });
+  const trunkMat = new THREE.MeshStandardMaterial({ color:0x6b4a33, roughness:0.9 });
+  const crownMat = new THREE.MeshStandardMaterial({ color:0x3f6b34, roughness:0.9 });
+
+  function addBush(x,z,scale,alt){
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.28*scale, 8, 6), alt ? bushMatB : bushMatA);
+    m.scale.set(1,0.75,1);
+    m.position.set(x, 0.22*scale, z);
+    scene.add(m);
+  }
+  function addTree(x,z,scale){
+    const g = new THREE.Group();
+    const trunkH = 0.5*scale;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05*scale,0.06*scale,trunkH,6), trunkMat);
+    trunk.position.set(0, trunkH/2, 0);
+    g.add(trunk);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(0.32*scale, 0.7*scale, 8), crownMat);
+    crown.position.set(0, trunkH + 0.35*scale, 0);
+    g.add(crown);
+    g.position.set(x, 0, z);
+    scene.add(g);
+  }
+
+  const spacingM = 1.8, offsetMM = 550;
+  const MAX_PLANTS = 26;
+  let plantCount = 0, altToggle = 0;
+  for(let i=0;i<n && plantCount<MAX_PLANTS;i++){
+    const A = floorPts[i], B = floorPts[i+1];
+    const lenMM = Math.max(1, Math.hypot(B.x-A.x, B.y-A.y));
+    const lenM = lenMM*MMTOM;
+    if(lenM < 1.2) continue; // ضلع قصير كتير - تجاهل الزرع هون تلافيًا للتزاحم
+    const ux=(B.x-A.x)/lenMM, uy=(B.y-A.y)/lenMM;
+    const midX=(A.x+B.x)/2, midY=(A.y+B.y)/2;
+    const n1={x:-uy,y:ux}, n2={x:uy,y:-ux};
+    const toCentroid={x:cx-midX,y:cy-midY};
+    const outward = (n1.x*toCentroid.x+n1.y*toCentroid.y) < 0 ? n1 : n2;
+
+    const count = Math.max(1, Math.min(3, Math.floor(lenM/spacingM)));
+    for(let k=0;k<count && plantCount<MAX_PLANTS;k++){
+      const f = (k+0.5)/count;
+      const px = A.x + (B.x-A.x)*f + outward.x*offsetMM;
+      const py = A.y + (B.y-A.y)*f + outward.y*offsetMM;
+      const worldX = px*MMTOM, worldZ = py*MMTOM; // نفس تحويل باقي المشهد (بعد إصلاح الانعكاس): عالم Z = +مم.y
+      const scale = 0.85 + Math.random()*0.3;
+      altToggle++;
+      if(altToggle % 2 === 0) addBush(worldX, worldZ, scale, altToggle % 4 === 0); else addTree(worldX, worldZ, scale);
+      plantCount++;
+    }
+  }
+}
+
 async function buildRoom3DScene(it, wrap){
   const MMTOM = 1/1000;
   const pts = computeRoomPolygonMM(it);
@@ -10346,7 +10447,11 @@ async function buildRoom3DScene(it, wrap){
       } else if(linkedItem && linkedItem.layout){
         // 🆕 2026-09-24: طلب حمدي - "خلي الثري دي تصميم حقيقي" - مجسم 3D فعلي (إطارات بارزة + زجاج
         // غاطس + عوارض حقيقية) بدل ما نلزق صورة مسطحة عالحيط.
-        mesh = buildRealWindowGroup3D(linkedItem, segLenMM, it.roomHeight||2500, thicknessM);
+        // 🆕 2026-09-26: لو هاد الجزء محدد "↔️ اقلب بالثري دي" (seg.flip3D) - منمرر نسخة بشجرة layout
+        // معكوسة أفقيًا (شوف mirrorItemLayoutForFlip3D فوق) بدل البند الأصلي، بدون ما نلمس البند
+        // الحقيقي إطلاقًا.
+        const itemForWall3D = seg.flip3D ? mirrorItemLayoutForFlip3D(linkedItem) : linkedItem;
+        mesh = buildRealWindowGroup3D(itemForWall3D, segLenMM, it.roomHeight||2500, thicknessM);
       } else if(linkedItem){
         // احتياطي للبنود يلي مالها layout شجري (هاندريل/باب شاور) - رندر مسطّح بالخامة القديمة.
         const mats = await buildWallSegmentMaterials(linkedItem, segLenMM, it.roomHeight||2500);
@@ -10378,6 +10483,9 @@ async function buildRoom3DScene(it, wrap){
   // 🆕 (طلب حمدي: "جلوس غربي عصري كنب + طاولة" حتى يكمل التصميم) - فرش افتراضي داخل الغرفة، بس لو
   // كانت الغرفة واسعة كفاية (شوف الشرط جوا الفنكشن نفسها) تلافيًا لأي تداخل مع الحيطان بغرفة صغيرة.
   buildRoomFurniture3D(scene, pts, n, MMTOM);
+  // 🆕 (طلب حمدي: "حبذا لو يتم وضع زرع خارجي بالتصميم الثري دي") - زرع/نباتات بسيطة حوالين محيط
+  // المبنى من الخارج.
+  buildExteriorLandscaping3D(scene, pts, n, MMTOM);
 
   // كاميرا + عناصر تحكم تدوير يدوي (سحب بالماوس) - نحسب مركز ونصف قطر المبنى من نقاط المضلع.
   // 🆕 2026-09-26: منضيف نقاط السقف كمان (مش بس الأرضية) للحساب - لو في بروز سقف كبير بمكان معيّن،
@@ -10639,6 +10747,20 @@ function designRoomSideSegment(itemId, sideId, segId){
 }
 window.designRoomSideSegment = designRoomSideSegment;
 
+// 🆕 2026-09-26 (طلب/ملاحظة حمدي: "الباب طلع بعكس الجهة يلي حطيتها بمكان، وبمكان تاني عالعكس") -
+// تبديل بسيط لكل جزء لحاله: يقلب تمثيل البند بالمشهد ثلاثي الأبعاد أفقيًا فقط (يسار<->يمين، والمفصلة/
+// المقبض بينقلبوا تلقائيًا معه - شوف mirrorItemLayoutForFlip3D/buildRoom3DScene) - ما بيغيّر ولا شي
+// بالتصميم الأصلي نفسه (نفس البند، نفس السطر بعرض السعر) ولا بأي مسقط 2D - بس شكله جوا المشهد 3D.
+function toggleRoomSegFlip3D(itemId, sideId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  const seg = (side.segments||[]).find(g=>g.id===segId); if(!seg) return;
+  pushHistory();
+  seg.flip3D = !seg.flip3D;
+  renderRoomSidesUI(it);
+}
+window.toggleRoomSegFlip3D = toggleRoomSegFlip3D;
+
 function renderRoomSidesUI(it){
   const list = document.getElementById('roomSidesList');
   if(!list) return;
@@ -10653,7 +10775,8 @@ function renderRoomSidesUI(it){
         ? `<span style="font-size:11px;color:#8d6e63;">🧱 حائط/جدار (بدون سطر بالعرض)</span>`
         : `<button class="small" onclick="designRoomSideSegment(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;">🎨 ${seg.rowUid ? 'عدّل التصميم' : 'صمم'}</button>
            ${seg.rowUid
-             ? `<span style="font-size:11px;color:var(--wd-ok,#1e7a3d);">✓ مصمم: ${escAttr(linkedName || ('جزء '+(segIdx+1)))}</span>`
+             ? `<span style="font-size:11px;color:var(--wd-ok,#1e7a3d);">✓ مصمم: ${escAttr(linkedName || ('جزء '+(segIdx+1)))}</span>
+                <button class="small${seg.flip3D ? ' active' : ''}" onclick="toggleRoomSegFlip3D(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;${seg.flip3D ? 'background:var(--wd-accent,#0f88cd);color:#fff;' : ''}" title="لو الباب/الشباك طلع بالثري دي بعكس الجهة يلي صمّمتها (يمين بدل يسار أو العكس) - دوسي هون تقلبيه بالثري دي بس، بدون ما يتغيّر تصميمه الأصلي إطلاقًا">↔️ اقلب بالثري دي${seg.flip3D ? ' ✓' : ''}</button>`
              : `<span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">لسا ما انصمم</span>`}`;
       return `
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 6px 4px 22px;border-radius:6px;margin-bottom:4px;${isWall?'background:rgba(141,110,99,0.08);':''}">
