@@ -5004,10 +5004,15 @@ function renderDraftsList(drafts){
     const when = d.savedAt ? new Date(d.savedAt).toLocaleString('ar') : '';
     const label = escapeHtml(d.label || d.ref || d.client || 'مسودة بدون اسم');
     const sub = [d.client ? ('الزبون: ' + escapeHtml(d.client)) : '', when].filter(Boolean).join(' — ');
+    // 🔧 2026-09-25: طلب حمدي - كان صاعب يفرّق بين بند بقائمة "المسودات" وبند بقائمة "التصاميم" لو
+    // الاثنين إلهم نفس الرقم المرجعي (تصميم محفوظ من جوا عرض سعر بيتسمّى بنفس رقم العرض) - فكان
+    // ممكن يضغط "افتح وكمّل" على مسودة (عرض سعر) وهو قاصد يفتح التصميم المرتبط فيها، فتفتحلو صفحة
+    // عرض السعر (صح - هيك المفروض تشتغل مسودة عرض السعر) بدل أداة التصميم يلي كان يقصدها فعليًا.
+    // هلق كل بند بلائحته إله وسم واضح (📝 مسودة / 🎨 تصميم) حتى ما يصير لبس بينهم مهما تشابه الاسم.
     return `<div class="controls" style="justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0;flex-wrap:wrap;">
-      <div><b style="font-size:13px;">${label}</b><br><span style="font-size:11.5px;color:var(--muted);">${sub}</span></div>
+      <div><b style="font-size:13px;">📝 مسودة عرض سعر: ${label}</b><br><span style="font-size:11.5px;color:var(--muted);">${sub}</span></div>
       <div class="controls" style="gap:6px;">
-        <button class="export-btn open-draft-btn" data-file-id="${escapeHtml(d.__fileId)}" data-branch="${escapeHtml(d.__branch)}">🔓 افتح وكمّل</button>
+        <button class="export-btn open-draft-btn" data-file-id="${escapeHtml(d.__fileId)}" data-branch="${escapeHtml(d.__branch)}">🔓 افتح وكمّل (عرض سعر)</button>
         <button class="export-btn delete-draft-btn" style="border-color:var(--danger);color:var(--danger);" data-file-id="${escapeHtml(d.__fileId)}">🗑 حذف</button>
       </div>
     </div>`;
@@ -5029,10 +5034,12 @@ function renderDesignsList(designs){
     const label = escapeHtml(d.label || d.ref || d.name || 'تصميم بدون اسم');
     const kind = d.ref ? ('مرتبط بالرقم المرجعي: ' + escapeHtml(d.ref)) : 'تصميم حر';
     const sub = [kind, when].filter(Boolean).join(' — ');
+    // (شوف نفس التعليق فوق بـrenderDraftsList) - وسم "🎨 تصميم" واضح حتى ما يلتبس مع مسودة عرض سعر
+    // بنفس الرقم المرجعي.
     return `<div class="controls" style="justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0;flex-wrap:wrap;">
-      <div><b style="font-size:13px;">${label}</b><br><span style="font-size:11.5px;color:var(--muted);">${sub}</span></div>
+      <div><b style="font-size:13px;">🎨 تصميم: ${label}</b><br><span style="font-size:11.5px;color:var(--muted);">${sub}</span></div>
       <div class="controls" style="gap:6px;">
-        <button class="export-btn open-design-btn" data-file-id="${escapeHtml(d.__fileId)}">🔓 افتح وكمّل</button>
+        <button class="export-btn open-design-btn" data-file-id="${escapeHtml(d.__fileId)}">🔓 افتح التصميم (بدون عرض السعر)</button>
         <button class="export-btn delete-design-btn" style="border-color:var(--danger);color:var(--danger);" data-file-id="${escapeHtml(d.__fileId)}">🗑 حذف</button>
       </div>
     </div>`;

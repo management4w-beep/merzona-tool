@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-25.5';
+  var CURRENT_VERSION = '2026-09-25.6';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -5635,10 +5635,21 @@ try{
   }
 }catch(e){}
 
+// 🔧 2026-09-25: باغ لقيناه بطلب حمدي "لما بضغط على مسودة التصميم عم يفتحلي عرض السعر" - هاد الشرط
+// كان ناسي حالة pendingDesignLoad (فتح "تصميم" حر من الداشبورد) بالكامل، فكان دايمًا بيقع بفرع
+// seedDefaults()/renumber()+recalc() تحت (نفس فرع "عرض سعر جديد فاضي") حتى لو أصلًا فاتح تصميم حر
+// مش مرتبط بعرض سعر إطلاقًا - يعني كان عم يتولّد رقم مرجعي جديد وتاريخ وبنود افتراضية (Accessories/
+// System statement) لعرض سعر فاضي بالخلفية تحت أداة رسّام النوافذ والأبواب (wdOverlay) كل مرة يفتح
+// فيها تصميم، وهاد يلي كان طالع لحمدي كـ"عرض سعر" لو سكّر نافذة التصميم أو لو تأخر ظهورها شوي.
+// الحل: لما يكون فيه pendingDesignLoad، ما منلمس/منهيّئ صفحة عرض السعر إطلاقًا - بتضل فاضية تمامًا
+// (بدون رقم مرجعي مولَّد ولا بنود افتراضية) لحد ما حمدي يقرر هو يشتغل عليها لحالها، وأداة التصميم
+// (wdOverlay) هي يلي رح تفتح مباشرة ببنود التصميم المستوردة (شوف runWhenDesignBridgeReady تحت).
 if(pendingQuotationLoad){
   // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
   // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
   setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); }, 0);
+} else if(pendingDesignLoad){
+  // تصميم حر بس (مش مرتبط بعرض سعر مفتوح) - ولا شي هون؛ رح ينفتح مباشرة بـwdOverlay تحت.
 } else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
   renumber();
   recalc();
@@ -5647,7 +5658,10 @@ if(pendingQuotationLoad){
   seedDefaults();
   syncPage2Header();
 }
-setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل مكتبة جوجل
+// تصميم حر بس (pendingDesignLoad): ولا داعي نقترح رقم مرجعي جديد لعرض سعر ما فتحناه أصلًا.
+if(!pendingDesignLoad){
+  setTimeout(()=>{ autoSuggestNextReference(); }, 300); // بعد ما تحمّل مكتبة جوجل
+}
 
 // شوف الشرح فوق قرب تعريف pendingDesignLoad - نفس تأجيل التطبيق (tick واحد) يلي معمول
 // لـpendingQuotationLoad، لنفس السبب بالضبط (استنى تعريف الجسور تبع قسم التصميم بآخر الملف).
@@ -9239,9 +9253,30 @@ function renderRoomDrawCanvas(){
     const last = mmToPx(lastMm), target = mmToPx(targetMm);
     rubberSvg = `<line x1="${last.x}" y1="${last.y}" x2="${target.x}" y2="${target.y}" stroke="#e0862a" stroke-width="2" stroke-dasharray="5,4"/>`;
   }
+  // 🆕 2026-09-25: طلب حمدي - مؤشر متل الأوتوكاد: خطين (أفقي وعمودي) عابرين لكامل الرسمة من مكان
+  // الماوس بالضبط، مع رقمين واضحين (X وY بالمليمتر) يبيّنوا وين هاي النقطة تمامًا على كل محور - هيك
+  // بيقدر يحاذي نقطة جديدة مع نقطة موجودة (نفس X أو نفس Y) بس ينظر للرقمين، حتى وهو عم يسحب نقطة.
+  let crosshairSvg = '';
+  if(roomDraw.mouse){
+    const mp = mmToPx(roomDraw.mouse);
+    const xLabel = Math.round(roomDraw.mouse.x), yLabel = Math.round(roomDraw.mouse.y);
+    const boxW = 92, boxH = 30;
+    let boxX = mp.x + 12, boxY = mp.y - boxH - 8;
+    if(boxX + boxW > W) boxX = mp.x - boxW - 12;
+    if(boxY < 2) boxY = mp.y + 12;
+    crosshairSvg = `
+      <line x1="${mp.x.toFixed(1)}" y1="0" x2="${mp.x.toFixed(1)}" y2="${H}" stroke="#e0862a" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/>
+      <line x1="0" y1="${mp.y.toFixed(1)}" x2="${W}" y2="${mp.y.toFixed(1)}" stroke="#e0862a" stroke-width="1" stroke-dasharray="4,3" opacity="0.65"/>
+      <text x="${(mp.x+3).toFixed(1)}" y="12" font-size="10" font-weight="700" fill="#e0862a" font-family="monospace">${xLabel}</text>
+      <text x="3" y="${(mp.y-4).toFixed(1)}" font-size="10" font-weight="700" fill="#e0862a" font-family="monospace">${yLabel}</text>
+      <rect x="${boxX.toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxW}" height="${boxH}" rx="4" fill="rgba(20,20,22,0.82)"/>
+      <text x="${(boxX+8).toFixed(1)}" y="${(boxY+13).toFixed(1)}" font-size="10.5" fill="#ffe08a" font-family="monospace">X: ${xLabel} mm</text>
+      <text x="${(boxX+8).toFixed(1)}" y="${(boxY+25).toFixed(1)}" font-size="10.5" fill="#ffe08a" font-family="monospace">Y: ${yLabel} mm</text>
+    `;
+  }
   const cursorStyle = roomDraw.mode === 'pen' ? 'crosshair' : (roomDraw.mode === 'eraser' ? 'cell' : 'default');
   wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:100%;height:auto;aspect-ratio:${W}/${H};max-width:${W}px;cursor:${cursorStyle};touch-action:none;user-select:none;" onmousedown="roomDrawPointerDown(event)" onmousemove="roomDrawPointerMove(event)" onmouseup="roomDrawPointerUp(event)" onmouseleave="roomDrawPointerLeave()" onwheel="roomDrawCanvasWheel(event)">
-    ${gridLines}${closeSvg}${segHighlightSvg}${pathSvg}${rubberSvg}
+    ${gridLines}${closeSvg}${segHighlightSvg}${pathSvg}${rubberSvg}${crosshairSvg}
   </svg>`;
 }
 
