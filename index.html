@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.1';
+  var CURRENT_VERSION = '2026-09-26.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -6077,7 +6077,10 @@ window.wdApplyBack = function(results){
                 <div class="add-row" style="margin-bottom:6px;">
                   <button type="button" class="small danger" style="flex:1;font-weight:700;" onclick="startRoomDrawFresh()">🆕 ابدأ رسمة فاضية من نقطة أنا بحددها (يمسح الشكل الحالي كامل)</button>
                 </div>
-                <p class="hint">فتح الرسم بيعرضلك تلقائيًا شكل الغرفة الحالي (مربع 3×3م افتراضيًا لغرفة جديدة) - هاد مش شرط تبلش منّو. دوس الزر الأحمر فوق أي وقت بدك تمسح كل شي وتبلش من الصفر: أول كليك بعدها بيصير هو نقطة البداية بالظبط وين ما حطيت الماوس. بوضع القلم: دوس عالفراغ لتضيف نقطة (خط جديد قفل تلقائيًا أفقي أو عمودي دايمًا - 90° بالظبط - إلا لو فعّلت "زاوية حرة" تحت). أثناء الرسم بتقدر كمان تكتب طول الضلع الجاي بالأرقام بصندوق الكتابة العائم قرب المؤشر وتدوس Enter بدل ما تسحب بالماوس - أدق وأسرع. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص، أو double-click عالنقطة لحذفها. اسحب أي نقطة بوضع المؤشر لتحريكها (قفل 90° شغال بالسحب كمان). كبّر/صغّر بدولاب الفأرة، ودوّر الشكل كامل من الأزرار تحت لو احتجت.</p>
+                <!-- 🆕 2026-09-26: طلب حمدي - أزرار الوضع (مؤشر/قلم/ممحاة) صارت أول شي بعد زر "ابدأ من
+                     جديد" مباشرة (قبل النص التوضيحي الطويل)، حتى تضل مضمونة الظهور فوق دايمًا حتى لو
+                     الشاشة قصيرة واضطر المستخدم يمرر لتحت لقراءة الشرح الطويل - الأزرار الفعلية أهم
+                     من النص التوضيحي ولازم تبقى بالمتناول دايمًا بدون تمرير. -->
                 <div class="shape-toggle" style="margin-bottom:8px;">
                   <button type="button" id="btnRoomDrawModeCursor" onclick="setRoomDrawMode('cursor')" class="active">🖱️ مؤشر (تحديد وتحريك)</button>
                   <button type="button" id="btnRoomDrawModePen" onclick="setRoomDrawMode('pen')">✏️ قلم (رسم خطوط)</button>
@@ -6087,6 +6090,7 @@ window.wdApplyBack = function(results){
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
                   <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (استثناء نادر - بدون قفل ٩٠°)
                 </label>
+                <p class="hint">فتح الرسم بيعرضلك تلقائيًا شكل الغرفة الحالي (مربع 3×3م افتراضيًا لغرفة جديدة) - هاد مش شرط تبلش منّو. دوس الزر الأحمر فوق أي وقت بدك تمسح كل شي وتبلش من الصفر: أول كليك بعدها بيصير هو نقطة البداية بالظبط وين ما حطيت الماوس. بوضع القلم: دوس عالفراغ لتضيف نقطة (خط جديد قفل تلقائيًا أفقي أو عمودي دايمًا - 90° بالظبط - إلا لو فعّلت "زاوية حرة" فوق). أثناء الرسم بتقدر كمان تكتب طول الضلع الجاي بالأرقام بصندوق الكتابة العائم قرب المؤشر وتدوس Enter بدل ما تسحب بالماوس - أدق وأسرع. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص، أو double-click عالنقطة لحذفها. اسحب أي نقطة بوضع المؤشر لتحريكها (قفل 90° شغال بالسحب كمان). كبّر/صغّر بدولاب الفأرة، ودوّر الشكل كامل من الأزرار تحت لو احتجت.</p>
               </div>
               <div class="rd-stage">
                 <div id="roomDrawCanvasWrap"></div>
@@ -8888,6 +8892,15 @@ function roomDrawComputeFitView(points, paddingMm){
 // بيخبي أزرار). صرنا نستمع لتغيير حجم الشاشة (تدوير موبايل، تصغير نافذة...) طول ما الرسم فاتح
 // عشان نعيد حساب مقاس الكانفس (renderRoomDrawCanvas بيحسبه من مساحة .rd-stage الفعلية كل مرة).
 let roomDrawResizeHandler = null;
+// 🆕 2026-09-26: طلب حمدي - على شاشته/متصفحه، لما يفتح الرسم بملء الشاشة، شريط الأدوات العلوي
+// (تراجع/A3/طباعة/عرض ثري دي...) كان لسا ظاهر فوق الرسمة، وأزرار الوضع (مؤشر/قلم/ممحاة) صارت مو
+// ظاهرة. السبب: #roomDrawWrap كان position:fixed بس متداخل (nested) جوا `.panel.controls` يلي
+// عندها position:sticky + overflow-y:auto (سايدبار قابل للتمرير) - وبعض المتصفحات بتعامل عنصر
+// fixed جوا حاوية متل هيك وكأنو محصور بمساحتها هي، مش الشاشة كلها فعليًا (رغم إنو بالمواصفة النظرية
+// المفروض ما يصير). الحل الأضمن: لما نفتح الرسم، منقلع #roomDrawWrap فعليًا من مكانه ومنحطه مباشرة
+// جوا <body> (بعيد عن أي حاوية sticky/scrollable) - هيك position:fixed;inset:0 بيغطي الشاشة كاملة
+// بشكل مضمون بأي متصفح، وبيرجع لمكانه الأصلي جوا لوحة التحكم لما نسكر/ننهي الرسم (cancelRoomFreehandDraw).
+let roomDrawWrapHome = null;
 
 function toggleRoomFreehandDraw(){
   const it = getSelected(); if(!it || !isRoom(it)) return;
@@ -8901,6 +8914,10 @@ function toggleRoomFreehandDraw(){
       view: roomDrawComputeFitView(existingPts, 500) };
     const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
     updateRoomDrawModeButtons();
+    if(wrap && wrap.parentElement !== document.body){
+      roomDrawWrapHome = { parent: wrap.parentElement, nextSibling: wrap.nextSibling };
+      document.body.appendChild(wrap);
+    }
     if(wrap) wrap.style.display = 'flex';
     if(!roomDrawResizeHandler){
       roomDrawResizeHandler = () => { if(roomDraw.active) renderRoomDrawCanvas(); };
@@ -8936,6 +8953,16 @@ function cancelRoomFreehandDraw(){
     mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null };
   const wrap = document.getElementById('roomDrawWrap');
   if(wrap) wrap.style.display = 'none';
+  // منرجّع #roomDrawWrap لمكانه الأصلي جوا لوحة التحكم (شوف الشرح فوق toggleRoomFreehandDraw) - حتى
+  // باقي الصفحة (مثلاً لو حدا يفتش عناصر الغرفة بلوحة التحكم وهو الرسم مسكّر) تضل شغالة طبيعي.
+  if(wrap && roomDrawWrapHome && wrap.parentElement === document.body){
+    if(roomDrawWrapHome.nextSibling && roomDrawWrapHome.nextSibling.parentElement === roomDrawWrapHome.parent){
+      roomDrawWrapHome.parent.insertBefore(wrap, roomDrawWrapHome.nextSibling);
+    } else {
+      roomDrawWrapHome.parent.appendChild(wrap);
+    }
+  }
+  roomDrawWrapHome = null;
   const lenBox = document.getElementById('roomDrawLenBoxWrap');
   if(lenBox) lenBox.style.display = 'none';
   if(roomDrawResizeHandler){ window.removeEventListener('resize', roomDrawResizeHandler); roomDrawResizeHandler = null; }
@@ -9516,6 +9543,16 @@ function positionRoomDrawLenBox(){
   boxWrap.style.left = left + 'px';
   boxWrap.style.top = top + 'px';
   boxWrap.style.display = 'block';
+  // 🆕 2026-09-26: طلب حمدي الأساسي كان "من بداية الرسم يكون في مربع فعّال مع الكيبورد يوخد
+  // الأرقام فورًا" - بس الصندوق كان بس "يظهر" (display:block) من دون ما ياخد التركيز (focus)
+  // فعليًا أبدًا، فكان لازم كبسة كليك يدوية عليه أول قبل ما يقبل أي كتابة - وحمدي جرب يكتب المقاس
+  // مباشرة بدون كليك (متل ما الأداة وعدّاه) فما استجاب الصندوق إطلاقًا. الحل: طالما الصندوق ظاهر
+  // وما هو أصلًا هو العنصر الحالي المركَّز عليه (document.activeElement) - منركّز عليه تلقائيًا، حتى
+  // يضل جاهز للكتابة فورًا بأي لحظة بدون ما يحتاج يدوس عليه بالماوس قبل.
+  const inp = document.getElementById('roomDrawLenInput');
+  if(inp && document.activeElement !== inp){
+    try{ inp.focus({ preventScroll:true }); }catch(e){ try{ inp.focus(); }catch(e2){} }
+  }
 }
 window.positionRoomDrawLenBox = positionRoomDrawLenBox;
 
@@ -9534,8 +9571,13 @@ function roomDrawCommitTypedLength(){
     return;
   }
   const rawVal = inp ? inp.value.trim() : '';
-  const len = evalMeasureExpr(rawVal);
-  if(!len || len <= 0){
+  // 🆕 2026-09-26: باغ حقيقي كان موجود - evalMeasureExpr() بالتصميم بترجع null لرقم عادي لحاله (متل
+  // "2500" بدون + أو -)، لأنو مصممة لحالات تانية بالأداة (شوف تعريفها فوق) وبتعتمد على المستدعي إنو
+  // يرجع للرقم الخام لو رجّعت null. هون كنا ناقصين هالخطوة، فأي طول عادي (الحالة الأغلب - أكتر
+  // المستخدمين بيكتبوا رقم لحاله بدون جمع/طرح) كان دايمًا يطلع "اكتب طول صحيح" رغم إنو الرقم صحيح
+  // 100%! نفس المنطق يلي مستخدم بباقي أماكن الأداة (evalMeasureExpr(x) ?? parseFloat(x)).
+  const len = evalMeasureExpr(rawVal) ?? parseFloat(rawVal);
+  if(!len || isNaN(len) || len <= 0){
     alert('اكتب طول صحيح بالمليمتر (رقم أكبر من صفر) - ممكن كمان تجمع/تطرح متل 3000+250.');
     return;
   }
