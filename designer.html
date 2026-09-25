@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-25.2';
+  var CURRENT_VERSION = '2026-09-25.3';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -5039,7 +5039,7 @@ window.wdApplyBack = function(results){
           <div id="roomFloorPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
 
           <label style="margin-top:14px;">🏗️ السقف Ceiling</label>
-          <p class="hint">افتراضيًا شكل السقف نفس شكل الأرضية بالظبط. لو في بروز أو فرق بمكان معيّن (السقف طالع أوسع من الحيط تحتو مثلاً)، دوسي عالضلع المطلوب تحت وغيّري طولو/زاويتو براحتك - هيك بس بيتغيّر شكل السقف، والأرضية بتضل متل ما هي. لو بدك ترجعي تبلشي من جديد بنفس شكل الأرضية الحالي، دوسي "🔄 رجّعه لشكل الأرضية".</p>
+          <p class="hint">افتراضيًا شكل السقف نفس شكل الأرضية بالظبط (بروز = 0 لكل الأضلاع). لو بدك السقف يبرز للخارج بمكان معيّن (متل بروز سقف أي بيت عادي)، اكتب رقم "بروز" بالمم تحت الضلع المطلوب - هيك بس بيتحرك هاد الضلع من السقف للخارج بنفس المسافة بشكل موازي، والباقي بيضل متل ما هو والشكل بيضل مقفول تلقائيًا. رقم سالب = يرجع للداخل بدل ما يبرز. الأرضية نفسها ما بتتأثر إطلاقًا. لو بدك ترجعي تبلشي من جديد (تصفير كل البروزات)، دوسي "🔄 رجّعه لشكل الأرضية".</p>
           <div id="ceilingSidesList"></div>
           <div class="add-row" style="margin-top:6px;">
             <button onclick="resetCeilingToFloor()" class="small" style="flex:1;">🔄 رجّعه لشكل الأرضية</button>
@@ -5797,7 +5797,6 @@ function isHandrail(it){ return it.shapeType === 'handrail'; }
 /* ================= 🆕 نقل ميزة "غرفة/مجلس" كاملة من index.html ================= */
 let roomSideIdCounter = 1;
 let roomSegIdCounter = 1;
-let ceilingSideIdCounter = 1;
 let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
   mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
 const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340;
@@ -6957,45 +6956,76 @@ function evalMeasureField(el){
   if(result !== null) el.value = Number.isInteger(result) ? String(result) : result.toFixed(2);
 }
 
-function ensureCeilingSides(it){
-  if(!it.ceilingSides || it.ceilingSides.length !== (it.roomSides||[]).length){
-    it.ceilingSides = (it.roomSides||[]).map(s => ({ id:'cs'+(ceilingSideIdCounter++), length:s.length, angleDeg:s.angleDeg }));
-  }
-  return it.ceilingSides;
+function ensureCeilingOverhangs(it){
+  (it.roomSides||[]).forEach(s => { if(typeof s.ceilingOverhangMm !== 'number') s.ceilingOverhangMm = 0; });
+  return it.roomSides||[];
 }
 
 function resetCeilingToFloor(){
   const it = getSelected(); if(!it || !isRoom(it)) return;
   pushHistory();
-  it.ceilingSides = (it.roomSides||[]).map(s => ({ id:'cs'+(ceilingSideIdCounter++), length:s.length, angleDeg:s.angleDeg }));
+  (it.roomSides||[]).forEach(s => { s.ceilingOverhangMm = 0; });
   renderCeilingSidesUI(it);
   renderGallery();
 }
 window.resetCeilingToFloor = resetCeilingToFloor;
 
-function onCeilingSideField(itemId, sideId, field, value){
+function onCeilingSideField(itemId, sideId, value){
   const it = items.find(i=>i.id===itemId); if(!it) return;
-  ensureCeilingSides(it);
-  const side = it.ceilingSides.find(s=>s.id===sideId); if(!side) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
   pushHistory();
-  if(field==='length') side.length = Math.max(1, parseFloat(value)||1);
-  if(field==='angleDeg') side.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
+  side.ceilingOverhangMm = parseFloat(value)||0;
   renderCeilingSidesUI(it);
   renderGallery();
 }
 window.onCeilingSideField = onCeilingSideField;
 
+function computeCeilingPolygonMM(it){
+  const sides = it.roomSides || [];
+  const floorPts = computeSidesPolygonMM(sides);
+  const n = sides.length;
+  if(n < 3) return floorPts;
+  let signedArea = 0;
+  for(let i=0;i<n;i++){
+    const a = floorPts[i], b = floorPts[i+1];
+    signedArea += (a.x*b.y - b.x*a.y);
+  }
+  const areaSign = signedArea >= 0 ? 1 : -1;
+  const offsetLines = [];
+  for(let i=0;i<n;i++){
+    const a = floorPts[i], b = floorPts[i+1];
+    const overhang = sides[i].ceilingOverhangMm || 0;
+    const isHoriz = Math.abs(a.y-b.y) < 0.01;
+    if(isHoriz){
+      const dx = b.x - a.x;
+      offsetLines.push({ type:'h', y: a.y - areaSign*Math.sign(dx)*overhang });
+    } else {
+      const dy = b.y - a.y;
+      offsetLines.push({ type:'v', x: a.x + areaSign*Math.sign(dy)*overhang });
+    }
+  }
+  const newPts = [];
+  for(let i=0;i<n;i++){
+    const prevLine = offsetLines[(i-1+n)%n];
+    const curLine = offsetLines[i];
+    const hLine = prevLine.type==='h' ? prevLine : curLine;
+    const vLine = prevLine.type==='v' ? prevLine : curLine;
+    newPts.push({ x: vLine.x, y: hLine.y });
+  }
+  newPts.push({ x:newPts[0].x, y:newPts[0].y });
+  return newPts;
+}
+
 function renderCeilingSidesUI(it){
   const list = document.getElementById('ceilingSidesList');
   if(!list) return;
-  const sides = ensureCeilingSides(it);
+  const sides = ensureCeilingOverhangs(it);
   list.innerHTML = sides.map((s, idx)=>`
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:4px;">
       <span style="font-size:12px;font-weight:700;min-width:50px;">ضلع ${idx+1}</span>
-      <input type="text" inputmode="decimal" min="1" style="width:80px;" value="${Math.round(s.length)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onCeilingSideField(${it.id},'${s.id}','length',this.value)" title="طول هاد الضلع بالسقف (مم) - تقدر تكتب مثلاً 3000+250">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">بروز السقف للخارج:</span>
+      <input type="number" step="10" style="width:80px;" value="${Math.round(s.ceilingOverhangMm||0)}" onchange="onCeilingSideField(${it.id},'${s.id}',this.value)" title="بمقدار كم مم السقف بارز للخارج عن هاد الضلع (0 = نفس حافة الأرضية بالظبط). رقم سالب = يرجع للداخل بدل ما يبرز.">
       <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
-      <input type="number" min="1" max="359" style="width:64px;" value="${Math.round(s.angleDeg)}" onchange="onCeilingSideField(${it.id},'${s.id}','angleDeg',this.value)" title="الزاوية الداخلية لهاد الضلع بالسقف">
-      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">°</span>
     </div>`).join('');
   const previewEl = document.getElementById('ceilingPreview');
   if(previewEl) previewEl.innerHTML = buildCeilingSVG(it);
@@ -7003,18 +7033,22 @@ function renderCeilingSidesUI(it){
 window.renderCeilingSidesUI = renderCeilingSidesUI;
 
 function buildCeilingSVG(it){
-  const sides = ensureCeilingSides(it);
+  const sides = ensureCeilingOverhangs(it);
   if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">لسا ما في شكل أرضية كافي (عالأقل 3 أضلاع)</div>';
-  const pts = computeSidesPolygonMM(sides);
-  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const floorPts = computeSidesPolygonMM(sides);
+  const pts = computeCeilingPolygonMM(it);
+  const allXs = pts.map(p=>p.x).concat(floorPts.map(p=>p.x));
+  const allYs = pts.map(p=>p.y).concat(floorPts.map(p=>p.y));
+  const minX = Math.min(...allXs), maxX = Math.max(...allXs), minY = Math.min(...allYs), maxY = Math.max(...allYs);
   const rangeW = Math.max(1, maxX-minX), rangeH = Math.max(1, maxY-minY);
   const boxPx = 260;
   const scale = Math.min(boxPx/rangeW, boxPx/rangeH);
   const pad = 40;
   const toPx = p => ({ x:(p.x-minX)*scale, y:(p.y-minY)*scale });
   const pxPts = pts.map(toPx);
+  const floorPxPts = floorPts.map(toPx);
   const polyStr = pxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
+  const floorPolyStr = floorPxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
   const totalW = rangeW*scale + pad*2, totalH = rangeH*scale + pad*2;
   let labelsSvg = '';
   for(let i=0;i<sides.length;i++){
@@ -7023,10 +7057,12 @@ function buildCeilingSVG(it){
     dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
     if(dirDeg > 90 && dirDeg < 270) dirDeg -= 180;
     const mx = (p1.x+p2.x)/2, my = (p1.y+p2.y)/2;
-    labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my-6})">${Math.round(sides[i].length)} mm</text>`;
+    const lenMM = Math.hypot(pts[i+1].x-pts[i].x, pts[i+1].y-pts[i].y);
+    labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my-6})">${Math.round(lenMM)} mm</text>`;
   }
   return `
   <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="${floorPolyStr}" fill="none" stroke="var(--wd-ink-dim,#6b7280)" stroke-width="1.5" stroke-dasharray="4,3"/>
     <polygon points="${polyStr}" fill="var(--wd-glass, rgba(160,140,110,0.28))" stroke="var(--wd-ink)" stroke-width="2"/>
     ${labelsSvg}
   </svg>`;
