@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.12';
+  var CURRENT_VERSION = '2026-09-26.13';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10068,12 +10068,35 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
   group.add(content);
   content.position.set(-W/2, -H/2, 0); // مركز المجموعة الكاملة عالمنتصف (نفس تحويل صندوق الحائط البسيط)
 
-  const FRAME_DEPTH = Math.min(0.09, Math.max(0.045, thicknessM));
-  const GLASS_DEPTH = Math.max(0.006, thicknessM*0.18);
-  // 🆕 2026-09-25: طلب حمدي - "التقسيمات (نوافذ/أبواب) مو موضحة عالثري دي" - كبّرنا الحد الأدنى لعرض
-  // الإطار/العارضة شوي (كان ممكن يصير رفيع جدًا وغير محسوس بصريًا من بعيد بمقاسات الغرفة الكبيرة)
-  // حتى تضل التقسيمات واضحة للعين حتى من زاوية بعيدة، بدون ما نأثر عالمقاس الحقيقي للزجاج/الفتحة نفسها.
-  const frameW = Math.max(0.045, Math.min(W,H)*0.035);
+  const isDoor3D = isDoorLike(item); // 🔼 منقول لفوق (كان تحت) - صرنا محتاجينه بدري لحساب سماكة/عرض الفريم الحقيقية
+
+  function mm2m(v){ return Math.max(0,(v||0))/1000; }
+  // 🆕 2026-09-25 (طلب حمدي: "الباب دايمًا مقطع الالمنيوم تبعه بيكون أسمك بـ ٢ سم من الزجاج اللي ما
+  // بيكون باب...بقصد انه بكون الباب راكب داخل فريم سماكته ٧ سم، الباب نفسه سماكته ٦ سم...فيك تاخد هي
+  // التفاصيل من المصمم اللي منشتغل عليه؟") - قبل هيك كل الأبواب والشبابيك كانت تاخد نفس سماكة الفريم/
+  // الزجاج التقريبية (مبنية بس على سماكة الحيط)، بغض النظر عن "سماكة مقطع الألمنيوم" الحقيقية يلي
+  // حمدي فعليًا اختارها لهاد البند بالمصمم (profileThickness: 31/36/50مم للمفصلي، frameThickness/
+  // leafThickness للسحّاب). هلق: منسحب هالقيم الحقيقية من بيانات البند نفسو (نفس القيم يلي ماشي عليها
+  // العرض 2D بالضبط - شوف computeNetMap/computeNetMapSliding تحت) بدل تخمين ثابت، ومنزيدها شوي بس
+  // للأبواب تحديدًا (+٢سم للفريم الخارجي/الكاسينغ الثابت بالحيط، +١سم للورقة المتحركة نفسها) حتى تطلع
+  // الأبواب "أسمك" فعليًا وملموسة بصريًا عن الشبابيك/الزجاج الثابت - بالضبط متل المثال يلي عطاه حمدي
+  // (فريم ٧سم/ورقة ٦سم لما تكون سماكة البروفايل الافتراضية ٥٠مم: ٥٠+٢٠=٧٠مم، ٥٠+١٠=٦٠مم).
+  const profileMM = isSlidingType(item) ? (item.frameThickness ?? DEFAULT_FRAME_THICKNESS) : (item.profileThickness || 50);
+  const FRAME_DEPTH = isDoor3D ? (mm2m(profileMM) + 0.02) : Math.min(0.09, Math.max(0.045, thicknessM));
+  const GLASS_DEPTH = isDoor3D ? Math.max(0.02, mm2m(profileMM) + 0.01) : Math.max(0.006, thicknessM*0.18);
+
+  // 🆕 2026-09-25: عرض الفريم (الحافة الظاهرة حوالين الزجاج) - نفس القيم الحقيقية المستخدمة بحساب
+  // "الصافي" بالعرض 2D بالضبط (مش نسبة مبنية على حجم البند متل قبل): سحّاب = frameThickness (فريم
+  // خارجي ثابت) لكل الفريم الخارجي + leafThickness (فريم كل درفة/ورقة لحالها) للعوارض الداخلية،
+  // مفصلي/باب عادي = profileThickness لكلن (نفس القيمة الموحدة يلي بيستخدمها computeNetMap تمامًا).
+  let outerFrameW, frameW;
+  if(isSlidingType(item)){
+    outerFrameW = Math.max(0.02, mm2m(item.frameThickness ?? DEFAULT_FRAME_THICKNESS));
+    frameW = Math.max(0.02, mm2m(item.leafThickness ?? DEFAULT_LEAF_THICKNESS));
+  } else {
+    outerFrameW = Math.max(0.02, mm2m(item.profileThickness || 50));
+    frameW = outerFrameW;
+  }
   const frameMat = new THREE.MeshStandardMaterial({ color:0x1c1d20, roughness:0.55, metalness:0.25 });
   const glassMat = new THREE.MeshPhysicalMaterial({ color:0xbfe3f0, transparent:true, opacity:0.32, roughness:0.08, metalness:0, clearcoat:0.4, side:THREE.DoubleSide });
   const louverMat = new THREE.MeshStandardMaterial({ color:0x2a2d31, roughness:0.65, side:THREE.DoubleSide });
@@ -10084,7 +10107,6 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
   // بنضيف مقبض سحب ألمنيوم حقيقي بارز (بروزة فعلية، مش خط) بس للبنود يلي هي فعلًا باب (isDoorLike) -
   // بجهة عكس المفصلة المستنتجة من نوع الورقة (tri_left/right, slide_left/right, shwr_*) - وعتبة
   // ألمنيوم بسيطة عند خط الأرضية لكل الباب، حتى تبين فتحة معبورة حقيقية مو مجرد زجاج ثابت.
-  const isDoor3D = isDoorLike(item);
   const handleMat = new THREE.MeshStandardMaterial({ color:0xc9c9ce, roughness:0.3, metalness:0.8 });
 
   function handleSideFor3D(type){
@@ -10141,13 +10163,89 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
     if(node.kind === 'leaf'){
       const isLouver = LOUVER_TYPES3D.includes(node.type);
       const isPlain = !node.type || node.type === 'plain';
+      const hSide = handleSideFor3D(node.type);
+      const isSlideLeaf = /^slide_/.test(node.type||'');
+      // 🆕 2026-09-25 (طلب حمدي: "ضع مقبض للباب وقفل ومفصلات متل السكتش تبع الابواب وحاول افتح الباب
+      // شوي حتى يبين") - الورقة يلي فعلًا "بتنفتح" على مفصلة (مش سحّاب ولا لوفر ولا ثابتة) وهي جزء من
+      // بند باب (isDoor3D) - منرسمها كلها جوا مجموعة (Group) مستقلة محورها بالضبط عخط المفصلة، وبعدين
+      // منلفها زاوية بسيطة حتى تبين مفتوحة شوي. هيك أي دوران بينطبق تلقائيًا صح على كل أجزاء الورقة
+      // (زجاج + برواز + مقبض + قفل + مفصلات) لأنها كلها ولاد نفس المجموعة.
+      const isSwingLeaf = isDoor3D && !isPlain && !isLouver && hSide && !isSlideLeaf;
+
+      if(isSwingLeaf){
+        const inset = frameW*0.85;
+        const gw = Math.max(0.02, w - inset*2), gh = Math.max(0.02, h - inset*2);
+        const hingeSide = hSide === 'right' ? 'left' : 'right'; // المفصلة دايمًا بعكس جهة المقبض
+        const pivotXAbs = hingeSide === 'left' ? x : x + w;
+
+        const leafGroup = new THREE.Group();
+        leafGroup.position.set(pivotXAbs, 0, 0);
+        content.add(leafGroup);
+
+        // نفس منطق box() فوق تمامًا، بس هون بترجم الإحداثيات لمحور المفصلة (محلي) وبتضيف لمجموعة
+        // الورقة (leafGroup) بدل content مباشرة - حتى الدوران يطبّق صح عكل شي.
+        const boxL = function(cxAbs, cyAbs, bw, bh, bd, mat, zOverride){
+          const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.006,bw), Math.max(0.006,bh), bd), mat);
+          m.position.set(cxAbs - pivotXAbs, cyAbs, zOverride||0);
+          leafGroup.add(m);
+          return m;
+        };
+        const frameBorderL = function(fx,fy,fw,fh,bw,depth){
+          bw = Math.max(0.012, Math.min(bw, fw/2-0.006, fh/2-0.006));
+          boxL(fx+fw/2, fy+fh-bw/2, fw, bw, depth, frameMat);
+          boxL(fx+fw/2, fy+bw/2, fw, bw, depth, frameMat);
+          boxL(fx+bw/2, fy+fh/2, bw, Math.max(0.01,fh-2*bw), depth, frameMat);
+          boxL(fx+fw-bw/2, fy+fh/2, bw, Math.max(0.01,fh-2*bw), depth, frameMat);
+        };
+
+        // زجاج + برواز الورقة نفسا (بتدور مع بعضها لأنها كلها جوا leafGroup)
+        boxL(x+w/2, y+h/2, gw, gh, GLASS_DEPTH, glassMat);
+        frameBorderL(x,y,w,h,frameW,FRAME_DEPTH);
+
+        // مقبض - بعكس جهة المفصلة تمامًا متل قبل
+        const barLen = Math.min(0.34, Math.max(0.22, h*0.32));
+        const handleCy = Math.min(y+h-0.18, Math.max(y+0.18, y + h*0.52));
+        const edgeGap = Math.max(0.05, Math.min(w*0.18, 0.09));
+        const handleX = hSide === 'right' ? (x + w - edgeGap) : (x + edgeGap);
+        const standoffD = 0.045;
+        const standoffZ = GLASS_DEPTH/2 + standoffD/2 + 0.004;
+        const barZ = standoffZ + standoffD/2 + 0.015 + 0.004;
+        boxL(handleX, handleCy + barLen/2, 0.03, 0.03, standoffD, handleMat, standoffZ);
+        boxL(handleX, handleCy - barLen/2, 0.03, 0.03, standoffD, handleMat, standoffZ);
+        boxL(handleX, handleCy, 0.03, barLen, 0.03, handleMat, barZ);
+
+        // 🆕 قفل - تحت المقبض مباشرة وبنفس جهته (مش لباب الشاور - الشاور عادة بلا قفل حقيقي).
+        if(!isShowerDoor(item)){
+          const lockCy = Math.max(y+0.10, handleCy - barLen/2 - 0.15);
+          boxL(handleX, lockCy, 0.055, 0.085, 0.014, handleMat, GLASS_DEPTH/2 + 0.007);
+          const lockCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,0.028,10), new THREE.MeshStandardMaterial({ color:0x2a2a2e, roughness:0.35, metalness:0.7 }));
+          lockCyl.rotation.x = Math.PI/2;
+          lockCyl.position.set(handleX - pivotXAbs, lockCy, GLASS_DEPTH/2 + 0.007 + 0.014 + 0.004);
+          leafGroup.add(lockCyl);
+        }
+
+        // 🆕 مفصلات - ٣ دايمًا وواضحة من برّا، عمحور الدوران بالضبط (لهيك localX=0 دايمًا مهما كانت
+        // جهة المفصلة): ٢ قريبين من بعض بأعلى الباب + وحدة بالثلث الأخير (طلب حمدي بالتحديد).
+        const barrelR = 0.015, barrelH = Math.min(0.12, h*0.09);
+        const hingeZ = GLASS_DEPTH/2 + barrelR + 0.006;
+        [0.06, 0.17, 0.82].forEach(function(f){
+          const barrel = new THREE.Mesh(new THREE.CylinderGeometry(barrelR,barrelR,barrelH,8), handleMat);
+          barrel.position.set(0, y + h*f, hingeZ);
+          leafGroup.add(barrel);
+        });
+
+        // فتح الورقة شوي عمحور المفصلة حتى تبين إنها باب حقيقي منفتح (مش لوح زجاج ثابت).
+        const OPEN_ANGLE = 0.4; // ~23 درجة
+        leafGroup.rotation.y = hingeSide === 'left' ? OPEN_ANGLE : -OPEN_ANGLE;
+        return;
+      }
+
       const inset = isPlain ? 0.002 : frameW*0.85;
       const gw = Math.max(0.02, w - inset*2), gh = Math.max(0.02, h - inset*2);
       box(x+w/2, y+h/2, gw, gh, isLouver?FRAME_DEPTH*0.6:GLASS_DEPTH, isLouver?louverMat:glassMat);
       if(!isPlain) frameBorder(x,y,w,h,frameW,FRAME_DEPTH);
       if(isDoor3D && !isPlain && !isLouver){
-        const side = handleSideFor3D(node.type);
-        if(side) addDoorHandle3D(x,y,w,h,side);
+        if(hSide) addDoorHandle3D(x,y,w,h,hSide);
       }
       return;
     }
@@ -10169,7 +10267,7 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
     });
   }
   if(item.layout) walk(item.layout, 0, 0, W, bodyH);
-  frameBorder(0,0,W,bodyH,frameW,FRAME_DEPTH); // إطار خارجي (casing) حول كامل الجسم المستطيل
+  frameBorder(0,0,W,bodyH,outerFrameW,FRAME_DEPTH); // إطار خارجي (casing) حول كامل الجسم المستطيل
 
   if(isDoor3D){
     // عتبة ألمنيوم بسيطة عند خط الأرضية - بروز خفيف للخارج يفصل بصريًا "فتحة معبورة" (باب) عن حائط
@@ -10196,7 +10294,7 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
 
     // إطار القنطرة: شريط منحني ببروز حقيقي - قوس برّاني متبوع بالقوس الجوّاني بالعكس (حلقة مقفولة
     // وحدة، بدون الحاجة لـShape.holes نهائيًا).
-    const rxInner = Math.max(0.02, W/2 - frameW), ryInner = Math.max(0.02, archH - frameW*0.6);
+    const rxInner = Math.max(0.02, W/2 - outerFrameW), ryInner = Math.max(0.02, archH - outerFrameW*0.6);
     const innerArc = [];
     for(let i=0;i<=N;i++){
       const ang = Math.PI * i/N;
@@ -10207,7 +10305,7 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
     ringGeo.translate(0,0,-FRAME_DEPTH/2);
     content.add(new THREE.Mesh(ringGeo, frameMat));
 
-    box(W/2, bodyH, W, Math.max(0.02,frameW*0.5), FRAME_DEPTH, frameMat); // خط الفصل (springline)
+    box(W/2, bodyH, W, Math.max(0.02,outerFrameW*0.5), FRAME_DEPTH, frameMat); // خط الفصل (springline)
   }
 
   return group;
