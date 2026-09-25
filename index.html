@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.8';
+  var CURRENT_VERSION = '2026-09-26.9';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10608,6 +10608,24 @@ function designRoomSideSegment(itemId, sideId, segId){
     // لأنو هاد فعليًا منظور الحيط/الضلع المسطّح، مش نوع زجاج بيتحدد من التصنيف العادي.
     target.isRoomWallElevation = true;
     selectItem(target.id);
+    // 🛠️ إصلاح 2026-09-26 (طلب/ملاحظة حمدي: "لما عم اضغط صمم ماعم ياخد اكتر من ضلع عم يعدل على الضلع
+    // القديم يللي صممتو") - قبل هيك هاد الفنكشن كان يحدد ويجهّز البند الصحيح داخليًا (target) بس ما
+    // كان يفتح أداة الرسم (#wdOverlay) نفسها - فالمستخدم كان مضطر يفتحها بزر "🎨 design" العام
+    // (openDesignerFromToolbar)، وهاد الزر بيعمل WD.loadFromRows من جديد وبيرجع يختار أول بند بالجدول
+    // افتراضيًا (items[0])، يعني أول ضلع انصمم - مش الضلع الجديد يلي لسا داس عليه، فكان يطلع يعدّل عالغلط
+    // عالضلع القديم. هلق: منفتح أداة الرسم مباشرة هون بعد ما نأكد الاختيار الصحيح (target)، بنفس
+    // الطريقة تمامًا يلي بيستخدمها openDesignerFromToolbar (فتح + طي/فرد الترويسة بوضع الموبايل).
+    const overlay = document.getElementById('wdOverlay');
+    if(overlay) overlay.style.display = 'block';
+    if(document.body.classList.contains('mode-mobile')){
+      let pref = null;
+      try{ pref = localStorage.getItem('merzona-wd-header-collapsed'); }catch(e){}
+      const collapsed = pref === null ? true : pref === '1';
+      setWdHeaderCollapsed(collapsed);
+    } else {
+      setWdHeaderCollapsed(false);
+    }
+    window.scrollTo(0,0);
   }
   renderGallery();
 }
