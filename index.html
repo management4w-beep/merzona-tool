@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.5';
+  var CURRENT_VERSION = '2026-09-26.8';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1413,6 +1413,24 @@
     background:#eef1f4;
     overflow-y:auto;
   }
+  #mfgSizesOverlay{
+    display:none;
+    position:fixed; inset:0; z-index:10600;
+    background:#eef1f4;
+    overflow-y:auto;
+  }
+  .mfg-card{
+    border:1px solid #eee; border-radius:10px; padding:16px; margin-bottom:16px;
+    display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;
+  }
+  .mfg-sketch{
+    flex:0 0 220px; max-width:220px; min-height:120px;
+    background:#f8f9fb; border-radius:8px; padding:8px; box-sizing:border-box;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .mfg-sketch svg{ width:100%; height:auto; display:block; }
+  .mfg-card.mfg-excluded{ opacity:0.45; }
+  .mfg-card.mfg-excluded .mfg-sketch{ filter:grayscale(1); }
   .purch-item-row{
     display:flex; align-items:center; gap:10px; padding:9px 6px;
     border-bottom:1px solid #eee; font-size:13px; flex-wrap:wrap;
@@ -1493,6 +1511,7 @@
     #cameraOverlay{ display:none !important; }
     body:not(.three-d-printing) #threeDOverlay{ display:none !important; }
     #purchasingOverlay{ display:none !important; }
+    #mfgSizesOverlay{ display:none !important; }
     body.wd-printing #wdOverlay{
       display:block !important; position:static !important; inset:auto !important; z-index:auto !important;
       background:white !important;
@@ -1545,6 +1564,8 @@
   .print-item-caption .cls{ font-weight:700; color:#A15C1E; font-family:'JetBrains Mono',monospace; }
   .print-item-ref{ font-size:11px; color:#1a1a2e; margin-top:6px; text-align:center; font-family:'JetBrains Mono',monospace; border-top:1px dashed #ccc; padding-top:5px; }
   .print-item-ref b{ color:#A15C1E; font-size:13px; }
+  .print-item-mfg{ font-size:11px; color:#1a1a2e; margin-top:6px; text-align:center; font-family:'JetBrains Mono',monospace; border-top:1px dashed #c0392b; padding-top:5px; }
+  .print-item-mfg b{ color:#c0392b; font-size:13px; }
 
   .wd-action-controls{ display:flex; gap:8px; align-items:center; }
   .wd-save-btn{
@@ -5902,6 +5923,7 @@ window.wdApplyBack = function(results){
       <button class="printBtn" onclick="preparePrint()">🖨️ طباعة / حفظ PDF</button>
       <button class="printBtn" onclick="open3DPreview()">🧊 عرض ثري دي</button>
       <button class="printBtn" onclick="openPurchasingOverlay()">🛒 المشتريات</button>
+      <button class="printBtn" onclick="openMfgSizesOverlay()">📐 مقاسات التصنيع</button>
     </div>
     <div class="wd-header-toggle"><button id="wdHeaderToggleBtn" onclick="toggleWdHeader()" type="button">▼ إظهار الترويسة والأدوات</button></div>
   </header>
@@ -6133,6 +6155,10 @@ window.wdApplyBack = function(results){
 
           <label style="margin-top:14px;">🏗️ السقف Ceiling</label>
           <p class="hint">افتراضيًا شكل السقف نفس شكل الأرضية بالظبط (بروز = 0 لكل الأضلاع). لو بدك السقف يبرز للخارج بمكان معيّن (متل بروز سقف أي بيت عادي)، اكتب رقم "بروز" بالمم تحت الضلع المطلوب - هيك بس بيتحرك هاد الضلع من السقف للخارج بنفس المسافة بشكل موازي، والباقي بيضل متل ما هو والشكل بيضل مقفول تلقائيًا. رقم سالب = يرجع للداخل بدل ما يبرز. الأرضية نفسها ما بتتأثر إطلاقًا. لو بدك ترجعي تبلشي من جديد (تصفير كل البروزات)، دوسي "🔄 رجّعه لشكل الأرضية".</p>
+          <div>
+            <label>سماكة السقف (مم) - 🆕 عمق حقيقي للسقف بالمشهد ثلاثي الأبعاد (بدل ما يبين صفحة رفيعة)</label>
+            <input type="text" inputmode="decimal" id="inCeilingThickness" min="20" oninput="restrictMeasureChars(this);onCeilingThicknessChange()" onblur="evalMeasureField(this);onCeilingThicknessChange()" value="200">
+          </div>
           <div id="ceilingSidesList"></div>
           <div class="add-row" style="margin-top:6px;">
             <button onclick="resetCeilingToFloor()" class="small" style="flex:1;">🔄 رجّعه لشكل الأرضية</button>
@@ -6385,6 +6411,23 @@ window.wdApplyBack = function(results){
       <div id="purchMaterialsTable"></div>
     </div>
 
+  </div>
+</div>
+
+<div id="mfgSizesOverlay">
+  <div class="threeD-topbar">
+    <span>📐 مقاسات التصنيع</span>
+    <div style="display:flex; gap:8px;">
+      <button onclick="printMfgSizes()" style="background:#0f88cd; color:#fff; border:none; border-radius:7px; padding:8px 16px; font-size:13px; cursor:pointer; font-weight:600;" title="بيطبع كل البنود على مقاس التصنيع المعدّل، بنفس حجم الورقة والهوامش وعدد البنود بالصفحة المضبوطين حاليًا بأدوات الطباعة العادية">🖨️ طباعة مقاسات التصنيع</button>
+      <button class="camera-close-btn" onclick="closeMfgSizesOverlay()">✕ إغلاق</button>
+    </div>
+  </div>
+  <div style="max-width:900px; margin:0 auto; padding:24px 20px 60px; direction:rtl;">
+    <div style="background:#fff; border-radius:12px; padding:20px;">
+      <h3 style="margin:0 0 8px; font-family:'DM Serif Text',serif; font-size:20px;">تعديل مقاس كل بند للتصنيع</h3>
+      <p style="font-size:12.5px; color:#6d6d6d; margin:0 0 16px;">اكتبي قد ايش لازم ينقص أو يزيد مقاس القص الفعلي عن مقاس الفتحة لكل بند (بالسم) — رقم سالب (مثلاً <span dir="ltr">-1.5</span>) = ينقص، رقم موجب = يزيد. المقاس المعدّل بيظهر هون وعلى ورقة الطباعة/PDF بس، وما بيأثر إطلاقًا على مقاس عرض السعر ولا حساب المشتريات.</p>
+      <div id="mfgSizesTable"></div>
+    </div>
   </div>
 </div>
 
@@ -7082,6 +7125,13 @@ function makeItem(type){
     archType: 'plain',
     frostedOverlay: false,
     materialIds: [],
+    // 🆕 2026-09-25: طلب حمدي - "مقاسات التصنيع" منقولة هون بالضبط متل ما هي بأداة designer.html:
+    // فرق يدوي (بالسم، سالب=ينقص موجب=يزيد) بين مقاس الفتحة/عرض السعر ومقاس القص الفعلي المطلوب
+    // للتصنيع (مثلاً باب زجاج بدون إطار لازم يُقص أنقص بـ1.5سم من مقاس الفتحة). ما بيأثر إطلاقًا على
+    // مقاس عرض السعر ولا حساب المشتريات - بس عرض/طباعة.
+    mfgWidthAdjustCm: 0,
+    mfgHeightAdjustCm: 0,
+    mfgExcluded: false, // 🆕 (طلب حمدي) - استبعاد هالبند كليًا من تبويب/طباعة "مقاسات التصنيع" (بيضل موجود عادي بالرسمة وعرض السعر والطباعة العادية)
     // ---- Handrail (هاندريل) fields ----
     hrKind: 'staircase',       // 'staircase' | 'flat'
     hrMount: 'standoff',       // 'standoff' | 'hidden' | 'spigot'
@@ -7098,6 +7148,7 @@ function makeItem(type){
   // ("🎨 صمم") بيصير بند تصميم عادي مستقل (نافذة/باب/هاندريل) بسطره الخاص بجدول عرض السعر.
   if(type === 'room'){
     it.roomHeight = 2500;
+    it.ceilingThicknessMm = 200; // 🆕 2026-09-25 (طلب حمدي): سماكة حقيقية للسقف بالمشهد ثلاثي الأبعاد (مو مجرد صفحة رفيعة)
     it.roomSides = [0,1,2,3].map(()=>({
       id:'rs'+(roomSideIdCounter++), length:3000, angleDeg:90,
       segments:[{ id:'rg'+(roomSegIdCounter++), length:3000, kind:'design', rowUid:null }]
@@ -7453,6 +7504,7 @@ function loadSelectedIntoControls(){
     document.getElementById('normalDimsRow').style.display = 'none';
     document.getElementById('inArch').closest('.check-row').style.display = 'none';
     document.getElementById('inRoomHeight').value = it.roomHeight || 2500;
+    document.getElementById('inCeilingThickness').value = it.ceilingThicknessMm || 200;
     renderRoomSidesUI(it);
     return;
   }
@@ -8669,6 +8721,16 @@ function onRoomHeightChange(){
   renderGallery();
 }
 window.onRoomHeightChange = onRoomHeightChange;
+
+// 🆕 2026-09-25 (طلب حمدي: "بدي كمان حط تفاصيل عن سماكة السقف") - سماكة السقف رقم مستقل عن ارتفاع
+// الغرفة، بيتخزن على البند وبينعكس فقط على عمق مجسم السقف بالمشهد ثلاثي الأبعاد (buildRoom3DScene) -
+// ما بيأثر على أي حساب مساحة/سعر ولا عالمساقط 2D (هي مساقط من فوق أصلاً وما بتبين سماكة).
+function onCeilingThicknessChange(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.ceilingThicknessMm = Math.max(20, parseFloat(document.getElementById('inCeilingThickness').value)||200);
+}
+window.onCeilingThicknessChange = onCeilingThicknessChange;
 
 // 🧱 طول الضلع (side.length) صار "مُشتق" دايمًا من مجموع أطوال أقسامه (segments) - شوف الشرح فوق
 // buildRoomSVG. ensureRoomSideSegments() بتضمن إنو أي ضلع (حتى ولا كان جاي من نسخة قديمة بدون
@@ -9925,7 +9987,7 @@ function room3DResolveSegmentItem(seg){
 // بالضبط يلي طالع، بدل ما يعتمد بس عالانطباع البصري (يلي ممكن ياخد فكرة غلط بسبب منظور الكاميرا -
 // الأشياء الأبعد عن الكاميرا بتبين أصغر بأي مشهد ثلاثي الأبعاد حقيقي، تمامًا متل الصورة الفوتوغرافية،
 // وهاد طبيعي وليس خطأ بالمقاس).
-function makeMMLabelSprite3D(text){
+function makeMMLabelSprite3D(text, scale){
   const canvas = document.createElement('canvas');
   const padX = 22;
   canvas.width = 256; canvas.height = 96;
@@ -9947,7 +10009,10 @@ function makeMMLabelSprite3D(text){
   tex.needsUpdate = true;
   const mat = new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:true });
   const sprite = new THREE.Sprite(mat);
-  const worldH = 0.32; // ارتفاع ثابت بالمتر بالعالم الحقيقي - عريضة كفاية تنقرا وقريبة كفاية ما تصير مزعجة
+  // ارتفاع أساسي ثابت بالمتر بالعالم الحقيقي - عريضة كفاية تنقرا وقريبة كفاية ما تصير مزعجة. 🆕
+  // 2026-09-25: بيقبل "scale" اختياري (افتراضي 1) لتصغير البطاقة تلقائيًا بالأجزاء القصيرة وتقليل
+  // فرصة تراكبها مع اللي جنبها - شوف مكان الاستدعاء بـbuildRoom3DScene.
+  const worldH = 0.32 * (scale||1);
   sprite.scale.set(worldH * (canvas.width/canvas.height), worldH, 1);
   return sprite;
 }
@@ -9975,6 +10040,43 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
   const glassMat = new THREE.MeshPhysicalMaterial({ color:0xbfe3f0, transparent:true, opacity:0.32, roughness:0.08, metalness:0, clearcoat:0.4, side:THREE.DoubleSide });
   const louverMat = new THREE.MeshStandardMaterial({ color:0x2a2d31, roughness:0.65, side:THREE.DoubleSide });
   const LOUVER_TYPES3D = ['louver','louver_right','louver_left'];
+  // 🆕 2026-09-25 (طلب حمدي: "مو واضح ابدا انه في باب...لازم يتم العمل على توضيح هي التفاصيل اكتير
+  // بكتير وبشكل حقيقي وواقعي") - قبل هيك كل ورقة (leaf) غير عادية (plain) كانت بترسم بنفس الشكل تمامًا
+  // سواء كانت ورقة باب أو شباك، فما كان في ولا تفصيل يوضّح إنو هاد تحديدًا "باب" يُفتح منّو. هلق
+  // بنضيف مقبض سحب ألمنيوم حقيقي بارز (بروزة فعلية، مش خط) بس للبنود يلي هي فعلًا باب (isDoorLike) -
+  // بجهة عكس المفصلة المستنتجة من نوع الورقة (tri_left/right, slide_left/right, shwr_*) - وعتبة
+  // ألمنيوم بسيطة عند خط الأرضية لكل الباب، حتى تبين فتحة معبورة حقيقية مو مجرد زجاج ثابت.
+  const isDoor3D = isDoorLike(item);
+  const handleMat = new THREE.MeshStandardMaterial({ color:0xc9c9ce, roughness:0.3, metalness:0.8 });
+
+  function handleSideFor3D(type){
+    if(!type || type === 'fold') return null;
+    if(type.indexOf('left') !== -1) return 'right';
+    if(type.indexOf('right') !== -1) return 'left';
+    if(/^shwr_l/.test(type)) return 'right';
+    if(/^shwr_r/.test(type)) return 'left';
+    return 'right';
+  }
+  // مقبض سحب عمودي (عروتين تثبيت + قضيب) - نفس أسلوب مقابض أبواب الزجاج/الألمنيوم الحقيقية بمعارض
+  // ميرزونا، بارز فعليًا للخارج عن وجه الزجاج (مش ملزوق كخط)، بمنتصف ارتفاع الورقة تقريبًا (~1م).
+  function addDoorHandle3D(x,y,w,h,side){
+    const barLen = Math.min(0.34, Math.max(0.22, h*0.32));
+    const cy = Math.min(y+h-0.18, Math.max(y+0.18, y + h*0.52));
+    const edgeGap = Math.max(0.05, Math.min(w*0.18, 0.09));
+    const hx = side === 'right' ? (x + w - edgeGap) : (x + edgeGap);
+    const standoffD = 0.045;
+    const standoffZ = GLASS_DEPTH/2 + standoffD/2 + 0.004;
+    const barZ = standoffZ + standoffD/2 + 0.015 + 0.004;
+    const topStand = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.03,standoffD), handleMat);
+    topStand.position.set(hx, cy + barLen/2, standoffZ);
+    content.add(topStand);
+    const botStand = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.03,standoffD), handleMat);
+    botStand.position.set(hx, cy - barLen/2, standoffZ);
+    content.add(botStand);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.03, barLen, 0.03), handleMat);
+    bar.position.set(hx, cy, barZ);
+    content.add(bar);
+  }
 
   function box(cx,cy,w,h,d,mat){
     const m = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.006,w),Math.max(0.006,h),d), mat);
@@ -10005,6 +10107,10 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
       const gw = Math.max(0.02, w - inset*2), gh = Math.max(0.02, h - inset*2);
       box(x+w/2, y+h/2, gw, gh, isLouver?FRAME_DEPTH*0.6:GLASS_DEPTH, isLouver?louverMat:glassMat);
       if(!isPlain) frameBorder(x,y,w,h,frameW,FRAME_DEPTH);
+      if(isDoor3D && !isPlain && !isLouver){
+        const side = handleSideFor3D(node.type);
+        if(side) addDoorHandle3D(x,y,w,h,side);
+      }
       return;
     }
     const total = node.direction==='row' ? w : h;
@@ -10026,6 +10132,15 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
   }
   if(item.layout) walk(item.layout, 0, 0, W, bodyH);
   frameBorder(0,0,W,bodyH,frameW,FRAME_DEPTH); // إطار خارجي (casing) حول كامل الجسم المستطيل
+
+  if(isDoor3D){
+    // عتبة ألمنيوم بسيطة عند خط الأرضية - بروز خفيف للخارج يفصل بصريًا "فتحة معبورة" (باب) عن حائط
+    // زجاجي ثابت (شباك) بنفس المشهد.
+    const threshH = Math.min(0.05, H*0.02);
+    const thresh = new THREE.Mesh(new THREE.BoxGeometry(W, threshH, thicknessM + 0.03), handleMat);
+    thresh.position.set(W/2, threshH/2, 0);
+    content.add(thresh);
+  }
 
   if(archH > 0.01 && typeof THREE.ExtrudeGeometry !== 'undefined'){
     const N = 16;
@@ -10058,6 +10173,80 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
   }
 
   return group;
+}
+
+// 🆕 2026-09-25 (طلب حمدي: "كمان بدي بالثري دي يتم فرش داخل الغرفة بأي فرش افتراضي...حتى يكمل
+// التصميم" - واختار تحديدًا "جلوس غربي عصري (كنب + طاولة)" مو مجلس عربي تقليدي عالأرض) - فرش افتراضي
+// بسيط مبني بالكامل من أشكال THREE.js أولية (صناديق) لأنو ما فينا نحمّل أي ملف موديل 3D خارجي بهاد
+// البيئة. منحسب صندوق حدود مضلع الأرضية (bounding box) ونحط طاولة قهوة بالمنتصف مع كنبتين متقابلتين
+// عالمحور الأطول، بمسافة أمان (inset) عن الحيطان. لو الغرفة صغيرة كتير (أقل من 1.6م بأصغر بعد)
+// منتجاهل الفرش كليًا تلافيًا لأي تداخل بصري مع الحيطان/الأبواب.
+function buildRoomFurniture3D(scene, floorPts, n, MMTOM){
+  const xs = floorPts.slice(0,n).map(p=>p.x*MMTOM);
+  const zs = floorPts.slice(0,n).map(p=>-p.y*MMTOM);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const spanX = maxX - minX, spanZ = maxZ - minZ;
+  if(Math.min(spanX, spanZ) < 1.6) return; // غرفة صغيرة - بدون فرش تلافيًا للتداخل مع الحيطان
+
+  const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+  const longAxisIsX = spanX >= spanZ;
+  const longSpan = Math.max(spanX, spanZ), shortSpan = Math.min(spanX, spanZ);
+
+  const woodMat = new THREE.MeshStandardMaterial({ color:0x6b4a33, roughness:0.6, metalness:0.05 });
+  const glassTopMat = new THREE.MeshPhysicalMaterial({ color:0xdfefff, transparent:true, opacity:0.35, roughness:0.1, clearcoat:0.5 });
+  const sofaMat = new THREE.MeshStandardMaterial({ color:0x596273, roughness:0.85 });
+  const cushionMat = new THREE.MeshStandardMaterial({ color:0x707c8f, roughness:0.9 });
+
+  const group = new THREE.Group();
+
+  // طاولة قهوة بالمنتصف - سطح زجاجي فوق قاعدة خشبية بسيطة (4 أرجل).
+  const tableW = Math.min(1.1, longSpan*0.22), tableD = Math.min(0.6, shortSpan*0.28), tableH = 0.38;
+  const tableTop = new THREE.Mesh(new THREE.BoxGeometry(tableW, 0.04, tableD), glassTopMat);
+  tableTop.position.set(cx, tableH, cz);
+  group.add(tableTop);
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.04, tableH-0.04, 0.04), woodMat);
+    leg.position.set(cx + sx*(tableW/2-0.05), (tableH-0.04)/2, cz + sz*(tableD/2-0.05));
+    group.add(leg);
+  });
+
+  // كنبة عصرية (قاعدة + وسادة جلوس + ظهر + مسندين جانبيين) - كل كنبة تنبني بمحورها المحلي وبعدين
+  // تنحط وتندار (rotation.y) حتى تواجه الطاولة بالمنتصف.
+  function buildSofa(px, pz, rotY, lengthM){
+    const sg = new THREE.Group();
+    const seatH = 0.42, seatD = 0.85, backH = 0.55, armW = 0.18;
+    const base = new THREE.Mesh(new THREE.BoxGeometry(lengthM, seatH*0.55, seatD), sofaMat);
+    base.position.set(0, seatH*0.55/2, 0);
+    sg.add(base);
+    const cushion = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.1,lengthM-armW*2), seatH*0.35, seatD*0.9), cushionMat);
+    cushion.position.set(0, seatH*0.55 + seatH*0.35/2, -seatD*0.02);
+    sg.add(cushion);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(lengthM, backH, 0.18), sofaMat);
+    back.position.set(0, seatH*0.55 + backH*0.85/2, -seatD/2+0.09);
+    sg.add(back);
+    [-1,1].forEach(s=>{
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(armW, seatH*0.9, seatD), sofaMat);
+      arm.position.set(s*(lengthM/2 - armW/2), seatH*0.9/2, 0);
+      sg.add(arm);
+    });
+    sg.position.set(px, 0, pz);
+    sg.rotation.y = rotY;
+    return sg;
+  }
+
+  const sofaLen = Math.min(1.9, longSpan*0.4);
+  const sofaSeatD = 0.85; // لازم يطابق seatD جوا buildSofa فوق - نستخدمه هون بس لحساب مسافة أمان بين الكنبة والطاولة
+  const sofaOffset = Math.min(longSpan*0.28, tableW/2 + 0.55 + sofaSeatD/2);
+  if(longAxisIsX){
+    group.add(buildSofa(cx - sofaOffset, cz, Math.PI/2, sofaLen));
+    group.add(buildSofa(cx + sofaOffset, cz, -Math.PI/2, sofaLen));
+  } else {
+    group.add(buildSofa(cx, cz - sofaOffset, 0, sofaLen));
+    group.add(buildSofa(cx, cz + sofaOffset, Math.PI, sofaLen));
+  }
+
+  scene.add(group);
 }
 
 async function buildRoom3DScene(it, wrap){
@@ -10110,8 +10299,13 @@ async function buildRoom3DScene(it, wrap){
     if(i===0) ceilingShape.moveTo(X,Y); else ceilingShape.lineTo(X,Y);
   });
   ceilingShape.closePath();
+  // 🆕 2026-09-25 (طلب حمدي: "بدي حط تفاصيل عن سماكة السقف") - بدل صفحة مسطحة (ShapeGeometry) بلا
+  // عمق، منستخدم ExtrudeGeometry حتى يصير للسقف عمق/سماكة حقيقية محسوسة لما تلف الكاميرا أو تقرّب من
+  // حافته - نفس منطق الدوران (rotation.x = -90°) يلي بيحول محور z المحلي (عمق البثق) لمحور y بالعالم
+  // (فوق)، فبتطلع السماكة بروزة لفوق بالظبط متل سقف حقيقي إلو جسم، مش بس خط.
+  const ceilingThicknessM = Math.max(0.02, (it.ceilingThicknessMm||200) * MMTOM);
   const roofMesh = new THREE.Mesh(
-    new THREE.ShapeGeometry(ceilingShape),
+    new THREE.ExtrudeGeometry(ceilingShape, { depth: ceilingThicknessM, bevelEnabled:false }),
     new THREE.MeshStandardMaterial({ color:0x5a4a3a, roughness:0.8, side:THREE.DoubleSide })
   );
   roofMesh.rotation.x = -Math.PI/2;
@@ -10158,11 +10352,24 @@ async function buildRoom3DScene(it, wrap){
 
       // 🆕 2026-09-25: بطاقة صغيرة معلّقة فوق كل جزء بتبيّن طولو الحقيقي بالمم - إثبات مباشر إنو
       // المقاس المرسوم مطابق تمامًا لللي دخّله المستخدم، بغض النظر شو الانطباع البصري من بعيد.
-      const label = makeMMLabelSprite3D(Math.round(segLenMM) + ' mm');
-      label.position.set(midX*MMTOM, heightM + 0.22, -midY*MMTOM);
-      scene.add(label);
+      // 🛠️ إصلاح 2026-09-25 (تراكب الأرقام بالسقف - ملاحظة حمدي من صورة الشاشة الحقيقية): الأجزاء
+      // القصيرة كتير (كثير تقسيمات/عوارض بنفس الضلع) كانت بتخلي البطاقات المجاورة تتراكب فوق بعض
+      // وتصير غير مقروءة. هلق: نتجاهل تسمية الأجزاء الأقصر من 25 سم كليًا (مساحتها صغيرة أصلاً وغير
+      // حرجة للقراءة)، ومنصغّر حجم البطاقة تلقائيًا للأجزاء المتوسطة (بين 25 و60 سم) لتقليل فرصة
+      // التراكب مع اللي جنبها بدون ما نفقد الرقم نفسو بالكامل.
+      const segLenM = segLenMM * MMTOM;
+      if(segLenM >= 0.25){
+        const labelScale = segLenM < 0.6 ? 0.68 : 1;
+        const label = makeMMLabelSprite3D(Math.round(segLenMM) + ' mm', labelScale);
+        label.position.set(midX*MMTOM, heightM + 0.22, -midY*MMTOM);
+        scene.add(label);
+      }
     }
   }
+
+  // 🆕 (طلب حمدي: "جلوس غربي عصري كنب + طاولة" حتى يكمل التصميم) - فرش افتراضي داخل الغرفة، بس لو
+  // كانت الغرفة واسعة كفاية (شوف الشرط جوا الفنكشن نفسها) تلافيًا لأي تداخل مع الحيطان بغرفة صغيرة.
+  buildRoomFurniture3D(scene, pts, n, MMTOM);
 
   // كاميرا + عناصر تحكم تدوير يدوي (سحب بالماوس) - نحسب مركز ونصف قطر المبنى من نقاط المضلع.
   // 🆕 2026-09-26: منضيف نقاط السقف كمان (مش بس الأرضية) للحساب - لو في بروز سقف كبير بمكان معيّن،
@@ -10495,6 +10702,9 @@ function buildCeilingSVG(it){
     const mx = (p1.x+p2.x)/2, my = (p1.y+p2.y)/2;
     const lenMM = Math.hypot(pts[i+1].x-pts[i].x, pts[i+1].y-pts[i].y);
     labelsSvg += `<text x="${mx}" y="${my-6}" font-size="10" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my-6})">${Math.round(lenMM)} mm</text>`;
+    // 🆕 2026-09-25: طلب حمدي - نفس رقم "ضلع N" يلي صار مبيّن بمسقط الأرضية، هون كمان تحت رقم طول
+    // السقف حتى يعرف مباشرة أي "بروز" بالقائمة تحت بيخص أي ضلع بالرسمة (نفس الترقيم بالضبط).
+    labelsSvg += `<text x="${mx}" y="${my+16}" font-size="10.5" font-weight="700" fill="var(--wd-accent,#0f88cd)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my+16})">ضلع ${i+1}</text>`;
   }
   return `
   <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
@@ -10553,6 +10763,11 @@ function buildRoomSVG(it){
     let dirDeg = Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI;
     dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
     if(dirDeg > 90 && dirDeg < 270) dirDeg -= 180; // نص فوق رأسه - منقلبه ليضل مقروء
+    // 🆕 2026-09-25: طلب حمدي - "لازم اعرف وين ضلع 1 أو 2 أو 3 عالرسمة" - رقم الضلع (نفس ترقيم قائمة
+    // الأضلاع تحت بالضبط "ضلع N") منحطه مرة وحدة بمنتصف الضلع كامل (مش كل قسم لحاله متل طول الأجزاء)،
+    // وتحت الخط (بدل فوقه متل أرقام الأطوال) حتى ما يصير تراكب بين رقم الضلع وأرقام أطوال أقسامه.
+    const sideMidX = (p1.x+p2.x)/2, sideMidY = (p1.y+p2.y)/2;
+    labelsSvg += `<text x="${sideMidX}" y="${sideMidY+16}" font-size="10.5" font-weight="700" fill="var(--wd-accent,#0f88cd)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${sideMidX}, ${sideMidY+16})">ضلع ${i+1}</text>`;
     let cum = 0;
     segs.forEach(seg=>{
       const f0 = cum/totalLen; cum += (seg.length||0); const f1 = cum/totalLen;
@@ -11325,11 +11540,23 @@ function buildPrintSVG(it, pageItemCount){
   </svg>`;
 }
 
-function buildPrintSheetHTML(){
+function buildPrintSheetHTML(opts){
+  // opts.useMfgSizes (طباعة "مقاسات التصنيع" - زر مخصص جوا تبويب مقاسات التصنيع، منقول من designer.html
+  // بطلب حمدي): بيرسم كل بند بمقاسه المعدّل (مقاس التصنيع) بدل مقاس الفتحة الأصلي، بنفس بالضبط
+  // شبكة/هوامش/حجم ورقة الطباعة العادية (getPageDimsMM/itemsPerPage الحاليين) - بدون ما نلمس مقاس
+  // عرض السعر ولا نكرر كود التقسيم لصفحات. الاستدعاءات العادية (بدون opts) ما بتتأثر إطلاقًا.
+  const useMfgSizes = !!(opts && opts.useMfgSizes);
   let html = `<div class="print-letterhead">
     ${companyLogo ? `<img src="${companyLogo}" class="print-logo" alt="${companyName}"/>` : `<div class="print-company-name">${companyName}</div>`}
   </div>`;
-  const printItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
+  // بند مستبعد (mfgExcluded) بيُطبع عادي بالطباعة العادية (useMfgSizes=false) - بس بيُشال كليًا من
+  // طباعة "مقاسات التصنيع" (useMfgSizes=true)، لأنو حمدي طلب صراحة إمكانية استبعاد بند ما بدو ياه فيها.
+  const rawPrintItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && (!useMfgSizes || !it.mfgExcluded));
+  const printItems = !useMfgSizes ? rawPrintItems : rawPrintItems.map(it=>{
+    if(isHandrail(it)) return it;
+    const mfg = getMfgSizeMm(it);
+    return mfg.hasAdjust ? Object.assign({}, it, { width: mfg.w, height: mfg.h }) : it;
+  });
   // الهاندريل بيطلع بصفحة لحاله بعرض الصفحة كامل (شكله عريض وطويل وبيحتاج مساحة قراءة أوسع من باقي البنود)
   const pages = [];
   let buf = [];
@@ -11354,11 +11581,16 @@ function buildPrintSheetHTML(){
       const typeWord = isHandrail(it) ? 'الهاندريل' : (isDoorLike(it) ? 'الباب' : 'الشباك');
       const typeLabel = SHAPE_LABELS[it.shapeType] || 'شباك';
       const refLine = it.refCode ? `<div class="print-item-ref">مرجع الجدول / Reference: <b>${it.refCode}</b></div>` : '';
+      // بوضعية طباعة مقاسات التصنيع، الرسمة نفسها أصلاً مرسومة على المقاس المعدّل (باين برقمها فوق
+      // الرسمة) - فما لزمة نكرر كابشن "مقاس التصنيع" تاني، بيصير تكرار بلا فايدة.
+      const mfg = (!useMfgSizes && !isHandrail(it) && !it.mfgExcluded) ? getMfgSizeMm(it) : null;
+      const mfgLine = (mfg && mfg.hasAdjust) ? `<div class="print-item-mfg">📐 مقاس التصنيع (بعد التعديل اليدوي): <b>${mfg.w} × ${mfg.h} mm</b></div>` : '';
       html += `<div class="print-item">
         <div class="print-item-title">${it.label} — ${typeLabel}</div>
         <div class="print-item-canvas">${buildPrintSVG(it, pageItems.length)}</div>
         <div class="print-item-caption">الرؤية لهذا ${typeWord} من الخارج / Outside View<br>
           <span class="cls">${cls.en} (${cls.ar})</span></div>
+        ${mfgLine}
         ${refLine}
       </div>`;
     });
@@ -11416,6 +11648,35 @@ function preparePrint(){
   });
 }
 window.addEventListener('afterprint', ()=> document.body.classList.remove('wd-printing'));
+
+// 🆕 2026-09-25 (طلب حمدي - منقول من designer.html بنفس الشكل تماماً) - زر طباعة مخصص جوا تبويب
+// "مقاسات التصنيع": بيطبع كل البنود بنفس بالضبط حجم/اتجاه الورقة وعدد البنود بالصفحة والهوامش يلي
+// مضبوطين حاليًا بأدوات الطباعة العادية فوق (زر preparePrint نفسه)، الفرق الوحيد إنو كل بند بيترسم
+// على مقاسه المعدّل (مقاس التصنيع) بدل مقاس الفتحة الأصلي - أي بند ما انعدّل عليه شي بيطلع بمقاسه
+// العادي زي ما هو.
+function printMfgSizes(){
+  const printableCount = items.filter(it => !it.isCameraTemp && !it.mfgExcluded).length;
+  if(!printableCount){
+    alert('كل البنود مستبعدة من مقاسات التصنيع (أو ما في بنود بعد) - رجّعي تضمين بند واحد عالأقل من تبويب مقاسات التصنيع قبل الطباعة.');
+    return;
+  }
+  const dims = getPageDimsMM();
+  let styleTag = document.getElementById('dynamicPageStyle');
+  if(!styleTag){
+    styleTag = document.createElement('style');
+    styleTag.id = 'dynamicPageStyle';
+    document.head.appendChild(styleTag);
+  }
+  styleTag.textContent = `@page{ size: ${dims.w}mm ${dims.h}mm; margin: 12mm; }`;
+  document.getElementById('printSheet').innerHTML = buildPrintSheetHTML({ useMfgSizes: true });
+  document.body.classList.add('wd-printing');
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{ window.print(); }, 250);
+    });
+  });
+}
+window.printMfgSizes = printMfgSizes;
 
 // زر واحد يطبع عرض السعر أولاً وبعده رسمة/سكتش كل البنود (الهاندريل والشاور وغيرهم) بنفس ملف الطباعة - بترتيب: عرض السعر، بعدين السكتش
 function printQuotationAndSketch(){
@@ -11554,6 +11815,9 @@ function buildItemFromSavedDesign(design, uid, label){
     showerHingeSide: design.showerHingeSide || 'left',
     showerHandleType: design.showerHandleType || 'vertical_both',
     showerHingeCount: design.showerHingeCount === 2 ? 2 : 3,
+    mfgWidthAdjustCm: design.mfgWidthAdjustCm || 0,
+    mfgHeightAdjustCm: design.mfgHeightAdjustCm || 0,
+    mfgExcluded: design.mfgExcluded || false,
     layout: cloneLayoutWithFreshIds(design.layout),
     sourceRowUid: uid
   };
@@ -11625,6 +11889,9 @@ function wdSaveAndClose(){
         showerHingeSide: it.showerHingeSide || 'left',
         showerHandleType: it.showerHandleType || 'vertical_both',
         showerHingeCount: it.showerHingeCount === 2 ? 2 : 3,
+        mfgWidthAdjustCm: it.mfgWidthAdjustCm || 0,
+        mfgHeightAdjustCm: it.mfgHeightAdjustCm || 0,
+        mfgExcluded: it.mfgExcluded || false,
         layout: it.layout
       }
     };
@@ -11635,6 +11902,111 @@ function wdSaveAndClose(){
 function wdCloseOverlay(){
   document.getElementById('wdOverlay').style.display = 'none';
 }
+
+/* ---------- MANUFACTURING SIZES (مقاسات التصنيع) ----------
+   🆕 2026-09-25 (طلب حمدي - منقول من designer.html بنفس الشكل تماماً): يدوي بالكامل لكل بند لحاله
+   (مش مرتبط بنوع الشكل ولا بحساب المشتريات): فرق بالسم (سالب=ينقص موجب=يزيد) بين مقاس الفتحة/عرض
+   السعر ومقاس القص الفعلي المطلوب للتصنيع (مثلاً باب زجاج بدون إطار لازم يُقص أنقص بـ1.5سم).
+   العرض والارتفاع كل واحد فيه حقل تعديل خاص فيه. */
+
+// بيرجع المقاس المعدّل (بالمم) لبند معيّن بناءً على mfgWidthAdjustCm/mfgHeightAdjustCm المخزّنين عليه.
+function getMfgSizeMm(it){
+  const wAdjCm = it.mfgWidthAdjustCm || 0;
+  const hAdjCm = it.mfgHeightAdjustCm || 0;
+  return {
+    w: Math.round((it.width||0) + wAdjCm*10),
+    h: Math.round((it.height||0) + hAdjCm*10),
+    hasAdjust: !!(wAdjCm || hAdjCm)
+  };
+}
+window.getMfgSizeMm = getMfgSizeMm;
+
+// بيرسم سكتش البند (بنفس أسلوب رسمة الطباعة الثابتة buildPrintSVG - بدون أي أزرار تفاعلية قابلة
+// للضغط، حتى ما يصير خلط بينها وبين رسمة الكانفاس الحقيقية) لكن على المقاس المعدّل (مقاس التصنيع)
+// بدل مقاس الفتحة - عن طريق نسخة سطحية (shallow clone) من البند الحقيقي بعرض/ارتفاع معدّلين بس،
+// وباقي كل خصائص التصميم (التقسيمات، القوس، التضبيب...) متل ما هي بالضبط.
+function buildMfgSketchSVG(it, mfg){
+  if(!mfg || mfg.w<=0 || mfg.h<=0){
+    return '<div style="color:#c0392b;font-size:11px;padding:24px 8px;text-align:center;">⚠️ المقاس المعدّل صار صفر أو أقل - راجعي رقم التعديل</div>';
+  }
+  const previewIt = Object.assign({}, it, { width: mfg.w, height: mfg.h });
+  let svg = '';
+  try{ svg = buildPrintSVG(previewIt, itemsPerPage) || ''; }
+  catch(e){ console.warn('[مقاسات التصنيع] تعذّر رسم المعاينة', e); }
+  return svg || '<div style="color:#999;font-size:11px;padding:24px 8px;text-align:center;">تعذّر رسم المعاينة</div>';
+}
+
+function renderMfgSizesTable(){
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isHandrail(it));
+  const el = document.getElementById('mfgSizesTable');
+  if(!visibleItems.length){
+    el.innerHTML = '<p style="color:#666;padding:10px 0;">ما في بنود بعد (الهاندريل مستثنى - مقاسه بالأطوال/الألواح مش عرض وارتفاع).</p>';
+    return;
+  }
+  el.innerHTML = visibleItems.map(it=>{
+    const mfg = getMfgSizeMm(it);
+    const excluded = !!it.mfgExcluded;
+    return `<div class="mfg-card${excluded ? ' mfg-excluded' : ''}">
+      <div class="mfg-sketch" id="mfgSketch-${it.id}">${buildMfgSketchSVG(it, mfg)}</div>
+      <div style="flex:1;min-width:220px;">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div style="font-weight:600;font-size:14px;color:#333;">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}</div>
+          <label style="display:flex; align-items:center; gap:5px; font-size:11px; color:#666; cursor:pointer; white-space:nowrap;" title="لو بطّلتي التضمين، هالبند ما بيظهر إطلاقًا بجدول ولا طباعة مقاسات التصنيع - بس بيضل موجود عادي بالرسمة وعرض السعر والطباعة العادية">
+            <input type="checkbox" ${excluded ? '' : 'checked'} onchange="onMfgExcludeToggle(${it.id}, !this.checked)" style="margin:0;">
+            تضمين بمقاسات التصنيع
+          </label>
+        </div>
+        <div style="font-size:11.5px;color:#999;margin:2px 0 12px;">مقاس الفتحة: ${Math.round(it.width)} × ${Math.round(it.height)} مم</div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+          <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل العرض (سم)
+            <input type="number" step="0.1" value="${it.mfgWidthAdjustCm||0}" ${excluded?'disabled':''} oninput="onMfgAdjustChange(${it.id},'w',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
+          </label>
+          <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل الارتفاع (سم)
+            <input type="number" step="0.1" value="${it.mfgHeightAdjustCm||0}" ${excluded?'disabled':''} oninput="onMfgAdjustChange(${it.id},'h',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
+          </label>
+        </div>
+        <div class="purch-len" id="mfgOut-${it.id}" style="direction:ltr;">${excluded ? 'مستبعد من مقاسات التصنيع' : mfg.w + ' × ' + mfg.h + ' mm'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function onMfgAdjustChange(itemId, axis, val){
+  const it = items.find(i=>i.id===itemId);
+  if(!it) return;
+  const num = parseFloat(val);
+  const safe = isFinite(num) ? num : 0;
+  if(axis === 'w') it.mfgWidthAdjustCm = safe; else it.mfgHeightAdjustCm = safe;
+  // منحدّث بس رقم المقاس المعدّل وسكتش المعاينة جنب البند، بدون ما نعيد رسم الجدول كامل - حتى ما يفقد حقل الإدخال التركيز (focus) وهي عم تكتبي
+  const mfg = getMfgSizeMm(it);
+  const outEl = document.getElementById('mfgOut-' + itemId);
+  if(outEl) outEl.textContent = mfg.w + ' × ' + mfg.h + ' mm';
+  const sketchEl = document.getElementById('mfgSketch-' + itemId);
+  if(sketchEl) sketchEl.innerHTML = buildMfgSketchSVG(it, mfg);
+}
+window.onMfgAdjustChange = onMfgAdjustChange;
+
+// 🆕 (طلب حمدي) - استبعاد/رجوع تضمين بند بتبويب مقاسات التصنيع - بند مستبعد بيضل ظاهر بالجدول (بس
+// خافت اللون وحقوله معطّلة) حتى تقدري ترجعي تضمّنيه في أي وقت، بس بيُستثنى تمامًا من طباعة مقاسات
+// التصنيع (printMfgSizes/buildPrintSheetHTML بوضعية useMfgSizes) - وما بيأثر إطلاقًا على الرسمة
+// الأصلية ولا عرض السعر ولا الطباعة العادية.
+function onMfgExcludeToggle(itemId, excluded){
+  const it = items.find(i=>i.id===itemId);
+  if(!it) return;
+  it.mfgExcluded = !!excluded;
+  renderMfgSizesTable(); // كبسة checkbox (مش كتابة) - إعادة رسم الجدول كامل آمنة هون، ما في خطر فقدان تركيز حقل إدخال
+}
+window.onMfgExcludeToggle = onMfgExcludeToggle;
+
+function openMfgSizesOverlay(){
+  renderMfgSizesTable();
+  document.getElementById('mfgSizesOverlay').style.display = 'block';
+}
+function closeMfgSizesOverlay(){
+  document.getElementById('mfgSizesOverlay').style.display = 'none';
+}
+window.openMfgSizesOverlay = openMfgSizesOverlay;
+window.closeMfgSizesOverlay = closeMfgSizesOverlay;
 
 // expose all top-level functions so inline onclick="..." HTML attributes (which run in global scope) can find them
 window.isSlidingType = isSlidingType;
