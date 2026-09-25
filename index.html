@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.2';
+  var CURRENT_VERSION = '2026-09-26.3';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -7732,6 +7732,18 @@ function toggleFrostedOverlay(itemId){
   renderGallery();
 }
 
+// 🆕 2026-09-26: طلب حمدي - "بعد ما اخلص من رسمة المسقط، خليني أعمل rotate إلها" - بدل ما يضطر يرجع
+// يفتح أداة الرسم بملء الشاشة بس لتدوير الشكل كامل، زر صغير مباشرة فوق كرت الغرفة بالمعرض (بنفس
+// المكان يلي حدده بالسكرين شوت - جنب زر "🌫️ مضبب") بيدوّر المسقط 90° بكل ضغطة. هاد دوران "عرض" بس -
+// نفس الشكل بالضبط (كل الأطوال والزوايا الداخلية 90°/270° زي ما هي) - بس التوجيه العام للرسمة بيتغير.
+function rotateRoomPlan(itemId){
+  const it = items.find(i=>i.id===itemId); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.roomPlanRotationDeg = ((it.roomPlanRotationDeg||0) + 90) % 360;
+  renderGallery();
+}
+window.rotateRoomPlan = rotateRoomPlan;
+
 function cycleLeaf(itemId, nodeId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const node = findNode(it.layout, nodeId);
@@ -10425,7 +10437,10 @@ function buildCeilingSVG(it){
 function buildRoomSVG(it){
   const sides = it.roomSides || [];
   if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">ضيف 3 أضلاع عالأقل</div>';
-  let bearing = 0, x = 0, y = 0;
+  // 🆕 2026-09-26: طلب حمدي - بعد ما يخلص رسم المسقط، يقدر يدوّره (زر 🔄 دوّر المسقط بفوق الكرت) من
+  // دون ما يرجع يفتح أداة الرسم كامل. الدوران هون بس "بصري" (وين تبلش الرسمة تتجه) - ما بيغيّر ولا
+  // طول ضلع ولا زاوية داخلية حقيقية إطلاقًا (الشكل نفسه بالضبط، بس مبيّن بزاوية دوران مختلفة).
+  let bearing = it.roomPlanRotationDeg || 0, x = 0, y = 0;
   const pts = [{x, y}];
   sides.forEach(s=>{
     const rad = bearing * Math.PI/180;
@@ -11386,6 +11401,7 @@ function renderGallery(){
     head.onclick = () => selectItem(it.id);
     head.innerHTML = `<span class="name">${it.label}${it.refCode ? ` <span style="opacity:0.6;font-weight:400;">(${it.refCode})</span>` : ''}</span>
       ${isHandrail(it) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
+      ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();rotateRoomPlan(${it.id})" title="دوّر المسقط 90° (بس شكل العرض - ما بيغيّر أي مقاس أو زاوية حقيقية)">🔄 دوّر المسقط</button>` : ''}
       <span class="type-badge">${SHAPE_LABELS[it.shapeType] || 'شباك'}</span>`;
     const canvasDiv = document.createElement('div');
     canvasDiv.className = 'card-canvas';
