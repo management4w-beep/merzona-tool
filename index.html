@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.17';
+  var CURRENT_VERSION = '2026-09-26.22';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -3985,7 +3985,7 @@ async function deleteQuotationFromDrive(){
     const q = encodeURIComponent(`name = '${refSafe.replace(/'/g,"\\'")}' and '${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
     const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
       headers: { Authorization: 'Bearer ' + token }
-    }, 20000);
+    }, 30000);
     const data = await res.json();
     const folder = data.files && data.files[0];
     if(!folder){ alert('ما لقينا مجلد عرض السعر هيدا بجوجل درايف (يمكن كان محذوف أصلاً، أو الاسم اختلف عن الرقم المرجعي).'); return; }
@@ -3993,7 +3993,7 @@ async function deleteQuotationFromDrive(){
       method: 'PATCH',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ trashed: true })
-    }, 20000);
+    }, 30000);
     alert('✅ تم نقل عرض السعر "'+refRaw+'" لسلة مهملات جوجل درايف.\nرح يختفي من الداشبورد تلقائيًا بأول مزامنة، وهلق رح تنفتح صفحة عرض سعر جديدة فاضية برقم مرجعي جديد.');
     // 🔧 2026-08-27: طلب حمدي - بعد ما ينحذف عرض السعر، الصفحة كانت تضل عارضة نفس بياناته القديمة
     // (كأنو ما صار شي)، وهاد كان مربك ومسبّب لخطأ إعادة استخدام نفس الرقم المرجعي المحذوف بالغلط
@@ -4230,6 +4230,14 @@ function onBranchChange(){
 // اتركهم فاضيين/كما هم حتى تجهز سيرفر whatsapp-server (شوف README.md جواه) - قبل هيك هاد الشي معطّل تلقائيًا.
 const WHATSAPP_NOTIFY_URL = 'https://merzona-server-production.up.railway.app/send-quotation';
 const WHATSAPP_NOTIFY_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky'; // نفس AUTH_TOKEN يلي حطيته بمتغيرات البيئة تبع السيرفر
+// 🆕 2026-09-26 (طلب/ملاحظة حمدي: فشل إرسال إشعار واتساب بخطأ "Failed to fetch" رغم إنو الحفظ لجوجل
+// درايف نجح) - فحصنا سيرفر الواتساب مباشرة (endpoint /health تبعه) ولقينا السبب الحقيقي: السيرفر نفسه
+// شغال تمام، بس جلسة واتساب المرتبطة فيه لوحدها "مسجّلة خروج" (whatsappReady=false بالرد) - يعني أي
+// محاولة إرسال بتضل عالقة (السيرفر مستني جلسة واتساب ما رح توصل) لحد ما رابط الاتصال ينقطع من تلقاء
+// نفسه، فيطلع "Failed to fetch" بعد فترة بدل رسالة خطأ واضحة فورية. الحل: منفحص حالة السيرفر (/health)
+// *قبل* ما نحاول نبعت أي شي، وإذا طلعت الجلسة مقطوعة منعرض رسالة واضحة فورية بدل ما ننتظر ونطلع بخطأ
+// غامض - شوف checkWhatsAppServerHealth وsendQuotationToWhatsApp تحت.
+const WHATSAPP_HEALTH_URL = WHATSAPP_NOTIFY_URL.replace(/\/send-quotation\/?$/, '/health');
 
 /* ================= التوقيع الإلكتروني للزبون =================
    بدل الصندوق الفاضي يلي كان تحت "توقيع الزبون" (كان لازم طباعة ورقية وتوقيع بالقلم)، هلق
@@ -4339,7 +4347,7 @@ async function copySignLink(){
     if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري حفظ آخر تحديث قبل تجهيز الرابط...'; }
     await Promise.race([
       saveToGoogleDriveInner(),
-      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت عملية الحفظ الوقت المسموح (30 ثانية) - تأكد من اتصالك بالإنترنت وجرّبي تاني.')), 30000))
+      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت عملية الحفظ الوقت المسموح (150 ثانية) - تأكد من اتصالك بالإنترنت وجرّبي تاني.')), 150000))
     ]);
   }catch(saveErr){
     console.error('[نسخ رابط التوقيع] فشل حفظ آخر تحديث قبل تجهيز الرابط:', saveErr);
@@ -4406,7 +4414,7 @@ async function openSignLink(){
     if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري حفظ آخر تحديث قبل فتح الصفحة...'; }
     await Promise.race([
       saveToGoogleDriveInner(),
-      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت عملية الحفظ الوقت المسموح (30 ثانية) - تأكد من اتصالك بالإنترنت وجرّبي تاني.')), 30000))
+      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت عملية الحفظ الوقت المسموح (150 ثانية) - تأكد من اتصالك بالإنترنت وجرّبي تاني.')), 150000))
     ]);
   }catch(saveErr){
     console.error('[فتح صفحة التوقيع] فشل حفظ آخر تحديث قبل فتح الصفحة:', saveErr);
@@ -4544,11 +4552,26 @@ function getGoogleAccessToken(silent){
   return googleTokenInFlight;
 }
 
-async function fetchWithTimeout(url, options, timeoutMs){
+// 🛠️ إصلاح 2026-09-26 (طلب حمدي: فشل حفظ عرض سعر لفرع سوريا بخطأ "signal is aborted without
+// reason" حتى بعد ما رفعنا المهل قبل هيك بـ2026-09-23) - "signal is aborted without reason" معناها
+// إنو المهلة (timeoutMs) خلصت وانقطع الطلب لحاله (مش المستخدم يلي ألغى شي) - هالشي ممكن يصير حتى لو
+// المهلة كانت معقولة، لو النت بلحظة معينة كان بطيء شوي (خصوصًا أول حفظة لفرع جديد كليًا زي سوريا يلي
+// لازم تنشئ مجلدات من الصفر). الحل الجذري: (1) رفعنا المهل نفسها بكل مكان تحت لأرقام أسخى، و(2) أهم
+// شي - هلق fetchWithTimeout بتعيد المحاولة تلقائيًا مرة وحدة (بصمت، بدون ما يحس المستخدم) لو صار
+// انقطاع بسبب المهلة فقط (AbortError) - كل عمليات جوجل درايف يلي منستخدمها هون (بحث/إنشاء مجلد،
+// دوّر-وحدّث-أو-أنشئ ملف) آمنة تمامًا تتكرر لو صار انقطاع مؤقت، فمو رح تصير ملفات أو مجلدات مكررة.
+async function fetchWithTimeout(url, options, timeoutMs, _retriesLeft){
+  const retriesLeft = (_retriesLeft === undefined) ? 1 : _retriesLeft;
   const controller = new AbortController();
-  const timer = setTimeout(()=> controller.abort(), timeoutMs || 20000);
+  const timer = setTimeout(()=> controller.abort(), timeoutMs || 30000);
   try{
     return await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+  } catch(e){
+    if(retriesLeft > 0 && e && e.name === 'AbortError'){
+      console.warn('[Drive] انتهت مهلة طلب لجوجل درايف (' + (timeoutMs||30000) + 'ms) - عم نعيد المحاولة تلقائيًا مرة وحدة قبل ما نستسلم:', url);
+      return fetchWithTimeout(url, options, timeoutMs, retriesLeft - 1);
+    }
+    throw e;
   } finally {
     clearTimeout(timer);
   }
@@ -4561,7 +4584,7 @@ async function findYearFolderIfExists(year, token, rootFolderId){
   const q = encodeURIComponent(`name = '${year}' and '${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
-  }, 20000);
+  }, 30000);
   const data = await res.json();
   return (data.files && data.files.length) ? data.files[0].id : null;
 }
@@ -4581,7 +4604,7 @@ async function computeNextReferenceSeq(defaultVal, token, rootFolderId){
   const q = encodeURIComponent(`'${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(name)&pageSize=1000`, {
     headers: { Authorization: 'Bearer ' + token }
-  }, 20000);
+  }, 30000);
   const data = await res.json();
   let minSeq = null, maxSeq = null;
   const seqSet = new Set();
@@ -4678,7 +4701,7 @@ async function findOrCreateDriveFolder(name, parentId, token){
   // العادي بمجلد قديم فيه مجلدات كتير أصلًا - شوف نفس الملاحظة جنب saveToGoogleDrive.
   const searchRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
-  }, 20000);
+  }, 30000);
   const searchData = await searchRes.json();
   if(searchData.files && searchData.files.length){
     return searchData.files[0].id;
@@ -4687,7 +4710,7 @@ async function findOrCreateDriveFolder(name, parentId, token){
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
-  }, 20000);
+  }, 30000);
   const createData = await createRes.json();
   return createData.id;
 }
@@ -4701,7 +4724,7 @@ async function uploadFileToDriveFolder(filename, mimeType, blob, parentId, token
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token },
     body: form
-  }, 35000);
+  }, 50000);
   return res.json();
 }
 
@@ -4714,7 +4737,7 @@ async function findFileInFolder(name, parentId, token){
   const q = encodeURIComponent(`name = '${safeName}' and '${parentId}' in parents and trashed = false`);
   const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
-  }, 20000);
+  }, 30000);
   const data = await res.json();
   return (data.files && data.files.length) ? data.files[0].id : null;
 }
@@ -4724,7 +4747,7 @@ async function updateDriveFileContent(fileId, blob, token){
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type || 'application/octet-stream' },
     body: blob
-  }, 35000);
+  }, 50000);
   return res.json();
 }
 
@@ -4807,7 +4830,7 @@ async function cleanupDraftAfterFinalSave(refRaw){
         method: 'PATCH',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify({ trashed: true })
-      }, 15000);
+      }, 20000);
     }
   }catch(e){ console.warn('[مسودة] تعذّر ترحيل ملف المسودة بعد الحفظ النهائي (غير معيق - العرض اتحفظ تمام):', e); }
   finally{ currentDraftId = null; }
@@ -4914,11 +4937,17 @@ async function saveToGoogleDrive(evt){
   // (مع 3 رفعات ملفات: HTML وJSON وPDF، وتوليد الـPDF نفسه بالمتصفح) بيصير مجموع وقته الفعلي أطول من
   // مهلة الـ30 ثانية القديمة بسهولة، فبيوقف الحفظ بمنتصف الطريق. رفعنا كل المهل تحت (مهلة كل طلب Drive
   // فردي + المهلة الكلية + هالمؤقّت الاحتياطي) لإعطاء هامش وقت كافي أكبر، بالذات لأول حفظة بفرع جديد.
+  // 🛠️ 2026-09-26: نفس الخطأ بالضبط تكرر برضو بفرع سوريا رغم الرفع السابق - يعني المهل يلي رفعناها
+  // بـ.09-23 لسا مش كافية لبعض الحالات (نت بطيء لحظيًا، أو أول حفظة لفرع جديد كليًا). هلق: (1) رفعنا
+  // مهلة كل طلب Drive فردي أكتر كمان (30-50 ثانية بدل 20-35)، (2) الأهم - fetchWithTimeout هلق بتعيد
+  // المحاولة تلقائيًا مرة وحدة بصمت لو صار انقطاع بسبب المهلة بس (شوف تعريفها فوق)، و(3) رفعنا هالمهلة
+  // الكلية والمؤقّت الاحتياطي هون كمان (لـ150/155 ثانية) حتى يتسع وقت كافي حتى لو احتاجت أكتر من عملية
+  // إعادة محاولة تلقائية بنفس الحفظة.
   const watchdog = setTimeout(()=>{
     if(settled) return;
     resetBtn();
-    console.error('[Drive Save] المؤقّت الاحتياطي اشتغل - العملية تعدّت المهلة القصوى (65 ثانية).');
-  }, 65000);
+    console.error('[Drive Save] المؤقّت الاحتياطي اشتغل - العملية تعدّت المهلة القصوى (155 ثانية).');
+  }, 155000);
   // كاشف احتياطي إضافي: لما نافذة تسجيل الدخول (popup) تنسكر (سواء نجحت أو انلغت)، نافذتنا الرئيسية بترجعلها التركيز focus فورًا.
   // إذا رجع التركيز وما وصلت نتيجة خلال ثانيتين، الأرجح إنو المستخدم سكّر نافذة جوجل (ألغى) - فمنرجّع الزر لطبيعته تلقائيًا بدون ما يحتاج يضغط أي شي.
   const onFocusReturn = ()=>{
@@ -4935,7 +4964,7 @@ async function saveToGoogleDrive(evt){
     if(btn){ btn.disabled = false; btn.textContent = '⏳ جاري الحفظ... (اكبس للإلغاء)'; }
     const result = await Promise.race([
       saveToGoogleDriveInner(),
-      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت العملية الوقت المسموح (60 ثانية) - تأكد من اتصالك بالإنترنت وجرّب تاني.')), 60000))
+      new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت العملية الوقت المسموح (150 ثانية) - تأكد من اتصالك بالإنترنت وجرّب تاني.')), 150000))
     ]);
     window.removeEventListener('focus', onFocusReturn);
     if(driveSaveCancelled) return; // المستخدم كان ألغى يدويًا - ما منعرض أي نتيجة متأخرة
@@ -4986,6 +5015,21 @@ async function blobToBase64(blob){
   return btoa(binary);
 }
 
+// 🆕 2026-09-26: فحص سريع وخفيف لحالة سيرفر جسر الواتساب قبل أي محاولة إرسال فعلية - شوف الشرح
+// الكامل جنب WHATSAPP_HEALTH_URL فوق. بيرجع null لو تعذّر الوصول للسيرفر أصلًا (وقتها منكمل ونجرب
+// الإرسال العادي - ممكن يكون فحص الصحة نفسه تعثّر لحظيًا بس الإرسال يعدي عادي)، أو الكائن {ok,
+// whatsappReady,...} يلي بيرجعه endpoint الـ/health لو نجح الفحص.
+async function checkWhatsAppServerHealth(){
+  try{
+    const res = await fetchWithTimeout(WHATSAPP_HEALTH_URL, {}, 6000);
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){
+    try{ console.warn('[WhatsApp] تعذّر فحص حالة سيرفر الواتساب (/health) - رح نجرب الإرسال العادي رأسًا:', e); }catch(e2){}
+    return null;
+  }
+}
+
 // جامعة بيانات عرض السعر (المرجع/العميل/الإمارة/الموبايل/البنود مع سعر المتر) وبعتها
 // لسيرفر جسر الواتساب (whatsapp-server) حتى توصل تلقائيًا لمجموعة "Tasks"، مع إرفاق نفس
 // ملف الـ PDF يلي اتحفظ بجوجل درايف (إذا انمرر). تجميع البنود المتكررة وحذف المقاسات من
@@ -4995,6 +5039,13 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe){
   // 🔍 لوغ تشخيصي مؤقت (نسخة .15) - حتى نتأكد إنو الفنكشن فعليًا بلّشت تشتغل
   try{ console.log('[WhatsApp] ▶️ الفنكشن بلّشت (sendQuotationToWhatsApp) - WHATSAPP_NOTIFY_URL:', WHATSAPP_NOTIFY_URL || '(فاضي)'); }catch(e){}
   if(!WHATSAPP_NOTIFY_URL){ try{ console.warn('[WhatsApp] ⛔ توقفت - WHATSAPP_NOTIFY_URL فاضي/غير معرّف'); }catch(e){} return; }
+  // 🆕 2026-09-26: منفحص حالة جلسة الواتساب *قبل* ما نضيّع وقت بتجهيز الـPDF كـbase64 وإرسال طلب
+  // تقيل - لو الجلسة مقطوعة (whatsappReady=false) منطلع رسالة واضحة فورية بدل "Failed to fetch"
+  // غامضة بعد فترة انتظار.
+  const health = await checkWhatsAppServerHealth();
+  if(health && health.whatsappReady === false){
+    throw new Error('سيرفر الواتساب شغال، بس جلسة واتساب المرتبطة فيه مسجّلة خروج حاليًا (whatsappReady=false) - لازم تفتحي رابط /qr تبع السيرفر وتمسحي رمز QR من جديد بنفس رقم واتساب الإشعارات، وبعدين الإرسال التلقائي بيرجع يشتغل تلقائيًا.');
+  }
   const ref = (document.getElementById('m-ref').value || '').trim();
   const clientName = (document.getElementById('m-client').value || '').trim();
   const location = (document.getElementById('m-location').value || '').trim();
@@ -5035,11 +5086,14 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe){
     console.log('[WhatsApp] 📏 حجم كامل الطلب (JSON body) يلي رح ينبعت:', (bodyStr.length/1024/1024).toFixed(2)+' MB');
   }catch(e){}
 
-  const resp = await fetch(WHATSAPP_NOTIFY_URL, {
+  // 🆕 2026-09-26: fetchWithTimeout بدل fetch الخام - حتى لو صار خلل تاني بجلسة الواتساب بعد فحص
+  // /health (أو الفحص نفسه تعثّر)، الطلب هلق بيفشل بمهلة محددة (45 ثانية) بدل ما يضل عالق بلا حدود
+  // لحد ما يطلع "Failed to fetch" غامضة.
+  const resp = await fetchWithTimeout(WHATSAPP_NOTIFY_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': WHATSAPP_NOTIFY_TOKEN },
     body: bodyStr
-  });
+  }, 45000);
   if(!resp.ok) throw new Error('WhatsApp notify failed: HTTP ' + resp.status);
 }
 
@@ -5386,7 +5440,7 @@ async function saveToGoogleDriveInner(){
             method: 'PATCH',
             headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
             body: updatedDataBlob
-          }, 20000);
+          }, 30000);
           console.log('[PDF Debug] ✅ تم حفظ موقع صندوق توقيع الزبون (مم) بملف بيانات العرض:', quotationFullDataForSignBox.signBoxRect);
         }
       }catch(e){ console.warn('[PDF Debug] تعذّر حفظ موقع صندوق توقيع الزبون بملف البيانات (مش عائق - العرض اتحفظ تمام، بس التوقيع الإلكتروني لاحقًا رح يرجع للطريقة الاحتياطية - صفحة شهادة ملحقة):', e); }
@@ -6109,6 +6163,16 @@ window.wdApplyBack = function(results){
             <label>ارتفاع الغرفة الافتراضي (مم) - بيُستخدم كارتفاع مبدئي لأي ضلع جديد لما ينصمم</label>
             <input type="text" inputmode="decimal" id="inRoomHeight" min="1000" oninput="restrictMeasureChars(this);onRoomHeightChange()" onblur="evalMeasureField(this);onRoomHeightChange()" value="2500">
           </div>
+          <!-- 🆕 2026-09-26 (طلب حمدي: "يفضل لو اختار لون الجدار من الخارج") - لون موحّد لكل حيطان/أجزاء
+               الغرفة المصمتة (حيطان كاملة + الأجزاء المصمتة تحت/فوق الشبابيك) بالمشهد الثلاثي الأبعاد،
+               بدل اللون البيج الثابت يلي كان مبرمج بالكود. -->
+          <div style="margin-top:10px;">
+            <label>لون الجدار بالمشهد الثلاثي الأبعاد 🆕</label>
+            <div class="add-row" style="align-items:center;gap:8px;">
+              <input type="color" id="inRoomWallColor" value="#e4dcc9" onchange="onRoomWallColorChange()" style="width:52px;height:34px;padding:2px;cursor:pointer;">
+              <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">هاد اللون بينطبق على كل حيطان الغرفة (وأي جزء مصمت تحت/فوق الشبابيك) بمعاينة الثري دي فقط - ما إلو علاقة بلون أي بند تصميم فعلي.</span>
+            </div>
+          </div>
           <div style="margin:10px 0;padding:8px;border:1px dashed var(--wd-line,#555);border-radius:8px;">
             <button type="button" class="small" onclick="toggleRoomFreehandDraw()" style="width:100%;">✏️ ارسم شكل الأرضية بالفأرة (بدل التعبئة اليدوية)</button>
             <div id="roomDrawWrap" style="display:none;">
@@ -6381,7 +6445,7 @@ window.wdApplyBack = function(results){
     </div>
   </div>
   <div id="room3DCanvasWrap"></div>
-  <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف الغرفة من كل زاوية، أو دوس "🎥 سجّل وحمّل فيديو 360°" لتسجيل دورة كاملة تلقائية حوالين الغرفة وتنزيلها كملف فيديو (webm) جاهز ترسلو للزبون.</p>
+  <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف الغرفة من كل زاوية، أو دوس "🎥 سجّل وحمّل فيديو 360°" لتسجيل دورة كاملة تلقائية حوالين الغرفة وتنزيلها كملف فيديو (mp4، أو webm لو متصفحك قديم) جاهز ترسلو للزبون.</p>
 </div>
 
 <div id="purchasingOverlay">
@@ -7522,6 +7586,8 @@ function loadSelectedIntoControls(){
     document.getElementById('inArch').closest('.check-row').style.display = 'none';
     document.getElementById('inRoomHeight').value = it.roomHeight || 2500;
     document.getElementById('inCeilingThickness').value = it.ceilingThicknessMm || 200;
+    const wallColorEl = document.getElementById('inRoomWallColor');
+    if(wallColorEl) wallColorEl.value = it.wallColorHex || '#e4dcc9';
     renderRoomSidesUI(it);
     return;
   }
@@ -8749,6 +8815,15 @@ function onCeilingThicknessChange(){
 }
 window.onCeilingThicknessChange = onCeilingThicknessChange;
 
+// 🆕 2026-09-26 (طلب حمدي: "يفضل لو اختار لون الجدار من الخارج") - لون حيطان الغرفة بالمشهد ثلاثي
+// الأبعاد (buildRoom3DScene بيقرأه بدل اللون الثابت 0xe4dcc9 يلي كان مبرمج بالكود مباشرة).
+function onRoomWallColorChange(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.wallColorHex = document.getElementById('inRoomWallColor').value || '#e4dcc9';
+}
+window.onRoomWallColorChange = onRoomWallColorChange;
+
 // 🧱 طول الضلع (side.length) صار "مُشتق" دايمًا من مجموع أطوال أقسامه (segments) - شوف الشرح فوق
 // buildRoomSVG. ensureRoomSideSegments() بتضمن إنو أي ضلع (حتى ولا كان جاي من نسخة قديمة بدون
 // segments) إله عالأقل قسم وحد افتراضي (تصميم عادي، بكامل طول الضلع).
@@ -8942,6 +9017,13 @@ function onRoomSegField(itemId, sideId, segId, field, value){
   const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
   pushHistory();
   if(field==='length') seg.length = Math.max(50, parseFloat(value)||50);
+  // 🆕 2026-09-26 (طلب حمدي: "بدي يكون في زر بحيث اكتب ارتفاع الجدار حتى تبلش منه التصاميم") - ارتفاع
+  // جدار مصمت من الأرض (مم) قبل ما يبلش التصميم (زجاج/شباك) فوقه، بدل الافتراضي التلقائي (900مم
+  // للشبابيك دايمًا / صفر للأبواب) - شوف buildRoom3DScene تحت كيف منستخدمه. سيبها فاضية = رجوع للتلقائي.
+  else if(field==='sillHeightMm'){
+    const v = String(value==null?'':value).trim();
+    seg.sillHeightMm = (v==='') ? null : Math.max(0, parseFloat(v)||0);
+  }
   syncRoomSideLength(side);
   syncRoomSegmentRowDims(it, seg); // 🆕 لو الجزء هاد متصمم أصلاً - حدّث سطر عرض السعر والبند فورًا
   renderRoomSidesUI(it);
@@ -9866,7 +9948,7 @@ window.finishRoomFreehandDraw = finishRoomFreehandDraw;
 // وكل جدار انصمم (منظور Elevation) بيطلع بخامة (texture) مأخوذة من تصميمه الفعلي (تقسيمات
 // الزجاج/الشيش)، وكل جدار لسا ما انصمم أو محدد "حائط" بيطلع سطح مصمت/زجاج بسيط. بعدين المستخدم فيه
 // يدوّر الكاميرا يدويًا (سحب بالماوس) أو يدوس "سجّل فيديو 360°" لتسجيل دورة كاملة تلقائية حوالين
-// الغرفة وتنزيلها كملف فيديو (webm) جاهز يرسلو للزبون مباشرة.
+// الغرفة وتنزيلها كملف فيديو (mp4، أو webm لو المتصفح قديم) جاهز يرسلو للزبون مباشرة.
 let room3D = { renderer:null, scene:null, camera:null, controls:null, animId:null,
   center:null, radius:0, cameraHeight:0, lookHeight:0, recording:false, itemId:null,
   onResize:null };
@@ -10447,6 +10529,14 @@ async function buildRoom3DScene(it, wrap){
   const n = it.roomSides.length;
   const heightM = Math.max(0.5, (it.roomHeight||2500) * MMTOM);
   const wallThicknessM = 0.12, glassThicknessM = 0.06;
+  // 🆕 2026-09-26 (طلب حمدي: "يفضل لو اختار لون الجدار من الخارج") - لون حيطان الغرفة (وأي جزء مصمت
+  // تحت/فوق الشبابيك) بالمشهد ثلاثي الأبعاد - المستخدم بيختاره من خانة اللون بجانب ارتفاع الغرفة،
+  // وإذا ما اختار شي منستخدم نفس اللون البيج الافتراضي القديم.
+  let wallColorNum = 0xe4dcc9;
+  if(it.wallColorHex){
+    const parsed = parseInt(String(it.wallColorHex).replace('#',''), 16);
+    if(!isNaN(parsed)) wallColorNum = parsed;
+  }
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfe0f2);
@@ -10553,7 +10643,7 @@ async function buildRoom3DScene(it, wrap){
       let mesh;
       let meshCenterYM = heightM/2; // بشكل افتراضي: البند عم ياخد ارتفاع الحيط الكامل (حيط عادي / بند مسطّح قديم / مكان فاضي)
       if(isWall){
-        mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0xe4dcc9, roughness:0.95 }));
+        mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:wallColorNum, roughness:0.95 }));
       } else if(linkedItem && linkedItem.layout){
         // 🆕 2026-09-24: طلب حمدي - "خلي الثري دي تصميم حقيقي" - مجسم 3D فعلي (إطارات بارزة + زجاج
         // غاطس + عوارض حقيقية) بدل ما نلزق صورة مسطحة عالحيط.
@@ -10574,7 +10664,13 @@ async function buildRoom3DScene(it, wrap){
         itemHMM = Math.max(300, Math.min(itemHMM, roomHeightMM));
         const isDoorType = isDoorLike(linkedItem);
         let bottomMM;
-        if(isDoorType){
+        // 🆕 2026-09-26 (طلب حمدي: "بدي يكون في زر بحيث اكتب ارتفاع الجدار حتى تبلش منه التصاميم") -
+        // لو المستخدم كاتب ارتفاع جدار مخصص (seg.sillHeightMm) لهاد الجزء بالذات، منستخدمه بالضبط
+        // بدل الحساب التلقائي القديم (900مم ثابت للشبابيك / صفر للأبواب دايمًا).
+        const customSillMM = (typeof seg.sillHeightMm === 'number' && seg.sillHeightMm >= 0) ? seg.sillHeightMm : null;
+        if(customSillMM !== null){
+          bottomMM = Math.max(0, Math.min(customSillMM, Math.max(0, roomHeightMM - 100)));
+        } else if(isDoorType){
           bottomMM = 0;
         } else {
           const preferredSillMM = 900; // ارتفاع عتبة نافذة نمطي (اذا الشباك متل ما هو بيصير عم يتحط فوق حائط قصير)
@@ -10586,7 +10682,7 @@ async function buildRoom3DScene(it, wrap){
         mesh = buildRealWindowGroup3D(itemForWall3D, segLenMM, itemHMM, thicknessM, seg.doorOpen3D);
         meshCenterYM = (bottomMM + itemHMM/2) * MMTOM;
 
-        const infillMat = new THREE.MeshStandardMaterial({ color:0xe4dcc9, roughness:0.95 }); // نفس خامة/لون حيطان الغرفة بالضبط
+        const infillMat = new THREE.MeshStandardMaterial({ color:wallColorNum, roughness:0.95 }); // نفس لون حيطان الغرفة المختار
         if(roomHeightMM - topMM > 1){
           const headerHM = (roomHeightMM - topMM) * MMTOM;
           const headerMesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,lengthM), headerHM, wallThicknessM), infillMat);
@@ -10610,7 +10706,31 @@ async function buildRoom3DScene(it, wrap){
         const mats = await buildWallSegmentMaterials(linkedItem, segLenMM, it.roomHeight||2500);
         mesh = new THREE.Mesh(geo, mats);
       } else {
-        mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.5, roughness:0.2 }));
+        // 🆕 2026-09-26 (طلب حمدي: "احيانا بكون في عندي ارتفاع من الارض جدار وبعدين من بعد الجدار من
+        // فوق ببلش الزجاج - ويبين التصميم على الثري دي كمان") - حتى قبل ما يربط هاد الجزء بتصميم فعلي
+        // (باب/شباك)، لو كاتب "جدار من الأرض" (seg.sillHeightMm) منبني حائط قصير مصمت تحته وزجاج
+        // (بلاسهولدر شفاف) فوقه بنفس الارتفاع بالضبط، حتى يشوف الفكرة بالثري دي فورًا وهو لسا عم يصمم.
+        const roomHeightMM2 = it.roomHeight || 2500;
+        const placeholderSillMM = (typeof seg.sillHeightMm === 'number' && seg.sillHeightMm > 0)
+          ? Math.min(seg.sillHeightMm, Math.max(0, roomHeightMM2 - 100)) : 0;
+        if(placeholderSillMM > 1){
+          const kneeHM2 = placeholderSillMM * MMTOM;
+          const kneeMesh2 = new THREE.Mesh(
+            new THREE.BoxGeometry(Math.max(0.02,lengthM), kneeHM2, wallThicknessM),
+            new THREE.MeshStandardMaterial({ color: wallColorNum, roughness:0.95 })
+          );
+          kneeMesh2.position.set(midX*MMTOM, kneeHM2/2, midY*MMTOM);
+          kneeMesh2.rotation.y = rad;
+          kneeMesh2.castShadow = true;
+          kneeMesh2.receiveShadow = true;
+          scene.add(kneeMesh2);
+        }
+        const glassHM = heightM - (placeholderSillMM*MMTOM);
+        mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(Math.max(0.02,lengthM), Math.max(0.05,glassHM), thicknessM),
+          new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.5, roughness:0.2 })
+        );
+        meshCenterYM = (placeholderSillMM*MMTOM) + Math.max(0.05,glassHM)/2;
       }
       mesh.position.set(midX*MMTOM, meshCenterYM, midY*MMTOM);
       mesh.rotation.y = rad;
@@ -10763,6 +10883,29 @@ function renderer_dispose_safe(renderer){
   if(renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
 }
 
+// 🆕 2026-09-26 (طلب حمدي: "لازم بعد تسجيل مقطع الثري دي ينحفظ بملف الرفرنس بجوجل درايف") - بيرفع
+// نفس الفيديو المسجَّل تلقائيًا لنفس مجلد الرقم المرجعي بجوجل درايف (نفس المجلد بالضبط يلي فيه ملف
+// HTML/PDF/-data.json تبع عرض السعر)، بنفس منطق تحديد المجلد (فرع → سنة → رقم مرجعي) المستخدم بـ
+// saveToGoogleDriveInner تمامًا - حتى الفيديو يترتب بنفس المكان المتوقع، وينشئ المجلدات لو لسا مش
+// موجودة (نفس ما بيصير بالحفظ العادي). بيستخدم uploadOrUpdateFileInDriveFolder فيكون فيديو نفس
+// الغرفة إذا انسجّل أكتر من مرة بيحدّث نفس الملف بدل ما يكرره.
+async function uploadRoom3DVideoToDrive(blob, itemLabel, token){
+  const refRaw = (document.getElementById('m-ref').value || 'Merzona-Quotation').trim();
+  const refSafe = refRaw.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-؀-ۿ]+/g,'_') || 'Merzona-Quotation';
+  const year = getYearFromReference(refRaw);
+  const rootFolderIdForSave = getDriveRootFolderIdForBranch(getBranchFromRef(refRaw));
+  const yearFolderId = await findOrCreateDriveFolder(year, rootFolderIdForSave, token);
+  const refFolderId = await findOrCreateDriveFolder(refSafe, yearFolderId, token);
+  const safeLabel = (itemLabel || 'غرفة').replace(/[^\w؀-ۿ-]+/g,'_');
+  // 🆕 2026-09-26: الامتداد ونوع الملف المرفوع لجوجل درايف هلق حسب نوع الـblob الفعلي (mp4 أو webm
+  // حسب دعم متصفح حمدي)، مش mp4/webm ثابت - حتى الملف عالدرايف يفتح صح بأي برنامج دايمًا.
+  const mimeType = blob.type || 'video/webm';
+  const videoExt = mimeType.indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+  const videoFilename = refSafe + '-3d-360-' + safeLabel + '.' + videoExt;
+  await uploadOrUpdateFileInDriveFolder(videoFilename, mimeType, blob, refFolderId, token);
+  return videoFilename;
+}
+
 function recordRoom3DVideo(){
   if(!room3D.renderer || room3D.recording) return;
   const canvas = room3D.renderer.domElement;
@@ -10773,6 +10916,14 @@ function recordRoom3DVideo(){
   const btn = document.getElementById('room3DRecordBtn');
   const camera = room3D.camera, center = room3D.center;
   room3D.controls.enabled = false;
+  // 🆕 2026-09-26: منطلب صلاحية جوجل درايف *هلق* (فورًا لحظة الكبسة الحقيقية عالزر) بدل ما نستناها
+  // بعد ما يخلص التسجيل (بعد ١٠ ثواني) - لأنو أي نافذة تسجيل دخول جوجل لازم تنفتح كنتيجة مباشرة
+  // لكبسة يدوية حقيقية (المتصفح بيمنعها لو انفتحت من كولباك متأخر مش نتيجة كبسة مباشرة)، فمنجهزها
+  // مسبقًا هون ومنستخدم نفس التوكن الجاهز أول ما يخلص التسجيل تحت.
+  const driveTokenPromise = getGoogleAccessToken().catch(function(e){
+    console.warn('تعذّر تجهيز صلاحية جوجل درايف مسبقًا (الفيديو رح ينحمّل محليًا برضو، بس رفعه لجوجل درايف ممكن يفشل):', e);
+    return null;
+  });
   // 🛠️ إصلاح 2026-09-24: كانت حركة الكاميرا التلقائية بتنحسب بحلقة render منفصلة موازية لحلقة
   // المعاينة العادية - هلق منخزّن بس نقطة البداية/المدة، وحلقة الـanimate الوحيدة (فوق) هي يلي بتحرّك
   // الكاميرا وترندر، منعًا لتضارب فريمات كان يخلي الفيديو المسجَّل يطلع فاضي/ثابت عند بعض المتصفحات.
@@ -10784,30 +10935,59 @@ function recordRoom3DVideo(){
   if(btn){ btn.classList.add('recording'); btn.textContent = '🔴 عم يسجّل... (10 ثواني)'; btn.disabled = true; }
 
   const stream = canvas.captureStream(30);
-  let mimeType = 'video/webm;codecs=vp9';
+  // 🆕 2026-09-26 (طلب حمدي: "بدي الفيديو ينحفظ بصيغة mp4") - منجرب mp4 (H.264) أول شي، لأنو
+  // صيغة أشهر وبتنفتح بأي جهاز/برنامج (واتساب، ويندوز، آيفون...) بعكس webm يلي مو كل شي بيدعمه.
+  // متصفحات Chrome/Edge الحديثة بتدعم تسجيل mp4 مباشرة عبر MediaRecorder، بس القديمة منها لسا لأ -
+  // لهيك منرجع لـwebm تلقائيًا لو mp4 مش مدعوم، حتى ما ينكسر التسجيل عالمتصفحات الأقدم. اسم/نوع
+  // الملف تحت بيتحدد حسب الصيغة يلي فعليًا استخدمها المتصفح (recorder.mimeType)، مش افتراض ثابت.
+  let mimeType = 'video/mp4;codecs=avc1.42E01E';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4;codecs=h264';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp9';
   if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
   if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
   let recorder;
   try{ recorder = new MediaRecorder(stream, { mimeType }); }
   catch(e){ recorder = new MediaRecorder(stream); }
+  // recorder.mimeType بيعكس الصيغة الحقيقية يلي استخدمها المتصفح فعليًا (ممكن تختلف شوي عن يلي
+  // طلبناها، أو يرجع فاضي ببعض المتصفحات) - منستخدمه كمصدر الحقيقة لتحديد الامتداد الصحيح للملف.
+  const actualMimeType = (recorder.mimeType || mimeType || 'video/webm').split(';')[0];
+  const isMp4Recording = actualMimeType.indexOf('mp4') !== -1;
+  const videoFileExt = isMp4Recording ? 'mp4' : 'webm';
   room3D.activeRecorder = recorder;
   const chunks = [];
   recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
-  recorder.onstop = ()=>{
+  recorder.onstop = async ()=>{
     room3D.activeRecorder = null;
-    const blob = new Blob(chunks, { type:'video/webm' });
+    const blob = new Blob(chunks, { type: actualMimeType });
     if(!blob.size){
       alert('للأسف ما انسجل أي فيديو (طلع فاضي). جرب من جديد - ولو تكرر معك، جرب من متصفح Chrome أو Edge بآخر إصدار (بعض المتصفحات القديمة ما بتدعم تسجيل الفيديو من الرسمة مباشرة).');
     } else {
-      const url = URL.createObjectURL(blob);
       const it = items.find(i=>i.id===room3D.itemId);
+      const labelForFile = (it && it.label) || 'غرفة';
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = ((it && it.label) || 'غرفة').replace(/[^\w؀-ۿ-]+/g,'_') + '-3d-360.webm';
+      a.download = labelForFile.replace(/[^\w؀-ۿ-]+/g,'_') + '-3d-360.' + videoFileExt;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      if(!isMp4Recording){
+        try{ console.warn('[Room3D] متصفحك ما بيدعم تسجيل mp4 مباشرة - اتحفظ الفيديو بصيغة webm بدالها.'); }catch(e){}
+      }
+
+      // 🆕 2026-09-26 (طلب حمدي: "لازم بعد تسجيل مقطع الثري دي ينحفظ بملف الرفرنس بجوجل درايف") -
+      // بالإضافة للتحميل المحلي فوق، منرفع نفس الفيديو لملف مرجع عرض السعر بجوجل درايف تلقائيًا.
+      if(btn){ btn.textContent = '☁️ جاري رفع الفيديو لجوجل درايف...'; }
+      try{
+        const token = await driveTokenPromise;
+        if(!token) throw new Error('تعذّر تسجيل الدخول لجوجل درايف.');
+        await uploadRoom3DVideoToDrive(blob, labelForFile, token);
+      }catch(e){
+        console.warn('تعذّر رفع فيديو الثري دي ٣٦٠° لجوجل درايف (الفيديو اتحمّل على جهازك بنجاح رغم هيك):', e);
+        alert('تم تحميل الفيديو على جهازك بنجاح، بس صار خطأ أثناء رفعه لملف المرجع بجوجل درايف:\n' + (e && e.message ? e.message : e) + '\n\nتأكد إنك مسجّل دخول لحساب جوجل درايف (جرب زر الحفظ العادي مرة)، وبعدين أعد تسجيل الفيديو.');
+      }
     }
     room3D.recording = false;
     if(room3D.controls) room3D.controls.enabled = true;
@@ -10949,6 +11129,14 @@ function renderRoomSidesUI(it){
                 <button class="small${seg.flip3D ? ' active' : ''}" onclick="toggleRoomSegFlip3D(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;${seg.flip3D ? 'background:var(--wd-accent,#0f88cd);color:#fff;' : ''}" title="لو الباب/الشباك طلع بالثري دي بعكس الجهة يلي صمّمتها (يمين بدل يسار أو العكس) - دوسي هون تقلبيه بالثري دي بس، بدون ما يتغيّر تصميمه الأصلي إطلاقًا">↔️ اقلب بالثري دي${seg.flip3D ? ' ✓' : ''}</button>
                 ${doorOpenBtnHtml}`
              : `<span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">لسا ما انصمم</span>`}`;
+      // 🆕 2026-09-26 (طلب حمدي: "احيانا بكون في عندي ارتفاع من الارض جدار وبعدين من بعد الجدار من فوق
+      // ببلش الزجاج - بدي يكون في زر بحيث اكتب ارتفاع الجدار حتى تبلش منه التصاميم ويبين بالثري دي كمان")
+      // - حقل اختياري لكل جزء تصميم (مش حائط كامل): ارتفاع جدار مصمت من الأرض (مم) قبل ما يبلش
+      // التصميم (الشباك/الباب) فوقه. فاضي = تلقائي (نفس السلوك القديم: شباك 900مم، باب صفر).
+      const sillInputHtml = isWall ? '' : `
+        <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);margin-inline-start:4px;">🧱 جدار من الأرض:</span>
+        <input type="text" inputmode="decimal" style="width:64px;" placeholder="تلقائي" value="${(typeof seg.sillHeightMm === 'number') ? Math.round(seg.sillHeightMm) : ''}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onRoomSegField(${it.id},'${s.id}','${seg.id}','sillHeightMm',this.value)" title="لو بدك التصميم (شباك/زجاج) يبلش فوق حائط قصير، اكتب ارتفاع الحائط من الأرض بالمم هون (مثلاً 900) - وبيبين هيك بالضبط بالمشهد ثلاثي الأبعاد. سيبها فاضية = تلقائي (شباك عادي بيبلش من 900مم، باب بيبلش من الأرض مباشرة).">
+        <span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);">مم</span>`;
       return `
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 6px 4px 22px;border-radius:6px;margin-bottom:4px;${isWall?'background:rgba(141,110,99,0.08);':''}">
         ${segs.length>1 ? `<span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);min-width:40px;">جزء ${segIdx+1}</span>` : ''}
@@ -10956,6 +11144,7 @@ function renderRoomSidesUI(it){
         <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>
         <button class="small" onclick="toggleRoomSegKind(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;" title="حوّل هاد الجزء بس (مش الضلع كامل) بين تصميم عادي وحائط/جدار">${isWall ? '🎨 رجّعه تصميم' : '🧱 حوّله حائط'}</button>
         ${designHtml}
+        ${sillInputHtml}
         ${segs.length>1 ? `<button class="small danger" onclick="removeRoomSideSegment(${it.id},'${s.id}','${seg.id}')" title="حذف هاد الجزء (بينضم طوله للجزء يلي قبلو)" style="margin-inline-start:auto;">✕</button>` : ''}
       </div>`;
     }).join('');
