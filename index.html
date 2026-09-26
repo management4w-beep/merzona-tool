@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.22';
+  var CURRENT_VERSION = '2026-09-26.24';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -6228,7 +6228,10 @@ window.wdApplyBack = function(results){
           <div class="add-row" style="margin-top:6px;">
             <button onclick="addRoomSideFromControls()" class="small" style="flex:1;">+ ضلع جديد</button>
           </div>
-          <label style="margin-top:10px;">مسقط الأرضية Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
+          <div class="add-row" style="align-items:center;justify-content:space-between;margin-top:10px;">
+            <label style="margin:0;">مسقط الأرضية Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
+            <button type="button" class="small" onclick="openRoomFloorPreviewFullscreenForSelected()" title="كبّر المسقط لكامل الشاشة">🔍 كبّر لكامل الشاشة</button>
+          </div>
           <div id="roomFloorPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
           <div class="add-row" style="margin-top:8px;">
             <button onclick="openRoom3D()" class="small" style="flex:1;">🏠 مشهد ثري دي حقيقي (منظور Elevation + تدوير + فيديو)</button>
@@ -6245,7 +6248,22 @@ window.wdApplyBack = function(results){
             <button onclick="resetCeilingToFloor()" class="small" style="flex:1;">🔄 رجّعه لشكل الأرضية</button>
           </div>
           <label style="margin-top:10px;">مسقط السقف Ceiling Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
-          <div id="ceilingPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
+          <div id="ceilingPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;position:relative;"></div>
+
+          <!-- 🆕 2026-09-26 (طلب حمدي: "بدي ارسم السقف... اعرف وين بدي ارفعها ووين بدي اخفضها، وخيار
+               اني حدد خط محدد لرفع/خفض السقف يطلع كامل الخط او ينزل مع بعض") - أجزاء مرفوعة/مخفّضة
+               بالسقف (سقف جبس بمستويات - "قصات"). كل جزء = شكل (بنفس أسلوب أضلاع الغرفة: طول+زاوية،
+               بعد ما تحددي نقطة البداية بالضغط على مسقط السقف) + ارتفاع (رفع أو خفض، بالمم) عن الجزء
+               يلي تحته مباشرة. بينرسم بالثري دي كسطح مسطّح بارتفاعه المحدد + "قصة" عمودية حول حدوده
+               بالكامل توصل بين المستويين (تمامًا متل صندوق جبس حقيقي) - وممكن ترسمي جزء جوا جزء (تدرّج
+               أكتر من مستوى). -->
+          <label style="margin-top:14px;">🏗️ أجزاء مرفوعة/مخفّضة بالسقف <span class="wd-ar">(سقف جبس بمستويات)</span></label>
+          <p class="hint">دوسي "➕ ارسم جزء جديد" - أول شي بتضغطي مكان بداية الجزء فوق مسقط السقف فوق (نقطة البداية)، وبعدها بتحددي شكله بنفس طريقة أضلاع الغرفة بالضبط (طول كل ضلع + الزاوية بينه وبين اللي بعده). بعدين حددي "ارتفاع" الجزء بالمم: رقم موجب = يرتفع عن الجزء يلي تحته، رقم سالب = ينخفض. تقدري ترسمي جزء جديد جوا جزء موجود أصلًا (زر "➕ جزء جوّاه") لعمل أكتر من مستوى.</p>
+          <div id="ceilingZonesList"></div>
+          <div id="ceilingZoneEditorBox"></div>
+          <div class="add-row" style="margin-top:6px;">
+            <button onclick="startNewCeilingZone(getSelected().id, null)" class="small" style="flex:1;">➕ ارسم جزء جديد بالسقف (رفع/خفض)</button>
+          </div>
         </div>
 
         <div class="row2" id="normalDimsRow" style="display: grid;">
@@ -8933,6 +8951,104 @@ function computeCeilingPolygonMM(it){
   return newPts;
 }
 
+// ============================================================================
+// 🆕 2026-09-26 (طلب حمدي: "بدي ارسم السقف لأنو بمشروع معين عندي شكل محدد... اعرف وين بدي ارفعها ووين
+// بدي اخفضها، وخيار اني حدد خط محدد لرفع/خفض - يطلع كامل الخط يرتفع أو ينزل مع بعض") - "أجزاء" السقف:
+// كل جزء شكل مستقل (بنفس أسلوب طول+زاوية متل أضلاع الغرفة، بس مربوط بنقطة بداية مطلقة لأنو موقعه جوا
+// السقف مهم) مع ارتفاع (موجب=رفع، سالب=خفض) عن "أبوه" (السقف الأساسي أو جزء تاني رسمته جواه لعمل أكتر
+// من مستوى). بالثري دي: كل جزء بيترسم كسطح مسطّح بارتفاعه، مع "قصة" عمودية (حائط قصير) حول حدوده كاملة
+// تربط بين المستويين - تمامًا متل صندوق جبس حقيقي، وبتغطي "حفرة" بشكل الجزء بسطح أبوه (THREE.Shape
+// بيدعم "holes" جاهز - ما احتجنا مكتبة تقاطع أشكال خارجية إطلاقًا).
+// ============================================================================
+let ceilingZoneIdCounter = 1;
+function ensureCeilingZones(it){
+  if(!Array.isArray(it.ceilingZones)) it.ceilingZones = [];
+  return it.ceilingZones;
+}
+// خوارزمية "نقطة جوا مضلع" القياسية (ray casting) - مستخدمة بس للتحذير لو المستخدم رسم جزء طالع (كله
+// أو جزء منو) برا حدود أبوه، مش لمنعه إجباريًا (ممكن يكون قاصدها لأسباب تصميمية خاصة فيعرف شو عم يعمل).
+function pointInPolygonMM(pt, poly){
+  let inside = false;
+  for(let i=0, j=poly.length-1; i<poly.length; j=i++){
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    const intersect = ((yi>pt.y) !== (yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/(yj-yi||1e-9)+xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+function polygonFullyInsideMM(childPts, parentPts){
+  if(!parentPts || parentPts.length<3) return true;
+  return (childPts||[]).every(p => pointInPolygonMM(p, parentPts));
+}
+// شكل "الأب" (بالمم، مضلع مقفول - النقطة الأخيرة = الأولى) يلي جزء جديد/معدَّل المفروض يترسم جواه:
+// إما السقف الأساسي كامل (parentId=null) أو شكل جزء تاني موجود أصلًا (نستخدمه كأب لجزء متداخل جواه).
+function getCeilingZoneParentPolygonMM(it, parentId){
+  if(!parentId){
+    const pts = computeCeilingPolygonMM(it);
+    return pts;
+  }
+  const zone = ensureCeilingZones(it).find(z=>z.id===parentId);
+  return zone ? computeZonePolygonMM(zone) : null;
+}
+// شكل الجزء نفسو (بالمم) - بنفس بالضبط منطق computeSidesPolygonMM (طول+زاوية داخلية متسلسلة) بس
+// بادئين من نقطة "anchor" المطلقة (يلي المستخدم حددها بالضغط على مسقط السقف) واتجاه بداية "bearingDeg"
+// بدل ما نبلش دايمًا من (0,0) بزاوية صفر متل شكل الغرفة نفسها (يلي موقعه المطلق مو مهم، بعكس جزء السقف).
+function computeZonePolygonMM(zone){
+  let bearing = zone.bearingDeg||0, x = (zone.anchor&&zone.anchor.x)||0, y = (zone.anchor&&zone.anchor.y)||0;
+  const pts = [{x,y}];
+  (zone.sides||[]).forEach(s=>{
+    const rad = bearing * Math.PI/180;
+    const nx = x + (s.length||0)*Math.cos(rad), ny = y + (s.length||0)*Math.sin(rad);
+    x = nx; y = ny;
+    pts.push({x,y});
+    bearing += (180 - (s.angleDeg||90));
+  });
+  return pts;
+}
+// ارتفاع الجزء الفعلي (بالمم) عن أرضية الغرفة - بيتراكم بمشي سلسلة الآباء لحد ما توصل للسقف الأساسي
+// (roomHeight). بيحمي من حلقة لا نهائية (parentId بيرجع لحاله بالغلط) بحد أقصى 50 مستوى.
+function getCeilingZoneEffectiveHeightMM(it, zoneId){
+  const zones = ensureCeilingZones(it);
+  let z = zones.find(zz=>zz.id===zoneId);
+  let total = 0, guard = 0;
+  while(z && guard++ < 50){
+    total += (z.heightOffsetMm||0);
+    z = z.parentId ? zones.find(zz=>zz.id===z.parentId) : null;
+  }
+  return (it.roomHeight||2500) + total;
+}
+// أعلى ارتفاع بين كل الأجزاء (لتوسيع إطار الكاميرا بالثري دي حتى لو في جزء مرفوع كتير عن السقف الأساسي)
+function getMaxCeilingZoneHeightMM(it){
+  const zones = ensureCeilingZones(it);
+  let max = it.roomHeight||2500;
+  zones.forEach(z => { max = Math.max(max, getCeilingZoneEffectiveHeightMM(it, z.id)); });
+  return max;
+}
+// كل أحفاد جزء معيّن (بشكل متكرر) - لازم نحذفهم سوا لما ينحذف "أبوهم" (منطقيًا ما إلهم معنى بدونه).
+function getCeilingZoneDescendantIds(it, zoneId){
+  const zones = ensureCeilingZones(it);
+  const result = [];
+  const stack = [zoneId];
+  while(stack.length){
+    const cur = stack.pop();
+    zones.filter(z=>z.parentId===cur).forEach(z=>{ result.push(z.id); stack.push(z.id); });
+  }
+  return result;
+}
+function deleteCeilingZoneCascade(itemId, zoneId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const zones = ensureCeilingZones(it);
+  const zone = zones.find(z=>z.id===zoneId); if(!zone) return;
+  if(!confirm('حذف هاد الجزء (وأي جزء تاني مرسوم جواه) نهائيًا؟')) return;
+  pushHistory();
+  const toRemove = new Set([zoneId, ...getCeilingZoneDescendantIds(it, zoneId)]);
+  it.ceilingZones = zones.filter(z=>!toRemove.has(z.id));
+  if(ceilingZoneEditor && ceilingZoneEditor.itemId===itemId && toRemove.has(ceilingZoneEditor.zoneId)) cancelCeilingZoneEditor();
+  renderCeilingSidesUI(it);
+  renderGallery();
+}
+window.deleteCeilingZoneCascade = deleteCeilingZoneCascade;
+
 function addRoomSide(itemId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   pushHistory();
@@ -10523,6 +10639,68 @@ function buildRoomFurniture3D(scene, floorPts, n, MMTOM){
   scene.add(group);
 }
 
+// 🆕 2026-09-26 (طلب حمدي: "بدي ارسم السقف... اعرف وين بدي ارفعها ووين بدي اخفضها، وخيار اني حدد خط
+// محدد لرفع/خفض السقف - يطلع كامل الخط يرتفع او ينزل مع بعض") - بناء متكرر لمستويات السقف: كل مستوى
+// (السقف الأساسي، أو أي جزء رسمه المستخدم - شوف ensureCeilingZones/computeZonePolygonMM فوق) بيترسم
+// كسطح مسطّح (بسماكة حقيقية) بارتفاعه، وبتتقص منو "حفرة" بشكل كل جزء مرسوم مباشرة جواه (THREE.Shape
+// بيدعم holes جاهز - ما احتجنا أي حساب تقاطع أشكال يدوي/مكتبة خارجية). حول حدود كل جزء بالكامل بترتسم
+// "قصة" عمودية (صف صناديق رفيعة بلون الجدار) توصل بين ارتفاعه وارتفاع أبوه - تمامًا متل صندوق جبس حقيقي،
+// وبتنعاد نفس العملية بشكل متكرر لأي جزء مرسوم جوا جزء تاني (تدرّج أكتر من مستوى).
+function buildCeilingLevelRecursive(scene, it, parentId, parentPolyMM, parentHeightMM, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM){
+  const zones = ensureCeilingZones(it);
+  const children = zones.filter(z=>z.parentId===parentId);
+  const shape = new THREE.Shape();
+  parentPolyMM.forEach((p,i)=>{
+    const X = p.x*MMTOM, Y = -p.y*MMTOM; // نفس إصلاح انعكاس الأرضية/السقف (شوف الشرح جنب floorMesh فوق)
+    if(i===0) shape.moveTo(X,Y); else shape.lineTo(X,Y);
+  });
+  shape.closePath();
+  children.forEach(z=>{
+    const zPts = computeZonePolygonMM(z);
+    const holePath = new THREE.Path();
+    zPts.slice(0, zPts.length-1).forEach((p,i)=>{
+      const X = p.x*MMTOM, Y = -p.y*MMTOM;
+      if(i===0) holePath.moveTo(X,Y); else holePath.lineTo(X,Y);
+    });
+    holePath.closePath();
+    shape.holes.push(holePath);
+  });
+  const capMesh = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(shape, { depth: ceilingThicknessM, bevelEnabled:false }),
+    new THREE.MeshStandardMaterial({ color:0x5a4a3a, roughness:0.8, side:THREE.DoubleSide })
+  );
+  capMesh.rotation.x = -Math.PI/2;
+  capMesh.position.y = parentHeightMM*MMTOM + 0.02;
+  capMesh.castShadow = true;
+  capMesh.receiveShadow = true;
+  scene.add(capMesh);
+
+  children.forEach(z=>{
+    const zPts = computeZonePolygonMM(z);
+    const childHeightMM = parentHeightMM + (z.heightOffsetMm||0);
+    const nEdges = zPts.length - 1;
+    const loMM = Math.min(parentHeightMM, childHeightMM), hiMM = Math.max(parentHeightMM, childHeightMM);
+    const riserHM = Math.max(0.01, (hiMM-loMM)*MMTOM);
+    for(let i=0;i<nEdges;i++){
+      const A = zPts[i], B = zPts[i+1];
+      const segLenMM = Math.max(1, Math.hypot(B.x-A.x, B.y-A.y));
+      const ux = (B.x-A.x)/segLenMM, uy = (B.y-A.y)/segLenMM;
+      const rad = Math.atan2(-uy, ux);
+      const midX = (A.x+B.x)/2, midY = (A.y+B.y)/2;
+      const riserMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(Math.max(0.02, segLenMM*MMTOM), riserHM, Math.max(0.02, wallThicknessM*0.5)),
+        new THREE.MeshStandardMaterial({ color: wallColorNum, roughness:0.9 })
+      );
+      riserMesh.position.set(midX*MMTOM, loMM*MMTOM + riserHM/2, midY*MMTOM);
+      riserMesh.rotation.y = rad;
+      riserMesh.castShadow = true;
+      riserMesh.receiveShadow = true;
+      scene.add(riserMesh);
+    }
+    buildCeilingLevelRecursive(scene, it, z.id, zPts.slice(0, zPts.length-1), childHeightMM, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM);
+  });
+}
+
 async function buildRoom3DScene(it, wrap){
   const MMTOM = 1/1000;
   const pts = computeRoomPolygonMM(it);
@@ -10596,26 +10774,12 @@ async function buildRoom3DScene(it, wrap){
   // 🆕 2026-09-24 (وتصحيح 2026-09-26): السقف إلو شكل خاص فيه ممكن يبرز عن الأرضية - منجيبو من
   // computeCeilingPolygonMM (بروز/overhang بالمم لكل ضلع، محسوب بحيث يضل الشكل مقفول وموازي دايمًا).
   const ceilingPts = computeCeilingPolygonMM(it);
-  const ceilingShape = new THREE.Shape();
-  ceilingPts.slice(0, ceilingPts.length-1).forEach((p,i)=>{
-    const X = p.x*MMTOM, Y = -p.y*MMTOM; // 🛠️ 2026-09-26: نفس إصلاح انعكاس الأرضية فوق - قلب إشارة Y هون كمان
-    if(i===0) ceilingShape.moveTo(X,Y); else ceilingShape.lineTo(X,Y);
-  });
-  ceilingShape.closePath();
-  // 🆕 2026-09-25 (طلب حمدي: "بدي حط تفاصيل عن سماكة السقف") - بدل صفحة مسطحة (ShapeGeometry) بلا
-  // عمق، منستخدم ExtrudeGeometry حتى يصير للسقف عمق/سماكة حقيقية محسوسة لما تلف الكاميرا أو تقرّب من
-  // حافته - نفس منطق الدوران (rotation.x = -90°) يلي بيحول محور z المحلي (عمق البثق) لمحور y بالعالم
-  // (فوق)، فبتطلع السماكة بروزة لفوق بالظبط متل سقف حقيقي إلو جسم، مش بس خط.
+  // 🆕 2026-09-25 (طلب حمدي: "بدي حط تفاصيل عن سماكة السقف") - سماكة حقيقية محسوسة للسقف (مش صفحة رفيعة).
   const ceilingThicknessM = Math.max(0.02, (it.ceilingThicknessMm||200) * MMTOM);
-  const roofMesh = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(ceilingShape, { depth: ceilingThicknessM, bevelEnabled:false }),
-    new THREE.MeshStandardMaterial({ color:0x5a4a3a, roughness:0.8, side:THREE.DoubleSide })
-  );
-  roofMesh.rotation.x = -Math.PI/2;
-  roofMesh.position.y = heightM + 0.02;
-  roofMesh.castShadow = true;
-  roofMesh.receiveShadow = true;
-  scene.add(roofMesh);
+  // 🆕 2026-09-26 (طلب حمدي: "بدي ارسم السقف... اعرف وين بدي ارفعها ووين بدي اخفضها") - بدل سطح مسطّح
+  // واحد ثابت، منبني كل مستويات السقف (الأساسي + أي أجزاء مرفوعة/مخفّضة رسمها المستخدم) بشكل متكرر -
+  // شوف buildCeilingLevelRecursive فوق للتفاصيل الكاملة (THREE.Shape.holes + قصات عمودية بين المستويات).
+  buildCeilingLevelRecursive(scene, it, null, ceilingPts.slice(0, ceilingPts.length-1), it.roomHeight||2500, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM);
 
   // كل ضلع -> كل جزء (segment) فيه: صندوق بمكانه وزاويته الصحيحة، بخامة تصميمه الفعلي لو موجود.
   for(let i=0;i<n;i++){
@@ -10759,7 +10923,10 @@ async function buildRoom3DScene(it, wrap){
   const zs = pts.slice(0,n).map(p=>p.y*MMTOM).concat(ceilingPts.slice(0,-1).map(p=>p.y*MMTOM)); // 🛠️ 2026-09-26: نفس إصلاح الإشارة فوق - لازم تتطابق مع مواقع المجسمات الفعلية الجديدة
   const centerX = (Math.min(...xs)+Math.max(...xs))/2;
   const centerZ = (Math.min(...zs)+Math.max(...zs))/2;
-  const radius = Math.max(3, Math.hypot(Math.max(...xs)-Math.min(...xs), Math.max(...zs)-Math.min(...zs))/2 * 1.9 + heightM);
+  // 🆕 2026-09-26: لو في جزء سقف مرفوع كتير عن السقف الأساسي (ceilingZones) - منوسّع إطار الكاميرا
+  // الأولي حتى يشمله كامل، بدل ما يطلع مقصوص من فوق.
+  const maxCeilingHeightM = Math.max(heightM, getMaxCeilingZoneHeightMM(it) * MMTOM);
+  const radius = Math.max(3, Math.hypot(Math.max(...xs)-Math.min(...xs), Math.max(...zs)-Math.min(...zs))/2 * 1.9 + maxCeilingHeightM);
   const lookHeight = heightM*0.42;
   const cameraHeight = heightM*0.85;
 
@@ -11163,8 +11330,66 @@ function renderRoomSidesUI(it){
   }).join('');
   const previewEl = document.getElementById('roomFloorPreview');
   if(previewEl) previewEl.innerHTML = buildRoomSVG(it);
+  // 🆕 2026-09-26: لو معاينة "كامل الشاشة" مفتوحة حاليًا لنفس البند - منحدّثها هي كمان فورًا (مثلاً لو
+  // المستخدم عدّل مقاس من جوا الشاشة الكاملة نفسها - شوف editRoomSegLengthFromSVG/onRoomSegField).
+  if(roomFloorFullscreenItemId === it.id) renderRoomFloorPreviewFullscreen();
   renderCeilingSidesUI(it); // السقف بيتحدّث لحاله كل مرة الأرضية بتتحدّث - نفس فكرة معاينة الأرضية
 }
+
+// 🆕 2026-09-26 (طلب حمدي: "بالمسقط بضغط لعبي المقاسات بدي يكون في خيار لكبر الصورة لكامل الشاشة لانو
+// فيه زوايا احيانا ما بقدر شوفها بتكون صغيرة") - معاينة نافذة منبثقة (overlay) لكامل الشاشة، بترسم
+// نفس مسقط الأرضية (buildRoomSVG) بس بحجم أكبر بكتير (محسوب من مقاس الشاشة الفعلي) حتى تتباعد كل
+// الزوايا/الأرقام عن بعضها وتصير واضحة ومقروءة، وتضل كل أرقام الأطوال قابلة للضغط والتعديل المباشر
+// بالضبط متل المعاينة الصغيرة العادية (نفس buildRoomSVG/editRoomSegLengthFromSVG بدون أي تكرار كود).
+let roomFloorFullscreenItemId = null;
+function openRoomFloorPreviewFullscreenForSelected(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  openRoomFloorPreviewFullscreen(it.id);
+}
+window.openRoomFloorPreviewFullscreenForSelected = openRoomFloorPreviewFullscreenForSelected;
+
+function openRoomFloorPreviewFullscreen(itemId){
+  const it = items.find(i=>i.id===itemId); if(!it || !isRoom(it)) return;
+  roomFloorFullscreenItemId = itemId;
+  let overlay = document.getElementById('roomFloorFullscreenOverlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'roomFloorFullscreenOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(20,20,20,0.94);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:16px;overflow:auto;';
+    overlay.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;max-width:1400px;margin-bottom:10px;">
+        <span style="color:#fff;font-size:13px;font-weight:700;">🔍 مسقط الأرضية - كامل الشاشة (اضغط أي رقم طول لتعديله مباشرة)</span>
+        <button class="small" onclick="closeRoomFloorPreviewFullscreen()" style="font-size:14px;padding:8px 18px;">✖️ إغلاق</button>
+      </div>
+      <div id="roomFloorFullscreenContent" style="background:#fff;border-radius:10px;padding:18px;max-width:98vw;display:flex;justify-content:center;"></div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeRoomFloorPreviewFullscreen(); });
+    window.addEventListener('resize', renderRoomFloorPreviewFullscreen);
+    document.addEventListener('keydown', roomFloorFullscreenEscHandler);
+  }
+  overlay.style.display = 'flex';
+  renderRoomFloorPreviewFullscreen();
+}
+window.openRoomFloorPreviewFullscreen = openRoomFloorPreviewFullscreen;
+
+function roomFloorFullscreenEscHandler(e){ if(e.key === 'Escape') closeRoomFloorPreviewFullscreen(); }
+
+function renderRoomFloorPreviewFullscreen(){
+  if(!roomFloorFullscreenItemId) return;
+  const it = items.find(i=>i.id===roomFloorFullscreenItemId); if(!it || !isRoom(it)) return;
+  const content = document.getElementById('roomFloorFullscreenContent'); if(!content) return;
+  // مقاس الرسمة محسوب من مساحة الشاشة الفعلية (بدل رقم ثابت 260 متل المعاينة الصغيرة العادية) -
+  // هيك الزوايا/الأرقام بتتباعد وتصير مقروءة حتى بغرفة معقدة كتير أضلاع.
+  const sizePx = Math.max(320, Math.min(window.innerWidth*0.85, (window.innerHeight-140)*0.9, 1600));
+  content.innerHTML = buildRoomSVG(it, sizePx);
+}
+
+function closeRoomFloorPreviewFullscreen(){
+  const overlay = document.getElementById('roomFloorFullscreenOverlay');
+  if(overlay) overlay.style.display = 'none';
+  roomFloorFullscreenItemId = null;
+}
+window.closeRoomFloorPreviewFullscreen = closeRoomFloorPreviewFullscreen;
 
 function renderCeilingSidesUI(it){
   const list = document.getElementById('ceilingSidesList');
@@ -11179,23 +11404,229 @@ function renderCeilingSidesUI(it){
     </div>`).join('');
   const previewEl = document.getElementById('ceilingPreview');
   if(previewEl) previewEl.innerHTML = buildCeilingSVG(it);
+  renderCeilingZonesUI(it); // 🆕 قائمة/محرر أجزاء السقف المرفوعة/المخفّضة - بيتحدّث لحاله كل مرة السقف بيتحدّث
 }
 window.renderCeilingSidesUI = renderCeilingSidesUI;
 
+// ============================================================================
+// 🆕 2026-09-26: محرر أجزاء السقف المرفوعة/المخفّضة (inline، جوا نفس بطاقة الغرفة - بدون نافذة منبثقة
+// منفصلة) - شوف الشرح الكامل جنب ensureCeilingZones/computeZonePolygonMM فوق. حالة تحرير وحدة بس
+// نشطة بأي لحظة (ceilingZoneEditor)، إما لجزء جديد أو لتعديل جزء موجود أصلًا.
+// ============================================================================
+let ceilingZoneEditor = null; // null = ولا محرر مفتوح حاليًا
+let ceilingZoneSideIdCounter = 1;
+
+function startNewCeilingZone(itemId, parentId){
+  const it = items.find(i=>i.id===itemId); if(!it || !isRoom(it)) return;
+  const parentPts = getCeilingZoneParentPolygonMM(it, parentId);
+  if(!parentPts || parentPts.length < 3){ alert('لازم يكون في شكل سقف/جزء كافي الأول.'); return; }
+  ceilingZoneEditor = {
+    itemId, zoneId: null, parentId, pickingAnchor: true,
+    draft: {
+      anchor: null, bearingDeg: 0,
+      sides: [0,1,2,3].map(()=>({ id:'czs'+(ceilingZoneSideIdCounter++), length:1200, angleDeg:90 })),
+      heightOffsetMm: 300
+    }
+  };
+  renderCeilingSidesUI(it);
+}
+window.startNewCeilingZone = startNewCeilingZone;
+
+function startEditCeilingZone(itemId, zoneId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const zone = ensureCeilingZones(it).find(z=>z.id===zoneId); if(!zone) return;
+  ceilingZoneEditor = {
+    itemId, zoneId, parentId: zone.parentId, pickingAnchor: false,
+    draft: {
+      anchor: { x: zone.anchor.x, y: zone.anchor.y },
+      bearingDeg: zone.bearingDeg||0,
+      sides: zone.sides.map(s=>({ ...s })),
+      heightOffsetMm: zone.heightOffsetMm
+    }
+  };
+  renderCeilingSidesUI(it);
+}
+window.startEditCeilingZone = startEditCeilingZone;
+
+function pickCeilingZoneAnchorAgain(){
+  if(!ceilingZoneEditor) return;
+  ceilingZoneEditor.pickingAnchor = true;
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+}
+window.pickCeilingZoneAnchorAgain = pickCeilingZoneAnchorAgain;
+
+// تحويل ضغطة الفأرة/اللمس فوق مسقط السقف لإحداثيات مم حقيقية - عبر تحويل SVG الأصلي (getScreenCTM)
+// حتى تكون الدقة صحيحة 100% بغض النظر عن أي تكبير CSS للرسمة (زوم المتصفح، حجم الشاشة...).
+function onCeilingPreviewClickForAnchor(evt){
+  if(!ceilingZoneEditor || !ceilingZoneEditor.pickingAnchor || !lastCeilingSVGTransform) return;
+  const svg = evt.currentTarget.ownerSVGElement || (evt.currentTarget.closest ? evt.currentTarget.closest('svg') : null);
+  if(!svg || !svg.createSVGPoint) return;
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX; pt.y = evt.clientY;
+  const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+  const { minX, minY, scale } = lastCeilingSVGTransform;
+  ceilingZoneEditor.draft.anchor = { x: Math.round(minX + loc.x/scale), y: Math.round(minY + loc.y/scale) };
+  ceilingZoneEditor.pickingAnchor = false;
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+}
+window.onCeilingPreviewClickForAnchor = onCeilingPreviewClickForAnchor;
+
+function onCeilingZoneSideField(idx, field, value){
+  if(!ceilingZoneEditor) return;
+  const s = ceilingZoneEditor.draft.sides[idx]; if(!s) return;
+  if(field==='length') s.length = Math.max(50, parseFloat(value)||50);
+  else if(field==='angleDeg') s.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+}
+window.onCeilingZoneSideField = onCeilingZoneSideField;
+
+function addCeilingZoneSide(){
+  if(!ceilingZoneEditor) return;
+  ceilingZoneEditor.draft.sides.push({ id:'czs'+(ceilingZoneSideIdCounter++), length:1000, angleDeg:90 });
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+}
+window.addCeilingZoneSide = addCeilingZoneSide;
+
+function removeCeilingZoneSide(idx){
+  if(!ceilingZoneEditor) return;
+  if(ceilingZoneEditor.draft.sides.length <= 3){ alert('لازم عالأقل 3 أضلاع لتشكيل جزء مغلق.'); return; }
+  ceilingZoneEditor.draft.sides.splice(idx,1);
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+}
+window.removeCeilingZoneSide = removeCeilingZoneSide;
+
+function onCeilingZoneHeightField(value){
+  if(!ceilingZoneEditor) return;
+  ceilingZoneEditor.draft.heightOffsetMm = parseFloat(value)||0;
+}
+window.onCeilingZoneHeightField = onCeilingZoneHeightField;
+
+function cancelCeilingZoneEditor(){
+  const itemId = ceilingZoneEditor && ceilingZoneEditor.itemId;
+  ceilingZoneEditor = null;
+  if(itemId){ const it = items.find(i=>i.id===itemId); if(it) renderCeilingSidesUI(it); }
+}
+window.cancelCeilingZoneEditor = cancelCeilingZoneEditor;
+
+function saveCeilingZoneDraft(){
+  if(!ceilingZoneEditor) return;
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(!it) return;
+  const draft = ceilingZoneEditor.draft;
+  if(!draft.anchor){ alert('لازم تحددي نقطة بداية الجزء الأول بالضغط على مسقط السقف فوق.'); return; }
+  if(!draft.sides || draft.sides.length < 3){ alert('لازم عالأقل 3 أضلاع لتشكيل جزء مغلق.'); return; }
+  if(!draft.heightOffsetMm){ alert('لازم تكتبي رقم ارتفاع غير صفر (موجب = رفع، سالب = خفض).'); return; }
+  const parentPts = getCeilingZoneParentPolygonMM(it, ceilingZoneEditor.parentId);
+  const zonePts = computeZonePolygonMM(draft);
+  if(parentPts && !polygonFullyInsideMM(zonePts, parentPts)){
+    const parentLabel = ceilingZoneEditor.parentId ? 'الجزء الأب المحدد' : 'السقف الأساسي';
+    if(!confirm('⚠️ في نقاط من هاد الشكل طالعة برا حدود ' + parentLabel + ' - بدك تكملي حفظه متل ما هو؟')) return;
+  }
+  pushHistory();
+  const zones = ensureCeilingZones(it);
+  if(ceilingZoneEditor.zoneId){
+    const existing = zones.find(z=>z.id===ceilingZoneEditor.zoneId);
+    if(existing){
+      existing.anchor = draft.anchor;
+      existing.bearingDeg = draft.bearingDeg;
+      existing.sides = draft.sides;
+      existing.heightOffsetMm = draft.heightOffsetMm;
+    }
+  } else {
+    zones.push({
+      id: 'cz'+(ceilingZoneIdCounter++), parentId: ceilingZoneEditor.parentId,
+      anchor: draft.anchor, bearingDeg: draft.bearingDeg,
+      sides: draft.sides, heightOffsetMm: draft.heightOffsetMm
+    });
+  }
+  ceilingZoneEditor = null;
+  renderCeilingSidesUI(it);
+  renderGallery();
+}
+window.saveCeilingZoneDraft = saveCeilingZoneDraft;
+
+function renderCeilingZonesUI(it){
+  const listEl = document.getElementById('ceilingZonesList');
+  const editorEl = document.getElementById('ceilingZoneEditorBox');
+  if(!listEl || !editorEl) return;
+  const zones = ensureCeilingZones(it);
+  const labelForZone = z => (((z.heightOffsetMm||0)>=0) ? '⬆' : '⬇') + ' ' + Math.abs(Math.round(z.heightOffsetMm||0)) + ' مم';
+  function renderLevel(parentId, depth){
+    return zones.filter(z=>z.parentId===parentId).map((z)=>{
+      const isEditingThis = !!(ceilingZoneEditor && ceilingZoneEditor.itemId===it.id && ceilingZoneEditor.zoneId===z.id);
+      return `
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:4px;margin-inline-start:${depth*18}px;${isEditingThis?'background:rgba(15,136,205,0.08);':''}">
+        <span style="font-size:12px;font-weight:700;">${'▫'.repeat(depth+1)} جزء ${labelForZone(z)}</span>
+        <span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);">(${z.sides.length} أضلاع)</span>
+        <button class="small" onclick="startEditCeilingZone(${it.id},'${z.id}')" style="font-size:10px;">✏️ عدّل</button>
+        <button class="small" onclick="startNewCeilingZone(${it.id},'${z.id}')" style="font-size:10px;" title="ارسمي جزء جديد جوا هاد الجزء (مستوى إضافي)">➕ جزء جوّاه</button>
+        <button class="small danger" onclick="deleteCeilingZoneCascade(${it.id},'${z.id}')" style="font-size:10px;margin-inline-start:auto;">🗑 حذف</button>
+      </div>` + renderLevel(z.id, depth+1);
+    }).join('');
+  }
+  listEl.innerHTML = renderLevel(null, 0) || '<p class="hint" style="margin:4px 0;">ولا جزء مرفوع/مخفّض لسا.</p>';
+
+  if(ceilingZoneEditor && ceilingZoneEditor.itemId===it.id){
+    const d = ceilingZoneEditor.draft;
+    const sidesHtml = d.sides.map((s, idx)=>`
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 6px;margin-bottom:3px;">
+        <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);min-width:44px;">ضلع ${idx+1}</span>
+        <input type="text" inputmode="decimal" style="width:70px;" value="${Math.round(s.length)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onCeilingZoneSideField(${idx},'length',this.value)">
+        <span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);">مم</span>
+        <input type="number" min="1" max="359" style="width:60px;" value="${Math.round(s.angleDeg)}" onchange="onCeilingZoneSideField(${idx},'angleDeg',this.value)">
+        <span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);">° زاوية</span>
+        ${d.sides.length>3 ? `<button class="small danger" onclick="removeCeilingZoneSide(${idx})" style="font-size:10px;margin-inline-start:auto;">✕</button>` : ''}
+      </div>`).join('');
+    editorEl.innerHTML = `
+      <div style="border:2px solid #0f88cd;border-radius:8px;padding:10px;margin-top:8px;background:rgba(15,136,205,0.05);">
+        <div style="font-size:12.5px;font-weight:700;color:#0f88cd;margin-bottom:6px;">${ceilingZoneEditor.zoneId ? '✏️ تعديل جزء سقف' : '➕ جزء سقف جديد'} ${ceilingZoneEditor.parentId ? '(جوا جزء آخر)' : '(مباشرة على السقف الأساسي)'}</div>
+        <div class="add-row" style="align-items:center;margin-bottom:8px;">
+          <span style="font-size:11.5px;">نقطة البداية: ${d.anchor ? `(${Math.round(d.anchor.x)}, ${Math.round(d.anchor.y)}) مم` : 'لسا ما تحددت - دوسي فوق مسقط السقف'}</span>
+          <button class="small" onclick="pickCeilingZoneAnchorAgain()" style="font-size:10px;">🖱️ ${d.anchor ? 'غيّر الموقع' : 'حددي الموقع'}</button>
+        </div>
+        ${sidesHtml}
+        <div class="add-row" style="margin:6px 0;">
+          <button class="small" onclick="addCeilingZoneSide()" style="flex:1;">➕ ضلع إضافي</button>
+        </div>
+        <div style="margin:8px 0;">
+          <label style="font-size:11.5px;">الارتفاع عن الجزء يلي تحته (مم) - رقم موجب = رفع، رقم سالب = خفض</label>
+          <input type="number" step="10" value="${Math.round(d.heightOffsetMm||0)}" onchange="onCeilingZoneHeightField(this.value)" style="width:100%;">
+        </div>
+        <div class="add-row">
+          <button class="small" onclick="saveCeilingZoneDraft()" style="flex:1;background:var(--wd-ok,#1e7a3d);color:#fff;">✅ حفظ الجزء</button>
+          <button class="small danger" onclick="cancelCeilingZoneEditor()" style="flex:1;">✖️ إلغاء</button>
+        </div>
+      </div>`;
+  } else {
+    editorEl.innerHTML = '';
+  }
+}
+window.renderCeilingZonesUI = renderCeilingZonesUI;
+
 // رسمة تخطيطية للسقف من فوق - مضلع السقف المحسوب (computeCeilingPolygonMM) فوق مضلع الأرضية الأصلي
 // (بخط منقّط رفيع) حتى يبين بوضوح وين بالضبط السقف بارز أكتر من الأرضية.
+// 🆕 2026-09-26: آخر تحويل (مقياس/إزاحة) استُخدم لرسم مسقط السقف - محفوظ هون حتى نقدر نحوّل ضغطة
+// الفأرة (لما نكون بوضع "حدد نقطة البداية" لجزء سقف جديد/معدَّل) من بكسل شاشة لمليمتر حقيقي بدقة،
+// بغض النظر عن أي تكبير/تصغير CSS للـSVG نفسو (شوف onCeilingPreviewClickForAnchor تحت).
+let lastCeilingSVGTransform = null;
 function buildCeilingSVG(it){
   const sides = ensureCeilingOverhangs(it);
   if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">لسا ما في شكل أرضية كافي (عالأقل 3 أضلاع)</div>';
   const floorPts = computeSidesPolygonMM(sides);
   const pts = computeCeilingPolygonMM(it);
-  const allXs = pts.map(p=>p.x).concat(floorPts.map(p=>p.x));
-  const allYs = pts.map(p=>p.y).concat(floorPts.map(p=>p.y));
+  const zones = ensureCeilingZones(it);
+  // 🆕 لازم نضيف نقاط كل الأجزاء (وحتى الجزء يلي عم نرسمه/نعدله حاليًا إن وجد) لحساب حدود الرسمة،
+  // حتى لو جزء طالع برا حدود السقف الأساسي شوي - يضل ظاهر كامل بالمعاينة بدل ما ينقص.
+  const zonePtsList = zones.map(z=>computeZonePolygonMM(z));
+  const draftPts = (ceilingZoneEditor && ceilingZoneEditor.itemId===it.id && ceilingZoneEditor.draft.anchor)
+    ? computeZonePolygonMM(ceilingZoneEditor.draft) : null;
+  const allXs = pts.map(p=>p.x).concat(floorPts.map(p=>p.x)).concat(zonePtsList.flat().map(p=>p.x)).concat(draftPts?draftPts.map(p=>p.x):[]);
+  const allYs = pts.map(p=>p.y).concat(floorPts.map(p=>p.y)).concat(zonePtsList.flat().map(p=>p.y)).concat(draftPts?draftPts.map(p=>p.y):[]);
   const minX = Math.min(...allXs), maxX = Math.max(...allXs), minY = Math.min(...allYs), maxY = Math.max(...allYs);
   const rangeW = Math.max(1, maxX-minX), rangeH = Math.max(1, maxY-minY);
   const boxPx = 260;
   const scale = Math.min(boxPx/rangeW, boxPx/rangeH);
   const pad = 40;
+  lastCeilingSVGTransform = { minX, minY, scale };
   const toPx = p => ({ x:(p.x-minX)*scale, y:(p.y-minY)*scale });
   const pxPts = pts.map(toPx);
   const floorPxPts = floorPts.map(toPx);
@@ -11215,18 +11646,51 @@ function buildCeilingSVG(it){
     // السقف حتى يعرف مباشرة أي "بروز" بالقائمة تحت بيخص أي ضلع بالرسمة (نفس الترقيم بالضبط).
     labelsSvg += `<text x="${mx}" y="${my+16}" font-size="10.5" font-weight="700" fill="var(--wd-accent,#0f88cd)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(${dirDeg}, ${mx}, ${my+16})">ضلع ${i+1}</text>`;
   }
+  // 🆕 2026-09-26: كل جزء مرفوع/مخفّض موجود أصلًا - بنرسمه فوق مسقط السقف بلون مميّز (أخضر=مرفوع،
+  // برتقالي=مخفّض) مع رقم ارتفاعه بالنص، حتى يعرف مرة وحدة وين كل الأجزاء ومقاسها من فوق.
+  let zonesSvg = '';
+  zones.forEach((z, zi)=>{
+    const zPts = zonePtsList[zi];
+    const zPx = zPts.map(toPx);
+    const zPolyStr = zPx.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
+    const cx = zPx.slice(0,-1).reduce((a,p)=>a+p.x,0)/(zPx.length-1);
+    const cy = zPx.slice(0,-1).reduce((a,p)=>a+p.y,0)/(zPx.length-1);
+    const raised = (z.heightOffsetMm||0) >= 0;
+    const color = raised ? '#2e7d32' : '#e65100';
+    zonesSvg += `<polygon points="${zPolyStr}" fill="${color}" fill-opacity="0.18" stroke="${color}" stroke-width="2" stroke-dasharray="${raised?'':'5,3'}"/>`;
+    zonesSvg += `<text x="${cx}" y="${cy}" font-size="10.5" font-weight="700" fill="${color}" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" style="cursor:pointer;" onclick="event.stopPropagation();startEditCeilingZone(${it.id},'${z.id}')">${raised?'⬆':'⬇'} ${Math.abs(Math.round(z.heightOffsetMm||0))}mm</text>`;
+  });
+  // 🆕 معاينة حيّة لشكل الجزء يلي عم نرسمه/نعدله حاليًا (draft) - خط منقّط أزرق حتى يميّز عن الأجزاء
+  // المحفوظة أصلًا، وبيتحدّث فورًا كل ما المستخدم يعدّل طول/زاوية ضلع بقائمة التعديل تحت.
+  let draftSvg = '';
+  if(draftPts){
+    const dPx = draftPts.map(toPx);
+    const dPolyStr = dPx.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
+    draftSvg = `<polygon points="${dPolyStr}" fill="#0f88cd" fill-opacity="0.22" stroke="#0f88cd" stroke-width="2.5" stroke-dasharray="6,4"/>`;
+    const anchorPx = toPx(ceilingZoneEditor.draft.anchor);
+    draftSvg += `<circle cx="${anchorPx.x}" cy="${anchorPx.y}" r="5" fill="#0f88cd"/>`;
+  }
+  // 🆕 وضع "حدد نقطة البداية" (pickingAnchor): طبقة شفافة فوق الرسمة كاملة تلتقط ضغطة الفأرة/اللمس
+  // وتحوّلها لإحداثيات مم حقيقية (onCeilingPreviewClickForAnchor) - مع مؤشر "✛" وتلميح نصي واضح.
+  const pickingOverlay = (ceilingZoneEditor && ceilingZoneEditor.itemId===it.id && ceilingZoneEditor.pickingAnchor)
+    ? `<rect x="${-pad}" y="${-pad}" width="${totalW}" height="${totalH}" fill="#0f88cd" fill-opacity="0.06" style="cursor:crosshair;" onclick="onCeilingPreviewClickForAnchor(event)"/>
+       <text x="${totalW/2-pad}" y="${-pad+18}" font-size="11" font-weight="700" fill="#0f88cd" text-anchor="middle">✛ دوسي مكان بداية الجزء الجديد</text>`
+    : '';
   return `
   <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
     <polygon points="${floorPolyStr}" fill="none" stroke="var(--wd-ink-dim,#6b7280)" stroke-width="1.5" stroke-dasharray="4,3"/>
     <polygon points="${polyStr}" fill="var(--wd-glass, rgba(160,140,110,0.28))" stroke="var(--wd-ink)" stroke-width="2"/>
     ${labelsSvg}
+    ${zonesSvg}
+    ${draftSvg}
+    ${pickingOverlay}
   </svg>`;
 }
 
 // رسمة تخطيطية للأرضية من فوق (2D top-down) - نمشي حول الأضلاع (طول+زاوية داخلية) بادئين من (0,0)
 // لنبني نقاط المضلع، ونحط رقم طول كل ضلع فوقه بمنتصفه، مع تنبيه بسيط لو الشكل ما "بيسكّر" (المسافة
 // بين نقطة البداية والنهاية كبيرة) حتى المستخدم يراجع الأطوال/الزوايا يلي دخّلها.
-function buildRoomSVG(it){
+function buildRoomSVG(it, sizePx){
   const sides = it.roomSides || [];
   if(sides.length < 3) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">ضيف 3 أضلاع عالأقل</div>';
   // 🆕 2026-09-26: طلب حمدي - بعد ما يخلص رسم المسقط، يقدر يدوّره (زر 🔄 دوّر المسقط بفوق الكرت) من
@@ -11244,9 +11708,13 @@ function buildRoomSVG(it){
   const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const rangeW = Math.max(1, maxX-minX), rangeH = Math.max(1, maxY-minY);
-  const boxPx = 260;
+  // 🆕 2026-09-26 (طلب حمدي: "بضغط لعبي المقاسات فيه زوايا احيانا ما بقدر شوفها بتكون صغيرة") - حجم
+  // الرسمة (boxPx) صار قابل للتخصيص (sizePx) بدل رقم ثابت 260 دايمًا، حتى تقدر معاينة الشاشة الكاملة
+  // (openRoomFloorPreviewFullscreen تحت) ترسم نفس المسقط بحجم أكبر بكتير وتبين كل التفاصيل بوضوح -
+  // بدون ما نأثر عالمعاينة الصغيرة العادية (لسا 260 افتراضيًا لما ما ينمرر sizePx).
+  const boxPx = sizePx || 260;
   const scale = Math.min(boxPx/rangeW, boxPx/rangeH);
-  const pad = 40;
+  const pad = sizePx ? Math.max(40, sizePx*0.08) : 40;
   const toPx = p => ({ x:(p.x-minX)*scale, y:(p.y-minY)*scale });
   const pxPts = pts.map(toPx);
   const polyStr = pxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
@@ -12245,6 +12713,7 @@ function renderGallery(){
     head.innerHTML = `<span class="name">${it.label}${it.refCode ? ` <span style="opacity:0.6;font-weight:400;">(${it.refCode})</span>` : ''}</span>
       ${isHandrail(it) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();rotateRoomPlan(${it.id})" title="دوّر المسقط 90° (بس شكل العرض - ما بيغيّر أي مقاس أو زاوية حقيقية)">🔄 دوّر المسقط</button>` : ''}
+      ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();openRoomFloorPreviewFullscreen(${it.id})" title="كبّر المسقط لكامل الشاشة - مفيد لما تكون الزوايا مزنّرة على بعض وصعب تشوفها/تضغط عليها بالحجم الصغير">🔍 كبّر لكامل الشاشة</button>` : ''}
       <span class="type-badge">${SHAPE_LABELS[it.shapeType] || 'شباك'}</span>`;
     const canvasDiv = document.createElement('div');
     canvasDiv.className = 'card-canvas';
