@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.13';
+  var CURRENT_VERSION = '2026-09-26.14';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -4720,7 +4720,7 @@ async function findFileInFolder(name, parentId, token){
 }
 
 async function updateDriveFileContent(fileId, blob, token){
-  const res = await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+  const res = await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,webViewLink`, {
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type || 'application/octet-stream' },
     body: blob
@@ -4737,6 +4737,23 @@ async function saveJsonToDriveFolder(filename, obj, parentId, token){
   }
   const created = await uploadFileToDriveFolder(filename, 'application/json', blob, parentId, token);
   return created && created.id;
+}
+
+// 🛠️ 2026-09-26 (طلب/ملاحظة حمدي: "S-Q-260002 هاد الرفرنس التصميم تبعه ماعم يتحدث متل ماعم تقللي") -
+// لقينا السبب الحقيقي: uploadFileToDriveFolder فوق دايمًا بينشئ ملف جديد ولا مرة بيحدّث ملف موجود -
+// وهاي كانت مستخدمة مباشرة لحفظ ملفات عرض السعر النهائي (.html، -data.json، وPDF) بـ
+// saveToGoogleDriveInner تحت. يعني كل مرة حمدي يحفظ/يحدّث نفس الرقم المرجعي، كان عم يتكوّن ملف مكرر
+// بنفس المجلد بدل ما يتحدّث (جوجل درايف بيسمح بأكتر من ملف بنفس الاسم بنفس المجلد!) - وبالتالي زر
+// "فتح بآخر نسخة" بالداشبورد كان ممكن يفتح نسخة قديمة مكررة بدل التعديل الأخير. الحل: دالة موحدة
+// "دوّر عليه، وإذا موجود حدّثه (PATCH) وإلا أنشئه" - نفس فكرة saveJsonToDriveFolder فوق بالضبط، بس
+// عامة لأي نوع ملف (HTML/JSON/PDF) - ومنستخدمها هلق بدل uploadFileToDriveFolder المباشرة بكل أماكن
+// حفظ عرض السعر النهائي.
+async function uploadOrUpdateFileInDriveFolder(filename, mimeType, blob, parentId, token){
+  const existingId = await findFileInFolder(filename, parentId, token);
+  if(existingId){
+    return await updateDriveFileContent(existingId, blob, token);
+  }
+  return await uploadFileToDriveFolder(filename, mimeType, blob, parentId, token);
 }
 
 function generateDraftId(){ return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
@@ -5084,7 +5101,7 @@ async function saveToGoogleDriveInner(){
     // نسخة HTML الكاملة من الأداة (نفس نظامك الحالي بالضبط)
     const htmlContent = buildBakedHtmlSnapshot();
     const htmlBlob = new Blob([htmlContent], {type:'text/html'});
-    await uploadFileToDriveFolder(refSafe + '.html', 'text/html', htmlBlob, refFolderId, token);
+    await uploadOrUpdateFileInDriveFolder(refSafe + '.html', 'text/html', htmlBlob, refFolderId, token);
 
     // نسخة بيانات خفيفة (JSON بس، بدون كود) - هاي يلي بتخلي "افتح بآخر نسخة" من لوحة التحكم يشتغل بسرعة ودقة
     // مباشرة من غير ما يحتاج يحلّل نسخة HTML كاملة، ومع أي تصليح مستقبلي عالأداة هيك بيطبّق تلقائيًا.
@@ -5097,7 +5114,7 @@ async function saveToGoogleDriveInner(){
       const fullData = captureFullQuotationData();
       quotationFullDataForSignBox = fullData;
       const dataBlob = new Blob([JSON.stringify(fullData)], {type:'application/json'});
-      const dataUploadResult = await uploadFileToDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
+      const dataUploadResult = await uploadOrUpdateFileInDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
       quotationDataJsonFileId = dataUploadResult && dataUploadResult.id;
     }catch(e){ console.warn('تعذّر حفظ ملف بيانات JSON الإضافي (مش عائق - نسخة HTML اتحفظت تمام):', e); }
 
@@ -5386,7 +5403,7 @@ async function saveToGoogleDriveInner(){
         viewportMetaEl.setAttribute('content', originalViewportContent); // نرجّع عرض الـ viewport الأصلي فورًا حتى ما تتأثر تجربة المستخدم بعد الحفظ
       }
     }
-    await uploadFileToDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
+    await uploadOrUpdateFileInDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
 
     return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe };
 }
@@ -10382,6 +10399,14 @@ function buildRoomFurniture3D(scene, floorPts, n, MMTOM){
     group.add(buildSofa(cx, cz + sofaOffset, Math.PI, sofaLen));
   }
 
+  // 🆕 2026-09-26 (ملاحظة حمدي: "قصة الثري دي لسعتو فقير") - نفس منطق الظل يلي طبقناه على الحيطان/
+  // الأبواب: كل شي معتّم (كنبة/خشب) بيرمي ظل، بس سطح الطاولة الزجاجي (شفاف) لأ حتى ما يبين كصندوق أسود.
+  group.traverse(function(o){
+    if(o.isMesh){
+      o.receiveShadow = true;
+      o.castShadow = !(o.material && o.material.transparent);
+    }
+  });
   scene.add(group);
 }
 
@@ -10394,9 +10419,23 @@ async function buildRoom3DScene(it, wrap){
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfe0f2);
+  // 🆕 2026-09-26 (ملاحظة حمدي: "قصة الثري دي لسعتو فقير") - ضباب خفيف بلون السما نفسو حتى يصير في
+  // إحساس عمق حقيقي (الأشياء البعيدة تختفي تدريجيًا بالأفق) بدل ما يطلع المشهد "مسطّح" ومقطوع فجأة.
+  scene.fog = new THREE.Fog(0xbfe0f2, 18, 70);
   scene.add(new THREE.AmbientLight(0xffffff, 0.7));
   const sun = new THREE.DirectionalLight(0xffffff, 0.85);
   sun.position.set(12, 20, 9);
+  // 🆕 2026-09-26 (ملاحظة حمدي: "قصة الثري دي لسعتو فقير") - أهم غيبة كانت الظلال: بدون ظل، كل شي
+  // (حيطان/فرش/أبواب) طالع كإنو "طايف" بالهوا وملتصق بالخلفية، مش واقف فعليًا عالأرض. هلق منفعّل
+  // ظلال حقيقية من الشمس (الضوء الرئيسي)، بصندوق كاميرا ظل واسع كفاية (± 30 متر) يغطي أي غرفة معقولة
+  // الحجم بدون ما نربطه بحساب نصف قطر المشهد (يلي بيتحسب لاحقًا تحت).
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 2048;
+  sun.shadow.mapSize.height = 2048;
+  sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
+  sun.shadow.camera.top = 30; sun.shadow.camera.bottom = -30;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 80;
+  sun.shadow.bias = -0.0015;
   scene.add(sun);
   const fill = new THREE.DirectionalLight(0xffffff, 0.35);
   fill.position.set(-10, 8, -10);
@@ -10409,6 +10448,7 @@ async function buildRoom3DScene(it, wrap){
   );
   ground.rotation.x = -Math.PI/2;
   ground.position.y = -0.03;
+  ground.receiveShadow = true;
   scene.add(ground);
 
   // بلاطة الأرضية (شكل المضلع نفسو - مسقط Plan) - THREE.Shape بمستوى XY محلي، وبعدين بندوّر المِش
@@ -10429,6 +10469,7 @@ async function buildRoom3DScene(it, wrap){
     new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.9, side:THREE.DoubleSide })
   );
   floorMesh.rotation.x = -Math.PI/2;
+  floorMesh.receiveShadow = true;
   scene.add(floorMesh);
 
   // 🆕 2026-09-24 (وتصحيح 2026-09-26): السقف إلو شكل خاص فيه ممكن يبرز عن الأرضية - منجيبو من
@@ -10451,6 +10492,8 @@ async function buildRoom3DScene(it, wrap){
   );
   roofMesh.rotation.x = -Math.PI/2;
   roofMesh.position.y = heightM + 0.02;
+  roofMesh.castShadow = true;
+  roofMesh.receiveShadow = true;
   scene.add(roofMesh);
 
   // كل ضلع -> كل جزء (segment) فيه: صندوق بمكانه وزاويته الصحيحة، بخامة تصميمه الفعلي لو موجود.
@@ -10518,6 +10561,8 @@ async function buildRoom3DScene(it, wrap){
           const headerMesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,lengthM), headerHM, wallThicknessM), infillMat);
           headerMesh.position.set(midX*MMTOM, topMM*MMTOM + headerHM/2, midY*MMTOM);
           headerMesh.rotation.y = rad;
+          headerMesh.castShadow = true;
+          headerMesh.receiveShadow = true;
           scene.add(headerMesh);
         }
         if(bottomMM > 1){
@@ -10525,6 +10570,8 @@ async function buildRoom3DScene(it, wrap){
           const kneeMesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,lengthM), kneeHM, wallThicknessM), infillMat);
           kneeMesh.position.set(midX*MMTOM, kneeHM/2, midY*MMTOM);
           kneeMesh.rotation.y = rad;
+          kneeMesh.castShadow = true;
+          kneeMesh.receiveShadow = true;
           scene.add(kneeMesh);
         }
       } else if(linkedItem){
@@ -10536,6 +10583,16 @@ async function buildRoom3DScene(it, wrap){
       }
       mesh.position.set(midX*MMTOM, meshCenterYM, midY*MMTOM);
       mesh.rotation.y = rad;
+      // 🆕 2026-09-26 (ملاحظة حمدي: "قصة الثري دي لسعتو فقير") - نفعّل الظل عكل قطعة (بما فيها كل
+      // أجزاء الأبواب/الشبابيك الداخلية - إطارات/مقابض/مفصلات إلخ عبر traverse). ما منخلي الزجاج
+      // الشفاف يرمي ظل صلب غريب الشكل (بيبين كإنو صندوق أسود) - فقط القطع المعتّمة (خامتها
+      // transparent:false) هي يلي بترمي ظل، بس كل شي بيستقبل ظل عادي.
+      mesh.traverse(function(o){
+        if(o.isMesh){
+          o.receiveShadow = true;
+          o.castShadow = !(o.material && o.material.transparent);
+        }
+      });
       scene.add(mesh);
 
       // 🆕 2026-09-25: بطاقة صغيرة معلّقة فوق كل جزء بتبيّن طولو الحقيقي بالمم - إثبات مباشر إنو
@@ -10580,6 +10637,11 @@ async function buildRoom3DScene(it, wrap){
   // كمان كإجراء احترازي إضافي (بعض كروت الشاشة/التعريفات بيصير عندها تعارض بين antialiasing وcaptureStream).
   const renderer = new THREE.WebGLRenderer({ antialias:false, preserveDrawingBuffer:true, alpha:true });
   if(renderer.setClearAlpha) renderer.setClearAlpha(1);
+  // 🆕 2026-09-26 (ملاحظة حمدي: "قصة الثري دي لسعتو فقير") - تفعيل الظلال الفعلية عالرندرر (بدونها،
+  // كل خاصية castShadow/receiveShadow يلي ضفناها فوق ما بتأثر إشي - لازم يكون الرندرر نفسو مفعّل
+  // إلها). PCFSoftShadowMap بيعطي حواف ظل ناعمة أواقعية أكتر من الوضع الافتراضي (حواف قاسية).
+  renderer.shadowMap.enabled = true;
+  if(typeof THREE.PCFSoftShadowMap !== 'undefined') renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
   renderer.setSize(w,h);
   wrap.innerHTML = '';

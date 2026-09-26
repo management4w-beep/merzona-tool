@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-24.1';
+  var CURRENT_VERSION = '2026-09-25.3';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -4671,12 +4671,22 @@ async function downloadDriveFileText(token, fileId){
 
 async function listDriveFolderChildren(token, folderId){
   const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
-  const res = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)`, {
-    headers: { Authorization: 'Bearer ' + token }
-  }, 15000);
-  if(!res.ok) throw new Error('drive-list-failed-'+res.status);
-  const data = await res.json();
-  return data.files || [];
+  // 🔧 2026-09-25: طلب حمدي - إضافة صفحات (pagination): جوجل درايف بيرجع 100 نتيجة بس بالطلب الواحد
+  // افتراضيًا، فلو تراكم أكتر من 100 مسودة/تصميم بمجلد واحد، كان ممكن يختفي جزء منها بصمت بدون أي
+  // خطأ ظاهر. هلق منمشي على كل الصفحات (pageSize=1000، أقصى قيمة مسموحة) لحد ما يخلص nextPageToken.
+  let files = [];
+  let pageToken = '';
+  do{
+    const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,modifiedTime),nextPageToken&pageSize=1000` + (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+    const res = await dashFetchWithTimeout(url, {
+      headers: { Authorization: 'Bearer ' + token }
+    }, 15000);
+    if(!res.ok) throw new Error('drive-list-failed-'+res.status);
+    const data = await res.json();
+    files = files.concat(data.files || []);
+    pageToken = data.nextPageToken || '';
+  } while(pageToken);
+  return files;
 }
 
 async function findOrCreateDriveFolderDash(name, parentId, token){
@@ -4790,10 +4800,18 @@ async function deleteQuotationByRef(ref, btnEl){
 
 function pickPreferredQuotationFile(files){
   // منفضّل ملف بيانات JSON (أدق وأسرع)، وإلا نرجع لملف HTML المخبوز
-  const json = files.find(f=> f.name.endsWith('-data.json'));
-  if(json) return {file: json, kind:'json'};
-  const html = files.find(f=> f.mimeType === 'text/html' || f.name.endsWith('.html'));
-  if(html) return {file: html, kind:'html'};
+  // 🛠️ 2026-09-26 (ملاحظة حمدي: "S-Q-260002 هاد الرفرنس التصميم تبعه ماعم يتحدث متل ماعم تقللي") -
+  // قبل هيك كنا ناخد أول ملف مطابق بس (Array.find)، وبما إنو جوجل درايف بيسمح بأكتر من ملف بنفس
+  // الاسم بنفس المجلد (وممكن يكون تراكم أكتر من نسخة من حفظات سابقة قبل إصلاح
+  // uploadOrUpdateFileInDriveFolder بأداة عرض السعر نفسها) - هلق منختار الأحدث فعليًا (modifiedTime)
+  // بين كل الملفات المطابقة، مش أول وحدة الـAPI رجّعتها بترتيب عشوائي/غير مضمون.
+  function newest(list){
+    return list.slice().sort((a,b)=> new Date(b.modifiedTime||0) - new Date(a.modifiedTime||0))[0];
+  }
+  const jsonFiles = files.filter(f=> f.name.endsWith('-data.json'));
+  if(jsonFiles.length) return {file: newest(jsonFiles), kind:'json'};
+  const htmlFiles = files.filter(f=> f.mimeType === 'text/html' || f.name.endsWith('.html'));
+  if(htmlFiles.length) return {file: newest(htmlFiles), kind:'html'};
   return null;
 }
 
@@ -4930,9 +4948,19 @@ window.openQuotationWithLatestTool = openQuotationWithLatestTool;
 
 // بيرجع {id,name,mimeType}[] لكل ملفات JSON (مش مجلدات) جوا مجلد فرعي معيّن (subfolderName) تحت
 // جذر كل فرع (uae/syria) - أو [] لو المجلد الفرعي هاد لسا ما انعمل (يعني ولا مسودة/تصميم اتحفظ بعد).
+// 🔧 2026-09-25: طلب حمدي - "المسودات/التصاميم القديمة بتاخد وقت كتير لحتى تظهر بالسجل". السبب:
+// كل ملف (كل مسودة/تصميم قديم) كان ينجاب بطلب شبكة منفصل، وكل الطلبات هاي كانت تنتظر وحدة وراء
+// التانية (await جوا for loop عادي) - مش سوا بالتوازي - وكمان الفرعين (uae/syria) نفسهم كانوا
+// يتفحصوا وحدة وراء التانية. يعني لو تراكم مثلاً 40 مسودة قديمة + 40 تصميم قديم عبر الفرعين،
+// كان لازم يصير 80+ طلب شبكة متسلسل قبل ما تظهر اللائحة - وكل ما تتراكم مسودات/تصاميم أكتر بمرور
+// الوقت، كل فتحة للتبويب بتصير أبطأ وأبطأ (بيرجع يعيد فحص كل شي من الصفر كل مرة، ولا بينحفظ شي).
+// الحل: (1) الفرعين هلق يتفحصوا بالتوازي مع بعض. (2) داخل كل فرع، ملفات المسودات/التصاميم نفسها
+// هلق تنجاب بالتوازي كمان (لحتى 8 ملفات بنفس اللحظة) بدل واحد واحد - هيك السرعة بتفضل شبه ثابتة
+// (محكومة بأبطأ 8 ملفات مش بمجموعهم كلهم) مهما كبر السجل، مع تحديد سقف تزامن (8) حتى ما نضرب حد
+// جوجل درايف لعدد الطلبات المتزامنة (rate limit) لو تراكم عدد كبير جدًا من الملفات.
 async function scanDriveSubfolderAcrossBranches(token, subfolderName){
-  const results = [];
-  for(const branch of Object.keys(DRIVE_ROOTS_BY_BRANCH_DASH)){
+  const branches = Object.keys(DRIVE_ROOTS_BY_BRANCH_DASH);
+  const perBranch = await Promise.all(branches.map(async (branch) => {
     const rootId = DRIVE_ROOTS_BY_BRANCH_DASH[branch];
     try{
       const q = encodeURIComponent(`name = '${subfolderName}' and '${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
@@ -4941,22 +4969,29 @@ async function scanDriveSubfolderAcrossBranches(token, subfolderName){
       }, 15000);
       const data = await res.json();
       const folderId = data.files && data.files[0] && data.files[0].id;
-      if(!folderId) continue;
+      if(!folderId) return [];
       const children = await listDriveFolderChildren(token, folderId);
-      for(const f of children){
-        if(f.mimeType === 'application/vnd.google-apps.folder') continue;
-        if(!/\.json$/i.test(f.name)) continue;
-        try{
-          const text = await downloadDriveFileText(token, f.id);
-          const obj = JSON.parse(text);
-          obj.__fileId = f.id;
-          obj.__branch = branch;
-          results.push(obj);
-        }catch(e){ console.warn('[سجل المسودات/التصاميم] تعذّر قراءة ملف', f.name, e); }
+      const jsonFiles = children.filter(f => f.mimeType !== 'application/vnd.google-apps.folder' && /\.json$/i.test(f.name));
+      const branchResults = [];
+      const CONCURRENCY = 8;
+      let nextIdx = 0;
+      async function worker(){
+        while(nextIdx < jsonFiles.length){
+          const f = jsonFiles[nextIdx++];
+          try{
+            const text = await downloadDriveFileText(token, f.id);
+            const obj = JSON.parse(text);
+            obj.__fileId = f.id;
+            obj.__branch = branch;
+            branchResults.push(obj);
+          }catch(e){ console.warn('[سجل المسودات/التصاميم] تعذّر قراءة ملف', f.name, e); }
+        }
       }
-    }catch(e){ console.warn('[سجل المسودات/التصاميم] تعذّر فحص مجلد ' + subfolderName + ' لفرع ' + branch, e); }
-  }
-  return results;
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, jsonFiles.length) }, worker));
+      return branchResults;
+    }catch(e){ console.warn('[سجل المسودات/التصاميم] تعذّر فحص مجلد ' + subfolderName + ' لفرع ' + branch, e); return []; }
+  }));
+  return perBranch.flat();
 }
 
 // 🆕 2026-09-25: طلب حمدي - "لما بفتح تبويب المسودات ما عم يطلع شي قبل ما اضغط تحديث". السبب: هاد
