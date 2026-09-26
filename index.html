@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.16';
+  var CURRENT_VERSION = '2026-09-26.17';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10147,6 +10147,12 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM, doorOpen3D){
   }
   // مقبض سحب عمودي (عروتين تثبيت + قضيب) - نفس أسلوب مقابض أبواب الزجاج/الألمنيوم الحقيقية بمعارض
   // ميرزونا، بارز فعليًا للخارج عن وجه الزجاج (مش ملزوق كخط)، بمنتصف ارتفاع الورقة تقريبًا (~1م).
+  // 🛠️ إصلاح 2026-09-26 (ملاحظة حمدي: "لازم دائمًا المقبض يكون أساسًا من جهتين...بشكل عام ومن الثري
+  // دي") - قبل هيك كان المقبض يترسم بوجه واحد بس (Z موجب)، فمن الجهة التانية (جوا الغرفة مثلاً) ما
+  // كان يبين إله مقبض إطلاقًا - وهاد بالضبط سبب ملاحظة "الزر يللي بيقلب الباب بيخلي المقبض جوا الغرفة"
+  // (لأنو حسب جهة الحائط، الوجه يلي عليه المقبض ممكن يطلع يواجه جوا الغرفة بدل برّاها). الحل الصحيح:
+  // نرسم نفس المقبض عالوجهين (Z موجب وسالب) دايمًا - تمامًا متل الأبواب الحقيقية يلي إلها مقبض من
+  // جهة الداخل وجهة الخارج معًا.
   function addDoorHandle3D(x,y,w,h,side){
     const barLen = Math.min(0.34, Math.max(0.22, h*0.32));
     const cy = Math.min(y+h-0.18, Math.max(y+0.18, y + h*0.52));
@@ -10155,15 +10161,17 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM, doorOpen3D){
     const standoffD = 0.045;
     const standoffZ = GLASS_DEPTH/2 + standoffD/2 + 0.004;
     const barZ = standoffZ + standoffD/2 + 0.015 + 0.004;
-    const topStand = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.03,standoffD), handleMat);
-    topStand.position.set(hx, cy + barLen/2, standoffZ);
-    content.add(topStand);
-    const botStand = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.03,standoffD), handleMat);
-    botStand.position.set(hx, cy - barLen/2, standoffZ);
-    content.add(botStand);
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.03, barLen, 0.03), handleMat);
-    bar.position.set(hx, cy, barZ);
-    content.add(bar);
+    [1,-1].forEach(function(sgn){
+      const topStand = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.03,standoffD), handleMat);
+      topStand.position.set(hx, cy + barLen/2, standoffZ*sgn);
+      content.add(topStand);
+      const botStand = new THREE.Mesh(new THREE.BoxGeometry(0.03,0.03,standoffD), handleMat);
+      botStand.position.set(hx, cy - barLen/2, standoffZ*sgn);
+      content.add(botStand);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.03, barLen, 0.03), handleMat);
+      bar.position.set(hx, cy, barZ*sgn);
+      content.add(bar);
+    });
   }
 
   function box(cx,cy,w,h,d,mat){
@@ -10235,21 +10243,31 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM, doorOpen3D){
         const handleCy = Math.min(y+h-0.18, Math.max(y+0.18, y + h*0.52));
         const edgeGap = Math.max(0.05, Math.min(w*0.18, 0.09));
         const handleX = hSide === 'right' ? (x + w - edgeGap) : (x + edgeGap);
+        // 🆕 2026-09-26 (طلب حمدي: "لازم دائما المقبض يكون أساسا من جهتين والقفل من جهتين بشكل عام
+        // ومن الثري دي") - المقبض والقفل بالباب الحقيقي موجودين على وجهي الباب الاثنين (من جوا ومن برا)،
+        // مش وجه واحد بس. لهيك منكرر كل قطعة عالوجهين (+Z و -Z) بدل ما نحطها بوجه واحد بس - هيك مهما كانت
+        // الغرفة موجهة أو مهما قلبنا الباب بزر "↔️ اقلب بالثري دي"، المقبض والقفل دايمًا ظاهرين وبمكانهم
+        // الصح من الداخل والخارج، مش بس من جهة وحدة.
         const standoffD = 0.045;
         const standoffZ = GLASS_DEPTH/2 + standoffD/2 + 0.004;
         const barZ = standoffZ + standoffD/2 + 0.015 + 0.004;
-        boxL(handleX, handleCy + barLen/2, 0.03, 0.03, standoffD, handleMat, standoffZ);
-        boxL(handleX, handleCy - barLen/2, 0.03, 0.03, standoffD, handleMat, standoffZ);
-        boxL(handleX, handleCy, 0.03, barLen, 0.03, handleMat, barZ);
+        [1,-1].forEach(function(sgn){
+          boxL(handleX, handleCy + barLen/2, 0.03, 0.03, standoffD, handleMat, standoffZ*sgn);
+          boxL(handleX, handleCy - barLen/2, 0.03, 0.03, standoffD, handleMat, standoffZ*sgn);
+          boxL(handleX, handleCy, 0.03, barLen, 0.03, handleMat, barZ*sgn);
+        });
 
-        // 🆕 قفل - تحت المقبض مباشرة وبنفس جهته (مش لباب الشاور - الشاور عادة بلا قفل حقيقي).
+        // 🆕 قفل - تحت المقبض مباشرة وبنفس جهته (مش لباب الشاور - الشاور عادة بلا قفل حقيقي) - وبردو
+        // على الوجهين متل المقبض تمامًا.
         if(!isShowerDoor(item)){
           const lockCy = Math.max(y+0.10, handleCy - barLen/2 - 0.15);
-          boxL(handleX, lockCy, 0.055, 0.085, 0.014, handleMat, GLASS_DEPTH/2 + 0.007);
-          const lockCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,0.028,10), new THREE.MeshStandardMaterial({ color:0x2a2a2e, roughness:0.35, metalness:0.7 }));
-          lockCyl.rotation.x = Math.PI/2;
-          lockCyl.position.set(handleX - pivotXAbs, lockCy, GLASS_DEPTH/2 + 0.007 + 0.014 + 0.004);
-          leafGroup.add(lockCyl);
+          [1,-1].forEach(function(sgn){
+            boxL(handleX, lockCy, 0.055, 0.085, 0.014, handleMat, (GLASS_DEPTH/2 + 0.007)*sgn);
+            const lockCyl = new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,0.028,10), new THREE.MeshStandardMaterial({ color:0x2a2a2e, roughness:0.35, metalness:0.7 }));
+            lockCyl.rotation.x = Math.PI/2;
+            lockCyl.position.set(handleX - pivotXAbs, lockCy, (GLASS_DEPTH/2 + 0.007 + 0.014 + 0.004)*sgn);
+            leafGroup.add(lockCyl);
+          });
         }
 
         // 🆕 مفصلات - ٣ دايمًا وواضحة من برّا، عمحور الدوران بالضبط (لهيك localX=0 دايمًا مهما كانت
