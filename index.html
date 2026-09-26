@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.14';
+  var CURRENT_VERSION = '2026-09-26.16';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10078,7 +10078,7 @@ function mirrorItemLayoutForFlip3D(item){
 // بين كل قسم وقسم بنفس تقسيماتك الفعلية بالمصمم، وحتى القنطرة (arch) لو موجودة كقطعة منحنية حقيقية.
 // بهيك لما تلف الكاميرا حوالين الغرفة أو تقرّب، بيبين إنو فعلاً شكل ثلاثي الأبعاد إلو عمق حقيقي مش
 // مجرد صورة ملزوقة.
-function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
+function buildRealWindowGroup3D(item, wMM, hMM, thicknessM, doorOpen3D){
   const W = Math.max(0.05, wMM/1000), H = Math.max(0.05, hMM/1000);
   const group = new THREE.Group();
   const content = new THREE.Group();
@@ -10113,6 +10113,17 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
   } else {
     outerFrameW = Math.max(0.02, mm2m(item.profileThickness || 50));
     frameW = outerFrameW;
+  }
+  // 🛠️ إصلاح 2026-09-26 (ملاحظة حمدي: "الأبواب ماعم تكون واضحة...الباب بكون داخل اطار سماكة الاطار
+  // 7 سم وسماكة الباب 6 سم، السماكة يعني يمين يسار فوق تحت") - يعني "السماكة" يلي حكى عنها حمدي مش
+  // بس عمق (Z، البروز للداخل/الخارج - يلي طبّقناه فوق بـFRAME_DEPTH/GLASS_DEPTH) لأ، هو قصدها كمان
+  // عرض شريط الفريم الظاهر بالأربع جهات (يمين/يسار/فوق/تحت) حوالين الباب - يعني نفس رقم الـ7سم/6سم
+  // لازم يبين بعرض الفريم كمان مش بس بعمقه. فبالنسبة للأبواب تحديدًا: عرض الفريم الخارجي (الكاسينغ)
+  // ==نفس عمقه (FRAME_DEPTH)، وعرض فريم الورقة الداخلية ==نفس عمقها (GLASS_DEPTH) - هيك المقطع
+  // (cross-section) بيصير متساوي الأبعاد تقريبًا (عرض=عمق) بكل الاتجاهات، تمامًا متل ما وصف حمدي.
+  if(isDoor3D){
+    outerFrameW = FRAME_DEPTH;
+    frameW = GLASS_DEPTH;
   }
   const frameMat = new THREE.MeshStandardMaterial({ color:0x1c1d20, roughness:0.55, metalness:0.25 });
   const glassMat = new THREE.MeshPhysicalMaterial({ color:0xbfe3f0, transparent:true, opacity:0.32, roughness:0.08, metalness:0, clearcoat:0.4, side:THREE.DoubleSide });
@@ -10251,8 +10262,10 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM){
           leafGroup.add(barrel);
         });
 
-        // فتح الورقة شوي عمحور المفصلة حتى تبين إنها باب حقيقي منفتح (مش لوح زجاج ثابت).
-        const OPEN_ANGLE = 0.4; // ~23 درجة
+        // فتح الورقة شوي عمحور المفصلة حتى تبين إنها باب حقيقي منفتح (مش لوح زجاج ثابت) - إلا لو
+        // حمدي فضّل يخلي الباب مسكّر بالثري دي (زر "🚪 الباب مفتوح/مسكّر بالثري دي" لكل جزء بقائمة
+        // الأضلاع - شوف toggleRoomSegDoorOpen3D). مفتوح افتراضيًا (doorOpen3D !== false).
+        const OPEN_ANGLE = (doorOpen3D === false) ? 0 : 0.4; // ~23 درجة لو مفتوح، صفر لو مسكّر
         leafGroup.rotation.y = hingeSide === 'left' ? OPEN_ANGLE : -OPEN_ANGLE;
         return;
       }
@@ -10552,7 +10565,7 @@ async function buildRoom3DScene(it, wrap){
         const topMM = bottomMM + itemHMM;
 
         const itemForWall3D = seg.flip3D ? mirrorItemLayoutForFlip3D(linkedItem) : linkedItem;
-        mesh = buildRealWindowGroup3D(itemForWall3D, segLenMM, itemHMM, thicknessM);
+        mesh = buildRealWindowGroup3D(itemForWall3D, segLenMM, itemHMM, thicknessM, seg.doorOpen3D);
         meshCenterYM = (bottomMM + itemHMM/2) * MMTOM;
 
         const infillMat = new THREE.MeshStandardMaterial({ color:0xe4dcc9, roughness:0.95 }); // نفس خامة/لون حيطان الغرفة بالضبط
@@ -10594,21 +10607,6 @@ async function buildRoom3DScene(it, wrap){
         }
       });
       scene.add(mesh);
-
-      // 🆕 2026-09-25: بطاقة صغيرة معلّقة فوق كل جزء بتبيّن طولو الحقيقي بالمم - إثبات مباشر إنو
-      // المقاس المرسوم مطابق تمامًا لللي دخّله المستخدم، بغض النظر شو الانطباع البصري من بعيد.
-      // 🛠️ إصلاح 2026-09-25 (تراكب الأرقام بالسقف - ملاحظة حمدي من صورة الشاشة الحقيقية): الأجزاء
-      // القصيرة كتير (كثير تقسيمات/عوارض بنفس الضلع) كانت بتخلي البطاقات المجاورة تتراكب فوق بعض
-      // وتصير غير مقروءة. هلق: نتجاهل تسمية الأجزاء الأقصر من 25 سم كليًا (مساحتها صغيرة أصلاً وغير
-      // حرجة للقراءة)، ومنصغّر حجم البطاقة تلقائيًا للأجزاء المتوسطة (بين 25 و60 سم) لتقليل فرصة
-      // التراكب مع اللي جنبها بدون ما نفقد الرقم نفسو بالكامل.
-      const segLenM = segLenMM * MMTOM;
-      if(segLenM >= 0.25){
-        const labelScale = segLenM < 0.6 ? 0.68 : 1;
-        const label = makeMMLabelSprite3D(Math.round(segLenMM) + ' mm', labelScale);
-        label.position.set(midX*MMTOM, heightM + 0.22, midY*MMTOM);
-        scene.add(label);
-      }
     }
   }
 
@@ -10895,6 +10893,21 @@ function toggleRoomSegFlip3D(itemId, sideId, segId){
 }
 window.toggleRoomSegFlip3D = toggleRoomSegFlip3D;
 
+// 🆕 2026-09-26 (طلب حمدي: "فيك تعطيني الخيار اني افتح الباب بالثري دي او خليه مغلق؟") - تبديل بسيط
+// لكل جزء باب لحاله: بيتحكم بس بزاوية دوران الورقة حوالين محور المفصلة بمشهد الثري دي (شوف
+// buildRealWindowGroup3D/buildRoom3DScene) - مفتوح افتراضيًا (seg.doorOpen3D undefined = مفتوح، نفس
+// السلوك الحالي)، وبالضغط بيصير مسكّر بالكامل (زاوية صفر) بدل ما يبين مفتوح شوي. ما بيأثر عالتصميم
+// الأصلي ولا المسقط 2D إطلاقًا - بس شكله جوا مشهد الثري دي.
+function toggleRoomSegDoorOpen3D(itemId, sideId, segId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
+  const seg = (side.segments||[]).find(g=>g.id===segId); if(!seg) return;
+  pushHistory();
+  seg.doorOpen3D = (seg.doorOpen3D === false) ? true : false;
+  renderRoomSidesUI(it);
+}
+window.toggleRoomSegDoorOpen3D = toggleRoomSegDoorOpen3D;
+
 function renderRoomSidesUI(it){
   const list = document.getElementById('roomSidesList');
   if(!list) return;
@@ -10905,12 +10918,18 @@ function renderRoomSidesUI(it){
       const isWall = seg.kind === 'wall';
       const linkedTr = seg.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]') : null;
       const linkedName = linkedTr ? ((linkedTr.querySelector('.item-input')||{}).value || '') : '';
+      const linkedItemFor3D = seg.rowUid ? room3DResolveSegmentItem(seg) : null;
+      const isDoorSeg = !!(linkedItemFor3D && isDoorLike(linkedItemFor3D));
+      const doorOpenBtnHtml = isDoorSeg
+        ? `<button class="small${seg.doorOpen3D===false ? '' : ' active'}" onclick="toggleRoomSegDoorOpen3D(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;${seg.doorOpen3D===false ? '' : 'background:var(--wd-accent,#0f88cd);color:#fff;'}" title="تحكمي هل الباب يبين مفتوح شوي أو مسكّر بالكامل بعرض الثري دي - بدون ما يأثر عالتصميم الأصلي إطلاقًا">🚪 الباب ${seg.doorOpen3D===false ? 'مسكّر' : 'مفتوح'} بالثري دي</button>`
+        : '';
       const designHtml = isWall
         ? `<span style="font-size:11px;color:#8d6e63;">🧱 حائط/جدار (بدون سطر بالعرض)</span>`
         : `<button class="small" onclick="designRoomSideSegment(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;">🎨 ${seg.rowUid ? 'عدّل التصميم' : 'صمم'}</button>
            ${seg.rowUid
              ? `<span style="font-size:11px;color:var(--wd-ok,#1e7a3d);">✓ مصمم: ${escAttr(linkedName || ('جزء '+(segIdx+1)))}</span>
-                <button class="small${seg.flip3D ? ' active' : ''}" onclick="toggleRoomSegFlip3D(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;${seg.flip3D ? 'background:var(--wd-accent,#0f88cd);color:#fff;' : ''}" title="لو الباب/الشباك طلع بالثري دي بعكس الجهة يلي صمّمتها (يمين بدل يسار أو العكس) - دوسي هون تقلبيه بالثري دي بس، بدون ما يتغيّر تصميمه الأصلي إطلاقًا">↔️ اقلب بالثري دي${seg.flip3D ? ' ✓' : ''}</button>`
+                <button class="small${seg.flip3D ? ' active' : ''}" onclick="toggleRoomSegFlip3D(${it.id},'${s.id}','${seg.id}')" style="font-size:10px;${seg.flip3D ? 'background:var(--wd-accent,#0f88cd);color:#fff;' : ''}" title="لو الباب/الشباك طلع بالثري دي بعكس الجهة يلي صمّمتها (يمين بدل يسار أو العكس) - دوسي هون تقلبيه بالثري دي بس، بدون ما يتغيّر تصميمه الأصلي إطلاقًا">↔️ اقلب بالثري دي${seg.flip3D ? ' ✓' : ''}</button>
+                ${doorOpenBtnHtml}`
              : `<span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">لسا ما انصمم</span>`}`;
       return `
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:4px 6px 4px 22px;border-radius:6px;margin-bottom:4px;${isWall?'background:rgba(141,110,99,0.08);':''}">
