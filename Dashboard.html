@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.1';
+  var CURRENT_VERSION = '2026-09-27.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2949,10 +2949,14 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     if(isOwner || !permissions) return true;
     return !!permissions[key];
   }
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حقيقي): designerTabBtn كان بالـnavMap هون، فكل مرة مستخدم
+  // (أي مستخدم عندو صلاحية "quotation" العادية - يعني تقريبًا الكل) يسجّل دخول، هالسطر كان يرجّع
+  // يظهر تبويب "التصميم/Sketch" (allowed('quotation') صحيح فبيصير display:'') حتى لو هو مخفي عمدًا
+  // بالـHTML (style="display:none" - شوف حوالي سطر 923) بسبب طلب حمدي الصريح بهالجلسة نفسها إخفاءه
+  // (الأداة كانت تعطي نتائج غلط). هلق شلناه من هون نهائيًا حتى يضل الإخفاء ثابت بغض النظر عن الصلاحيات.
   var navMap = {
     quotationTabBtn: 'quotation',
     quotationsTabBtn: 'quotationsLog',
-    designerTabBtn: 'quotation',
     procurementTabBtn: 'procurement',
     contractsTabBtn: 'contracts',
     payrollTabBtn: 'payroll',
@@ -3560,7 +3564,13 @@ document.getElementById('payrollLogDailyBtn').addEventListener('click', ()=>{
     if(existingDatesForEmp.has(dISO)){
       skipped++;
     } else {
-      const id = 'pr_' + Date.now() + '_' + Math.random().toString(16).slice(2,8) + '_' + dISO;
+      // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حرج): الـid كان عشوائي بالكامل (Date.now + رقم عشوائي) -
+      // يعني لو جهازين شغالين أوفلاين سجّلوا نفس اليوم لنفس الموظف كل واحد لحاله (كل واحد فيهم شايف
+      // بس بياناته المحلية وقت الفحص فوق، ومحدا شايف تسجيل التاني بعد)، كانوا يطلعوا id مختلف كل
+      // مرة - فلما يتزامنوا مع بعض، الاتنين ينضموا كسجلين منفصلين لنفس يوم الشغل الحقيقي (مضاعفة
+      // بالراتب المستحق). هلق الـid مبني على empId+التاريخ نفسه (ثابت/deterministic) بدل عشوائي، فلو
+      // صار هيك تصادم، بعد المزامنة بيصير سجل واحد بس (نفس المفتاح بالظبط) بدل سجلّين.
+      const id = 'pr_daily_' + empId + '_' + dISO;
       entries[id] = { empId, type:'daily', date:dISO, amount:e.rate, currency:e.currency, note, paid:false, paidAt:null, createdAt:Date.now() };
       added++;
     }
@@ -4254,12 +4264,53 @@ function mergeOneSyncKey(key, remoteData){
   // عمدًا من نسخة قديمة لسا موجودة بجوجل درايف (شوف تعليق CONTRACT_TOMBSTONES_KEY فوق).
   const isContractsKey = key === CONTRACTS_KEY;
   const contractTombstones = isContractsKey ? loadContractTombstones() : null;
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل): نفس خطر ضياع سجل العقد (فوق) موجود لملفات العقد المرفقة
+  // (merzona_contract_files، مصفوفة ملفات لكل مرجع) - منعامله بنفس منطق الاتحاد تحت.
+  const isContractFilesKey = key === CONTRACT_FILES_KEY;
   let keyChanged = false;
   Object.keys(remoteObj).forEach(rk=>{
     if(isDiscoveredKey && discoveredTombstones[rk]) return; // متروك عمدًا - ما منرجّعه من نسخة قديمة
     if(isContractsKey && contractTombstones[rk]) return; // عقد انحذف عمدًا - ما منرجّعه من نسخة قديمة
     const rt = remoteTs[rk] || 0;
     const lt = localTs[rk] || 0;
+    // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حرج): سجل العقد (merzona_contracts) كان ينستبدل بالكامل
+    // لما النسخة "الأحدث" حسب الطابع الزمني توصل - حتى لو هيك معناه ضياع جدول دفعات حقيقي بناه موظف
+    // محليًا (مثلاً: السيرفر بيحقن سجل عقد فارغ لحظة ما الزبون يوقّع إلكترونيًا - شوف
+    // appendSignedContractToSyncData بـserver.js - وهاد السجل الفارغ بيوصل بطابع زمني أحدث من تعديل
+    // الموظف المحلي لو جهازه ما زامن بعد وقتها). هلق لأي عقد موجود بالطرفين، منعمل اتحاد (union
+    // بالاسم) لجداول الدفعات من الطرفين بدل الاستبدال الكامل - هيك ما ينضاع جدول دفعات حقيقي أبدًا
+    // مهما كان ترتيب/توقيت المزامنة.
+    if(isContractsKey && (rk in localObj) && (rk in remoteObj)){
+      const localRec = localObj[rk] || {};
+      const remoteRec = remoteObj[rk] || {};
+      const localTables = Array.isArray(localRec.paymentTables) ? localRec.paymentTables : [];
+      const remoteTables = Array.isArray(remoteRec.paymentTables) ? remoteRec.paymentTables : [];
+      const namesSeen = new Set(remoteTables.map(t=>t && t.name));
+      const mergedTables = remoteTables.concat(localTables.filter(t=> !namesSeen.has(t && t.name)));
+      const merged = {
+        client: (remoteRec.client && remoteRec.client !== '—') ? remoteRec.client : (localRec.client || remoteRec.client || '—'),
+        paymentTables: mergedTables,
+        createdAt: remoteRec.createdAt || localRec.createdAt
+      };
+      if(JSON.stringify(merged) !== JSON.stringify(localRec)){
+        localObj[rk] = merged;
+        localTs[rk] = Math.max(rt, lt);
+        keyChanged = true;
+      }
+      return;
+    }
+    if(isContractFilesKey && (rk in localObj) && (rk in remoteObj)){
+      const localArr = Array.isArray(localObj[rk]) ? localObj[rk] : (localObj[rk] ? [localObj[rk]] : []);
+      const remoteArr = Array.isArray(remoteObj[rk]) ? remoteObj[rk] : (remoteObj[rk] ? [remoteObj[rk]] : []);
+      const seen = new Set(remoteArr.map(f=> f && (f.driveFileId || f.name)));
+      const mergedArr = remoteArr.concat(localArr.filter(f=> !seen.has(f && (f.driveFileId || f.name))));
+      if(JSON.stringify(mergedArr) !== JSON.stringify(localArr)){
+        localObj[rk] = mergedArr;
+        localTs[rk] = Math.max(rt, lt);
+        keyChanged = true;
+      }
+      return;
+    }
     if(!(rk in localObj) || rt > lt){
       localObj[rk] = remoteObj[rk];
       localTs[rk] = Math.max(rt, lt);
@@ -5776,7 +5827,12 @@ async function uploadContractFileToDrive(ref, file){
   const token = await getDashGoogleAccessToken(false); // كبسة يدوية من المستخدم (اختيار ملف) - مسموح نافذة موافقة لو أول مرة
   const year = getYearFromReferenceDash(ref);
   const refSafe = sanitizeRefForFolderDash(ref);
-  const yearFolderId = await findOrCreateDriveFolderDash(year, DRIVE_ROOT_FOLDER_ID_DASH, token);
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حقيقي، لقيناه بفحصين منفصلين): كانت هون تدوّر دايمًا بمجلد
+  // الإمارات بس (DRIVE_ROOT_FOLDER_ID_DASH) بغض النظر عن فرع الرقم المرجعي - نفس صنف الباغ يلي
+  // findQuotationFolderId فوق انصلح منه بتاريخ 2026-09-23. أي ملف عقد مرفق لمرجع سوري (S-...) كان
+  // بيترفع لمجلد جديد يتيم تحت مجلد الإمارات بدل مجلد سوريا الحقيقي - والواجهة بتقول "نجح" فمحدا بينتبه.
+  const rootId = DRIVE_ROOTS_BY_BRANCH_DASH[getDashBranchFromRef(ref)] || DRIVE_ROOT_FOLDER_ID_DASH;
+  const yearFolderId = await findOrCreateDriveFolderDash(year, rootId, token);
   const refFolderId = await findOrCreateDriveFolderDash(refSafe, yearFolderId, token);
   const filesFolderId = await findOrCreateDriveFolderDash('عقود مرفقة', refFolderId, token);
   const uploaded = await uploadFileToDriveFolderDash(file.name, file.type || 'application/octet-stream', file, filesFolderId, token);
@@ -6833,7 +6889,10 @@ async function saveSettlementToDrive(){
 
     const year = getYearFromReferenceDash(ref);
     const refSafe = sanitizeRefForFolderDash(ref);
-    const yearFolderId = await findOrCreateDriveFolderDash(year, DRIVE_ROOT_FOLDER_ID_DASH, token);
+    // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حقيقي، لقيناه بفحصين منفصلين): نفس باغ uploadContractFileToDrive
+    // فوق - كانت تدوّر بمجلد الإمارات بس بغض النظر عن فرع الرقم المرجعي.
+    const rootId = DRIVE_ROOTS_BY_BRANCH_DASH[getDashBranchFromRef(ref)] || DRIVE_ROOT_FOLDER_ID_DASH;
+    const yearFolderId = await findOrCreateDriveFolderDash(year, rootId, token);
     const refFolderId = await findOrCreateDriveFolderDash(refSafe, yearFolderId, token);
     const certFolderId = await findOrCreateDriveFolderDash('شهادات الإنجاز والتسليم', refFolderId, token);
 
