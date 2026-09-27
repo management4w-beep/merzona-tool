@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-27.1';
+  var CURRENT_VERSION = '2026-09-27.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10190,7 +10190,7 @@ window.finishRoomFreehandDraw = finishRoomFreehandDraw;
 // الغرفة وتنزيلها كملف فيديو (mp4، أو webm لو المتصفح قديم) جاهز يرسلو للزبون مباشرة.
 let room3D = { renderer:null, scene:null, camera:null, controls:null, animId:null,
   center:null, radius:0, cameraHeight:0, lookHeight:0, recording:false, itemId:null,
-  onResize:null };
+  onResize:null, onClick:null };
 
 // نفس منطق المشي حول الأضلاع يلي بـbuildRoomSVG بالضبط (نسخة منفصلة بدل ما نعدّل الأصلية، حتى ما
 // نخاطر نكسر معاينة الأرضية 2D يلي شغالة ومجربة) - بيرجع نقاط المضلع بالمم.
@@ -10820,9 +10820,175 @@ function buildCeilingLevelRecursive(scene, it, parentId, parentPolyMM, parentHei
       riserMesh.receiveShadow = true;
       scene.add(riserMesh);
     }
+    // 🆕 2026-09-27 (طلب حمدي - فيديو سقف جملون مائل متكرر): جزء السقف من نوع "جملون" (roofType==='gable')
+    // ما بيكمل بنفس مسار السقف المسطّح (سطح مسطّح + تكرار لأجزاء جوّاه) - هو نهاية السلسلة (ما بيقبل
+    // أجزاء جوّاه بهاد الإصدار)، وبيترسم كسطح مائل حقيقي (هرمي/جملون) بدل السطح المسطّح. الـ"قصة"
+    // العمودية (riser) فوق لسا صحيحة ومحتاجينها هون كمان (نفس حيطان قصيرة توصل من مستوى الأب لحد
+    // حافة/eave الجزء المائل، تمامًا متل أي جزء مسطّح - الفرق يبلش فوق الحافة بس).
+    if(z.roofType === 'gable'){
+      buildGableRoofMesh(scene, it, z, childHeightMM, MMTOM, wallColorNum);
+      return;
+    }
     buildCeilingLevelRecursive(scene, it, z.id, zPts.slice(0, zPts.length-1), childHeightMM, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM);
   });
 }
+
+// ============================================================================
+// 🆕 2026-09-27 (طلب حمدي: بعتلنا فيديو حقيقي لسقف زجاجي "جملون" - قمة بالنص وميل يمين/شمال منّها،
+// متكرر كذا قطعة ورا بعض على طول المسبح/المجلس - وطلب يقدر يصمم هيك سقف ويعدّل مقاساته بالضغط مباشرة
+// عالخطوط بالمشهد ثلاثي الأبعاد). هاد الجزء الجديد كامل: شكل هرمي/جملون حقيقي (سطح شبكة Grid منحني
+// الارتفاع، مو صندوق بسيط) - كل "قسم" متكرر إله قمة بالنص (أعلى نقطة) بترجع تدريجيًا لصفر (مستوى
+// الحافة/eave) بكل الاتجاهات الأربعة (طوليًا وعرضيًا)، تمامًا متل سقف "hip" حقيقي - ولو صار طول
+// القسم أكبر من عرض الجزء (الحالة الطبيعية بمعظم التصاميم)، بيطلع خط قمة مستقيم بالنص (مو نقطة وحدة)
+// بالضبط متل الفيديو. الأقسام المتكررة (gableSegments) بتشارك نفس ارتفاع القمة (gableRidgeRiseMm)
+// - هيك أبسط وأواقعي (كل بيوت السقف الحقيقي متطابقة بمشروع واحد عادةً).
+// ⚠️ ملاحظة مهمة: الصيغة الرياضية هون مبنية على افتراض إنو شكل الجزء (zone.sides) مستطيل حقيقي (٤
+// أضلاع بزاوية ٩٠° بينهم، وطول كل ضلع مقابل لضلعه) - نفس افتراض أداة رسم الأجزاء الحالية أصلًا. محور
+// "القمة" (يلي بيتكرر عليه الأقسام) بيتحدد تلقائيًا كأطول ضلعين متقابلين (الأطول = محور القمة، الأقصر
+// = محور الميل/العرض) حتى يطلع الشكل صح بغض النظر عن ترتيب رسم الأضلاع.
+// ============================================================================
+function buildGableRoofMesh(scene, it, zone, eaveHeightMM, MMTOM, wallColorNum){
+  const bearingRad = (zone.bearingDeg||0) * Math.PI/180;
+  // محاور محلية للجزء (uHat بنفس اتجاه بداية الرسم "bearingDeg"، vHat عمودي عليه تمامًا 90°) - كل
+  // نقطة بالجزء ممكن تتحسب كـ anchor + u*uHat + v*vHat بدل إحداثيات x/y عالمية مباشرة، لأنو الجزء
+  // ممكن يكون مدوّر بأي زاوية عن محاور العالم.
+  const uHat = { x: Math.cos(bearingRad), y: Math.sin(bearingRad) };
+  const vHat = { x: Math.cos(bearingRad + Math.PI/2), y: Math.sin(bearingRad + Math.PI/2) };
+  const sideA = Math.max(50, (zone.sides[0] && zone.sides[0].length) || 1000);
+  const sideB = Math.max(50, (zone.sides[1] && zone.sides[1].length) || 1000);
+  const ridgeAxisIsA = sideA >= sideB; // الأطول = محور القمة (يلي بتتكرر عليه الأقسام)
+  const Lridge = ridgeAxisIsA ? sideA : sideB;
+  const Lspan  = ridgeAxisIsA ? sideB : sideA;
+  const ridgeHat = ridgeAxisIsA ? uHat : vHat;
+  const spanHat  = ridgeAxisIsA ? vHat : uHat;
+  const N = Math.max(1, Math.round(zone.gableSegments||1));
+  const riseMm = Math.max(0, zone.gableRidgeRiseMm||0);
+  const segLen = Lridge / N;
+  const anchorX = (zone.anchor && zone.anchor.x)||0, anchorY = (zone.anchor && zone.anchor.y)||0;
+
+  // ارتفاع أي نقطة (uMM بمحور القمة، vMM بمحور العرض) - نفس منطق سقف "hip" هرمي: نسبة "قرب من القمة"
+  // (0 عند أي حافة، 1 بالقمة نفسها) بكل محور لحاله، وبناخد الأصغر بينهم (القيد الأكتر تشددًا) - هيك
+  // بيطلع خط قمة مستقيم بالنص لو طول القسم أكبر من العرض (هو الغالب)، وبيرجع تدريجيًا صفر بكل الحواف.
+  function heightAt(uMM, vMM){
+    const segIdx = Math.min(N-1, Math.max(0, Math.floor(uMM/segLen)));
+    const uLocal = uMM - segIdx*segLen;
+    const tLen = 1 - Math.abs(uLocal - segLen/2)/(segLen/2);
+    const tWid = 1 - Math.abs(vMM - Lspan/2)/(Lspan/2);
+    const hip = Math.max(0, Math.min(1, Math.min(tLen, tWid)));
+    return eaveHeightMM + hip*riseMm;
+  }
+  function worldPos(uMM, vMM, hMM){
+    // 🔧 نفس منطق مواقع الحيطان/القصات (riser) بالضبط - مش نفس مسار الأرضية/السقف المسطّح (الـShape
+    // المدوّر -90°) - هون منحط الإحداثيات مباشرة (x عالمي = mm.x، z عالمي = mm.y، بدون أي قلب إشارة).
+    const wx = anchorX + uMM*ridgeHat.x + vMM*spanHat.x;
+    const wy = anchorY + uMM*ridgeHat.y + vMM*spanHat.y;
+    return new THREE.Vector3(wx*MMTOM, hMM*MMTOM, wy*MMTOM);
+  }
+
+  const ridgeDiv = 10, spanDiv = 10; // تقسيمات الشبكة لكل قسم/بمحور العرض - كافية لسطح ناعم بدون إبطاء
+  const nu = N*ridgeDiv, nv = spanDiv;
+  const positions = [];
+  for(let j=0;j<=nv;j++){
+    const vMM = Lspan * j/nv;
+    for(let i=0;i<=nu;i++){
+      const uMM = Lridge * i/nu;
+      const p = worldPos(uMM, vMM, heightAt(uMM, vMM));
+      positions.push(p.x, p.y, p.z);
+    }
+  }
+  const indices = [];
+  for(let j=0;j<nv;j++){
+    for(let i=0;i<nu;i++){
+      const a=j*(nu+1)+i, b=a+1, c=a+(nu+1), d=c+1;
+      indices.push(a,c,b, b,c,d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color:0xbcdcec, roughness:0.15, metalness:0.05, transparent:true, opacity:0.55, side:THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  scene.add(mesh);
+
+  // خطوط بروفايلات الألمنيوم (خطوط القمة/الوديان/الحواف) - بتتحدد تلقائيًا كل حواف الشبكة يلي فيها
+  // زاوية حادة كفاية (>15°) بدل ما نحسب موقع كل خط يدويًا - أبسط وبيطلع صحيح دايمًا مهما كان شكل الميل.
+  const edges = new THREE.EdgesGeometry(geo, 15);
+  scene.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x2a2d31 })));
+
+  // 🖱️ نقاط تعديل مباشرة بالمشهد (طلب حمدي: "بالضغط مباشرة على خطوط السقف") - كرة صغيرة + بطاقة رقم
+  // فوق كل قمة قسم (تعديل ارتفاع القمة gableRidgeRiseMm)، وكرة تانية عند حافتي بداية/نهاية محور القمة
+  // (تعديل طول كل قسم). كل واحدة فيهم عليها userData.__gableEdit يلي مستمع الكليك (شوف buildRoom3DScene)
+  // بيدوّر عليه بالـRaycaster.
+  for(let s=0;s<N;s++){
+    const mid = s*segLen + segLen/2;
+    const hMM = eaveHeightMM + riseMm;
+    const markerR = Math.max(0.035, Lspan*MMTOM*0.02);
+    const marker = new THREE.Mesh(
+      new THREE.SphereGeometry(markerR, 12, 12),
+      new THREE.MeshBasicMaterial({ color:0xf5a623 })
+    );
+    const pos = worldPos(mid, Lspan/2, hMM);
+    marker.position.copy(pos);
+    marker.userData.__gableEdit = { itemId: it.id, zoneId: zone.id, kind:'ridge' };
+    scene.add(marker);
+    const label = makeMMLabelSprite3D(Math.round(riseMm)+'mm', 0.55);
+    label.position.set(pos.x, pos.y+0.22, pos.z);
+    label.userData.__gableEdit = marker.userData.__gableEdit;
+    scene.add(label);
+  }
+  [0, Lridge].forEach(uMM=>{
+    const pos = worldPos(uMM, Lspan/2, eaveHeightMM);
+    const markerR = Math.max(0.035, Lspan*MMTOM*0.02);
+    const marker = new THREE.Mesh(
+      new THREE.SphereGeometry(markerR, 12, 12),
+      new THREE.MeshBasicMaterial({ color:0x2a9d5c })
+    );
+    marker.position.copy(pos);
+    marker.userData.__gableEdit = { itemId: it.id, zoneId: zone.id, kind:'segLen' };
+    scene.add(marker);
+  });
+}
+
+// 🆕 2026-09-27: مستدعاة من مستمع الكليك عالمشهد ثلاثي الأبعاد (buildRoom3DScene) لما يضغط المستخدم
+// عالعلامات (كرات) يلي حطيناها فوق - كل نوع (kind) بيسأل رقم مختلف عبر prompt() ويحفظه ويعيد بناء
+// المشهد بالكامل حتى يبان التغيير فورًا، بنفس أسلوب باقي محررات الأرقام بالمشهد ثلاثي الأبعاد بالأداة.
+function handleGableRoofClickEdit(info){
+  const it = items.find(i=>i.id===info.itemId); if(!it) return;
+  const zone = ensureCeilingZones(it).find(z=>z.id===info.zoneId); if(!zone) return;
+  if(info.kind === 'ridge'){
+    const cur = Math.round(zone.gableRidgeRiseMm||0);
+    const input = prompt('ارتفاع قمة السقف المائل فوق الحافة (مم) - تقدر تكتب معادلة متل 500+50:', cur);
+    if(input === null) return;
+    const val = evalMeasureExpr(input) ?? parseFloat(input);
+    if(!val || val <= 0){ alert('لازم رقم أكبر من صفر.'); return; }
+    pushHistory();
+    zone.gableRidgeRiseMm = val;
+  } else if(info.kind === 'segLen'){
+    const sideA = Math.max(50, (zone.sides[0]&&zone.sides[0].length)||1000);
+    const sideB = Math.max(50, (zone.sides[1]&&zone.sides[1].length)||1000);
+    const ridgeAxisIsA = sideA >= sideB;
+    const N = Math.max(1, Math.round(zone.gableSegments||1));
+    const curTotal = ridgeAxisIsA ? sideA : sideB;
+    const curSeg = curTotal / N;
+    const input = prompt('طول كل قسم متكرر بمحور القمة (مم) - عدد الأقسام الحالي: ' + N + '. تقدر تكتب معادلة متل 1500-100:', Math.round(curSeg));
+    if(input === null) return;
+    const val = evalMeasureExpr(input) ?? parseFloat(input);
+    if(!val || val <= 0){ alert('لازم رقم أكبر من صفر.'); return; }
+    pushHistory();
+    const newTotal = val * N;
+    const primaryIdx = ridgeAxisIsA ? 0 : 1;
+    const oppositeIdx = ridgeAxisIsA ? 2 : 3; // 🔧 لازم الضلع المقابل يتحدّث كمان حتى يضل الشكل مستطيل مغلق
+    if(zone.sides[primaryIdx]) zone.sides[primaryIdx].length = newTotal;
+    if(zone.sides[oppositeIdx]) zone.sides[oppositeIdx].length = newTotal;
+  }
+  renderGallery();
+  const wrap = document.getElementById('room3DCanvasWrap');
+  if(wrap) buildRoom3DScene(it, wrap).catch(function(e){ console.error('تعذّر إعادة بناء المشهد بعد تعديل السقف المائل:', e); });
+  if(ceilingZoneEditor && ceilingZoneEditor.itemId===it.id) renderCeilingSidesUI(it);
+}
+window.handleGableRoofClickEdit = handleGableRoofClickEdit;
 
 async function buildRoom3DScene(it, wrap){
   const MMTOM = 1/1000;
@@ -11131,6 +11297,25 @@ async function buildRoom3DScene(it, wrap){
     renderer.setSize(ww,hh);
   };
   window.addEventListener('resize', room3D.onResize);
+
+  // 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل: "بدي اقدر عدل عليه بالثري دي بشكل مباشر واكتب المقاسات
+  // عليه فوراً") - Raycaster وحيد عالمشهد كامل بيدوّر بس عالعلامات (كرات) يلي حطيناها فوق قمم/حواف
+  // أي جزء سقف مائل (buildGableRoofMesh فوق) - أي كليك ببلاش مكان تاني (حيط، فرش، أرضية...) بينتجاهل
+  // تلقائيًا لأنو ما إلو userData.__gableEdit.
+  const gableRaycaster = new THREE.Raycaster();
+  const gableMouse = new THREE.Vector2();
+  function onRoom3DCanvasClick(ev){
+    const rect = renderer.domElement.getBoundingClientRect();
+    gableMouse.x = ((ev.clientX-rect.left)/rect.width)*2-1;
+    gableMouse.y = -((ev.clientY-rect.top)/rect.height)*2+1;
+    gableRaycaster.setFromCamera(gableMouse, camera);
+    const hits = gableRaycaster.intersectObjects(scene.children, false)
+      .filter(h=> h.object && h.object.userData && h.object.userData.__gableEdit);
+    if(!hits.length) return;
+    handleGableRoofClickEdit(hits[0].object.userData.__gableEdit);
+  }
+  renderer.domElement.addEventListener('click', onRoom3DCanvasClick);
+  room3D.onClick = onRoom3DCanvasClick;
 }
 
 async function openRoom3D(){
@@ -11165,6 +11350,10 @@ function closeRoom3D(){
   }
   if(room3D.animId){ cancelAnimationFrame(room3D.animId); room3D.animId = null; }
   if(room3D.onResize){ window.removeEventListener('resize', room3D.onResize); room3D.onResize = null; }
+  // 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل): لازم نفك مستمع الكليك تبع تعديل السقف المائل هون كمان
+  // (نفس أسلوب onResize فوق بالضبط) قبل ما نتخلص من الـrenderer، حتى ما يضل مربوط بعنصر canvas قديم.
+  if(room3D.onClick && room3D.renderer){ try{ room3D.renderer.domElement.removeEventListener('click', room3D.onClick); }catch(e){} }
+  room3D.onClick = null;
   if(room3D.controls){ try{ room3D.controls.dispose(); }catch(e){} }
   if(room3D.renderer){
     try{ renderer_dispose_safe(room3D.renderer); }catch(e){}
@@ -11550,6 +11739,12 @@ let ceilingZoneSideIdCounter = 1;
 
 function startNewCeilingZone(itemId, parentId){
   const it = items.find(i=>i.id===itemId); if(!it || !isRoom(it)) return;
+  // 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل): ما بيصير ترسمي جزء جوا جزء مائل (gable) - السقف المائل
+  // نهاية السلسلة بهاد الإصدار (شكله الهرمي/الجملون ما بيدعم "حفرة" جواه بشكل موثوق).
+  if(parentId){
+    const parentZone = ensureCeilingZones(it).find(z=>z.id===parentId);
+    if(parentZone && parentZone.roofType==='gable'){ alert('ما فيك ترسمي جزء جوا سقف مائل (جملون) - جرّبي جزء جوا سقف مسطّح بدالو.'); return; }
+  }
   const parentPts = getCeilingZoneParentPolygonMM(it, parentId);
   if(!parentPts || parentPts.length < 3){ alert('لازم يكون في شكل سقف/جزء كافي الأول.'); return; }
   ceilingZoneEditor = {
@@ -11557,7 +11752,11 @@ function startNewCeilingZone(itemId, parentId){
     draft: {
       anchor: null, bearingDeg: 0,
       sides: [0,1,2,3].map(()=>({ id:'czs'+(ceilingZoneSideIdCounter++), length:1200, angleDeg:90 })),
-      heightOffsetMm: 300
+      heightOffsetMm: 300,
+      // 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل): افتراضيًا كل جزء جديد "مسطّح" (roofType='flat')
+      // متل ما كان دايمًا - القيم تحت (gableRidgeRiseMm/gableSegments) بس بتنستخدم لو المستخدم بدّل
+      // النوع لـ"مائل (جملون)" من زر التبديل بالمحرر تحت.
+      roofType: 'flat', gableRidgeRiseMm: 600, gableSegments: 1
     }
   };
   renderCeilingSidesUI(it);
@@ -11573,12 +11772,32 @@ function startEditCeilingZone(itemId, zoneId){
       anchor: { x: zone.anchor.x, y: zone.anchor.y },
       bearingDeg: zone.bearingDeg||0,
       sides: zone.sides.map(s=>({ ...s })),
-      heightOffsetMm: zone.heightOffsetMm
+      heightOffsetMm: zone.heightOffsetMm,
+      roofType: zone.roofType || 'flat',
+      gableRidgeRiseMm: zone.gableRidgeRiseMm || 600,
+      gableSegments: zone.gableSegments || 1
     }
   };
   renderCeilingSidesUI(it);
 }
 window.startEditCeilingZone = startEditCeilingZone;
+
+// 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل): تبديل نوع الجزء بين "مسطّح" (السلوك الأصلي القديم) و
+// "مائل (جملون)" - شوف buildGableRoofMesh لشرح الشكل الهرمي/الجملون الفعلي بالثري دي.
+function onCeilingZoneRoofTypeField(type){
+  if(!ceilingZoneEditor) return;
+  ceilingZoneEditor.draft.roofType = (type==='gable') ? 'gable' : 'flat';
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+}
+window.onCeilingZoneRoofTypeField = onCeilingZoneRoofTypeField;
+
+function onCeilingZoneGableField(field, value){
+  if(!ceilingZoneEditor) return;
+  if(field==='gableRidgeRiseMm') ceilingZoneEditor.draft.gableRidgeRiseMm = Math.max(1, parseFloat(value)||1);
+  else if(field==='gableSegments') ceilingZoneEditor.draft.gableSegments = Math.max(1, Math.round(parseFloat(value)||1));
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+}
+window.onCeilingZoneGableField = onCeilingZoneGableField;
 
 function pickCeilingZoneAnchorAgain(){
   if(!ceilingZoneEditor) return;
@@ -11646,7 +11865,14 @@ function saveCeilingZoneDraft(){
   const draft = ceilingZoneEditor.draft;
   if(!draft.anchor){ alert('لازم تحددي نقطة بداية الجزء الأول بالضغط على مسقط السقف فوق.'); return; }
   if(!draft.sides || draft.sides.length < 3){ alert('لازم عالأقل 3 أضلاع لتشكيل جزء مغلق.'); return; }
-  if(!draft.heightOffsetMm){ alert('لازم تكتبي رقم ارتفاع غير صفر (موجب = رفع، سالب = خفض).'); return; }
+  // 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل): للجزء المسطّح لسا لازم رقم ارتفاع غير صفر متل ما كان
+  // (0 مالوش معنى لجزء "مرفوع/مخفّض"). للجزء المائل (gable)، heightOffsetMm ممكن يكون صفر بكل راحة
+  // (يعني الحافة/eave بنفس مستوى أبوها) - الشرط هون بيصير على ارتفاع القمة (gableRidgeRiseMm) بدالها.
+  if(draft.roofType === 'gable'){
+    if(!draft.gableRidgeRiseMm || draft.gableRidgeRiseMm <= 0){ alert('لازم تكتبي ارتفاع قمة أكبر من صفر للسقف المائل.'); return; }
+  } else if(!draft.heightOffsetMm){
+    alert('لازم تكتبي رقم ارتفاع غير صفر (موجب = رفع، سالب = خفض).'); return;
+  }
   const parentPts = getCeilingZoneParentPolygonMM(it, ceilingZoneEditor.parentId);
   const zonePts = computeZonePolygonMM(draft);
   if(parentPts && !polygonFullyInsideMM(zonePts, parentPts)){
@@ -11662,12 +11888,18 @@ function saveCeilingZoneDraft(){
       existing.bearingDeg = draft.bearingDeg;
       existing.sides = draft.sides;
       existing.heightOffsetMm = draft.heightOffsetMm;
+      existing.roofType = draft.roofType || 'flat';
+      existing.gableRidgeRiseMm = draft.gableRidgeRiseMm;
+      existing.gableSegments = draft.gableSegments;
     }
   } else {
     zones.push({
       id: 'cz'+(ceilingZoneIdCounter++), parentId: ceilingZoneEditor.parentId,
       anchor: draft.anchor, bearingDeg: draft.bearingDeg,
-      sides: draft.sides, heightOffsetMm: draft.heightOffsetMm
+      sides: draft.sides, heightOffsetMm: draft.heightOffsetMm,
+      roofType: draft.roofType || 'flat',
+      gableRidgeRiseMm: draft.gableRidgeRiseMm,
+      gableSegments: draft.gableSegments
     });
   }
   ceilingZoneEditor = null;
@@ -11681,7 +11913,11 @@ function renderCeilingZonesUI(it){
   const editorEl = document.getElementById('ceilingZoneEditorBox');
   if(!listEl || !editorEl) return;
   const zones = ensureCeilingZones(it);
-  const labelForZone = z => (((z.heightOffsetMm||0)>=0) ? '⬆' : '⬇') + ' ' + Math.abs(Math.round(z.heightOffsetMm||0)) + ' مم';
+  // 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل): جزء "مائل" إلو تسمية مختلفة بالقائمة (🏔 + ارتفاع القمة
+  // وعدد الأقسام) بدل تسمية "⬆/⬇ + مم" العادية يلي بتخص الأجزاء المسطّحة بس.
+  const labelForZone = z => z.roofType === 'gable'
+    ? ('🏔 قمة ' + Math.round(z.gableRidgeRiseMm||0) + 'مم × ' + Math.max(1, Math.round(z.gableSegments||1)) + ' قسم')
+    : (((z.heightOffsetMm||0)>=0) ? '⬆' : '⬇') + ' ' + Math.abs(Math.round(z.heightOffsetMm||0)) + ' مم';
   // 🛠️ إصلاح 2026-09-27 (فحص شامل): أجزاء السقف المرفوعة/المخفّضة موقعها إحداثيات مطلقة ثابتة وقت
   // الرسم - قبل هيك ما كان في أي تحذير دائم لو رجعت غيّرت مقاس/زاوية ضلع بالغرفة بعد ما رسمت جزء
   // بالسقف (كان في بس تأكيد لحظي وقت الحفظ الأول، مش تحذير مستمر). هلق منتحقق من كل جزء في كل مرة
@@ -11705,7 +11941,7 @@ function renderCeilingZonesUI(it){
         <span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);">(${z.sides.length} أضلاع)</span>
         ${outOfBoundsWarning}
         <button class="small" onclick="startEditCeilingZone(${it.id},'${z.id}')" style="font-size:10px;">✏️ عدّل</button>
-        <button class="small" onclick="startNewCeilingZone(${it.id},'${z.id}')" style="font-size:10px;" title="ارسمي جزء جديد جوا هاد الجزء (مستوى إضافي)">➕ جزء جوّاه</button>
+        ${z.roofType==='gable' ? '' : `<button class="small" onclick="startNewCeilingZone(${it.id},'${z.id}')" style="font-size:10px;" title="ارسمي جزء جديد جوا هاد الجزء (مستوى إضافي)">➕ جزء جوّاه</button>`}
         <button class="small danger" onclick="deleteCeilingZoneCascade(${it.id},'${z.id}')" style="font-size:10px;margin-inline-start:auto;">🗑 حذف</button>
       </div>` + renderLevel(z.id, depth+1);
     }).join('');
@@ -11735,8 +11971,27 @@ function renderCeilingZonesUI(it){
           <button class="small" onclick="addCeilingZoneSide()" style="flex:1;">➕ ضلع إضافي</button>
         </div>
         <div style="margin:8px 0;">
-          <label style="font-size:11.5px;">الارتفاع عن الجزء يلي تحته (مم) - رقم موجب = رفع، رقم سالب = خفض</label>
+          <label style="font-size:11.5px;">الارتفاع عن الجزء يلي تحته (مم) - رقم موجب = رفع، رقم سالب = خفض${d.roofType==='gable' ? ' (هون = ارتفاع حافة السقف المائل "eave" - ٠ يعني نفس مستوى أبوها بالضبط)' : ''}</label>
           <input type="number" step="10" value="${Math.round(d.heightOffsetMm||0)}" onchange="onCeilingZoneHeightField(this.value)" style="width:100%;">
+        </div>
+        <!-- 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل، بعتلنا فيديو مرجعي): تبديل نوع الجزء بين مسطّح
+             (السلوك الأصلي) ومائل/جملون (قمة بالنص بترجع تدريجيًا لكل الحواف، متكرر لو أكتر من قسم). -->
+        <div style="margin:10px 0 6px;padding-top:8px;border-top:1px dashed var(--wd-line,#333);">
+          <label style="font-size:11.5px;display:block;margin-bottom:4px;">شكل السقف لهاد الجزء</label>
+          <div class="add-row" style="margin-bottom:6px;">
+            <button class="small" onclick="onCeilingZoneRoofTypeField('flat')" style="flex:1;${d.roofType!=='gable' ? 'background:#0f88cd;color:#fff;' : ''}">▭ مسطّح (رفع/خفض عادي)</button>
+            <button class="small" onclick="onCeilingZoneRoofTypeField('gable')" style="flex:1;${d.roofType==='gable' ? 'background:#0f88cd;color:#fff;' : ''}">🏔 مائل (جملون)</button>
+          </div>
+          ${d.roofType==='gable' ? `
+          <p class="hint" style="margin:2px 0 6px;font-size:10.5px;">⚠️ هاد الشكل مبني على افتراض إنو الجزء مستطيل (٤ أضلاع بزاوية ٩٠° - نفس الافتراضي فوق). بعد ما تحفظي، تقدر تعدّلي ارتفاع القمة وطول كل قسم بالضغط مباشرة على العلامات (الكرات) فوق السقف بالمشهد ثلاثي الأبعاد.</p>
+          <div style="margin-bottom:6px;">
+            <label style="font-size:11.5px;">ارتفاع القمة فوق الحافة (مم)</label>
+            <input type="number" step="10" min="1" value="${Math.round(d.gableRidgeRiseMm||600)}" onchange="onCeilingZoneGableField('gableRidgeRiseMm',this.value)" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-size:11.5px;">عدد الأقسام المتكررة (قمة+وادي كل قسم، متل الفيديو)</label>
+            <input type="number" step="1" min="1" value="${Math.max(1, Math.round(d.gableSegments||1))}" onchange="onCeilingZoneGableField('gableSegments',this.value)" style="width:100%;">
+          </div>` : ''}
         </div>
         <div class="add-row">
           <button class="small" onclick="saveCeilingZoneDraft()" style="flex:1;background:var(--wd-ok,#1e7a3d);color:#fff;">✅ حفظ الجزء</button>
