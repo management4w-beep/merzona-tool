@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.26';
+  var CURRENT_VERSION = '2026-09-27.1';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -130,9 +130,20 @@
 
   // متل api() تمامًا بس ما بترمي خطأ عالحالات 4xx/5xx - بترجع نفس جسم JSON يلي بعتو السيرفر
   // (فيه رسالة الخطأ بالعربي بحقل error) حتى نقدر نعرضها للمستخدم بدل رسالة عامة.
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حرج بالأمان): ضفنا _httpStatus لجسم الرد (بدون ما نأثر على
+  // أي استخدام قديم إلها - كل الاستخدامات القديمة بتفحص حقول محددة زي r.token/r.error/r.hasAccount
+  // وما رح تتأثر بوجود حقل إضافي). سبب الإضافة: revealWithAccountCheck تحت كانت "بتفتح الأداة" لأي
+  // رد غير متوقع الشكل - بما فيها رد 403 صريح من السيرفر يعني "هاد الجهاز ملغى/مش معتمد" (شوف
+  // GET /users/status بـserver.js) - يعني جهاز موظف انلغيت صلاحيته كان ممكن يضل قادر يفوت عالأداة.
+  // هلق منقدر نفرّق بين "خطأ اتصال حقيقي" (منكمل بالسلوك القديم - ما نحبس حدا بسبب مشكلة نت) و"السيرفر
+  // رفض صراحة" (لازم نمنع الدخول فعليًا).
   function apiUsers(path, opts){
     return fetch(ACCESS_SERVER_URL + path, opts).then(function(r){
-      return r.json().catch(function(){ return {}; });
+      return r.json().catch(function(){ return {}; }).then(function(body){
+        body = body || {};
+        body._httpStatus = r.status;
+        return body;
+      });
     });
   }
 
@@ -258,12 +269,21 @@
         }).catch(function(){ showLoginForm(deviceToken, r.username); });
       } else if(r && r.hasAccount === false){
         showCreateAccountForm(deviceToken);
+      } else if(r && r._httpStatus === 403){
+        // 🛠️ إصلاح 2026-09-27: هاد رفض صريح من السيرفر (الجهاز ملغى/مش معتمد - شوف GET /users/status
+        // بـserver.js) مش مجرد رد غير متوقع الشكل. قبل هالإصلاح كنا نكمل بـreveal() هون كمان (باغ
+        // أمان حقيقي: جهاز موظف انلغيت صلاحيته كان يضل يفوت عالأداة). هلق منمسح حالة "معتمد" المخزنة
+        // ومنعيد تحميل الصفحة، حتى تفوت ببوابة الدخول العادية من الأول (طلب دخول جديد لازم موافقة).
+        try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
+        location.reload();
       } else {
-        // رد غير متوقع (مثلاً الجهاز مش approved من نظام الواتساب لأي سبب) - منكمل بالوضع
-        // القديم حتى ما حدا ينحبس برا الأداة بسبب ميزة جديدة.
+        // رد غير متوقع فعلًا (شكل غير معروف، مش رفض صريح 403) - منكمل بالوضع القديم حتى ما حدا
+        // ينحبس برا الأداة بسبب مشكلة تقنية بميزة جديدة (مثلاً السيرفر ما عندو هالمسار أصلًا).
         reveal();
       }
     }).catch(function(){
+      // خطأ اتصال حقيقي (مش رد من السيرفر إطلاقًا) - منكمل بالوضع القديم، هاي الحالة يلي التعليق
+      // الأصلي قصدها فعليًا ("ما حدا ينحبس بسبب مشكلة نت").
       reveal();
     });
   }
@@ -2340,6 +2360,14 @@ try{
 }catch(e){
   itemPriceMemory = {};
 }
+// 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حقيقي): "الأسعار المحفوظة تلقائيًا" (itemPriceMemory) كانت
+// مفتاحها اسم البند بس، بدون تمييز بين فرع الإمارات (درهم) وفرع دمشق/سوريا (دولار أو ليرة سورية) -
+// فسعر اتكتب لبند معيّن بعرض إماراتي (مثلاً 350 درهم) كان ممكن ينقترح تلقائيًا كنفس الرقم 350 بس
+// لعرض سوري لاحق (كأنو 350 دولار أو 350 ليرة - فرق قيمة حقيقي كبير). الحل: نضيف الفرع والعملة الحالية
+// لمفتاح التخزين نفسه، فكل تركيبة (فرع+عملة+اسم بند) إلها سعرها المحفوظ الخاص فيها لحالها.
+function getPriceMemoryKey(itemName){
+  return getCurrentBranch() + '|' + getCurrentCurrencyKey() + '|' + itemName;
+}
 
 function getInitials(name){
   if(!name) return '';
@@ -2376,8 +2404,8 @@ function applyItemChoice(tr, idx){
     removeLinkedSpecsIfUnused(previousItemName);
   }
   const priceInput = tr.querySelector('.price');
-  if(priceInput && !priceInput.value && itemPriceMemory[item.en] !== undefined){
-    priceInput.value = itemPriceMemory[item.en];
+  if(priceInput && !priceInput.value && itemPriceMemory[getPriceMemoryKey(item.en)] !== undefined){
+    priceInput.value = itemPriceMemory[getPriceMemoryKey(item.en)];
     tr.querySelector('.line-total').dataset.manual = '';
   }
   renumber();
@@ -2455,11 +2483,17 @@ function renameItemEverywhere(oldName, newName){
       }
     });
   });
-  if(itemPriceMemory[oldName] !== undefined){
-    itemPriceMemory[newName] = itemPriceMemory[oldName];
-    delete itemPriceMemory[oldName];
-    try{ localStorage.setItem('merzona-price-memory', JSON.stringify(itemPriceMemory)); }catch(e){}
-  }
+  // 🛠️ 2026-09-27: المفاتيح صارت "فرع|عملة|اسم" (شوف getPriceMemoryKey) - هون منهاجر كل مفتاح
+  // بينتهي بنفس الاسم القديم (بغض النظر عن الفرع/العملة يلي انحفظ تحتها) للاسم الجديد.
+  const oldSuffix = '|' + oldName, newSuffixLen = oldName.length;
+  Object.keys(itemPriceMemory).forEach(key=>{
+    if(key === oldName || key.endsWith(oldSuffix)){
+      const newKey = key === oldName ? newName : key.slice(0, key.length - newSuffixLen) + newName;
+      itemPriceMemory[newKey] = itemPriceMemory[key];
+      delete itemPriceMemory[key];
+    }
+  });
+  try{ localStorage.setItem('merzona-price-memory', JSON.stringify(itemPriceMemory)); }catch(e){}
 }
 
 function autoTranslateRow(el){
@@ -2868,16 +2902,26 @@ function restrictToNumbersAndPlus(el){ restrictMeasureChars(el); }
 
 function evalMeasureExpr(raw){
   if(raw == null) return null;
-  const trimmed = String(raw).trim();
+  let trimmed = String(raw).trim();
   if(!trimmed) return null;
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل): قبل هيك، صيغة فيها إشارتين متتاليتين متل "3000+-250" (نسيان حذف
+  // + قبل ما تكتب -) كانت ترفض كتعبير حسابي بالكامل (ما تطابق الشرط تحت) وترجع null - والكود يلي
+  // بينادي هالدالة بمعظم الأماكن كان عندو احتياطي parseFloat(input) يقص الرقم لأول جزء صحيح بس
+  // ("3000")، فـ"-250" كانت تختفي بصمت بدون أي رسالة تنبّه المستخدم إنو الرقم يلي انحفظ مش يلي قصده.
+  // هلق منطبّع الإشارات المتتالية أول (قاعدة رياضية قياسية: +- أو -+ = -، ++ أو -- = +) قبل التحقق،
+  // فالتعبير هلق بينحسب صح (2750) بدل ما ينرفض ويتقص غلط.
+  trimmed = trimmed.replace(/\s+/g,'').replace(/([+\-]){2,}/g, function(run){
+    const negCount = (run.match(/-/g)||[]).length;
+    return negCount % 2 === 0 ? '+' : '-';
+  });
   // لازم يكون فيه أقله إشارة وحدة (+ أو -) بعد أول رقم عشان نعتبره "تعبير جمع/طرح حقيقي" - رقم عادي
   // لحاله (حتى لو سالب متل "-50") منرجع له null قصدًا، يعني خليه متل ما هو وين ما كان مستخدم كرقم عادي.
-  if(!/^-?[0-9.\s]+([+-][0-9.\s]+)+$/.test(trimmed)) return null;
-  const tokens = trimmed.match(/[+-]?[0-9.\s]+/g);
+  if(!/^-?[0-9.]+([+-][0-9.]+)+$/.test(trimmed)) return null;
+  const tokens = trimmed.match(/[+-]?[0-9.]+/g);
   if(!tokens || tokens.length < 2) return null;
   let sum = 0, any = false;
   for(const tok of tokens){
-    const n = parseFloat(tok.replace(/\s/g,''));
+    const n = parseFloat(tok);
     if(isNaN(n)) continue;
     sum += n; any = true;
   }
@@ -2905,7 +2949,7 @@ function onPriceInput(el){
   const tr = el.closest('tr');
   const itemName = tr.querySelector('.item-input').value.trim();
   if(itemName && el.value){
-    itemPriceMemory[itemName] = el.value;
+    itemPriceMemory[getPriceMemoryKey(itemName)] = el.value;
     try{ localStorage.setItem('merzona-price-memory', JSON.stringify(itemPriceMemory)); }catch(e){}
   }
   onDimensionInput(el);
@@ -2944,8 +2988,8 @@ function addQtyRow(w='',h='',qty='1',price='', selectedIdx=-1){
     tr.dataset.itemName = ITEMS[selectedIdx].en;
     applyLinkedSpecs(ITEMS[selectedIdx]);
     const priceInput = tr.querySelector('.price');
-    if(priceInput && !priceInput.value && itemPriceMemory[ITEMS[selectedIdx].en] !== undefined){
-      priceInput.value = itemPriceMemory[ITEMS[selectedIdx].en];
+    if(priceInput && !priceInput.value && itemPriceMemory[getPriceMemoryKey(ITEMS[selectedIdx].en)] !== undefined){
+      priceInput.value = itemPriceMemory[getPriceMemoryKey(ITEMS[selectedIdx].en)];
     }
   }
   renumber();
@@ -3212,7 +3256,14 @@ function recalcSummary(){
   const wordsAr = grand>0 ? 'فقط ' + numToWordsAr(grand) + ' ' + curCfg.arWord : 'فقط — ' + curCfg.arWord;
   document.getElementById('sum-words-ar').textContent = wordsAr;
 
-  if(grand > 150000){
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ): هاد الشرط كان يقارن "grand" برقم ثابت 150000 بدون ما يتحقق
+  // من العملة الحالية - الرقم 150000 مقصود بالدرهم (فرع الإمارات) بس. فرع سوريا ممكن يكون grand
+  // بالدولار أو بالليرة السورية (وسعر صرف الليرة تقريبًا 136.5 لليرة الواحدة)، يعني عرض سعر سوري
+  // بس بقيمة ~1,100 دولار (150,000 ليرة) كان عم يفعّل هالشرط غلط تمامًا (كان لازم يكون أكبر بكتير).
+  // هلق منطبّق هالقاعدة بس لما العملة فعليًا درهم (يعني فرع الإمارات) - ما عنا رقم تحويل درهم⇄دولار
+  // موثوق بالكود لنعمل نفس الشي لفرع سوريا، فلو حمدي بدو قاعدة مشابهة (تسليم 60 يوم للطلبات الكبيرة)
+  // لفرع سوريا كمان، بس يعطينا الرقم بالدولار/الليرة المطلوب ومنضيفه بنفس أسلوب SYRIA_LOW_TOTAL_THRESHOLD_USD.
+  if(getCurrentCurrencyKey() === 'aed' && grand > 150000){
     const deliveryEl = document.getElementById('delivery-days');
     if(deliveryEl && deliveryEl.value !== '60') deliveryEl.value = '60';
   }
@@ -5506,6 +5557,11 @@ window.__debugPdfCapture = async function(opts){
   }
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
   await new Promise(r => setTimeout(r, 150));
+  // 🛠️ 2026-09-27 (فحص شامل): نفس تصليح autosizeTextareasForPrint يلي انضاف لـsaveToGoogleDriveInner -
+  // أداة تشخيص بس هاي (مش مستخدمة من الواجهة العادية)، بس منضيفها هون كمان حتى تعكس تمامًا نفس مسار
+  // الالتقاط الحقيقي ولا تضلل أي تشخيص مستقبلي بمشكلة نص مقصوص غير حقيقية.
+  if(typeof autosizeTextareasForPrint === 'function') autosizeTextareasForPrint();
+  await new Promise(r => requestAnimationFrame(r));
   window.scrollTo(0, 0);
   if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
   const pageEl = document.querySelector('.page');
@@ -5549,6 +5605,7 @@ window.__debugPdfCapture = async function(opts){
     await worker;
     canvas = worker.prop && worker.prop.canvas;
   } finally {
+    if(typeof restoreTextareaHeights === 'function') restoreTextareaHeights();
     document.body.classList.remove('pdf-capturing');
     if(wasMobileMode) document.body.classList.add('mode-mobile');
     if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
@@ -5584,6 +5641,9 @@ window.__debugPdfContainer = async function(opts){
   document.body.classList.add('pdf-capturing');
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
   await new Promise(r => setTimeout(r, 150));
+  // 🛠️ 2026-09-27 (فحص شامل): نفس تصليح autosizeTextareasForPrint يلي انضاف لـsaveToGoogleDriveInner.
+  if(typeof autosizeTextareasForPrint === 'function') autosizeTextareasForPrint();
+  await new Promise(r => requestAnimationFrame(r));
   window.scrollTo(0, 0);
   if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
   const pageEl = document.querySelector('.page');
@@ -5621,6 +5681,7 @@ window.__debugPdfContainer = async function(opts){
     await worker.toCanvas();
     canvas = worker.prop && worker.prop.canvas;
   } finally {
+    if(typeof restoreTextareaHeights === 'function') restoreTextareaHeights();
     document.body.classList.remove('pdf-capturing');
     if(wasMobileMode) document.body.classList.add('mode-mobile');
     if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
@@ -5650,6 +5711,9 @@ window.__debugPdfFix = async function(opts){
   document.body.classList.add('pdf-capturing');
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
   await new Promise(r => setTimeout(r, 150));
+  // 🛠️ 2026-09-27 (فحص شامل): نفس تصليح autosizeTextareasForPrint يلي انضاف لـsaveToGoogleDriveInner.
+  if(typeof autosizeTextareasForPrint === 'function') autosizeTextareasForPrint();
+  await new Promise(r => requestAnimationFrame(r));
   window.scrollTo(0, 0);
   if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
   const pageEl = document.querySelector('.page');
@@ -5685,6 +5749,7 @@ window.__debugPdfFix = async function(opts){
     await worker.toCanvas();
     canvas = worker.prop && worker.prop.canvas;
   } finally {
+    if(typeof restoreTextareaHeights === 'function') restoreTextareaHeights();
     document.body.classList.remove('pdf-capturing');
     if(wasMobileMode) document.body.classList.add('mode-mobile');
     if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
@@ -5714,6 +5779,9 @@ window.__debugPdfFull = async function(opts){
   document.body.classList.add('pdf-capturing');
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
   await new Promise(r => setTimeout(r, 150));
+  // 🛠️ 2026-09-27 (فحص شامل): نفس تصليح autosizeTextareasForPrint يلي انضاف لـsaveToGoogleDriveInner.
+  if(typeof autosizeTextareasForPrint === 'function') autosizeTextareasForPrint();
+  await new Promise(r => requestAnimationFrame(r));
   window.scrollTo(0, 0);
   if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
   const pageEl = document.querySelector('.page');
@@ -5745,6 +5813,7 @@ window.__debugPdfFull = async function(opts){
     }
     pdfBlob = await worker.toCanvas().toPdf().outputPdf('blob');
   } finally {
+    if(typeof restoreTextareaHeights === 'function') restoreTextareaHeights();
     document.body.classList.remove('pdf-capturing');
     if(wasMobileMode) document.body.classList.add('mode-mobile');
     if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
@@ -5939,9 +6008,17 @@ window.wdApplyBack = function(results){
     const tr = document.querySelector('#qty-rows tr[data-row-uid="'+r.uid+'"]');
     if(!tr) return;
     const wInput = tr.querySelector('.w-input'), hInput = tr.querySelector('.h-input');
-    if(wInput) wInput.value = Math.round(r.w);
-    if(hInput) hInput.value = Math.round(r.h);
-    if(wInput) onDimensionInput(wInput);
+    // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حرج): wdSaveAndClose بيبعت نتائج *كل* بنود عرض السعر
+    // (مش بس البند يلي فتحته فعليًا بأداة التصميم وعدّلته) - فكانت onDimensionInput تنّادى هون لكل
+    // صف بدون استثناء، حتى لو نفس الرقم بالضبط بدون أي تغيير حقيقي، وهيك كانت تصفّر أي سعر يدوي
+    // (متفاوض عليه) على أي بند تاني بنفس عرض السعر لمجرد إنك فتحت وحفظت تصميم بند واحد بس. هلق
+    // منقارن الرقم الجديد بالقديم أول، ومنمسح السعر اليدوي بس للبند يلي فعلاً تغيّر مقاسه.
+    const newW = Math.round(r.w), newH = Math.round(r.h);
+    const wChanged = !!wInput && String(wInput.value) !== String(newW);
+    const hChanged = !!hInput && String(hInput.value) !== String(newH);
+    if(wInput) wInput.value = newW;
+    if(hInput) hInput.value = newH;
+    if(wChanged || hChanged){ onDimensionInput(wInput || hInput); }
 
     const itemInput = tr.querySelector('.item-input');
     let linkedIdx = findItemIndexByName(itemInput ? itemInput.value : '');
@@ -7405,7 +7482,21 @@ function updateHrMountHint(it){
 }
 function onHandrailDimModeChange(mode){
   const it = getSelected(); if(!it) return;
+  if(it.hrDimMode === mode) return; // ما تغيّر شي فعليًا - ما في داعي لأي إعادة حساب
   pushHistory();
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حرج، لقيناه بفحصين منفصلين): قبل هالإصلاح، تبديل الوضعية
+  // كان بس يبدّل hrDimMode ويعيد حساب it.width من الحقل التاني (hrPanelWidth أو hrTotalLength) بدون
+  // ما يتأكد إنو الحقل هاد أصلًا بيعكس نفس الطول الحقيقي - فمجرد الضغط على زر تبديل الوضعية (بدون ما
+  // تكتب أي رقم) كان ممكن يغيّر الطول الفعلي المستخدم بالسعر والمشتريات بصمت (مثلاً من 6600مم
+  // لـ4815مم). هلق منحسب الطول الفعلي الحالي *قبل* التبديل، ومنستخدمه لنملأ حقل الوضعية الجديدة،
+  // حتى يضل نفس الطول الحقيقي تمامًا بعد التبديل - ولا ينتغير إلا إذا المستخدم كتب رقم جديد بنفسه.
+  const effectiveTotalMM = getHandrailTotalLength(it);
+  if(mode === 'panel'){
+    const n = Math.max(1, it.hrPanelCount || 1);
+    it.hrPanelWidth = Math.max(1, (effectiveTotalMM - (n-1)*HANDRAIL_GAP_MM) / n);
+  } else {
+    it.hrTotalLength = Math.max(1, effectiveTotalMM);
+  }
   it.hrDimMode = mode;
   document.getElementById('btnHrDimTotal').classList.toggle('active', mode==='total');
   document.getElementById('btnHrDimPanel').classList.toggle('active', mode==='panel');
@@ -8880,10 +8971,18 @@ function syncRoomSegmentRowDims(it, seg){
   if(tr){
     const wInput = tr.querySelector('.w-input');
     const hInput = tr.querySelector('.h-input');
+    // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حرج): هاي الدالة كانت تنّادى لأي تعديل عالضلع/القسم -
+    // حتى حقل "جدار من الأرض" (sillHeightMm) يلي أصلًا ما بيأثر على عرض/ارتفاع البند إطلاقًا - وكانت
+    // تمسح السعر اليدوي (dataset.manual) دايمًا بدون شرط. هلق منمسحه بس إذا العرض أو الارتفاع
+    // *فعليًا* تغيّر عن القيمة الحالية بالسطر، مش بمجرد ما الدالة انّادت.
+    const wChanged = !!wInput && String(wInput.value) !== String(w);
+    const hChanged = !!hInput && String(hInput.value) !== String(h);
     if(wInput) wInput.value = w;
     if(hInput) hInput.value = h;
-    const lt = tr.querySelector('.line-total');
-    if(lt) lt.dataset.manual = '';
+    if(wChanged || hChanged){
+      const lt = tr.querySelector('.line-total');
+      if(lt) lt.dataset.manual = '';
+    }
   }
   const linkedItem = items.find(i => i.sourceRowUid === seg.rowUid);
   if(linkedItem){
@@ -9081,6 +9180,14 @@ window.addRoomSideFromControls = addRoomSideFromControls;
 function removeRoomSide(itemId, sideId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   if((it.roomSides||[]).length <= 3){ alert('لازم يبقى عالأقل 3 أضلاع لتشكيل مساحة مغلقة.'); return; }
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل): قبل هيك، حذف ضلع فيه أقسام مصممة (مربوطة بسطر بجدول عرض السعر)
+  // كان يفصلها بصمت بدون أي تأكيد - رغم إنو toggleRoomSegKind (تحويل جزء بس لحائط) بتسأل تأكيد قبل
+  // ما تعمل بالضبط نفس نوع الفصل. هلق منسأل نفس التأكيد هون كمان.
+  const side = (it.roomSides||[]).find(s=>s.id===sideId);
+  const hasDesignedSegs = side && (side.segments||[]).some(seg=>seg.rowUid);
+  if(hasDesignedSegs){
+    if(!confirm('هاد الضلع فيه جزء أو أكتر مصمم ومربوط بسطر بجدول عرض السعر. حذف الضلع رح يفك الربط (السطر بجدول العرض رح يضل موجود لحاله بدون ما ينحذف، بس ما رح يضل مربوط فيه). بدك تكمل؟')) return;
+  }
   pushHistory();
   it.roomSides = it.roomSides.filter(s=>s.id!==sideId);
   renderRoomSidesUI(it);
@@ -9127,6 +9234,10 @@ function removeRoomSideSegment(itemId, sideId, segId){
   ensureRoomSideSegments(side);
   if(side.segments.length <= 1) return;
   const idx = side.segments.findIndex(g=>g.id===segId); if(idx<0) return;
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل): نفس تأكيد toggleRoomSegKind - حذف قسم مصمم كان يفصل تصميمه بصمت.
+  if(side.segments[idx].rowUid){
+    if(!confirm('هاد الجزء مصمم ومربوط بسطر بجدول عرض السعر. حذفه رح يفك الربط (السطر بجدول العرض رح يضل موجود لحاله بدون ما ينحذف، بس ما رح يضل مربوط فيه). بدك تكمل؟')) return;
+  }
   pushHistory();
   const removed = side.segments[idx];
   if(idx > 0){ side.segments[idx-1].length += removed.length; }
@@ -11571,13 +11682,28 @@ function renderCeilingZonesUI(it){
   if(!listEl || !editorEl) return;
   const zones = ensureCeilingZones(it);
   const labelForZone = z => (((z.heightOffsetMm||0)>=0) ? '⬆' : '⬇') + ' ' + Math.abs(Math.round(z.heightOffsetMm||0)) + ' مم';
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل): أجزاء السقف المرفوعة/المخفّضة موقعها إحداثيات مطلقة ثابتة وقت
+  // الرسم - قبل هيك ما كان في أي تحذير دائم لو رجعت غيّرت مقاس/زاوية ضلع بالغرفة بعد ما رسمت جزء
+  // بالسقف (كان في بس تأكيد لحظي وقت الحفظ الأول، مش تحذير مستمر). هلق منتحقق من كل جزء في كل مرة
+  // تترسم فيها القائمة، ومنبيّن تحذير واضح جنبه لو صار خارج حدود أبوه الحالية (السقف الأساسي تغيّر
+  // شكله، أو الجزء الأب نفسه تغيّر) - بدون ما نمنع الاستخدام (ممكن يكون قصد المستخدم)، بس هلق بيصير
+  // شايف المشكلة بدل ما يفاجأ فيها بس بالثري دي.
   function renderLevel(parentId, depth){
     return zones.filter(z=>z.parentId===parentId).map((z)=>{
       const isEditingThis = !!(ceilingZoneEditor && ceilingZoneEditor.itemId===it.id && ceilingZoneEditor.zoneId===z.id);
+      let outOfBoundsWarning = '';
+      try{
+        const parentPts = getCeilingZoneParentPolygonMM(it, z.parentId);
+        const zonePts = computeZonePolygonMM(z);
+        if(parentPts && parentPts.length>=3 && !polygonFullyInsideMM(zonePts.slice(0,-1), parentPts)){
+          outOfBoundsWarning = `<span style="font-size:10.5px;color:#e0554f;font-weight:700;" title="هاد الجزء صار (كله أو جزء منو) خارج حدود الشكل يلي المفروض يكون جواه - على الأغلب لأنك غيّرت مقاس/زاوية ضلع بالغرفة أو بالجزء الأب بعد ما رسمت هاد الجزء. راجع موقعه (🖱️ غيّر الموقع بالتعديل).">⚠ خارج الحدود الحالية</span>`;
+        }
+      }catch(e){ /* تجاهل - التحذير تحسيني بس، ما لازم يكسر عرض القائمة */ }
       return `
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:4px;margin-inline-start:${depth*18}px;${isEditingThis?'background:rgba(15,136,205,0.08);':''}">
         <span style="font-size:12px;font-weight:700;">${'▫'.repeat(depth+1)} جزء ${labelForZone(z)}</span>
         <span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);">(${z.sides.length} أضلاع)</span>
+        ${outOfBoundsWarning}
         <button class="small" onclick="startEditCeilingZone(${it.id},'${z.id}')" style="font-size:10px;">✏️ عدّل</button>
         <button class="small" onclick="startNewCeilingZone(${it.id},'${z.id}')" style="font-size:10px;" title="ارسمي جزء جديد جوا هاد الجزء (مستوى إضافي)">➕ جزء جوّاه</button>
         <button class="small danger" onclick="deleteCeilingZoneCascade(${it.id},'${z.id}')" style="font-size:10px;margin-inline-start:auto;">🗑 حذف</button>

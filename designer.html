@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.6';
+  var CURRENT_VERSION = '2026-09-27.1';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -7150,16 +7150,24 @@ function restrictMeasureChars(el){
 
 function evalMeasureExpr(raw){
   if(raw == null) return null;
-  const trimmed = String(raw).trim();
+  let trimmed = String(raw).trim();
   if(!trimmed) return null;
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل - نفس باغ index.html): كان لو كتب المستخدم مثلاً "3000+-250"
+  // (يعني +250 لكن غلط بالطباعة، أو طرح مباشرة بعد جمع) كانت الدالة ترجع null وتتجاهل الرقم كامل
+  // (فيتصرف كإنه القيمة الأصلية "3000" فقط تحفظ بدون طرح الـ250!). هلق منطبّع الإشارات المتكررة
+  // (+- أو -- أو ++) لإشارة وحدة صحيحة قبل التحقق، تمامًا متل ما تم بـ index.html.
+  trimmed = trimmed.replace(/\s+/g,'').replace(/([+\-]){2,}/g, function(run){
+    const negCount = (run.match(/-/g)||[]).length;
+    return negCount % 2 === 0 ? '+' : '-';
+  });
   // لازم يكون فيه أقله إشارة وحدة (+ أو -) بعد أول رقم عشان نعتبره "تعبير جمع/طرح حقيقي" - رقم عادي
   // لحاله (حتى لو سالب متل "-50") منرجع له null قصدًا، يعني خليه متل ما هو وين ما كان مستخدم كرقم عادي.
-  if(!/^-?[0-9.\s]+([+-][0-9.\s]+)+$/.test(trimmed)) return null;
-  const tokens = trimmed.match(/[+-]?[0-9.\s]+/g);
+  if(!/^-?[0-9.]+([+-][0-9.]+)+$/.test(trimmed)) return null;
+  const tokens = trimmed.match(/[+-]?[0-9.]+/g);
   if(!tokens || tokens.length < 2) return null;
   let sum = 0, any = false;
   for(const tok of tokens){
-    const n = parseFloat(tok.replace(/\s/g,''));
+    const n = parseFloat(tok);
     if(isNaN(n)) continue;
     sum += n; any = true;
   }
@@ -9105,9 +9113,11 @@ function toggleArchMerge(itemId){
 function editTotalDim(itemId, axis, currentMM){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const label = axis === 'w' ? 'العرض الكلي' : 'الارتفاع الكلي';
-  const input = prompt(`أدخل ${label} الجديد بالمليمتر:`, Math.round(currentMM));
+  const input = prompt(`أدخل ${label} الجديد بالمليمتر (تقدر تكتب معادلة متل 3000+-250):`, Math.round(currentMM));
   if(input === null) return;
-  const newMM = parseFloat(input);
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ): كان بستخدم parseFloat لحاله فما كان يدعم كتابة معادلة
+  // جمع/طرح متل ما بالأداة الرئيسية index.html، هلق منستخدم evalMeasureExpr نفس منطق index.html.
+  const newMM = evalMeasureExpr(input) ?? parseFloat(input);
   if(!newMM || newMM <= 0) return;
   pushHistory();
   if(axis === 'w') it.width = newMM; else it.height = newMM;
@@ -9126,9 +9136,10 @@ function editLeafDim(itemId, leafId, axis, currentMM){
     alert('هذا القياس هو نفس القياس الكلي — عدّله من حقل ' + (axis==='x' ? '"العرض الكلي"' : '"الارتفاع الكلي"') + ' بالأعلى.');
     return;
   }
-  const input = prompt('أدخل القياس الجديد بالمليمتر:', Math.round(currentMM));
+  const input = prompt('أدخل القياس الجديد بالمليمتر (تقدر تكتب معادلة متل 3000+-250):', Math.round(currentMM));
   if(input === null) return;
-  const newMM = parseFloat(input);
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ): نفس إصلاح editTotalDim فوق - دعم معادلات evalMeasureExpr.
+  const newMM = evalMeasureExpr(input) ?? parseFloat(input);
   if(!newMM || newMM <= 0) return;
   const { splitNode, idx } = gov;
   const target = splitNode.children[idx];
@@ -9518,8 +9529,12 @@ function renderNode(it, node, x, y, w, h, scale, isDoor, out, netMap){
       const apex = triangleApex(x,y,x+w,y+h,node.type);
       if(apex) out.symbols.push(handleShapeAt(apex.x, apex.y, 'var(--wd-amber)'));
     }
-    const net = netMap[node.id] || { w: w/scale, h: h/scale };
-    const mmW = Math.round(net.w), mmH = Math.round(net.h);
+    // 🛠️ إصلاح 2026-09-27 (فحص شامل - بند 13): نفس الباغ اللي انصلح بـ index.html بتاريخ 2026-09-25
+    // (شوف هناك للشرح الكامل) - كان الرقم المعروض/القابل للتعديل هون هو مقاس الزجاج الصافي (net) مش
+    // المقاس الإجمالي الخارجي، فلما يدخّل المستخدم رقم قاصد فيه المقاس من برا لبرا كان بينحسب غلط.
+    // هلق صار المقاس المعروض/المعدَّل هو outer (خارجي) متل index.html تمامًا.
+    const outerW = w/scale, outerH = h/scale;
+    const mmW = Math.round(outerW), mmH = Math.round(outerH);
     if(w > 34 && h > 16){
       out.dims.push(`<text x="${x+w/2}" y="${y+h-16}" font-size="14" text-anchor="middle" fill="var(--wd-amber)" opacity="0.95"
         font-family="var(--wd-font-mono)" font-weight="700" style="cursor:pointer;" onclick="event.stopPropagation();editLeafDim(${it.id},'${node.id}','x',${mmW})">${mmW}</text>`);
