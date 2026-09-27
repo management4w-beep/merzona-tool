@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-26.25';
+  var CURRENT_VERSION = '2026-09-26.26';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -5178,6 +5178,17 @@ async function saveToGoogleDriveInner(){
     document.body.classList.add('pdf-capturing');
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     await new Promise(r => setTimeout(r, 150)); // مهلة صغيرة إضافية لثبات الخط بعد الجاهزية
+    // 🛠️ إصلاح 2026-09-27 (ملاحظة حمدي: "فيه سطر مخفي ومش واضح للقراءة عند الحفظ لجوجل درايف" -
+    // سكرين شوت بيّن جملة بمواصفات المقطع مقصوصة/متراكبة) - كل <textarea> بالصفحة إلها ارتفاع ثابت
+    // (px) محفوظ بالـHTML، وبعض الجمل (متل جملة "Thermal Break System" العربي) أطول من هيك ارتفاع
+    // بحالات معيّنة (خط/عرض شاشة مختلف عن يلي انحسب عليه الارتفاع الأصلي)، فلما بتنلقط الصفحة
+    // لجوجل درايف (body.pdf-capturing textarea{overflow:hidden}) بينقص/بيتراكب آخر سطر. مسار الطباعة
+    // العادي (window.print) كان أصلًا بيحل هالمشكلة عبر autosizeTextareasForPrint() قبل الالتقاط
+    // (وrestoreTextareaHeights بعدها) - بس هالمسار (الحفظ لجوجل درايف/واتساب، يلي بيستخدم html2pdf.js
+    // منفصل عن نافذة الطباعة) كان ناقص نفس الخطوة تمامًا. هلق ضفناها هون كمان، وfinally تحت بيرجّع
+    // الارتفاعات الأصلية بعد ما تخلص كل محاولات الالتقاط (بالضبط متل afterprint).
+    autosizeTextareasForPrint();
+    await new Promise(r => requestAnimationFrame(r)); // نستنى فريم واحد حتى يثبت الارتفاع الجديد بالـDOM قبل الالتقاط
 
     window.scrollTo(0, 0); // نصفّر أي انزياح Scroll قبل الالتقاط - أهم شي مع صفحة RTL حتى ما ينلقط جزء بس من الصفحة
     applyElevationPrintGrouping();
@@ -5450,6 +5461,7 @@ async function saveToGoogleDriveInner(){
       // نرجّع .page الحقيقية لحالتها الأصلية قبل الالتقاط - نشيل الفواصل اليدوية ونرجّع الكلاس
       manualPageBreakSpacers.forEach(sp=>{ if(sp.parentNode) sp.parentNode.removeChild(sp); });
       manualPageBreakEls.forEach(el=>{ el.classList.add('page-break-before'); });
+      restoreTextareaHeights(); // 🛠️ 2026-09-27: نرجّع ارتفاعات كل الـtextarea لقيمتها الأصلية بعد الالتقاط (شوف autosizeTextareasForPrint فوق)
       document.body.classList.remove('pdf-capturing');
       if(wasMobileMode) document.body.classList.add('mode-mobile');
       revertElevationPrintGrouping();
