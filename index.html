@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-27.2';
+  var CURRENT_VERSION = '2026-09-27.3';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -4272,9 +4272,46 @@ function onBranchChange(){
     const prefix = getBranchConfig(branch).refPrefix;
     const current = (refEl.value||'').trim();
     const m = current.match(/^[A-Za-z]-?Q-(.*)$/i);
+    const oldPrefix = current.charAt(0);
     refEl.value = m ? (prefix + '-Q-' + m[1]) : current;
+    // 🛠️ إصلاح 2026-09-27 (طلب حمدي: "الرقم اخدو نفس تسلسل تبع سوريا") - تبديل حرف الفرع هون بيحافظ
+    // على نفس أرقام التسلسل عمدًا (قرار معماري موثّق فوق - حتى ما نضيع رقم كتبه المستخدم يدويًا)، بس
+    // هيك ممكن يصير (متل ما صار فعليًا مع حمدي) إنو الرقم الناتج بعد تبديل الحرف يطلع مطابق تمامًا
+    // لرقم عرض سعر تاني موجود أصلًا بالفرع الجديد (تصادم حقيقي، مش بس تشابه بالشكل). هلق منفحص هيك
+    // تصادم بصمت بالخلفية (فحص فقط - بدون إنشاء أي مجلد - وبدون ما نعطل أي شي لو فشل الفحص نفسه،
+    // متل جلسة جوجل منتهية) ومنحذر بوضوح لو لقينا تصادم فعلي، قبل ما يوصل الأمر لحفظ فوق عرض سعر
+    // موجود أصلًا بنفس الرقم.
+    if(m && oldPrefix.toUpperCase() !== prefix.toUpperCase()){
+      const newRefFull = refEl.value;
+      getGoogleAccessToken(true).then(function(token){
+        if(!token) return false;
+        return findRefFolderIfExistsForBranch(newRefFull, branch, token);
+      }).then(function(exists){
+        if(exists && refEl.value.trim() === newRefFull.trim()){
+          alert('⚠️ تنبيه: الرقم المرجعي "' + newRefFull + '" مستخدم أصلًا بعرض سعر تاني محفوظ بفرع ' + (branch==='syria' ? 'دمشق-سوريا' : 'الإمارات') + '!\n\nلازم تغيّري الرقم قبل ما تحفظي - دوسي 🔄 جنب خانة الرقم المرجعي لجلب رقم صحيح ومتاح تلقائيًا لهاد الفرع.');
+        }
+      }).catch(function(){ /* فشل صامت مقصود - فحص احترازي إضافي بس، مش أساسي لعمل الأداة */ });
+    }
   }
   syncPage2Header();
+}
+
+// 🆕 2026-09-27 (طلب حمدي: "الرقم اخدو نفس تسلسل تبع سوريا") - فحص وجود مجلد بنفس الرقم المرجعي الكامل
+// (refFull) بجذر درايف الفرع المحدد - بحث فقط (بدون إنشاء أي مجلد لو مش موجود، بعكس findOrCreateDriveFolder)
+// حتى ما نولّد مجلدات فاضية يتيمة بالغلط لمجرد الفحص. مستخدمة من onBranchChange فوق للتحذير من تصادم
+// حقيقي بعد تبديل حرف الفرع (نفس الأرقام + حرف فرع جديد ممكن يصادف رقم موجود أصلًا بالفرع الجديد).
+async function findRefFolderIfExistsForBranch(refFull, branch, token){
+  const year = getYearFromReference(refFull);
+  const rootId = getBranchConfig(branch).driveRootFolderId;
+  const yearFolderId = await findYearFolderIfExists(year, token, rootId);
+  if(!yearFolderId) return false; // ولا مجلد سنة بعد بهاد الفرع - أكيد ما في تصادم
+  const refSafe = (refFull||'').replace(/\s+/g,'').replace(/[^a-zA-Z0-9-؀-ۿ]+/g,'_').replace(/'/g,"\\'") || 'Merzona-Quotation';
+  const q = encodeURIComponent(`name = '${refSafe}' and '${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: 'Bearer ' + token }
+  }, 20000);
+  const data = await res.json();
+  return !!(data.files && data.files.length);
 }
 
 // ⚠️ سيرفر إشعارات واتساب (اختياري) - بيبعت أوتوماتيك عرض السعر لمجموعة "Tasks" عند كل حفظ.
