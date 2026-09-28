@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-27.1';
+  var CURRENT_VERSION = '2026-09-28.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -391,6 +391,30 @@
 
     if(cachedStatus === 'approved'){
       revealWithAccountCheck(deviceToken); // نفتح فورًا (تفاؤلي)، وبنتأكد بالخلفية بشكل دوري إذا لسا الموافقة سارية
+      // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): revalidate() تحت كانت تتحقق بس من حالة الجهاز العامة
+      // (approved/pending/denied عبر /access/status) - ما كانت أبدًا تعيد التحقق من صلاحيات الحساب
+      // نفسه (تبويب/قسم معيّن متل "رواتب") عبر /users/me. يعني سحب صلاحية معيّنة من حساب عندو تاب
+      // مفتوح أصلاً ما كان ياخد أي مفعول قبل ما يعمل المستخدم reload يدوي بنفسه. هلق منستخدم نفس
+      // دورة revalidate (كل REVALIDATE_MS، بدون بولر تاني منفصل) لنجيب صلاحيات الحساب الحالية كمان،
+      // ولو تغيّرت عن آخر نسخة طبّقناها منعيد نداء window.applyMerzonaPermissions فورًا (يلي هلق
+      // كمان بتسكر/تبدّل أي قسم مفتوح فقد صلاحيته - شوف تعليقها هناك).
+      var lastAppliedPermsJSON = null;
+      function revalidatePermissions(){
+        var token = getSessionToken();
+        if(!token) return; // جهاز المالك (بدون حساب يوزرنيم/باسوورد) - صلاحياته دايمًا كاملة، ما في داعي نتحقق
+        apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
+          if(!me || !me.permissions) return; // جلسة غير صالحة - مسارات تانية بتتكفل فيها لو صارت
+          var json = JSON.stringify(me.permissions);
+          if(json !== lastAppliedPermsJSON){
+            lastAppliedPermsJSON = json;
+            if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(me.permissions, false);
+          }
+        }).catch(function(){});
+      }
+      // متاحة لباقي كود الصفحة (زر مزامنة الفريق، حدث visibilitychange تحت) حتى تقدر تطلب تحقق
+      // فوري من الصلاحيات بدل ما تستنى دورة الـ5 دقايق الكاملة - مثلًا لما المستخدم يرجع لنفس
+      // التبويب بعد ما كان غايب فترة طويلة.
+      try{ window.__mzRevalidatePermissionsNow = revalidatePermissions; }catch(e){}
       function revalidate(){
         api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
           if(r.status !== 'approved'){
@@ -398,6 +422,7 @@
             location.reload();
           }
         }).catch(function(){});
+        revalidatePermissions();
       }
       revalidate();
       setInterval(revalidate, REVALIDATE_MS);
@@ -3015,6 +3040,41 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
       mzBlankSection(el);
     }
   });
+
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): الكود فوق (navMap) كان بس يخفي/يظهر زر التبويب
+  // بالنافبار - لو المستخدم كان أصلاً فاتح قسم معيّن (مثلاً "رواتب") لما انسحبت صلاحيته بمنتصف
+  // الجلسة (revalidate() بالـ<head> صار هلق يعيد نداء applyMerzonaPermissions بشكل دوري - شوف
+  // تعليقها)، القسم كان يضل ظاهر وتفاعلي بالكامل لحد ما يعمل reload يدوي بنفسه - يعني حدا فقد
+  // صلاحيته بس يقدر يستمر يشتغل عالبيانات الحساسة نفسها يلي كانت مفتوحة أصلاً. هلق: لو القسم
+  // المعروض حاليًا صار ممنوع، منستخدم نفس آلية تبديل التبويبات الموجودة أصلاً بالملف
+  // (showDashboardView وأخواتها - كلها بتستدعي hideAllViews() أول شي) لنرجع لللوحة الرئيسية
+  // كحل افتراضي آمن، بدل ما نسيب القسم الممنوع ظاهر.
+  var mzViewPermMap = [
+    { view: 'contractsView', perm: 'contracts' },
+    { view: 'payrollView', perm: 'payroll' },
+    { view: 'clientsView', perm: 'clients' },
+    { view: 'quotationsView', perm: 'quotationsLog' },
+    { view: 'catalogsView', perm: 'catalogs' },
+    { view: 'pmpView', perm: 'pmp' },
+    { view: 'draftsDesignsView', perm: 'quotationsLog' },
+    { view: 'quotationView', perm: 'quotation' },
+    { view: 'procurementView', perm: 'procurement' },
+    { view: 'usersView', perm: 'manageUsers' },
+  ];
+  mzViewPermMap.forEach(function(v){
+    var el = document.getElementById(v.view);
+    if(!el) return;
+    var isActive = el.style.display && el.style.display !== 'none';
+    if(isActive && !allowed(v.perm) && typeof showDashboardView === 'function'){
+      showDashboardView();
+    }
+  });
+  // مودال "نسخة احتياطية" منفصل عن الـviews العادية (overlay فوق الصفحة، مش قسم بالنافبار عادي) -
+  // لو مفتوح وقت ما انسحبت صلاحية backup، منسكره فورًا كمان.
+  var mzBackupOv = document.getElementById('backupOverlay');
+  if(mzBackupOv && mzBackupOv.classList.contains('open') && !allowed('backup') && typeof closeBackupModal === 'function'){
+    closeBackupModal();
+  }
 };
 
 function buildBackupPayload(){
@@ -3224,7 +3284,10 @@ function migrateLegacyPaidPayrollEntries(){
     const en = entries[id];
     if(!en.paid) return;
     if(existingSourceIds.has(id)) return;
-    const pid = 'pay_' + Date.now() + '_' + Math.random().toString(16).slice(2,8);
+    // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): نفس منطق الـid الثابت المستخدم بزر "✓ مدفوع" فوق
+    // (pay_forentry_+empId+sourceEntryId) - حتى لو نفس هالترحيل التلقائي صار بجهازين مختلفين
+    // (كل واحد عندو نسخة قديمة من نفس السجل "مدفوع" مسبقًا) ما ينتج دفعتين مكررتين بعد المزامنة.
+    const pid = 'pay_forentry_' + en.empId + '_' + id;
     payments[pid] = {
       empId: en.empId,
       date: en.paidAt ? new Date(en.paidAt).toISOString().slice(0,10) : (en.type==='daily' ? en.date : (en.month+'-01')),
@@ -3595,11 +3658,21 @@ document.getElementById('payrollLogMonthlyBtn').addEventListener('click', ()=>{
   if(!month){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'حدد الشهر'; return; }
   if(!amount || amount <= 0){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'اكتب المبلغ'; return; }
   const entries = loadPayrollEntries();
-  const dup = Object.keys(entries).find(id=>entries[id].empId===empId && entries[id].type==='monthly' && entries[id].month===month);
-  if(dup){
-    if(!confirm('في راتب مسجّل مسبقًا لهاد الموظف لنفس الشهر ('+month+') بقيمة '+fmt(entries[dup].amount)+'. بدك تضيف سطر تاني (مثلاً مكافأة إضافية)؟')) return;
+  // ⚠️ هالفحص محلي بس (بيانات هالجهاز وقت الفحص) - جهازين أوفلاين ما بيشوفوا بعض فيه، فهو تحذير
+  // مبكر لطيف بس مو الحل الحقيقي لمنع التكرار بعد المزامنة (شوف تعليق الـid تحت - هو يلي فعليًا
+  // بيمنع التكرار).
+  const dupCountBefore = Object.keys(entries).filter(id=>entries[id].empId===empId && entries[id].type==='monthly' && entries[id].month===month).length;
+  if(dupCountBefore > 0){
+    if(!confirm('في راتب مسجّل مسبقًا لهاد الموظف لنفس الشهر ('+month+'). بدك تضيف سطر تاني (مثلاً مكافأة إضافية)؟')) return;
   }
-  const id = 'pr_' + Date.now() + '_' + Math.random().toString(16).slice(2,8);
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): نفس إصلاح payrollLogDailyBtn فوق (id عشوائي بالكامل كان
+  // بيخلي تسجيل نفس راتب الشهر لنفس الموظف بجهازين أوفلاين مختلفين يتضاعف بعد المزامنة بدل ما يندمج
+  // بسجل واحد). هلق الـid مبني على empId+الشهر (ثابت) - وبنضيف رقم تسلسلي (عدد السجلات الموجودة
+  // محليًا لنفس الموظف/الشهر وقت الحفظ) حتى نفرّق بين: (أ) نفس الحدث الحقيقي مسجّل بجهازين مختلفين
+  // بدون ما يشوفوا بعض (الاتنين رح يحسبوا نفس العدّاد=0 لأنو محدا زامن بعد، فينتج نفس الـid ويندمجوا
+  // لسجل واحد - هيك المطلوب)، و(ب) إضافة سطر تاني متعمدة (مكافأة) بنفس الجهاز/بعد مزامنة شافت السطر
+  // الأول فعليًا (العدّاد رح يكون 1 فأكتر، فينتج id مختلف - يضل سطر مستقل زي ما كان القصد).
+  const id = 'pr_monthly_' + empId + '_' + month + '_' + dupCountBefore;
   entries[id] = { empId, type:'monthly', month, amount, currency:e.currency, note:'', paid:false, paidAt:null, createdAt:Date.now() };
   savePayrollEntries(entries);
   document.getElementById('payrollLogMonthlyAmount').value = '';
@@ -3678,7 +3751,13 @@ function renderPayrollEntriesTable(){
         // إجمالي "المستحق" بينخصم منه المبلغ تلقائيًا نفس لحظة الضغط.
         en.paid = true;
         en.paidAt = Date.now();
-        const pid = 'pay_' + Date.now() + '_' + Math.random().toString(16).slice(2,8);
+        // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): نفس مشكلة الـid العشوائي (شوف تعليق payrollLogDailyBtn/
+        // payrollLogMonthlyBtn فوق) بس هون لسجل "الدفعة الفعلية" يلي بتتولّد تلقائيًا لما تعلّم سجل
+        // مستحق كمدفوع. بما إنو سجل مستحق واحد (id ثابت هلق) ما فيه أكتر من دفعة "كاملة" مرتبطة فيه
+        // بمنطق الميزة نفسها (sourceEntryId فريد لكل دفعة من هالنوع)، الـid المناسب هون هو empId+
+        // sourceEntryId نفسه - هيك لو جهازين علّموا نفس السجل مدفوع أوفلاين كل واحد لحاله، بعد
+        // المزامنة بتندمج بدفعة وحدة (نفس الـid بالضبط) بدل ما تتضاعف.
+        const pid = 'pay_forentry_' + en.empId + '_' + id;
         payments[pid] = {
           empId: en.empId,
           date: todayISO(),
@@ -3822,7 +3901,15 @@ document.getElementById('payrollPaymentSaveBtn').addEventListener('click', ()=>{
   if(!amount || amount <= 0){ statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'لازم تكتب مبلغ صحيح أكبر من صفر'; return; }
   const note = document.getElementById('payrollPaymentNote').value.trim();
   const payments = loadPayrollPayments();
-  const pid = 'pay_' + Date.now() + '_' + Math.random().toString(16).slice(2,8);
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): نفس مشكلة الـid العشوائي فوق - بس هون الدفعة يدوية/حرة
+  // (مو مرتبطة بسجل مستحق معيّن، sourceEntryId=null)، فما في "معرّف حدث" جاهز زي الحالات فوق. أقرب
+  // حقول "تعرّف الحدث الحقيقي" المتوفرة هي: الموظف + التاريخ + المبلغ + الملاحظة (بالضبط متل ما
+  // كتبها المستخدم بالنموذج) - فمنبني الـid منها. ⚠️ خطر متبقي موثّق: لو حمدي (أو مدير تاني) سجّل
+  // فعليًا دفعتين حقيقيتين منفصلتين لنفس الموظف بنفس اليوم بنفس المبلغ ونفس نص الملاحظة بالضبط
+  // (نادر بس ممكن)، هالدمج بالـid رح يعتبرهم نفس الحدث ويدمجهم بواحدة بدل اثنين - تفضيل مقصود
+  // لأنو منع تكرار "نفس الدفعة الحقيقية" (الأشيع بكتير بحالة أوفلاين) أهم من هالحافة النادرة؛ لو
+  // صار هيك فعليًا، الحل اليدوي هو تغيير حرف بالملاحظة (متلاً "دفعة أولى"/"دفعة ثانية") ليضلوا متمايزين.
+  const pid = 'pay_manual_' + empId + '_' + date + '_' + amount + '_' + encodeURIComponent(note);
   payments[pid] = { empId, date, amount, currency: e.currency, note, sourceEntryId: null, createdAt: Date.now() };
   savePayrollPayments(payments);
   document.getElementById('payrollPaymentAmount').value = '';
@@ -4267,6 +4354,18 @@ function mergeOneSyncKey(key, remoteData){
   // 🛠️ إصلاح 2026-09-27 (فحص شامل): نفس خطر ضياع سجل العقد (فوق) موجود لملفات العقد المرفقة
   // (merzona_contract_files، مصفوفة ملفات لكل مرجع) - منعامله بنفس منطق الاتحاد تحت.
   const isContractFilesKey = key === CONTRACT_FILES_KEY;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): نفس مشكلة merzona_contracts فوق بالضبط، بس لجدول
+  // المشاريع (merzona_pmp) - سجل المشروع (startDate/startMonth/durationWeeks/location + مصفوفة
+  // tasks) كان ينستبدل بالكامل حسب "الأحدث" فطابع السجل، فتعديل مهمة بجهاز A (سحب حد بالـGantt)
+  // كان يضيع لو جهاز B عدّل حقل ثانوي (الموقع مثلاً) من نسخة أقدم وزامن بعده. شوف isPmpKey تحت.
+  const isPmpKey = key === PMP_KEY;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): سجل الموظف (merzona_payroll_employees) عنده أكتر من 10
+  // حقول (اسم/دور/نوع الراتب/قيمته/عملته/هاتف/فعّال أو لأ/ملاحظات...) وكان ينستبدل بالكامل حسب
+  // "الأحدث" لطابع السجل كله كمان - فرفع جهاز A للراتب اليومي وتعطيل جهاز B لنفس الموظف (isActive)
+  // بنفس الفترة تقريبًا كان يعني ضياع تعديل واحد منهم بالكامل. شوف isPayrollEmployeesKey تحت -
+  // بعكس الجدولين فوق، سجل الموظف مو "مصفوفة بنود فرعية" (payments/tasks) عندها id طبيعي، فمنعمل
+  // دمج حقل-بحقل مباشرة (مو دمج مصفوفة) - قرار هندسي موثّق بالتفصيل بمكانه تحت.
+  const isPayrollEmployeesKey = key === PAYROLL_EMPLOYEES_KEY;
   let keyChanged = false;
   Object.keys(remoteObj).forEach(rk=>{
     if(isDiscoveredKey && discoveredTombstones[rk]) return; // متروك عمدًا - ما منرجّعه من نسخة قديمة
@@ -4285,8 +4384,49 @@ function mergeOneSyncKey(key, remoteData){
       const remoteRec = remoteObj[rk] || {};
       const localTables = Array.isArray(localRec.paymentTables) ? localRec.paymentTables : [];
       const remoteTables = Array.isArray(remoteRec.paymentTables) ? remoteRec.paymentTables : [];
-      const namesSeen = new Set(remoteTables.map(t=>t && t.name));
-      const mergedTables = remoteTables.concat(localTables.filter(t=> !namesSeen.has(t && t.name)));
+      const localTableByName = {};
+      localTables.forEach(t=>{ if(t && t.name) localTableByName[t.name] = t; });
+      const remoteTableByName = {};
+      remoteTables.forEach(t=>{ if(t && t.name) remoteTableByName[t.name] = t; });
+      // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - أعمق من إصلاح 2026-09-27 فوق): الإصلاح السابق منع
+      // ضياع "جدول دفعات كامل" (لما جدول موجود بجهاز وغير موجود بالتاني)، بس لسا كان في ثغرة أعمق:
+      // لو جدول بنفس الاسم موجود بالطرفين (الحالة الشائعة - نفس العقد اتعدّل بجهازين مختلفين)، الجدول
+      // كامل (بكل صفوفه) كان يترجّع للطرف "الأحدث" بالكامل - فلو جهاز A علّم دفعة "تحويل" كمستلمة
+      // وزامن، وجهاز B (نسخة أقدم عنده، ما شاف تعديل A بعد) عدّل تاريخ استحقاق دفعة "تركيب" وزامن
+      // بعده، جدول B الكامل كان يفوز ويرجّع "تحويل" لغير مستلمة رغم إنو محدا لمسها فعليًا بجهاز B.
+      // هلق لأي جدول بنفس الاسم بالطرفين، منعمل اتحاد صف-بصف (بالـid الثابت يلي كل صف صار ياخده -
+      // شوف touchPayRow/genPayRowId فوق؛ وللصفوف القديمة يلي انحفظت قبل هالإصلاح وما إلها id، منرجع
+      // للوصف desc كمفتاح احتياطي) - كل صف موجود بالطرفين منفضّل نسخته يلي _modifiedAt فيها أحدث،
+      // ولو ما في _modifiedAt عالإطلاق (صف قديم بالطرفين) منرجع لنفس منطق طابع السجل (rt/lt) القديم.
+      const rowKeyOf = function(p){ return (p && (p.id || p.desc)) || ''; };
+      const mergedTables = Array.from(new Set(remoteTables.concat(localTables).map(t=> t && t.name))).map(function(name){
+        const lt_ = localTableByName[name];
+        const rt_ = remoteTableByName[name];
+        if(lt_ && rt_){
+          const localRowsByKey = {};
+          (lt_.payments || []).forEach(p=>{ localRowsByKey[rowKeyOf(p)] = p; });
+          const remoteRowsByKey = {};
+          (rt_.payments || []).forEach(p=>{ remoteRowsByKey[rowKeyOf(p)] = p; });
+          const orderedKeys = [];
+          const keysSeen = new Set();
+          (rt_.payments || []).forEach(p=>{ const k=rowKeyOf(p); if(!keysSeen.has(k)){ keysSeen.add(k); orderedKeys.push(k); } });
+          (lt_.payments || []).forEach(p=>{ const k=rowKeyOf(p); if(!keysSeen.has(k)){ keysSeen.add(k); orderedKeys.push(k); } });
+          const mergedPayments = orderedKeys.map(function(k){
+            const lp = localRowsByKey[k];
+            const rp = remoteRowsByKey[k];
+            if(lp && rp){
+              const lpt = lp._modifiedAt || 0;
+              const rpt = rp._modifiedAt || 0;
+              if(!lpt && !rpt) return rt > lt ? rp : lp; // صفوف قديمة بدون طابع زمني خاص - رجعة لمنطق طابع السجل
+              return rpt >= lpt ? rp : lp;
+            }
+            return lp || rp;
+          }).filter(Boolean);
+          const base = (rt >= lt ? rt_ : lt_) || {};
+          return Object.assign({}, base, { name: name, payments: mergedPayments });
+        }
+        return rt_ || lt_;
+      }).filter(Boolean);
       const merged = {
         client: (remoteRec.client && remoteRec.client !== '—') ? remoteRec.client : (localRec.client || remoteRec.client || '—'),
         paymentTables: mergedTables,
@@ -4306,6 +4446,102 @@ function mergeOneSyncKey(key, remoteData){
       const mergedArr = remoteArr.concat(localArr.filter(f=> !seen.has(f && (f.driveFileId || f.name))));
       if(JSON.stringify(mergedArr) !== JSON.stringify(localArr)){
         localObj[rk] = mergedArr;
+        localTs[rk] = Math.max(rt, lt);
+        keyChanged = true;
+      }
+      return;
+    }
+    if(isPmpKey && (rk in localObj) && (rk in remoteObj)){
+      const localRec = localObj[rk] || {};
+      const remoteRec = remoteObj[rk] || {};
+      const localTasks = Array.isArray(localRec.tasks) ? localRec.tasks : [];
+      const remoteTasks = Array.isArray(remoteRec.tasks) ? remoteRec.tasks : [];
+      // مفتاح ثابت للمهمة: id (المهام الجديدة كلها صارت تاخده - شوف touchPmpTask فوق)، وللمهام
+      // القديمة يلي انحفظت قبل الإصلاح وما إلها id، منرجع لمزيج phase+name كمفتاح احتياطي.
+      const taskKeyOf = function(t){ return (t && (t.id || (t.phase + '|' + t.name))) || ''; };
+      const localTasksByKey = {};
+      localTasks.forEach(t=>{ localTasksByKey[taskKeyOf(t)] = t; });
+      const remoteTasksByKey = {};
+      remoteTasks.forEach(t=>{ remoteTasksByKey[taskKeyOf(t)] = t; });
+      const orderedTaskKeys = [];
+      const taskKeysSeen = new Set();
+      remoteTasks.forEach(t=>{ const k=taskKeyOf(t); if(!taskKeysSeen.has(k)){ taskKeysSeen.add(k); orderedTaskKeys.push(k); } });
+      localTasks.forEach(t=>{ const k=taskKeyOf(t); if(!taskKeysSeen.has(k)){ taskKeysSeen.add(k); orderedTaskKeys.push(k); } });
+      const mergedTasks = orderedTaskKeys.map(function(k){
+        const lt2 = localTasksByKey[k];
+        const rt2 = remoteTasksByKey[k];
+        if(lt2 && rt2){
+          const lpt = lt2._modifiedAt || 0;
+          const rpt = rt2._modifiedAt || 0;
+          if(!lpt && !rpt) return rt > lt ? rt2 : lt2; // مهام قديمة بدون طابع زمني خاص - رجعة لمنطق طابع السجل
+          return rpt >= lpt ? rt2 : lt2;
+        }
+        return lt2 || rt2;
+      }).filter(Boolean);
+      // باقي حقول سجل المشروع (startDate/startMonth/durationWeeks/location...) سكالر بسيطة - منفضّل
+      // نسخة الطرف "الأحدث" حسب طابع السجل (متل ما كان الوضع قبل الإصلاح)، وبس المصفوفة tasks
+      // صارت تتدمج عنصر-بعنصر فوق.
+      const base = (rt > lt ? remoteRec : localRec) || {};
+      const merged = Object.assign({}, base, { tasks: mergedTasks });
+      if(JSON.stringify(merged) !== JSON.stringify(localRec)){
+        localObj[rk] = merged;
+        localTs[rk] = Math.max(rt, lt);
+        keyChanged = true;
+      }
+      return;
+    }
+    if(isPayrollEmployeesKey && (rk in localObj) && (rk in remoteObj)){
+      // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): قرار هندسي موثّق (حالة خاصة - شوف تعليق
+      // isPayrollEmployeesKey فوق). سجل الموظف مش "مصفوفة بنود فرعية" إلها id طبيعي (متل صفوف
+      // الدفعات/مهام المشروع فوق)، فما فينا ندمج بالـid لعناصر مصفوفة. بما إنو ما في طابع زمني
+      // مخزّن لكل حقل لحاله، منعمل دمج "three-way تقريبي": منحتفظ محليًا بنسخة ظل (shadow snapshot،
+      // مفتاحها PAYROLL_EMPLOYEES_KEY+'__fieldbase') لآخر نسخة "متفق عليها" لكل موظف (آخر نتيجة دمج
+      // ناجحة اترفعت لجوجل درايف) - وهاي أقرب شي عندنا لـ"نسخة أساس مشتركة" حقيقية. المنطق:
+      //   - لو الحقل بالطرف المحلي مختلف عن الأساس بس الطرف البعيد لسا مطابق للأساس → الطرف المحلي
+      //     هو يلي تغيّر فعليًا، فمنحافظ عليه (ما نرجّعه للقيمة البعيدة القديمة).
+      //   - العكس (البعيد تغيّر، المحلي لسا مطابق للأساس) → منطبّق قيمة البعيد.
+      //   - الاثنين تغيّروا عن الأساس (لنفس الحقل بالضبط، بنفس فترة المزامنة) → تعارض حقيقي، ما
+      //     فينا نصحّح الاثنين سوا - منفضّل قيمة الطرف "الأحدث" حسب طابع السجل الكامل (rt/lt)،
+      //     نفس ما كان الاستبدال الكامل القديم بيعمل، بس لهيك الحقل بعينه بس مش لكل السجل.
+      //   - ما في نسخة أساس محفوظة أصلًا لهاد الموظف (أول مرة يتمر هالكود عليه، أو موظف قديم من
+      //     قبل الإصلاح) → منرجع مؤقتًا لنفس سلوك "الطرف الأحدث بالكامل" القديم لهالمرة بس، وبعدها
+      //     منخزّن نسخة أساس فمن الجولة الجاية فصاعدًا الدمج الحقلي الدقيق فوق بيشتغل صح.
+      // ⚠️ الخطر المتبقي الموثّق: هاد مو دمج three-way "معياري" (زي git) بمعنى صارم - نسخة الأساس
+      // هي "آخر نسخة بعيدة شفناها" مش نسخة موقّعة بثلاث فروع حقيقية، وبتتحدّث بعد كل مزامنة ناجحة.
+      // لو جهاز ضل غير متزامن لفترة طويلة جدًا (أكتر من دورة مزامنة وحدة لجهاز تاني) قبل ما يزامن،
+      // نسخة الأساس المخزّنة عند الطرف التاني ممكن تكون تخطّت تعديلاته هو، وقتها الدمج بيرجع لقاعدة
+      // "الأحدث بيفوز" العادية لهيك الحقول. وبرضو: تعديلين حقيقيين متعارضين على *نفس* الحقل بنفس
+      // الفترة ما فيهم الاثنين ينحفظوا سوا - لازم إنسان يحسم أي واحد صحيح.
+      const localRec = localObj[rk] || {};
+      const remoteRec = remoteObj[rk] || {};
+      const fieldBaseKey = PAYROLL_EMPLOYEES_KEY + '__fieldbase';
+      let fieldBaseAll;
+      try{ fieldBaseAll = JSON.parse(localStorage.getItem(fieldBaseKey) || '{}'); }catch(e){ fieldBaseAll = {}; }
+      const baseRec = fieldBaseAll[rk] || null;
+      let merged;
+      if(baseRec){
+        const allFieldKeys = new Set(Object.keys(localRec).concat(Object.keys(remoteRec)).concat(Object.keys(baseRec)));
+        merged = {};
+        allFieldKeys.forEach(function(fk){
+          const localVal = localRec[fk];
+          const remoteVal = remoteRec[fk];
+          const baseVal = baseRec[fk];
+          const localChanged = JSON.stringify(localVal) !== JSON.stringify(baseVal);
+          const remoteChanged = JSON.stringify(remoteVal) !== JSON.stringify(baseVal);
+          if(remoteChanged && !localChanged) merged[fk] = remoteVal;
+          else if(localChanged && !remoteChanged) merged[fk] = localVal;
+          else if(localChanged && remoteChanged) merged[fk] = (rt >= lt ? remoteVal : localVal); // تعارض حقيقي على نفس الحقل
+          else merged[fk] = localVal; // ما تغيّر عند حدا
+        });
+      } else {
+        // ما في نسخة أساس لسا - سلوك احتياطي مؤقت (الطرف الأحدث بالكامل)، تمامًا متل قبل الإصلاح
+        merged = (rt >= lt) ? Object.assign({}, remoteRec) : Object.assign({}, localRec);
+      }
+      // نخزّن نسخة الدمج الحالية كـ"أساس" الجولة الجاية - هاي أقرب نسخة "متفق عليها" رح تترفع لجوجل درايف بعد شوي
+      fieldBaseAll[rk] = merged;
+      try{ localStorage.setItem(fieldBaseKey, JSON.stringify(fieldBaseAll)); }catch(e){}
+      if(JSON.stringify(merged) !== JSON.stringify(localRec)){
+        localObj[rk] = merged;
         localTs[rk] = Math.max(rt, lt);
         keyChanged = true;
       }
@@ -4360,7 +4596,17 @@ async function fetchDashDriveTokenFromServer(timeoutMs){
   const controller = new AbortController();
   const timer = setTimeout(()=> controller.abort(), timeoutMs || 8000);
   try{
-    const res = await fetch(DASH_DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(DASH_SERVER_AUTH_TOKEN), { signal: controller.signal });
+    // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): DASH_SERVER_AUTH_TOKEN ثابت ومكتوب بصريح النص جوا
+    // مصدر هالصفحة (أي حدا فتح "View Source" شافه) - وكان لحاله كافي عند السيرفر عشان ياخد توكن
+    // درايف حي، بدون أي علاقة بنظام موافقة الأجهزة (devices.json) - يعني سحب صلاحية جهاز أو حذف
+    // حساب مستخدم ما كان يوقف جهازه عن جيب توكن درايف جديد. هلق منبعت توكن الجهاز الحالي
+    // (merzona-device-token، نفس يلي بوابة الدخول فوق منشئاه ومخزناه) كـ&device= كمان، والسيرفر
+    // (/drive-token) صار يتحقق إنو هالجهاز لسا 'approved' بdevices.json قبل ما يرجع توكن.
+    let deviceToken = '';
+    try{ deviceToken = localStorage.getItem('merzona-device-token') || ''; }catch(e){}
+    const url = DASH_DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(DASH_SERVER_AUTH_TOKEN) +
+      (deviceToken ? ('&device=' + encodeURIComponent(deviceToken)) : '');
+    const res = await fetch(url, { signal: controller.signal });
     if(!res.ok) return null;
     const data = await res.json();
     if(!data || !data.access_token) return null;
@@ -4660,7 +4906,13 @@ showSyncBannerIfNeeded();
 setTimeout(()=>{ driveSyncPullAndMerge(true).then(ok=>{ if(ok) hideSyncBanner(true); maybeAutoReconcile(); maybeAutoBackup(); }); }, 900);
 // وبعدين، كل مرة يرجع المستخدم لهالتبويب (بعد ما كان بتبويب/تطبيق تاني) منعيد محاولة مزامنة صامتة
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible'){ driveSyncPullAndMerge(true); maybeAutoReconcile(); maybeAutoBackup(); }
+  if(document.visibilityState === 'visible'){
+    driveSyncPullAndMerge(true); maybeAutoReconcile(); maybeAutoBackup();
+    // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): رجوع المستخدم لنفس التبويب بعد غياب طويل هو أفضل
+    // لحظة نتحقق فيها من صلاحياته فورًا (بدل ما نستنى دورة الـ5 دقايق العادية بـrevalidate() -
+    // شوف تعليقها بالـ<head>) - خصوصًا إذا انسحبت صلاحيته وهو غايب عن التبويب أصلًا.
+    if(window.__mzRevalidatePermissionsNow) window.__mzRevalidatePermissionsNow();
+  }
 });
 // وحتى لو ضل نفس التبويب مفتوح بدون ما تتغير رؤيته (مثلاً شاشة مكتب دايمًا ظاهرة)، منتأكد بشكل
 // دوري كمان بمؤقّت مباشر - maybeAutoBackup فيها سقف زمني داخلي فما رح تتكرر أكتر من اللازم.
@@ -6113,7 +6365,7 @@ async function tryExtractPaymentsFromPdf(file){
       name: file.name,
       total: extractedTotal != null ? extractedTotal : (existingTable ? existingTable.total : (d ? d.total : 0)),
       payments: extracted
-        ? extracted.map((p,i)=>({desc:p.desc, pct:p.pct, dueDate:'', status: i===0 ? 'received' : 'notdue'}))
+        ? extracted.map((p,i)=>touchPayRow({desc:p.desc, pct:p.pct, dueDate:'', status: i===0 ? 'received' : 'notdue'}))
         : (existingTable ? existingTable.payments : [])
     };
     if(existingTableIdx > -1){
@@ -6181,7 +6433,7 @@ document.getElementById('contractRefInput').addEventListener('input', (e)=>{
       { label:'دفعة التشطيب', pct:d.payFin }
     ];
     stdPayments.forEach(p=>{
-      if(p.pct != null){ defaultPayments.push({desc:p.label, pct:p.pct, dueDate:'', status: defaultPayments.length===0 ? 'received' : 'notdue'}); }
+      if(p.pct != null){ defaultPayments.push(touchPayRow({desc:p.label, pct:p.pct, dueDate:'', status: defaultPayments.length===0 ? 'received' : 'notdue'})); }
     });
     tempPaymentTables = [{name:'الجدول الرئيسي', total: d.total, payments: defaultPayments}];
   } else {
@@ -6281,13 +6533,31 @@ document.getElementById('addPaymentRowBtn').addEventListener('click', ()=>{
     pct = Math.round((aed / total) * 10000) / 100; // منقّربها لخانتين عشريتين
   }
   if(!desc || isNaN(pct) || pct<=0){ alert('عبّي الوصف والنسبة (أو المبلغ) صح'); return; }
-  tempPayments.push({desc, pct, dueDate: dueDate||'', status:'due'});
+  tempPayments.push(touchPayRow({desc, pct, dueDate: dueDate||'', status:'due'}));
   document.getElementById('payDesc').value = '';
   document.getElementById('payPct').value = '';
   document.getElementById('payAed').value = '';
   document.getElementById('payDueDate').value = '';
   renderPaymentRows();
 });
+
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): صفوف جدول الدفعات (تحويل/توريد/تركيب...) ما كان إلها
+// أي معرّف ثابت (id) ولا طابع زمني خاص فيها - فلما جهازين يعدّلوا صفوف مختلفة بنفس الجدول (نفس
+// الاسم) وهم غير متصلين، mergeOneSyncKey تحت كانت تاخد جدول الدفعات كامل عن الطرف يلي "طابعه
+// الزمني" (طابع السجل كله، مو الصف) أحدث - فتضيع تعديلات الطرف التاني بالكامل (مثلاً جهاز A علّم
+// "تحويل" كمدفوعة، وجهاز B عدّل تاريخ استحقاق "تركيب" بعده بدقيقة من نسخة أقدم - جدول B كامل كان
+// يفوز ويرجّع "تحويل" لغير مدفوعة). هلق كل صف بياخد id ثابت أول ما ينخلق، و_modifiedAt بينتحدث
+// كل ما ينعدّل (الحالة/الوصف/النسبة/المبلغ/التاريخ) - حتى الدمج يصير صف بصف بدل جدول كامل
+// (شوف الفرع isContractsKey بـmergeOneSyncKey).
+function genPayRowId(){
+  return 'pr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+}
+function touchPayRow(p){
+  if(!p) return p;
+  if(!p.id) p.id = genPayRowId();
+  p._modifiedAt = Date.now();
+  return p;
+}
 
 function getPayStatus(p){
   // migration: عقود قديمة محفوظة بحقل received فقط
@@ -6376,6 +6646,7 @@ function renderPaymentRows(){
       function commit(){
         if(committed) return; committed = true;
         tempPayments[i].desc = input.value.trim();
+        touchPayRow(tempPayments[i]);
         renderPaymentRows();
       }
       input.addEventListener('blur', commit);
@@ -6398,6 +6669,7 @@ function renderPaymentRows(){
         if(committed) return; committed = true;
         const v = parseFloat(input.value);
         tempPayments[i].pct = isNaN(v) ? 0 : v;
+        touchPayRow(tempPayments[i]);
         renderPaymentRows();
       }
       input.addEventListener('blur', commit);
@@ -6433,8 +6705,10 @@ function renderPaymentRows(){
         const newPct = Math.round((v / total) * 10000) / 100;
         const diff = Math.round((oldPct - newPct) * 100) / 100;
         tempPayments[i].pct = newPct;
+        touchPayRow(tempPayments[i]);
         if(tempPayments[i+1]){
           tempPayments[i+1].pct = Math.round((tempPayments[i+1].pct + diff) * 100) / 100;
+          touchPayRow(tempPayments[i+1]);
         }
         renderPaymentRows();
       }
@@ -6453,6 +6727,7 @@ function renderPaymentRows(){
       input.focus();
       function commit(){
         tempPayments[i].dueDate = input.value || '';
+        touchPayRow(tempPayments[i]);
         renderPaymentRows();
       }
       input.addEventListener('blur', commit);
@@ -6475,6 +6750,7 @@ function renderPaymentRows(){
       const next = cur==='due' ? 'notdue' : (cur==='notdue' ? 'received' : 'due');
       tempPayments[i].status = next;
       delete tempPayments[i].received;
+      touchPayRow(tempPayments[i]);
       renderPaymentRows();
     });
   });
@@ -7012,6 +7288,22 @@ function loadPmpProjects(){
 }
 function savePmpProjects(obj){ localStorage.setItem(PMP_KEY, JSON.stringify(obj)); markSyncDirty(PMP_KEY, obj); }
 
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): مهام جدول المشروع (tasks) ما إلها id ولا طابع زمني خاص
+// فيها - نفس مشكلة صفوف الدفعات بالضبط (شوف touchPayRow فوق) بس هون على مستوى سجل مشروع كامل:
+// تعديل مهمة واحدة (سحب حدها بالـGantt) بجهاز A، وتعديل حقل ثانوي (الموقع/تاريخ البداية) بجهاز B
+// بنفس الوقت تقريبًا من نسخة أقدم، كان معناه ضياع تعديل A بالكامل (مصفوفة tasks كلها كانت تنستبدل
+// بالطرف "الأحدث" حسب طابع السجل كله - شوف الفرع isPmpKey بـmergeOneSyncKey). هلق كل مهمة بتاخد id
+// ثابت أول ما تنخلق و_modifiedAt بينتحدث كل ما تنعدّل (سحب حد بالـGantt، تعديل يدوي، توليد تلقائي).
+function genPmpTaskId(){
+  return 'pmpt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
+}
+function touchPmpTask(t){
+  if(!t) return t;
+  if(!t.id) t.id = genPmpTaskId();
+  t._modifiedAt = Date.now();
+  return t;
+}
+
 let currentPmpRef = '';
 (function(){
   const mainLogo = document.querySelector('.header img[alt="Merzona logo"]');
@@ -7120,7 +7412,7 @@ document.getElementById('pmpAutoGenBtn').addEventListener('click', ()=>{
   const generated = PMP_STANDARD_TEMPLATE.map(t=>{
     const startWeek = Math.round(t.startFrac * D) + 1;
     const span = Math.max(1, Math.round(t.spanFrac * D));
-    return {phase:t.phase, name:t.name, name_en:t.name_en, startWeek, span};
+    return touchPmpTask({phase:t.phase, name:t.name, name_en:t.name_en, startWeek, span});
   });
   // "طلب الزجاج" (index 2) لازم يبلش بعد نهاية أول أسبوع من "تركيب فريمات الألمنيوم والأبواب" (index 1)
   const installTask = generated[1];
@@ -7149,7 +7441,7 @@ document.getElementById('pmpAddTaskBtn').addEventListener('click', ()=>{
   if(startWeek + span - 1 > proj.durationWeeks){
     if(!confirm('هالمهمة بتتخطى مدة المشروع المسجّلة ('+proj.durationWeeks+' أسبوع). تبي تكمل؟')) return;
   }
-  proj.tasks.push({phase, name, name_en, startWeek, span});
+  proj.tasks.push(touchPmpTask({phase, name, name_en, startWeek, span}));
   savePmpProjects(pmps);
   document.getElementById('pmpTaskPhase').value = '';
   document.getElementById('pmpTaskName').value = '';
@@ -7338,6 +7630,7 @@ document.addEventListener('pointerup', (e)=>{
     const newEnd = Math.max(targetWeek, t.startWeek);
     t.span = newEnd - t.startWeek + 1;
   }
+  touchPmpTask(t);
   savePmpProjects(pmps);
   renderPmpTasks();
   renderPmpGantt();

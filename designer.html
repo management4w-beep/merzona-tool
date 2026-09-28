@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-27.1';
+  var CURRENT_VERSION = '2026-09-28.1';
   // 🔍 تسجيل فوري بالكونسول (2026-08-25 - نسخة .9) لعرض رقم النسخة المحمّلة فعليًا فور فتح الصفحة -
   // حتى نتأكد دايمًا بسرعة (بدون الحاجة لعمل حفظ فعلي) هل المتصفح فعلاً حمّل آخر نسخة منشورة أو
   // لسا عالق على نسخة قديمة مخزّنة (مشكلة تخزين مؤقت شفناها متكررة هالفترة).
@@ -4766,17 +4766,16 @@ window.__debugPdfFull = async function(opts){
 };
 
 populateItemsDatalist();
-// إذا لوحة التحكم طلبت تحميل عرض سعر قديم بالنسخة الحالية من الأداة (زر "🔓 افتح بآخر نسخة")، البيانات
-// بتوصل هون عبر مفتاح localStorage مشترك (نفس الأصل management4w-beep.github.io/merzona-tool/).
-// منشيلها فورًا حتى لو صار refresh عادي بعدين ما تنطبّق مرتين فوق تعديلات المستخدم.
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): مفتاح localStorage['merzona-pending-load'] هاد مكتوب من
+// Dashboard.html تحديدًا لما يضغطوا "🔓 آخر نسخة" بقصد فتح عرض السعر جوا index.html (بإطار iframe) -
+// مصمم designer.html مش المقصود فيه إطلاقًا، بس كان عم يقرا نفس المفتاح المشترك بالغلط. المشكلة: لو
+// حدا فتح designer.html مباشرة (تاب جديد أو رابط محفوظ) بينما ضغطة "آخر نسخة" لسا عم تحمّل (index.html
+// بياخد كم ثانية يفتح جوا الـ iframe)، designer.html كان يلحق ياخد البيانات الأول ويمسحها من
+// localStorage فورًا - فـ index.html يوصله المفتاح فاضي ويفتح بدون بيانات بلا أي رسالة توضح ليش، وبنفس
+// الوقت designer.html كان يطبّق بيانات عرض سعر حدا تاني فوق أي شغل كان عم يصير فيه. designer.html أداة
+// مستقلة/مخفية ومش مفروض يستقبل تحميل عروض أسعار كاملة عن هالطريق أصلًا - فبساطة، بطّلنا نقرا هالمفتاح
+// هون نهائيًا (وما عدنا نلمسه/نمسحه) حتى يضل سليم لـ index.html يلي هو فعليًا المقصود فيه.
 let pendingQuotationLoad = null;
-try{
-  const rawPending = localStorage.getItem('merzona-pending-load');
-  if(rawPending){
-    localStorage.removeItem('merzona-pending-load');
-    pendingQuotationLoad = JSON.parse(rawPending);
-  }
-}catch(e){}
 const alreadyHasContent = document.querySelectorAll('#qty-rows tr, #acc-rows .bi-row, #pay-rows .pay-row, #alum-spec-rows .bi-row').length > 0;
 if(pendingQuotationLoad){
   // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
@@ -5451,6 +5450,11 @@ window.wdApplyBack = function(results){
   <svg id="cameraOverlaySvg" viewBox="0 0 1000 1000" preserveAspectRatio="none"></svg>
   <div class="camera-topbar">
     <span id="cameraPhaseLabel">حرّك زوايا المربع لتطابق الفتحة</span>
+    <!-- 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): قبل هالزر، "✕ إغلاق" كان الطريقة الوحيدة تطلعي فيها من
+    أداة الكاميرا - وكانت تمسح أي شكل صمّمتيه (قسمتيه لأقسام، بدّلتي نوعه...) نهائيًا بدون أي خيار تحفظيه.
+    هلق فيك تضغطي هالزر لو بدك تخلّي الشكل يصير بند دائم بالتصميم (منضم لباقي البنود، وبيدخل بالحساب/الطباعة/المشتريات) -
+    و"✕ إغلاق" ضلت متل ما هي لو فعلاً بدك ترمي الشكل. -->
+    <button class="camera-close-btn" id="cameraKeepBtn" style="display:none; background:#1f8f4c;" onclick="cameraKeepDesign()">✓ إضافة للتصميم</button>
     <button class="camera-close-btn" onclick="closeCameraOverlay()">✕ إغلاق</button>
   </div>
   <div class="camera-bottombar" id="cameraPhase1Controls">
@@ -5830,11 +5834,41 @@ window.addEventListener('beforeunload', function(){
 window.__getDesignItemsForExport__ = function(){
   return { items: items, nextId: nextId };
 };
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): nextNodeId عداد داخلي (id تبع كل عقدة/جزء بالرسمة، متل
+// n1، n2...) بيبلش من 1 كل جلسة جديدة، وما كان يترزمن أبدًا لما نستورد بيانات تصميم جاهزة (designItems)
+// جايي من ملف/جلسة قديمة بأرقامها الأصلية زي ما هي (بعكس buildItemFromSavedDesign/cloneLayoutWithFreshIds
+// يلي بيعطو أرقام جديدة نظيفة دايمًا). لو ما رزمناه، أول تقسيم (splitLeaf) جديد بعد الاستيراد بيولّد
+// id متل n1/n2 يلي غالبًا موجود أصلًا بمكان تاني بنفس الشجرة المستوردة (لأنو كل تصميم قديم كان يبلش
+// عدّاده من 1 كمان بجلسته الأصلية) - فبيصير عندنا جزءين مختلفين بنفس الـid، وأي دالة بتدوّر بالid
+// (findNode/findLeafPath/findGoverningSplit) بترجع أول واحد تلاقيه بس - يعني تعديل ممكن ينطبق غلط
+// على جزء تاني غير يلي المستخدم قاصده فعليًا. الحل: بعد الاستيراد، منمشي على كل شجرة layout/archLayout
+// المستوردة، منلاقي أعلى رقم n<N> موجود فيها، ومنرفع nextNodeId يضمن ما تحت أي id جديد يتكرر - نفس
+// المبدأ بالضبط يلي نعمله لـnextId (عدّاد البنود) بالسطر تحت.
+function resyncNextNodeIdFromLayout(node){
+  if(!node || typeof node !== 'object') return;
+  const m = /^n(\d+)$/.exec(node.id || '');
+  if(m){
+    const n = parseInt(m[1], 10);
+    if(!isNaN(n) && n >= nextNodeId) nextNodeId = n + 1;
+  }
+  if(node.kind === 'split' && Array.isArray(node.children)){
+    node.children.forEach(ch => resyncNextNodeIdFromLayout(ch && ch.node));
+  }
+}
+function resyncNextNodeIdFromItems(itemsArr){
+  if(!Array.isArray(itemsArr)) return;
+  itemsArr.forEach(it=>{
+    if(!it) return;
+    resyncNextNodeIdFromLayout(it.layout);
+    resyncNextNodeIdFromLayout(it.archLayout);
+  });
+}
 window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
   try{
     if(Array.isArray(importedItems)){
       items = importedItems;
       nextId = importedNextId || (items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
+      resyncNextNodeIdFromItems(items);
       selectedId = items.length ? items[0].id : null;
     }
     if(typeof renderChips === 'function') renderChips();
@@ -8516,11 +8550,24 @@ function renderChips(){
   });
 }
 
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): لما نبدّل الشكل بعيدًا عن باب الفولدينغ، أي لوح/جزء ضل نوعه
+// 'fold' (رمز X) من قبل التبديل بيضل هيك بالـlayout رغم إنو الشكل الجديد أصلًا ما إلو 'fold' بقائمة
+// getCycle تبعه - فبيضل يترسم رمز X غلط لحد ما المستخدم يدوس عليه يدويًا واحد واحد. منمشي على الشجرة
+// كاملة ومنصفّر أي 'fold' لأول نوع بقائمة الشكل الجديد (getCycle) بدل ما نصلّبه يدويًا.
+function resetStaleFoldTypes(node, defaultType){
+  if(!node) return;
+  if(node.kind === 'leaf'){
+    if(node.type === 'fold') node.type = defaultType;
+    return;
+  }
+  if(Array.isArray(node.children)) node.children.forEach(ch => resetStaleFoldTypes(ch.node, defaultType));
+}
 function setShape(type){
   const it = getSelected();
   if(!it) return;
   pushHistory();
   const wasSliding = isSlidingType(it);
+  const wasFolding = isFoldingType(it);
   it.shapeType = type;
   const nowSliding = isSlidingType(it);
   if(nowSliding && !wasSliding){
@@ -8528,6 +8575,11 @@ function setShape(type){
     if(it.leafThickness == null) it.leafThickness = DEFAULT_LEAF_THICKNESS;
   } else if(!nowSliding && wasSliding){
     it.profileThickness = HINGE_THICKNESS_OPTIONS[0].v;
+  }
+  if(wasFolding && !isFoldingType(it)){
+    const defaultType = getCycle(it)[0];
+    resetStaleFoldTypes(it.layout, defaultType);
+    resetStaleFoldTypes(it.archLayout, defaultType);
   }
   if(type === 'showerGlassDoor'){
     // باب زجاج كامل بدون فريم - لوح واحد ثابت دايمًا (كبسة عالباب بتبدّل جهة المفصلة ونوع الهاندل مع بعض)
@@ -8575,6 +8627,9 @@ function onHandrailMountChange(mount){
 }
 function onHrStandoffPairsChange(){
   const it = getSelected(); if(!it) return;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): ناقص pushHistory() هون - كان بيخلي التراجع (Undo) يبلع
+  // تعديلات سابقة كمان بدل ما يوقف عند هالتعديل بس (نفس مبدأ editTotalDim/editLeafDim).
+  pushHistory();
   it.hrStandoffPairs = Math.max(1, Math.round(parseFloat(document.getElementById('inHrStandoffPairs').value)) || 2);
   renderGallery();
 }
@@ -8693,6 +8748,8 @@ function onFrostPatternChange(p){
 }
 function onFrostZoneChange(){
   const it = getSelected(); if(!it) return;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): ناقص pushHistory() هون - نفس سبب الإصلاح بonHrStandoffPairsChange فوق.
+  pushHistory();
   it.frostTopClearH = parseFloat(document.getElementById('inFrostTopH').value) || 0;
   it.frostBottomClearH = parseFloat(document.getElementById('inFrostBottomH').value) || 0;
   renderGallery();
@@ -8704,6 +8761,10 @@ window.onFrostZoneChange = onFrostZoneChange;
 function onDimsChange(){
   const it = getSelected();
   if(!it) return;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): ناقص pushHistory() هون - نفس تعديل العرض/الارتفاع لما
+  // يصير من حقول الشريط الجانبي بدل ما يصير بالدوس على رقم القياس بالرسمة مباشرة (editTotalDim يلي
+  // بيعمل pushHistory صح) - فكان التراجع يبلع تعديلات سابقة كمان.
+  pushHistory();
   it.width = parseFloat(document.getElementById('inWidth').value) || 0;
   it.height = parseFloat(document.getElementById('inHeight').value) || 0;
   it.archHeight = parseFloat(document.getElementById('inArchHeight').value) || 0;
@@ -8713,6 +8774,8 @@ function onDimsChange(){
 function onProfileThicknessChange(){
   const it = getSelected();
   if(!it) return;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): ناقص pushHistory() هون - نفس سبب onDimsChange فوق.
+  pushHistory();
   it.profileThickness = parseFloat(document.getElementById('inProfileThickness').value) || 50;
   renderGallery();
 }
@@ -8720,6 +8783,8 @@ function onProfileThicknessChange(){
 function onSlidingThicknessChange(){
   const it = getSelected();
   if(!it) return;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): ناقص pushHistory() هون - نفس سبب onDimsChange فوق.
+  pushHistory();
   it.frameThickness = parseFloat(document.getElementById('inFrameThickness').value);
   if(isNaN(it.frameThickness)) it.frameThickness = DEFAULT_FRAME_THICKNESS;
   it.leafThickness = parseFloat(document.getElementById('inLeafThickness').value);
@@ -9105,6 +9170,10 @@ function cycleArch(itemId){
 
 function toggleArchMerge(itemId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): دفاع إضافي - ممنوع نفعّل الدمج (archMerged=true) إلا لو
+  // الجزء تحت القوس لسا لوح واحد مش مقسّم (نفس شرط زر "+" فوق بـbuildItemSVG وgetCycleForLeaf).
+  // إلغاء الدمج (رجوعه false) مسموح دايمًا بدون شرط، لأنو هاد الاتجاه الآمن دايمًا.
+  if(!it.archMerged && (!it.layout || it.layout.kind !== 'leaf')) return;
   pushHistory();
   it.archMerged = !it.archMerged;
   renderGallery();
@@ -9925,10 +9994,17 @@ function buildItemSVG(it){
     renderArchTree(it, it.archLayout, 0, drawW, drawW, archHpx, frameWidth0, isDoor, archOut);
     archPiece = archOut.piece;
     const merged = it.archMerged;
-    out.mergeMarkers.push(`<g class="merge-btn" onclick="toggleArchMerge(${it.id})">
-      <circle cx="${drawW/2}" cy="0" r="12" fill="${merged? 'var(--wd-amber)':'var(--wd-bg-deep)'}" stroke="var(--wd-amber)" stroke-width="1.2"/>
-      <text x="${drawW/2}" y="4" font-size="14" text-anchor="middle" fill="${merged?'var(--wd-bg-deep)':'var(--wd-amber)'}">${merged?'−':'+'}</text>
-    </g>`);
+    // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): زر دمج القوس ("+") لازم يظهر بس لو الجزء تحت القوس لسا
+    // لوح واحد مش مقسّم (layout.kind==='leaf') - نفس شرط getCycleForLeaf/cycleArch بالضبط. قبل هيك
+    // الزر كان يظهر اعتمادًا بس على archTop، بغض النظر عن التقسيم تحته - فلو المستخدم قسم الشباك لعدة
+    // أقسام الأول، وبعدين فعّل القوس، وبعدين دغش "+"، كان يصير archMerged=true رغم إنو مش لوح واحد -
+    // وهاد كان يخلي رسم خط الفاصل فوق الأقسام يختفي غلط (رسمة مكسورة بصريًا).
+    if(it.layout && it.layout.kind === 'leaf'){
+      out.mergeMarkers.push(`<g class="merge-btn" onclick="toggleArchMerge(${it.id})">
+        <circle cx="${drawW/2}" cy="0" r="12" fill="${merged? 'var(--wd-amber)':'var(--wd-bg-deep)'}" stroke="var(--wd-amber)" stroke-width="1.2"/>
+        <text x="${drawW/2}" y="4" font-size="14" text-anchor="middle" fill="${merged?'var(--wd-bg-deep)':'var(--wd-amber)'}">${merged?'−':'+'}</text>
+      </g>`);
+    }
   }
 
   const frameWidth = isShowerDoor(it) ? 1.6 : (isDoor ? 5 : 3.5);
@@ -11202,6 +11278,7 @@ async function openCameraOverlay(){
   document.getElementById('cameraPhaseLabel').textContent = 'حرّك زوايا المربع لتطابق الفتحة';
   document.getElementById('cameraPhase1Controls').style.display = 'flex';
   document.getElementById('cameraPhase2Controls').style.display = 'none';
+  document.getElementById('cameraKeepBtn').style.display = 'none';
   document.getElementById('cameraVideo').style.display = 'block';
   document.getElementById('cameraOverlay').style.display = 'block';
   try{
@@ -11223,6 +11300,7 @@ function cameraConfirmFrame(){
   document.getElementById('cameraPhaseLabel').textContent = 'دوس على أي قسم لتدوير شكله، أو على أيقونة التقسيم';
   document.getElementById('cameraPhase1Controls').style.display = 'none';
   document.getElementById('cameraPhase2Controls').style.display = 'flex';
+  document.getElementById('cameraKeepBtn').style.display = 'inline-block';
   renderCameraDesign();
 }
 
@@ -11232,6 +11310,7 @@ function cameraBackToFraming(){
   document.getElementById('cameraPhaseLabel').textContent = 'حرّك زوايا المربع لتطابق الفتحة';
   document.getElementById('cameraPhase1Controls').style.display = 'flex';
   document.getElementById('cameraPhase2Controls').style.display = 'none';
+  document.getElementById('cameraKeepBtn').style.display = 'none';
   renderCameraFrame();
 }
 
@@ -11251,7 +11330,28 @@ function closeCameraOverlay(){
   if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream = null; }
   if(camItem){ items = items.filter(it => it !== camItem); camItem = null; }
   document.getElementById('cameraOverlay').style.display = 'none';
+  document.getElementById('cameraKeepBtn').style.display = 'none';
   camPhase = 1;
+}
+
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): قبل هالدالة، ما كان في ولا طريقة تخلّي الشكل يلي صمّمتيه
+// بأداة الكاميرا (فريمنغ + اختيار نوع + تقسيم لأقسام - نفس قدرات التصميم العادي بالضبط) يصير بند دائم -
+// "✕ إغلاق" كان الاحتمال الوحيد وكان يمسحه دايمًا. هالدالة بس بتشيل علامة isCameraTemp (يعني يصير
+// البند مرئي بقائمة البنود العادية، وبيدخل بالحساب/الطباعة/المشتريات متل أي بند تاني) بدل ما تمسحه.
+function cameraKeepDesign(){
+  if(!camItem) return;
+  pushHistory();
+  camItem.isCameraTemp = false;
+  selectedId = camItem.id;
+  camItem = null;
+  if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream = null; }
+  document.getElementById('cameraOverlay').style.display = 'none';
+  document.getElementById('cameraKeepBtn').style.display = 'none';
+  camPhase = 1;
+  renderChips();
+  loadSelectedIntoControls();
+  renderGallery();
+  updateUndoButton();
 }
 
 window.openCameraOverlay = openCameraOverlay;
@@ -11260,6 +11360,7 @@ window.cameraConfirmFrame = cameraConfirmFrame;
 window.setCameraOpacity = setCameraOpacity;
 window.cameraBackToFraming = cameraBackToFraming;
 window.cameraSetShape = cameraSetShape;
+window.cameraKeepDesign = cameraKeepDesign;
 
 let threeDGlassIntensity = 30; // 0 = شفاف تمامًا، 100 = أزرق عاكس بالكامل
 let threeDBackground = 'studio'; // studio | nature | room
@@ -12082,6 +12183,12 @@ async function loadQuotationItemsIntoDesigner(){
     const designListData = await designRes.json();
     const designFileId = (designListData.files && designListData.files.length) ? designListData.files[0].id : null;
     if(designFileId){
+      // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): قبل ما نمسح أي بنود موجودة حاليًا بالمصمم (يمكن تكون
+      // تعديلات يدوية ما انحفظت لسا)، لازم نتأكد من المستخدم - لأنو historyStack نفسها رح تنمسح كمان
+      // فما رح يقدر يرجع يتراجع (Undo) عن الفقدان هاد إطلاقًا.
+      if(items.length > 0 && !confirm('في بنود مرسومة حاليًا بالمصمم ما انحفظت. تحميل التصميم المحفوظ "' + refRaw + '" رح يمسحها نهائيًا وما رح تقدري تتراجعي عن هالمسح. بدك تكملي؟')){
+        return;
+      }
       const designContentRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${designFileId}?alt=media`, {
         headers: { Authorization: 'Bearer ' + token }
       }, 30000);
@@ -12114,6 +12221,11 @@ async function loadQuotationItemsIntoDesigner(){
     // افتراضي، أو بواقي محفوظة تلقائيًا بالمتصفح من رقم مرجعي/جلسة سابقة مختلفة) - وإلا هالبواقي
     // بتنضم غلط كـ"بنود أضافها المستخدم يدويًا" وبتظهر مع بنود عرض السعر الجديد وكأنها منه، رغم إنها
     // مالها علاقة فيه إطلاقًا.
+    // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): هالمسح كمان بيصفّر historyStack (عبر WD.loadFromRows)
+    // فما بيضل فيه ولا طريقة ترجعي فيها عن الفقدان بالـ Undo - لازم تأكيد من المستخدم قبل ما نكمل.
+    if(items.length > 0 && !confirm('في بنود مرسومة حاليًا بالمصمم ما انحفظت. تحميل بنود عرض السعر "' + refRaw + '" رح يمسحها نهائيًا وما رح تقدري تتراجعي عن هالمسح. بدك تكملي؟')){
+      return;
+    }
     items = [];
     applyFullQuotationData(quotationData);
     openDesignerFromToolbar();
