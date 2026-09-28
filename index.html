@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-27.4';
+  var CURRENT_VERSION = '2026-09-28.1';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -433,6 +433,20 @@
         api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
           if(r.status !== 'approved'){
             try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
+            // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): كان هون بيصير location.reload() فورًا بدون أي
+            // تحذير للمستخدم، بغض النظر شو حالة الصفحة وقتها - لو كان في حفظة لجوجل درايف شغالة
+            // بالضبط بهاي اللحظة، الـreload كان يقطعها بمنتصف الطريق (احتمال مجلد/ملفات ناقصة على
+            // درايف). هلق: لو في حفظة شغالة (window.__mzIsDriveSaveInFlight - مُعرّفة بكتلة <script>
+            // تانية بأسفل الصفحة، فيها منطق الحفظ نفسه)، منأجّل الـ reload ومنعيد المحاولة بعد كذا
+            // ثواني بدل ما نقطع شغل المستخدم فجأة. وبكل الأحوال (سواء أجّلنا أو رح نعمل reload فورًا)
+            // منوري تحذير واضح للمستخدم قبل ما يصير، بدل ما تختفي الصفحة تحت إيده بلا تفسير.
+            const saving = window.__mzIsDriveSaveInFlight && window.__mzIsDriveSaveInFlight();
+            if(saving){
+              console.warn('[Access Gate] صلاحية الجهاز انسحبت، بس في حفظة لجوجل درايف شغالة حاليًا - منأجّل الـ reload حتى تخلص.');
+              setTimeout(revalidate, 5000);
+              return;
+            }
+            alert('⚠️ صلاحية الوصول لهاد الجهاز انسحبت أو انتهت - رح تنعمل إعادة تحميل للصفحة الآن.\n\nأي تعديل ما انحفظ لجوجل درايف قبل هلق ممكن يضيع.');
             location.reload();
           }
         }).catch(function(){});
@@ -2217,6 +2231,16 @@ function updateItemField(idx, field, value){
   if(!ITEMS[idx]) return;
   if(field === 'en' && value && value !== ITEMS[idx].en){
     const oldName = ITEMS[idx].en;
+    // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - #32): renameItemEverywhere تحت (وترحيل مفاتيح itemPriceMemory
+    // المرتبط فيها) بتشتغل بالاسم النصي بس (مش برقم/id مميز للبند) - فلو صار (بالغلط) بندين مختلفين
+    // بالكتالوج نفس الاسم بالضبط، إعادة تسمية واحد منهم بتخلط/تسرق سطور جدول عرض سعر مفتوحة حاليًا وذاكرة
+    // أسعار محفوظة كانت تخص البند التاني (يلي المستخدم ما قصد يعدّل عليه أصلًا). هلق منتحقق قبل أي إعادة
+    // تسمية إذا الاسم الجديد رح يطابق بند تاني موجود، ومنحذّر بوضوح مع فرصة للإلغاء.
+    const trimmedNew = String(value).trim();
+    const dupIdx = trimmedNew ? ITEMS.findIndex((o,i)=> i!==idx && String(o.en||'').trim() === trimmedNew) : -1;
+    if(dupIdx !== -1){
+      if(!confirm('⚠️ في بند تاني بالكتالوج (إدارة الأصناف) عندو نفس الاسم بالضبط: "' + trimmedNew + '".\n\nلو كملتي، الربط بين سطور عروض الأسعار/الأسعار المحفوظة وأسماء البنود بيصير بالنص بس - يعني ممكن يصير خلط بين هاد البند والبند التاني (تسمية سطر غلط، أو سرقة سعر محفوظ). الأفضل تختاري اسم مختلف.\n\nبدك تكملي فعليًا بنفس الاسم؟')) return;
+    }
     ITEMS[idx].en = value;
     renameItemEverywhere(oldName, value);
   } else {
@@ -2286,6 +2310,28 @@ function removeLinkedSpecsIfUnused(itemName){
 function removeQtyRow(btn){
   const tr = btn.closest('tr');
   const itemName = tr ? (tr.dataset.itemName || '') : '';
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): حذف سطر مباشرة من جدول عرض السعر (هون) كان يسيب
+  // تصميم الغرفة (لو الصف مربوط بـ seg.rowUid) "معلّق" على سطر محذوف - قائمة أضلاع الغرفة كانت تضل
+  // تقول "✓ مصمم" بدون أي سطر فعلي وراها، والمشهد ثلاثي الأبعاد كان يضل يعرض الشكل المحذوف وكأنو
+  // لسا مسعّر، ولو ضغطت "🎨 عدّل التصميم" بعدين كان يخلق سطر جديد فاضي بدل ما يفهم إنو الأصلي انمسح.
+  // هلق: نفس تأكيد removeRoomSideSegment بالضبط - لو الصف مربوط بضلع غرفة، نسأل ونصفّر seg.rowUid
+  // فورًا لو أكّد المستخدم، حتى القائمة/المشهد ثلاثي الأبعاد يعرفوا إنو التصميم هاد ما عاد موجود.
+  const rowUid = tr ? tr.dataset.rowUid : null;
+  if(rowUid){
+    let linkedSeg = null;
+    for(const it of items){
+      for(const side of (it.roomSides||[])){
+        const seg = (side.segments||[]).find(g=>g.rowUid===rowUid);
+        if(seg){ linkedSeg = seg; break; }
+      }
+      if(linkedSeg) break;
+    }
+    if(linkedSeg){
+      if(!confirm('هاد السطر مربوط بتصميم غرفة/مجلس. حذفه من هون رح يفك الربط (قائمة أضلاع الغرفة والمشهد ثلاثي الأبعاد رح يعرفوا إنو هاد الجزء ما عاد مسعّر). بدك تكمل الحذف؟')) return;
+      pushHistory();
+      linkedSeg.rowUid = null;
+    }
+  }
   if(tr) tr.remove();
   renumber();
   recalc();
@@ -3957,6 +4003,15 @@ let quotationUndoInProgress = false;
 
 function pushQuotationHistorySnapshotNow(){
   if(quotationUndoInProgress) return;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): التقاط PDF (وقت الحفظ لجوجل درايف) بيستبدل مؤقتًا
+  // كل <select> بـ<span> نصي ويخفي الـ<select> الأصلي (swapSelectsForPdfCapture) - هاد تعديل DOM حقيقي
+  // جوا #page، فبيشغّل نفس MutationObserver تبع التراجع هون. عملية الالتقاط كاملة (خطوط+html2canvas+jsPDF)
+  // بتاخد أكتر من الـ700ms تبع الـdebounce بسهولة، يعني كانت ممكن تصير لقطة "ملوّثة" (فيها الـ<select>
+  // المخفي والـ<span> المؤقت كجزء دائم من اللقطة) لو صادف توقيت سيء. لو رجع المستخدم "تراجع" لهيك لقطة
+  // بالذات، القائمة المنسدلة (لون الألمنيوم/نوع الزجاج) كانت تضل مجمّدة/مخفية بشكل دائم بهداك الصف لحد
+  // ريفريش كامل. هلق: منتجاهل أي لقطة وقت ما body.pdf-capturing مفعّل - وrestoreSelectsAfterPdfCapture
+  // (تحت) بتجدول لقطة جديدة نظيفة فور ما تخلص عملية الالتقاط، حتى ما نخسر أي تعديل حقيقي صار بالفترة هاي.
+  if(document.body.classList.contains('pdf-capturing')) return;
   try{
     const snap = JSON.stringify(captureFullQuotationData());
     if(snap === lastQuotationSnapshotJson) return; // ما تغيّر شي فعليًا (مثلاً focus/blur بدون تعديل)
@@ -3972,6 +4027,9 @@ function pushQuotationHistorySnapshotNow(){
 
 function scheduleQuotationHistorySnapshot(){
   if(quotationUndoInProgress) return;
+  // 🛠️ إصلاح 2026-09-28: شوف تعليق pushQuotationHistorySnapshotNow فوق - ما في داعي نجدول لقطة أصلًا
+  // وقت التقاط PDF (بتترفض بالـfunction نفسها هلق بكل الأحوال، بس منوقف الجدولة هون كمان توفيرًا).
+  if(document.body.classList.contains('pdf-capturing')) return;
   clearTimeout(quotationHistoryDebounceTimer);
   quotationHistoryDebounceTimer = setTimeout(pushQuotationHistorySnapshotNow, 700);
 }
@@ -4226,6 +4284,29 @@ function updateCurrencyRowVisibility(branch){
 // لكل خانة سعر موجودة حاليًا بالجدول، والحقل النائب لخانة الخصم) حسب العملة الحالية (getCurrentCurrencyConfig)
 // - مستدعاة من onCurrencyChange() (تبديل القائمة يدويًا) ومن applyBranchDependentUI (تبديل الفرع، أو
 // تحميل/فتح عرض سعر قديم). سطر "فقط ... لا غير" وقيمة VAT/المجموع النهائي بيتحدثوا هني كمان عبر recalcSummary().
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - أخطر باغ لقيناه بكل الجولتين): تبديل العملة أو الفرع بنص
+// عرض السعر ما كان يحوّل ولا رقم سعر مكتوب فعليًا بالجدول - بس بيبدّل اسم العملة المعروض، فعرض سعر
+// فيه أسعار "40 دولار" كان يصير بضغطة وحدة "40 ليرة سورية" أو "40 درهم" (فرق حقيقي كبير بالقيمة) بدون
+// أي تحذير. بما إنو ما في سعر صرف موثوق لكل الأزواج الممكنة (AED/USD/SYP) نقدر نبني عليه تحويل تلقائي
+// آمن، الحل هون: منمنع التبديل الصامت - لو الجدول فيه أي سعر/إجمالي مكتوب فعلًا، منسأل تأكيد صريح
+// يوضح إنو الأرقام ما رح تتحول تلقائيًا، ومنرجّع القائمة لقيمتها القديمة لو المستخدم لغى.
+let __mzLastCurrencyValue = (document.getElementById('m-currency') || {}).value || null;
+let __mzLastBranchValue = (document.getElementById('m-branch') || {}).value || null;
+function hasAnyQuotationPrices(){
+  const rows = document.querySelectorAll('#qty-rows tr');
+  for(const tr of rows){
+    const priceEl = tr.querySelector('.price');
+    const totalEl = tr.querySelector('.line-total');
+    const priceVal = parseFloat((priceEl && priceEl.value)||'') || 0;
+    const totalVal = parseFloat((totalEl && totalEl.value)||'') || 0;
+    if(priceVal !== 0 || totalVal !== 0) return true;
+  }
+  return false;
+}
+function confirmCurrencyOrBranchSwitchIfPriced(){
+  if(!hasAnyQuotationPrices()) return true;
+  return confirm('⚠️ في أسعار مكتوبة فعليًا بجدول عرض السعر.\n\nتبديل العملة/الفرع هون ما بيحوّل قيمة أي رقم موجود بالجدول - الأرقام رح تضل نفسها بالضبط بس تحت اسم عملة/فرع جديد (يعني لو كان عندك سعر "40" بعملة معينة، رح يضل "40" بس معروض كعملة تانية - فرق حقيقي كبير بالقيمة الفعلية).\n\nلازم تراجعي/تعدّلي الأسعار يدويًا بعد التبديل لو أكملتي.\n\nبدك تكملي التبديل فعليًا؟');
+}
 function applyCurrencyLabels(){
   const cfg = getCurrentCurrencyConfig();
   const priceHeader = document.getElementById('price-col-header');
@@ -4238,6 +4319,15 @@ function applyCurrencyLabels(){
   if(typeof recalcSummary === 'function') recalcSummary();
 }
 function onCurrencyChange(){
+  const sel = document.getElementById('m-currency');
+  const newVal = sel ? sel.value : '';
+  if(__mzLastCurrencyValue !== null && newVal !== __mzLastCurrencyValue){
+    if(!confirmCurrencyOrBranchSwitchIfPriced()){
+      if(sel) sel.value = __mzLastCurrencyValue;
+      return;
+    }
+  }
+  __mzLastCurrencyValue = newVal;
   applyCurrencyLabels();
 }
 // 🆕 2026-09-22: دالة جامعة تجمع كل تأثيرات تبديل الفرع (عنوان الشركة، فقرة الاختصاص القضائي، ظهور/إخفاء
@@ -4250,6 +4340,14 @@ function applyBranchDependentUI(branch){
   updateBankInfoVisibility(branch);
   updateCurrencyRowVisibility(branch);
   applyCurrencyLabels();
+  // 🛠️ إصلاح 2026-09-28: هالمسار (تحميل عرض سعر قديم، تراجع، "عرض سعر جديد"...) بيغيّر الفرع/العملة
+  // برمجيًا مش من ضغطة يدوية على القائمة - منزامن __mzLastBranchValue/__mzLastCurrencyValue هون حتى
+  // ضغطة onBranchChange/onCurrencyChange اليدوية الجاية تقارن مع القيمة الصحيحة الحالية، مش قيمة قديمة
+  // عالقة من قبل التحميل (وإلا ممكن يطلع تأكيد "بدك تحولي؟" بمكان غلط، أو ما يطلع بمكان لازم يطلع فيه).
+  const branchSelNow = document.getElementById('m-branch');
+  const currencySelNow = document.getElementById('m-currency');
+  if(branchSelNow) __mzLastBranchValue = branchSelNow.value;
+  if(currencySelNow) __mzLastCurrencyValue = currencySelNow.value;
 }
 // مستدعاة من جوا syncPage2Header() (يلي أصلًا بتشتغل مع كل تغيير بالرقم المرجعي - كتابة يدوية،
 // تحميل عرض سعر قديم، أو اقتراح تلقائي/يدوي) - بتكتشف الفرع من حرف الرقم المرجعي الحالي وبتحدّث
@@ -4266,7 +4364,17 @@ function applyBranchFromRef(){
 // الفرع الجديد بس (بتحافظ على باقي الرقم/التسلسل متل ما هو)، بدون ما تفرض رقم افتراضي جديد -
 // هيك لو كان المستخدم كتب تسلسل يدوي، ما بيضيع.
 function onBranchChange(){
-  const branch = document.getElementById('m-branch').value;
+  const branchSel = document.getElementById('m-branch');
+  const branch = branchSel.value;
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): شوف تعليق hasAnyQuotationPrices/confirmCurrencyOrBranchSwitchIfPriced
+  // فوق - تبديل الفرع من هالقائمة بيغيّر عملة العرض (درهم/دولار) بدون ما يحوّل أي رقم سعر موجود فعلًا.
+  if(__mzLastBranchValue !== null && branch !== __mzLastBranchValue){
+    if(!confirmCurrencyOrBranchSwitchIfPriced()){
+      branchSel.value = __mzLastBranchValue;
+      return;
+    }
+  }
+  __mzLastBranchValue = branch;
   const refEl = document.getElementById('m-ref');
   if(refEl){
     const prefix = getBranchConfig(branch).refPrefix;
@@ -4312,6 +4420,26 @@ async function findRefFolderIfExistsForBranch(refFull, branch, token){
   }, 20000);
   const data = await res.json();
   return !!(data.files && data.files.length);
+}
+
+// 🛠️ إصلاح 2026-09-28 (بلاغ حمدي المباشر: لقى مجلد عرض سعر رقمه بصيغة سوريا "S-Q-260002" بس فعليًا
+// محفوظ جوا مجلدات الإمارات بجوجل درايف) - saveToGoogleDriveInner (فوق) بتحدد مجلد الفرع الصحيح
+// دايمًا من حرف الرقم المرجعي وقت كل حفظة (getBranchFromRef(refRaw)) فهي نفسها سليمة منطقيًا، بس ما
+// في أي فحص أبدًا بيتأكد إنو نفس الرقم مش موجود أصلًا (بالغلط، أو من حفظة سابقة قبل ما ينبدّل الفرع،
+// أو حتى بسبب حرف Unicode يشبه بصريًا حرف S/M العادي بس مش هو فعليًا فيفشل اكتشاف الفرع بصمت) جوا
+// مجلد الفرع التاني. هلق: بعد كل حفظة ناجحة، منعمل فحص خلفي صامت (best-effort - ما بيأخر ولا بيعطّل
+// ظهور رسالة نجاح الحفظ) لمجلد الفرع "التاني" (مش يلي حفظنا فيه)، ولو لقينا نفس الرقم موجود هناك كمان
+// (أو بس هناك، مش بمجلدنا) منحذر حمدي بوضوح فورًا بدل ما يكتشفها صدفة لاحقًا وهو عم يدوّر يدويًا.
+async function warnIfSavedRefExistsUnderOtherBranch(refRaw, savedBranch){
+  try{
+    const otherBranch = savedBranch === 'syria' ? 'uae' : 'syria';
+    const token = await getGoogleAccessToken(true); // محاولة صامتة بس - ما نفتح نافذة جوجل لمجرد فحص احترازي
+    if(!token) return;
+    const existsInOther = await findRefFolderIfExistsForBranch(refRaw, otherBranch, token);
+    if(existsInOther){
+      alert('⚠️ تنبيه: لقينا مجلد بنفس الرقم المرجعي "' + refRaw + '" محفوظ أيضًا جوا مجلدات فرع ' + (otherBranch==='syria' ? 'دمشق-سوريا' : 'الإمارات') + ' بجوجل درايف (غير مجلد فرع ' + (savedBranch==='syria' ? 'دمشق-سوريا' : 'الإمارات') + ' يلي انحفظ فيه هلق).\n\nهاد ممكن يعني: (1) نفس العرض انحفظ قبل هيك بفرع مختلف وبعدين تبدّل الفرع بدون ما ينتقل المجلد القديم، أو (2) في عرضين مختلفين صادف نفس الرقم بفرعين مختلفين بالغلط.\n\nلازم تتأكدي يدويًا من جوجل درايف أي نسخة هي الصحيحة، حتى ما يضيع تعديل أو يصير لخبطة بين نسخة قديمة وجديدة.');
+    }
+  }catch(e){ /* فشل صامت مقصود - فحص احترازي إضافي بس، مش أساسي لنجاح الحفظ نفسه */ }
 }
 
 // ⚠️ سيرفر إشعارات واتساب (اختياري) - بيبعت أوتوماتيك عرض السعر لمجموعة "Tasks" عند كل حفظ.
@@ -4434,7 +4562,7 @@ async function copySignLink(){
   try{
     if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري حفظ آخر تحديث قبل تجهيز الرابط...'; }
     await Promise.race([
-      saveToGoogleDriveInner(),
+      runSaveToGoogleDriveInnerShared(),
       new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت عملية الحفظ الوقت المسموح (150 ثانية) - تأكد من اتصالك بالإنترنت وجرّبي تاني.')), 150000))
     ]);
   }catch(saveErr){
@@ -4501,7 +4629,7 @@ async function openSignLink(){
   try{
     if(btn){ btn.disabled = true; btn.textContent = '⏳ جاري حفظ آخر تحديث قبل فتح الصفحة...'; }
     await Promise.race([
-      saveToGoogleDriveInner(),
+      runSaveToGoogleDriveInnerShared(),
       new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت عملية الحفظ الوقت المسموح (150 ثانية) - تأكد من اتصالك بالإنترنت وجرّبي تاني.')), 150000))
     ]);
   }catch(saveErr){
@@ -4538,7 +4666,14 @@ const GOOGLE_TOKEN_CACHE_KEY = 'merzona_index_gtoken_v1';
 let googleAccessToken = null;
 let googleAccessTokenExpiresAt = 0;
 let googleTokenClient = null;
-let googleTokenInFlight = null;
+let googleTokenInFlight = null; // 🛠️ لم يعد يُستخدم مباشرة (شوف googleTokenInFlightSilent/Interactive تحت) - مُبقى فقط لتفادي أي مرجع قديم لاسمه.
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): قبل هيك كان في slot واحد مشترك (googleTokenInFlight) لكل
+// طلبات التوكن بغض النظر عن قيمة silent - يعني طلب صامت شغال أصلًا بالخلفية (autoSuggestNextReference
+// مثلًا) كان "يخطف" كبسة زر يدوي حقيقي (🔄) لاحقة ويرجّعلها نفس نتيجة المحاولة الصامتة (فشل صامت بعد
+// 6 ثواني بدون ما تنفتح نافذة جوجل حقيقية إطلاقًا) - رغم إنو الزر اليدوي مصمم خصيصًا (بتاريخ 2026-09-16)
+// يفتح نافذة حقيقية لو احتاج. هلق: كل نوع طلب (صامت / تفاعلي) إله slot مستقل تمامًا.
+let googleTokenInFlightSilent = null;
+let googleTokenInFlightInteractive = null;
 // عند تحميل الصفحة: نجرب نسترجع توكن جوجل سابق لسا صالح من التخزين المحلي (localStorage) بدل ما
 // نبلش من الصفر كل مرة. توكن جوجل صالح لمدة ساعة تقريبًا (3600 ثانية) - فلو فتحت/سكرت الأداة
 // أكتر من مرة بنفس الساعة، رح يشتغل اقتراح الرقم المرجعي والحفظ لجوجل درايف فورًا بدون أي كبسة.
@@ -4593,10 +4728,14 @@ function getGoogleAccessToken(silent){
   if(googleAccessToken && (googleAccessTokenExpiresAt - 60000) > Date.now()){
     return Promise.resolve(googleAccessToken);
   }
-  // في طلب دخول شغال أصلًا بالخلفية - منستنى نتيجته بدل ما نبلش طلب ثاني بالتوازي.
-  if(googleTokenInFlight) return googleTokenInFlight;
+  // في طلب دخول شغال أصلًا بالخلفية بنفس النوع (صامت أو تفاعلي) - منستنى نتيجته بدل ما نبلش طلب ثاني بالتوازي.
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - #27): قبل هيك كان في slot واحد مشترك بغض النظر عن silent -
+  // يعني طلب صامت شغال بالخلفية (مثلاً autoSuggestNextReference) كان يخطف كبسة زر يدوي (🔄) لاحقة
+  // ويرجّعلها نفس نتيجة المحاولة الصامتة (فشل صامت بعد 6 ثواني بدون ما تنفتح نافذة جوجل حقيقية إطلاقًا).
+  const __mzInFlight = silent ? googleTokenInFlightSilent : googleTokenInFlightInteractive;
+  if(__mzInFlight) return __mzInFlight;
 
-  googleTokenInFlight = (async ()=>{
+  const __mzTokenPromise = (async ()=>{
     // 🔧 2026-08-24: أول محاولة هلق هي خدمة السيرفر - ما بتحتاج ولا نافذة ولا كبسة إطلاقًا (لا أول
     // مرة ولا كل ساعة). لو نجحت، خلصنا بدون ما نلمس مكتبة جوجل بالمتصفح نهائيًا.
     const fromServer = await fetchDriveTokenFromServer();
@@ -4635,9 +4774,12 @@ function getGoogleAccessToken(silent){
         if(!googleAccessToken || (googleAccessTokenExpiresAt - 60000) <= Date.now()) reject(new Error(silent ? 'silent-timeout' : 'ما تم تسجيل الدخول خلال مهلة معقولة - يمكن نافذة تسجيل الدخول انسدّت أو ما اتكمّلت. جرّب تاني.'));
       }, timeoutMs);
     });
-  })().finally(()=>{ googleTokenInFlight = null; });
+  })().finally(()=>{
+    if(silent) googleTokenInFlightSilent = null; else googleTokenInFlightInteractive = null;
+  });
 
-  return googleTokenInFlight;
+  if(silent) googleTokenInFlightSilent = __mzTokenPromise; else googleTokenInFlightInteractive = __mzTokenPromise;
+  return __mzTokenPromise;
 }
 
 // 🛠️ إصلاح 2026-09-26 (طلب حمدي: فشل حفظ عرض سعر لفرع سوريا بخطأ "signal is aborted without
@@ -4990,6 +5132,32 @@ window.openDesignerWithImportedItems = openDesignerWithImportedItems;
 const SAVE_BTN_LABEL = '☁️ حفظ لجوجل درايف';
 let driveSaveCancelled = false;
 let driveSaveInProgress = false;
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): كان في 3 أماكن (saveToGoogleDrive، copySignLink،
+// openSignLink) كل وحدة فيهم ممكن تنادي saveToGoogleDriveInner() مباشرة، و driveSaveInProgress ما
+// كانت تنضبط إلا من مكان وحيد (saveToGoogleDrive نفسها) - يعني نسخ/فتح رابط التوقيع كانوا يقدروا
+// يبلشوا حفظة حقيقية موازية لحفظة تانية شغالة أصلًا (من الزر الرئيسي أو من بعضهم)، وهاد فعليًا نفس
+// خطورة تعارض الكتابة يلي صلّحناها اليوم بـserver.js (نسخة أضعف محليًا: مجلدات/ملفات مكررة، أو ملفين
+// -data.json/.pdf من لحظتين مختلفتين). وكمان "إلغاء" الحفظ (cancelGoogleDriveSave) ما كان يوقف
+// saveToGoogleDriveInner() الحقيقية الشغالة بالخلفية - بس يرجّع شكل الواجهة، فضغطة "حفظ" تالتة كانت
+// تبلّش حفظة حقيقية ثالثة موازية.
+// الحل الجذري (بدل قفل منفصل بكل مكان): نغلّف saveToGoogleDriveInner() بوعد (Promise) مشترك واحد -
+// أي نداء تاني (من أي مكان) وهو شغال بياخد **نفس الوعد بالضبط** بدل ما يبلّش عملية حفظ حقيقية جديدة
+// موازية. هيك مستحيل يصير حفظتين حقيقيتين بنفس الوقت مهما كانت الكبسات/الأزرار، وحتى "إلغاء" بقا آمن
+// (بيوقف بس انتظار الواجهة لنتيجة الحفظ، مش الحفظ نفسه - وهاد الآن مقبول لأنو ما رح يصير حفظة موازية
+// ثانية أبدًا).
+let __mzSaveInnerInFlight = null;
+function runSaveToGoogleDriveInnerShared(){
+  if(__mzSaveInnerInFlight) return __mzSaveInnerInFlight;
+  const p = saveToGoogleDriveInner();
+  __mzSaveInnerInFlight = p;
+  const clearIt = () => { if(__mzSaveInnerInFlight === p) __mzSaveInnerInFlight = null; };
+  p.then(clearIt, clearIt);
+  return p;
+}
+// معلّق على window (مش مجرد متغيّر let عادي) عمدًا - بوابة الدخول (revalidate جوا الـ<script> الأول
+// بأعلى الملف) محتاجة تتحقق من هاد الحال قبل ما تعمل location.reload() قسري، وهي بكتلة <script>
+// منفصلة تمامًا؛ الوصول عبر window مضمون بغض النظر عن ترتيب/حدود كتل الـ<script>.
+window.__mzIsDriveSaveInFlight = function(){ return !!__mzSaveInnerInFlight || driveSaveInProgress; };
 function cancelGoogleDriveSave(){
   // المستخدم ضغط إلغاء (بإعادة الضغط عالزر نفسه وهو شغال) - نرجّعه يشتغل فورًا، وأي نتيجة متأخرة توصل من جوجل بعدين منتجاهلها
   driveSaveCancelled = true;
@@ -5051,7 +5219,7 @@ async function saveToGoogleDrive(evt){
   try{
     if(btn){ btn.disabled = false; btn.textContent = '⏳ جاري الحفظ... (اكبس للإلغاء)'; }
     const result = await Promise.race([
-      saveToGoogleDriveInner(),
+      runSaveToGoogleDriveInnerShared(),
       new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت العملية الوقت المسموح (150 ثانية) - تأكد من اتصالك بالإنترنت وجرّب تاني.')), 150000))
     ]);
     window.removeEventListener('focus', onFocusReturn);
@@ -5063,6 +5231,13 @@ async function saveToGoogleDrive(evt){
     // أداة عرض السعر شغالة جوا إطار الداشبورد نفسها أو بتبويب منفصل لحاله - هيك أي حفظة جديدة بتنعكس
     // بالداشبورد فورًا بدل ما تستنى دورة مزامنة تلقائية لاحقة.
     try{ localStorage.setItem('merzona_last_quotation_saved_at', String(Date.now())); }catch(e){}
+    // 🛠️ إصلاح 2026-09-28 - شوف تعليق warnIfSavedRefExistsUnderOtherBranch فوق: فحص خلفي صامت بعد كل
+    // حفظة ناجحة، يحذّر لو نفس الرقم المرجعي موجود بالغلط جوا مجلدات الفرع التاني كمان.
+    (function(){
+      const refNow = (document.getElementById('m-ref') && document.getElementById('m-ref').value || '').trim();
+      const branchNow = document.getElementById('m-branch') ? document.getElementById('m-branch').value : 'uae';
+      if(refNow) warnIfSavedRefExistsUnderOtherBranch(refNow, branchNow).catch(()=>{});
+    })();
     // 🆕 2026-09-24: خلص الحفظ النهائي بنجاح - لو هاد العرض كان محفوظ كـ"مسودة" قبل هيك، منرحّلها
     // (best-effort، ما بتوقف أو تأخر ظهور رسالة النجاح) حتى ما تضل ظاهرة بسجل المسودات بالداشبورد.
     cleanupDraftAfterFinalSave(document.getElementById('m-ref') && document.getElementById('m-ref').value).catch(()=>{});
@@ -5215,6 +5390,9 @@ function restoreSelectsAfterPdfCapture(){
     delete sel.dataset.mzCaptured;
   });
   document.querySelectorAll('.mz-select-capture-text').forEach(span=> span.remove());
+  // 🛠️ إصلاح 2026-09-28: خلص الالتقاط - منجدول لقطة تراجع جديدة ونظيفة (بدل اللي كانت ممكن تنمنع أثناء
+  // الالتقاط)، حتى نلتقط أي تعديل حقيقي صار بالصفحة بهاي الفترة (نادر بس ممكن).
+  if(typeof scheduleQuotationHistorySnapshot === 'function') scheduleQuotationHistorySnapshot();
 }
 (function setupPdfCaptureSelectSwap(){
   let active = false;
@@ -5963,6 +6141,12 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
   // إزعاج للمستخدم) - clearDraft() لسا منستخدمها بأماكن تانية (متل بدء عرض سعر جديد فاضي بالنية).
   if(!pendingQuotationLoad && !pendingDesignLoad){
     // (نافذة الاسترجاع التلقائي انعطّلت بطلب حمدي - ما منعرض ولا منسأل شي هون)
+    // 🛠️ ملاحظة توثيقية 2026-09-28 (فحص شامل جولة ٢): بحثنا بكل الملف وما لقينا أي مكان تاني بيقرا
+    // DRAFT_STORAGE_KEY بعد تعطيل هالنافذة - يعني saveDraftFromSnapshot (فوق) حاليًا كتابة بس بدون
+    // أي قارئ إطلاقًا، مش "نسخة احتياطية صامتة" فعليًا كما كان التعليق القديم يوحي. تركناها هيك عمدًا
+    // (بدون ما نضيف أي واجهة استرجاع جديدة) احترامًا لقرار حمدي الصريح بتعطيل هالنافذة بعد ما صار أرشيف
+    // مسودات حقيقي بجوجل درايف - أي إعادة تفعيل لاسترجاع محلي (حتى لو صامت بدون نافذة) لازم قرار جديد
+    // صريح منّو أول، مش تصليح تلقائي بالخلفية.
   }
 }
 // سقف أقصى للاستنى: 200 محاولة × 50ms = 10 ثواني (أكتر شوي من VERSION_CHECK_TIMEOUT_MS=8000 فوق)
@@ -7012,6 +7196,12 @@ try{
 // عشان نتأكد إنو البنود المستعادة من الحفظ التلقائي بتظهر فوراً بمجرد فتح الصفحة من جديد.
 setTimeout(function(){
   try{
+    // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): نفس تصليح resyncSubItemIdCounters يلي بعمله
+    // __applyDesignItemsImport__ - بس هون لازم يصير جوا هالـ setTimeout المؤجّل (مش بمكان استرجاع
+    // items من localStorage فوق مباشرة) لأنو roomSideIdCounter/roomSegIdCounter/... (let بأسفل
+    // الملف) والدالة resyncSubItemIdCounters نفسها لسا ما انعرّفوا وقت ما items بترجع من التخزين
+    // المحلي (temporal dead zone) - بانتظار الـ setTimeout هون بيضمن إنو كل تعريفات الملف خلصت أول.
+    if(typeof resyncSubItemIdCounters === 'function') resyncSubItemIdCounters(items);
     if(typeof renderChips === 'function') renderChips();
     if(typeof loadSelectedIntoControls === 'function') loadSelectedIntoControls();
     if(typeof renderGallery === 'function') renderGallery();
@@ -7045,12 +7235,45 @@ window.addEventListener('beforeunload', function(){
 window.__getDesignItemsForExport__ = function(){
   return { items: items, nextId: nextId };
 };
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): roomSideIdCounter/roomSegIdCounter/hrSegIdCounter/
+// ceilingZoneIdCounter/ceilingZoneSideIdCounter (معرّفة تحت بهالملف) كانت تتصفّر لـ1 كل ما تنفتح
+// الصفحة من جديد (بعكس nextId فوق يلي بيتزامن صح مع أعلى id موجود فعليًا بالبيانات المحمّلة). فتح
+// عرض سعر قديم فيه غرفة إلها أضلاع/أقسام/أجزاء سقف بمعرّفات عالية (rs14, rg30, cz9...) وبعدين إضافة
+// ضلع/قسم/جزء سقف جديد كان يعطيه نفس معرّف موجود أصلًا (rs1 مثلاً) - تصادم id حقيقي، وأي تعديل/حذف
+// لاحق بالمعرّف المكرر ممكن يطبّق غلط عالعنصر القديم بدل الجديد (أو حتى يمسح الاتنين سوا لو حصل حذف).
+// هلق: كل ما نستورد بيانات خام (نفس نمط nextId بالضبط)، منمشي على كل الغرف ومناطق السقف ومنحسب أعلى
+// رقم موجود فعليًا بكل نوع معرّف، ومنرفع العداد المطابق ليصير أكبر منه لو لزم.
+function resyncSubItemIdCounters(itemsArr){
+  let maxRs = 0, maxRg = 0, maxS = 0, maxCz = 0, maxCzs = 0;
+  function numFromId(id, prefix){
+    if(typeof id !== 'string' || id.indexOf(prefix) !== 0) return 0;
+    const n = parseInt(id.slice(prefix.length), 10);
+    return isNaN(n) ? 0 : n;
+  }
+  (itemsArr||[]).forEach(function(it){
+    (it.roomSides||[]).forEach(function(side){
+      maxRs = Math.max(maxRs, numFromId(side.id, 'rs'));
+      (side.segments||[]).forEach(function(seg){ maxRg = Math.max(maxRg, numFromId(seg.id, 'rg')); });
+    });
+    (it.hrSegments||[]).forEach(function(seg){ maxS = Math.max(maxS, numFromId(seg.id, 's')); });
+    (it.ceilingZones||[]).forEach(function(z){
+      maxCz = Math.max(maxCz, numFromId(z.id, 'cz'));
+      (z.sides||[]).forEach(function(zs){ maxCzs = Math.max(maxCzs, numFromId(zs.id, 'czs')); });
+    });
+  });
+  if(maxRs + 1 > roomSideIdCounter) roomSideIdCounter = maxRs + 1;
+  if(maxRg + 1 > roomSegIdCounter) roomSegIdCounter = maxRg + 1;
+  if(maxS + 1 > hrSegIdCounter) hrSegIdCounter = maxS + 1;
+  if(maxCz + 1 > ceilingZoneIdCounter) ceilingZoneIdCounter = maxCz + 1;
+  if(maxCzs + 1 > ceilingZoneSideIdCounter) ceilingZoneSideIdCounter = maxCzs + 1;
+}
 window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
   try{
     if(Array.isArray(importedItems)){
       items = importedItems;
       nextId = importedNextId || (items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
       selectedId = items.length ? items[0].id : null;
+      resyncSubItemIdCounters(items);
     }
     if(typeof renderChips === 'function') renderChips();
     if(typeof loadSelectedIntoControls === 'function') loadSelectedIntoControls();
@@ -9191,9 +9414,15 @@ function deleteCeilingZoneCascade(itemId, zoneId){
   pushHistory();
   const toRemove = new Set([zoneId, ...getCeilingZoneDescendantIds(it, zoneId)]);
   it.ceilingZones = zones.filter(z=>!toRemove.has(z.id));
-  if(ceilingZoneEditor && ceilingZoneEditor.itemId===itemId && toRemove.has(ceilingZoneEditor.zoneId)) cancelCeilingZoneEditor();
+  // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): كان الفحص هون بيتحقق بس من ceilingZoneEditor.zoneId -
+  // بس لو المحرر مفتوح على جزء **جديد لسا مش محفوظ** (zoneId=null, وبس parentId مليان)، toRemove.has(null)
+  // دايمًا false فما كانت الحماية تنطبق. النتيجة: حذف الأب "A" وقت ما محرر جزء جديد جوّاها لسا مفتوح
+  // كان يسيب المحرر مفتوح على parentId محذوف - وبعدين "حفظ" كان يخلق جزء "يتيم" ما بيبين بأي قائمة
+  // أبدًا (parentId متاعو ما بيطابق أي زون موجود). هلق منتحقق من parentId كمان.
+  if(ceilingZoneEditor && ceilingZoneEditor.itemId===itemId && (toRemove.has(ceilingZoneEditor.zoneId) || toRemove.has(ceilingZoneEditor.parentId))) cancelCeilingZoneEditor();
   renderCeilingSidesUI(it);
   renderGallery();
+  if(typeof refreshRoom3DIfOpenForItem === 'function') refreshRoom3DIfOpenForItem(itemId); // 🛠️ فحص شامل جولة ٢ - #20: تحديث حي للمشهد ثلاثي الأبعاد المفتوح بعد حذف جزء سقف
 }
 window.deleteCeilingZoneCascade = deleteCeilingZoneCascade;
 
@@ -11420,6 +11649,27 @@ function renderer_dispose_safe(renderer){
   if(renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
 }
 
+// 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - #20): تعديل جزء سقف (حفظ/حذف) من اللوحة الجانبية بينما نفس
+// الغرفة مفتوحة بالمشهد ثلاثي الأبعاد كان ما بيحدّث المشهد المفتوح فورًا - المستخدم كان لازم يسكّر
+// المشهد يدويًا ويفتحه من جديد ليشوف التعديل، بعكس التعديل المباشر من جوا المشهد نفسه (كليك على علامة
+// الجملون بـhandleGableRoofClickEdit فوق) يلي هو الوحيد يلي كان بيعمل ريفريش حي. هاي الدالة بتتفحص إذا
+// المشهد مفتوح حاليًا بالضبط لنفس الغرفة (وبس عندها) وبتعيد بناءه بنفس نمط closeRoom3D()+buildRoom3DScene()
+// - بدون ما تفتح المشهد لو كان مسكّر أصلًا، وبفشل صامت مقصود لو صار أي خطأ (الريفريش تحسيني، مش أساسي).
+function refreshRoom3DIfOpenForItem(itemId){
+  try{
+    const overlay = document.getElementById('room3DOverlay');
+    if(!overlay || overlay.style.display === 'none') return;
+    if(room3D.itemId !== itemId || !room3D.renderer) return;
+    const it = items.find(i=>i.id===itemId); if(!it) return;
+    closeRoom3D();
+    const wrap = document.getElementById('room3DCanvasWrap');
+    if(!wrap) return;
+    overlay.style.display = 'block';
+    room3D.itemId = it.id;
+    buildRoom3DScene(it, wrap).catch(function(e){ console.error('تعذّر تحديث المشهد ثلاثي الأبعاد بعد تعديل جزء السقف:', e); });
+  }catch(e){ /* فشل صامت مقصود */ }
+}
+
 // 🆕 2026-09-26 (طلب حمدي: "لازم بعد تسجيل مقطع الثري دي ينحفظ بملف الرفرنس بجوجل درايف") - بيرفع
 // نفس الفيديو المسجَّل تلقائيًا لنفس مجلد الرقم المرجعي بجوجل درايف (نفس المجلد بالضبط يلي فيه ملف
 // HTML/PDF/-data.json تبع عرض السعر)، بنفس منطق تحديد المجلد (فرع → سنة → رقم مرجعي) المستخدم بـ
@@ -11933,6 +12183,14 @@ function saveCeilingZoneDraft(){
   if(ceilingZoneEditor.zoneId){
     const existing = zones.find(z=>z.id===ceilingZoneEditor.zoneId);
     if(existing){
+      // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): لو الجزء نفسه صار "gable" وعنده أطفال (أجزاء جوّاه)،
+      // كنا بنسمح بالتبديل بدون أي تحذير - بينما buildCeilingLevelRecursive بترسم السقف المائل
+      // وبترجع (return) فورًا، فما توصل أبدًا لرسم الأطفال - يعني الأطفال بيختفوا تمامًا من الثري دي
+      // (بس يضلوا موجودين بالبيانات وبقائمة الأضلاع الجانبية) بدون أي تفسير. هلق منحذّر بوضوح ونسأل
+      // تأكيد قبل ما نكمل، بدل ما نخلي المستخدم يفتح الثري دي بعدين ويلاقي جزء اختفى بصمت.
+      if(draft.roofType === 'gable' && zones.some(z=>z.parentId===existing.id)){
+        if(!confirm('⚠️ هاد الجزء عندو أجزاء سقف تانية جوّاه. لو حوّلتيه لسقف مائل (جملون)، الأجزاء يلي جوّاه رح تختفي من المشهد ثلاثي الأبعاد (بس تضل موجودة بالبيانات) لأنو السقف المائل ما بيدعم أجزاء متداخلة جواه حاليًا.\n\nبدك تكملي فعليًا؟')) return;
+      }
       existing.anchor = draft.anchor;
       existing.bearingDeg = draft.bearingDeg;
       existing.sides = draft.sides;
@@ -11940,6 +12198,17 @@ function saveCeilingZoneDraft(){
       existing.roofType = draft.roofType || 'flat';
       existing.gableRidgeRiseMm = draft.gableRidgeRiseMm;
       existing.gableSegments = draft.gableSegments;
+    } else {
+      // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): لو صار Undo (تراجع) وهاد الجزء مفتوح بمحرره
+      // بالضبط، الجزء بينمسح من it.ceilingZones بس المحرر بيضل مفتوح وكأنو شي طبيعي. قبل هالإصلاح،
+      // "existing" هون كانت ترجع undefined بصمت تام - ولا رسالة، ولا خطأ - المحرر كان يسكر عادي
+      // (تمامًا نفس شكل نجاح الحفظ) بينما فعليًا ولا شي انصلح ولا الجزء رجع اتخلق. هلق منوري تنبيه
+      // واضح، حتى المستخدم يعرف إنو التعديل ما انحفظ وليش (تراجع سبق حذف الجزء).
+      alert('⚠️ تعذّر حفظ التعديل: هاد الجزء ما عاد موجود (على الأغلب لأنك عملتي "تراجع" رجع لحالة قبل ما ينخلق، أو انحذف من مكان تاني، وهو مفتوح لسا بالمحرر). التعديل يلي عملتيه هلق ما انحفظ - سكّري هالمحرر وابدئي جزء جديد لو لسا بدك نفس الشكل.');
+      ceilingZoneEditor = null;
+      renderCeilingSidesUI(it);
+      renderGallery();
+      return;
     }
   } else {
     zones.push({
@@ -11954,6 +12223,7 @@ function saveCeilingZoneDraft(){
   ceilingZoneEditor = null;
   renderCeilingSidesUI(it);
   renderGallery();
+  refreshRoom3DIfOpenForItem(it.id);
 }
 window.saveCeilingZoneDraft = saveCeilingZoneDraft;
 
