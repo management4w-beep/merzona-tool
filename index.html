@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-28.1';
+  var CURRENT_VERSION = '2026-09-28.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -9376,6 +9376,38 @@ function computeZonePolygonMM(zone){
   });
   return pts;
 }
+// 🆕 2026-09-28 (طلب حمدي: طريقة رسم السقف اليدوية - كتابة طول/زاوية لكل ضلع بالتخمين - معقّدة ومربكة
+// كتير، وأخطر شي إنو الشكل ممكن "ما يقفل" (النقطة الأخيرة ما ترجع تطابق anchor) بدون ما حدا ينتبه لهيك
+// غلطة هندسية إلا لما يفتح الثري دي ويشوف فجوة بالسقف). هاي الدالة هي جوهر أداة البناء التفاعلية
+// الجديدة بالثري دي (شوف roofBuild3D تحت): بتاخد قائمة نقاط مطلقة (بالمم) ضغط عليها المستخدم مباشرة
+// بالمشهد ثلاثي الأبعاد، وبترجّع anchor+bearingDeg+sides[] (بنفس صيغة computeZonePolygonMM بالضبط)
+// محسوبة هندسيًا ١٠٠٪؜ من النقاط نفسها - يعني الشكل مضمون "يقفل" دايمًا مهما كانت النقاط، بدون أي
+// حساب يدوي من المستخدم.
+function pointsToZoneSidesMM(points){
+  if(!points || points.length < 3) return null;
+  const n = points.length;
+  function bearingOf(a,b){ return Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI; }
+  function distOf(a,b){ return Math.hypot(b.x-a.x, b.y-a.y); }
+  const bearings = [];
+  for(let i=0;i<n;i++) bearings.push(bearingOf(points[i], points[(i+1)%n]));
+  const sides = [];
+  for(let i=0;i<n;i++){
+    const length = distOf(points[i], points[(i+1)%n]);
+    let angleDeg = 180 - (bearings[(i+1)%n] - bearings[i]);
+    while(angleDeg > 360) angleDeg -= 360;
+    while(angleDeg < 0) angleDeg += 360;
+    // 🔧 طول مقرَّب لأقرب مم (نظيف بالعرض)، بس زاوية مقرَّبة لـ3 أرقام عشرية بس (مش رقم صحيح) - لأنو
+    // اختبرنا رياضيًا (round-trip) إنو تقريب الزاوية لرقم صحيح بيراكم انحراف قد ياخد كذا مم عن نقطة
+    // الإغلاق الحقيقية بالأشكال الكبيرة/الغريبة الزاوية، بينما 3 أرقام عشرية بيخلي الفرق أقل من نص مم
+    // حتى لأشكال بعرض 20 متر - غير محسوس إطلاقًا عمليًا، وبيضمن الشكل "يقفل" فعليًا بدقة تامة تقريبًا.
+    sides.push({ id:'czs'+(ceilingZoneSideIdCounter++), length: Math.round(length), angleDeg: Math.round(angleDeg*1000)/1000 });
+  }
+  return {
+    anchor: { x: Math.round(points[0].x), y: Math.round(points[0].y) },
+    bearingDeg: Math.round(bearings[0]*1000)/1000,
+    sides
+  };
+}
 // ارتفاع الجزء الفعلي (بالمم) عن أرضية الغرفة - بيتراكم بمشي سلسلة الآباء لحد ما توصل للسقف الأساسي
 // (roomHeight). بيحمي من حلقة لا نهائية (parentId بيرجع لحاله بالغلط) بحد أقصى 50 مستوى.
 function getCeilingZoneEffectiveHeightMM(it, zoneId){
@@ -11583,6 +11615,14 @@ async function buildRoom3DScene(it, wrap){
   const gableRaycaster = new THREE.Raycaster();
   const gableMouse = new THREE.Vector2();
   function onRoom3DCanvasClick(ev){
+    // 🆕 2026-09-28 (طلب حمدي: "بدي افتح تصميم ثري دي خاص بالسقف وابني السقف شوي شوي" - أداة بناء
+    // السقف التفاعلية الجديدة بالثري دي) - لو فيه جلسة بناء سقف شغالة حاليًا لنفس الغرفة، كل كليك
+    // بالمشهد بيروح لمعالج البناء (تحديد زوايا الشكل نقطة نقطة) بدل معالج تعديل السقف المائل القديم
+    // تحت - الاثنين ما بيشتغلوا بنفس الوقت أبدًا (return فورية هون).
+    if(typeof roofBuild3D !== 'undefined' && roofBuild3D && roofBuild3D.itemId === it.id){
+      handleRoofBuild3DCanvasClick(ev, renderer, camera, scene);
+      return;
+    }
     const rect = renderer.domElement.getBoundingClientRect();
     gableMouse.x = ((ev.clientX-rect.left)/rect.width)*2-1;
     gableMouse.y = -((ev.clientY-rect.top)/rect.height)*2+1;
@@ -11596,8 +11636,10 @@ async function buildRoom3DScene(it, wrap){
   room3D.onClick = onRoom3DCanvasClick;
 }
 
-async function openRoom3D(){
-  const it = getSelected();
+// 🛠️ 2026-09-28 (فصل الجزء المشترك من openRoom3D حتى تقدر أداة بناء السقف الجديدة تفتح الثري دي
+// لغرفة محددة بالـid مباشرة - بدون ما تعتمد على "العنصر المحدد حاليًا" (getSelected) متل openRoom3D
+// نفسها، لأنو محرر جزء السقف ممكن ينفتح من قائمة أجزاء غرفة مو بالضرورة هي المحددة حاليًا بالشاشة).
+async function openRoom3DForItem(it){
   if(!it || !isRoom(it)) return;
   if(!it.roomSides || it.roomSides.length < 3){
     alert('لازم عالأقل 3 أضلاع بالأرضية (وتكون الغرفة مرسومة/متكاملة) قبل ما تفتح المشهد ثري دي.');
@@ -11619,6 +11661,11 @@ async function openRoom3D(){
     wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:var(--wd-font-ui);">⚠️ صار خطأ أثناء بناء المشهد: ' + escAttr(String(e && e.message || e)) + '</p>';
   }
 }
+window.openRoom3DForItem = openRoom3DForItem;
+
+async function openRoom3D(){
+  await openRoom3DForItem(getSelected());
+}
 window.openRoom3D = openRoom3D;
 
 function closeRoom3D(){
@@ -11638,6 +11685,15 @@ function closeRoom3D(){
   }
   room3D.renderer = null; room3D.scene = null; room3D.camera = null; room3D.controls = null;
   room3D.recording = false;
+  // 🆕 2026-09-28 (أداة بناء السقف التفاعلية بالثري دي): علامات/معاينة جلسة البناء (لو موجودة) مربوطة
+  // مباشرة بمشهد threejs يلي هلق راح ينمسح فوق - لازم نلغي الجلسة نفسها هون (بدون ما نلمس بيانات
+  // ceilingZoneEditor.draft - هاي ضلّة موجودة وبتضل صالحة، بس المستخدم لازم يفتح الثري دي من جديد
+  // ليكمل البناء بالنقاط لو انسكر المشهد بالمنتصف - النموذج الرقمي القديم بجانبه بيضل شغال عادي).
+  if(typeof roofBuild3D !== 'undefined' && roofBuild3D){
+    const panel = document.getElementById('roofBuild3DPanel');
+    if(panel) panel.remove();
+    roofBuild3D = null;
+  }
   const overlay = document.getElementById('room3DOverlay');
   if(overlay) overlay.style.display = 'none';
   const btn = document.getElementById('room3DRecordBtn');
@@ -11669,6 +11725,384 @@ function refreshRoom3DIfOpenForItem(itemId){
     buildRoom3DScene(it, wrap).catch(function(e){ console.error('تعذّر تحديث المشهد ثلاثي الأبعاد بعد تعديل جزء السقف:', e); });
   }catch(e){ /* فشل صامت مقصود */ }
 }
+
+// ============================================================================
+// 🆕 2026-09-28 (طلب حمدي: "طريقة رسم السقف مجننتني... بدي افتح تصميم ثري دي خاص بالسقف وابني السقف
+// شوي شوي") - أداة بناء تفاعلية جديدة كليًا لأجزاء السقف مباشرة بالمشهد ثلاثي الأبعاد، بدل الطريقة
+// القديمة (كتابة طول/زاوية كل ضلع كأرقام "عمياء" بجدول، وفتح الثري دي يدويًا بعدين للتأكد من الشكل).
+//
+// الفكرة: بدل ما المستخدم يحسب هو بعقله أطوال/زوايا تخلي الشكل "يقفل" صح، هلق بس بيدوس على سطح السقف/
+// الجزء الأب بالمشهد نقطة نقطة (زوايا الشكل يلي بده ياه)، ومنحسب إحنا كل شي (pointsToZoneSidesMM فوق)
+// - الشكل مضمون يقفل ١٠٠٪؜ دايمًا. وبعدين يتحكم بالارتفاع/شكل السقف بأزرار +/- بسيطة وشايف المعاينة
+// حيّة قدامه مباشرة، بدل ما يكتب رقم ويفتح/يسكر الثري دي يدويًا ليتأكد.
+//
+// مهم: هاي الأداة **ما بتستبدل** ceilingZoneEditor/saveCeilingZoneDraft/النموذج الرقمي القديم أبدًا -
+// هي بس "طريقة إدخال" جديدة بتكتب/تقرأ نفس ceilingZoneEditor.draft بالضبط (نفس مصدر الحقيقة الوحيد)،
+// فكل التحقق/الحماية (خارج الحدود، تراجع، جزء مائل عندو أطفال...) يلي انصلّح هالجلسة وقبلها يضل شغال
+// حرفيًا بدون أي تكرار أو احتمال تعارض. النموذج الرقمي القديم بيضل موجود جنبها كخيار دقيق إضافي (لو
+// حدا حاب يكتب رقم مضبوط باليد)، وأي تغيير من أي طريقة بينعكس فورًا عالتانية (نفس البيانات بالظبط).
+// ============================================================================
+let roofBuild3D = null; // null = ولا جلسة بناء سقف تفاعلية مفتوحة حاليًا
+
+// كل مرة يفتح فيها محرر جزء سقف (جديد أو تعديل) - شوف startNewCeilingZone/startEditCeilingZone تحت.
+async function enterRoofBuild3D(){
+  if(!ceilingZoneEditor) return;
+  exitRoofBuild3D(); // تنضيف أي جلسة بناء سابقة (لو كانت مفتوحة لجزء تاني) قبل ما نبلش وحدة جديدة
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(!it) return;
+  const existingPoints = (ceilingZoneEditor.draft.anchor)
+    ? computeZonePolygonMM(ceilingZoneEditor.draft).slice(0, -1).map(p=>({x:p.x, y:p.y}))
+    : [];
+  const overlay = document.getElementById('room3DOverlay');
+  const needsOpen = !overlay || overlay.style.display === 'none' || room3D.itemId !== it.id;
+  if(needsOpen){
+    await openRoom3DForItem(it);
+    if(!room3D.renderer) return; // فشل فتح الثري دي (مثلاً مكتبة THREE ما تحمّلت) - منوقف هون، النموذج الرقمي القديم بيضل شغال لحاله
+  }
+  // 🛠️ لازم نتأكد إنو ceilingZoneEditor لسا نفسو (مش انلغى/تغيّر) أثناء انتظار فتح الثري دي (await فوق) -
+  // مثلاً لو المستخدم دوس "إلغاء" بسرعة قبل ما الثري دي يخلص تحميل.
+  if(!ceilingZoneEditor || ceilingZoneEditor.itemId !== it.id) return;
+  roofBuild3D = {
+    itemId: it.id,
+    points: existingPoints,
+    phase: existingPoints.length >= 3 ? 'shaping' : 'drawing',
+    selectedVertexIdx: null,
+    markers: [],
+    previewMesh: null
+  };
+  rebuildRoofBuild3DMarkers();
+  renderRoofBuild3DPanel();
+}
+
+function exitRoofBuild3D(){
+  if(!roofBuild3D) return;
+  clearRoofBuild3DMarkers();
+  const panel = document.getElementById('roofBuild3DPanel');
+  if(panel) panel.remove();
+  roofBuild3D = null;
+}
+
+function clearRoofBuild3DMarkers(){
+  if(!roofBuild3D) return;
+  const scene = room3D && room3D.scene;
+  (roofBuild3D.markers||[]).forEach(obj=>{
+    try{
+      if(scene) scene.remove(obj);
+      if(obj.geometry) obj.geometry.dispose();
+      if(obj.material){ if(Array.isArray(obj.material)) obj.material.forEach(m=>m.dispose()); else obj.material.dispose(); }
+    }catch(e){}
+  });
+  roofBuild3D.markers = [];
+  if(roofBuild3D.previewMesh){
+    try{
+      if(scene) scene.remove(roofBuild3D.previewMesh);
+      if(roofBuild3D.previewMesh.geometry) roofBuild3D.previewMesh.geometry.dispose();
+      if(roofBuild3D.previewMesh.material) roofBuild3D.previewMesh.material.dispose();
+    }catch(e){}
+    roofBuild3D.previewMesh = null;
+  }
+}
+
+// بيرسم من جديد كل علامات جلسة البناء الحالية (كرات الزوايا + خطوط الأضلاع + بطاقات الأطوال + معاينة
+// الحجم المجسّم لو الشكل مقفول أصلًا) - بينادى بعد أي تغيير (نقطة جديدة، نقل نقطة، تغيير ارتفاع...).
+function rebuildRoofBuild3DMarkers(){
+  if(!roofBuild3D || !room3D.scene || !ceilingZoneEditor) return;
+  clearRoofBuild3DMarkers();
+  const scene = room3D.scene;
+  const MMTOM = 1/1000;
+  const it = items.find(i=>i.id===roofBuild3D.itemId); if(!it) return;
+  const parentId = ceilingZoneEditor.parentId;
+  const baseHeightMM = parentId ? getCeilingZoneEffectiveHeightMM(it, parentId) : (it.roomHeight||2500);
+  const planeYM = baseHeightMM*MMTOM;
+  const pts = roofBuild3D.points;
+  pts.forEach((p,idx)=>{
+    const isSelected = roofBuild3D.selectedVertexIdx === idx;
+    const marker = new THREE.Mesh(
+      new THREE.SphereGeometry(0.09, 12, 12),
+      new THREE.MeshBasicMaterial({ color: isSelected ? 0xf5a623 : 0x2a9d5c })
+    );
+    marker.position.set(p.x*MMTOM, planeYM + 0.01, p.y*MMTOM);
+    marker.userData.__roofBuildVertex = { index: idx };
+    scene.add(marker);
+    roofBuild3D.markers.push(marker);
+  });
+  for(let i=0;i<pts.length-1;i++) addRoofBuildEdgeVisual(pts[i], pts[i+1], planeYM, MMTOM);
+  if(roofBuild3D.phase === 'shaping' && pts.length>=3){
+    addRoofBuildEdgeVisual(pts[pts.length-1], pts[0], planeYM, MMTOM); // خط إغلاق الشكل (آخر نقطة -> أول نقطة)
+    rebuildRoofBuildPreviewMesh(it, baseHeightMM, MMTOM);
+  }
+}
+
+function addRoofBuildEdgeVisual(a, b, planeYM, MMTOM){
+  const scene = room3D.scene;
+  const geo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(a.x*MMTOM, planeYM+0.01, a.y*MMTOM),
+    new THREE.Vector3(b.x*MMTOM, planeYM+0.01, b.y*MMTOM)
+  ]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color:0x2a9d5c }));
+  scene.add(line);
+  roofBuild3D.markers.push(line);
+  const lenMM = Math.hypot(b.x-a.x, b.y-a.y);
+  const midX=(a.x+b.x)/2, midY=(a.y+b.y)/2;
+  const label = makeMMLabelSprite3D(Math.round(lenMM)+'mm', 0.4);
+  label.position.set(midX*MMTOM, planeYM+0.12, midY*MMTOM);
+  scene.add(label);
+  roofBuild3D.markers.push(label);
+}
+
+// معاينة حيّة (مجسّم شبه-شفاف) لشكل الجزء الحالي (بعد ما يتقفل) بارتفاعه/نوع سقفه الحاليين - مش نفس
+// دقة buildCeilingLevelRecursive/buildGableRoofMesh الحقيقية (خصوصًا الجزء المائل: هون خيمة وحدة
+// بسيطة بدون تكرار أقسام) - بس كافية تمامًا لإحساس فوري وقت البناء؛ الشكل النهائي الدقيق بيترسم صح
+// ١٠٠٪؜ بعد الحفظ عن طريق refreshRoom3DIfOpenForItem (المسار العادي المُصلَّح والمُختبر أصلًا).
+function rebuildRoofBuildPreviewMesh(it, baseHeightMM, MMTOM){
+  if(!ceilingZoneEditor || !room3D.scene) return;
+  const scene = room3D.scene;
+  const pts = roofBuild3D.points;
+  const d = ceilingZoneEditor.draft;
+  let mesh;
+  if(d.roofType === 'gable'){
+    mesh = buildRoofBuildGablePreviewMesh(pts, baseHeightMM, d, MMTOM);
+  } else {
+    const targetHeightMM = baseHeightMM + (d.heightOffsetMm||0);
+    const shape = new THREE.Shape();
+    pts.forEach((p,i)=>{
+      const X = p.x*MMTOM, Y = -p.y*MMTOM;
+      if(i===0) shape.moveTo(X,Y); else shape.lineTo(X,Y);
+    });
+    shape.closePath();
+    const loMM = Math.min(baseHeightMM, targetHeightMM), hiMM = Math.max(baseHeightMM, targetHeightMM);
+    const depthM = Math.max(0.02, (hiMM-loMM)*MMTOM);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: depthM, bevelEnabled:false });
+    mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0x2a9d5c, transparent:true, opacity:0.45, side:THREE.DoubleSide }));
+    mesh.rotation.x = -Math.PI/2;
+    mesh.position.y = loMM*MMTOM;
+  }
+  if(mesh){ scene.add(mesh); roofBuild3D.previewMesh = mesh; }
+}
+
+// معاينة مبسّطة (خيمة/جملون وحدة بدون تكرار أقسام) لشكل السقف المائل أثناء البناء - نفس منطق محاور
+// uHat/vHat/محور القمة تبع buildGableRoofMesh الحقيقية فوق، بس بدون شبكة Grid (سطحين مائلين + نهايتين
+// مثلثتين بس) لتبسيط الحساب (المعاينة تحسينية، الشكل الدقيق الحقيقي بيترسم بعد الحفظ).
+function buildRoofBuildGablePreviewMesh(pts, eaveHeightMM, draft, MMTOM){
+  const bearingRad = (draft.bearingDeg||0) * Math.PI/180;
+  const uHat = { x: Math.cos(bearingRad), y: Math.sin(bearingRad) };
+  const vHat = { x: Math.cos(bearingRad+Math.PI/2), y: Math.sin(bearingRad+Math.PI/2) };
+  const sideA = Math.max(50, (draft.sides[0]&&draft.sides[0].length)||1000);
+  const sideB = Math.max(50, (draft.sides[1]&&draft.sides[1].length)||1000);
+  const ridgeAxisIsA = sideA >= sideB;
+  const Lridge = ridgeAxisIsA ? sideA : sideB;
+  const Lspan = ridgeAxisIsA ? sideB : sideA;
+  const ridgeHat = ridgeAxisIsA ? uHat : vHat;
+  const spanHat = ridgeAxisIsA ? vHat : uHat;
+  const riseMm = Math.max(0, draft.gableRidgeRiseMm||0);
+  const anchorX = (draft.anchor&&draft.anchor.x)||0, anchorY = (draft.anchor&&draft.anchor.y)||0;
+  function wp(uMM,vMM,hMM){
+    return new THREE.Vector3(
+      (anchorX+uMM*ridgeHat.x+vMM*spanHat.x)*MMTOM,
+      hMM*MMTOM,
+      (anchorY+uMM*ridgeHat.y+vMM*spanHat.y)*MMTOM
+    );
+  }
+  const p00=wp(0,0,eaveHeightMM), p10=wp(Lridge,0,eaveHeightMM), p11=wp(Lridge,Lspan,eaveHeightMM), p01=wp(0,Lspan,eaveHeightMM);
+  const rMid0=wp(0,Lspan/2,eaveHeightMM+riseMm), rMid1=wp(Lridge,Lspan/2,eaveHeightMM+riseMm);
+  const positions=[];
+  function tri(a,b,c){ positions.push(a.x,a.y,a.z, b.x,b.y,b.z, c.x,c.y,c.z); }
+  tri(p00,p10,rMid1); tri(p00,rMid1,rMid0);
+  tri(p01,rMid0,rMid1); tri(p01,rMid1,p11);
+  tri(p00,rMid0,p01);
+  tri(p10,p11,rMid1);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:0x2a9d5c, transparent:true, opacity:0.45, side:THREE.DoubleSide }));
+}
+
+// معالج الكليك بالمشهد وقت ما جلسة بناء سقف مفتوحة (شوف onRoom3DCanvasClick جوا buildRoom3DScene) -
+// إما يحدد/يحرّك زاوية موجودة، أو يضيف زاوية جديدة، أو يقفل الشكل تلقائيًا لو الكليك قريب من أول نقطة.
+function handleRoofBuild3DCanvasClick(ev, renderer, camera, scene){
+  if(!roofBuild3D || !ceilingZoneEditor) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const mouse = new THREE.Vector2(((ev.clientX-rect.left)/rect.width)*2-1, -((ev.clientY-rect.top)/rect.height)*2+1);
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(mouse, camera);
+  if(roofBuild3D.phase === 'shaping'){
+    const vertexHits = raycaster.intersectObjects(scene.children, false)
+      .filter(h=> h.object && h.object.userData && h.object.userData.__roofBuildVertex);
+    if(vertexHits.length){
+      const idx = vertexHits[0].object.userData.__roofBuildVertex.index;
+      roofBuild3D.selectedVertexIdx = (roofBuild3D.selectedVertexIdx === idx) ? null : idx; // كليك تاني عالنقطة نفسها = إلغاء التحديد
+      rebuildRoofBuild3DMarkers();
+      renderRoofBuild3DPanel();
+      return;
+    }
+  }
+  const it = items.find(i=>i.id===roofBuild3D.itemId); if(!it) return;
+  const parentId = ceilingZoneEditor.parentId;
+  const baseHeightMM = parentId ? getCeilingZoneEffectiveHeightMM(it, parentId) : (it.roomHeight||2500);
+  const MMTOM = 1/1000;
+  const planeYM = baseHeightMM*MMTOM;
+  const plane = new THREE.Plane(new THREE.Vector3(0,1,0), -planeYM);
+  const hitPoint = new THREE.Vector3();
+  if(!raycaster.ray.intersectPlane(plane, hitPoint)) return; // كليك موازي تمامًا للمستوى (نادر جدًا) - بنتجاهله
+  const ptMM = { x: Math.round(hitPoint.x/MMTOM), y: Math.round(hitPoint.z/MMTOM) };
+
+  if(roofBuild3D.selectedVertexIdx !== null){
+    roofBuild3D.points[roofBuild3D.selectedVertexIdx] = ptMM;
+    roofBuild3D.selectedVertexIdx = null;
+    syncRoofBuild3DDraftFromPoints();
+    return;
+  }
+  if(roofBuild3D.phase === 'drawing'){
+    if(roofBuild3D.points.length>=3){
+      const first = roofBuild3D.points[0];
+      if(Math.hypot(ptMM.x-first.x, ptMM.y-first.y) < 150){ finishRoofBuildDrawing(); return; } // كليك قريب من أول نقطة = قفل تلقائي
+    }
+    roofBuild3D.points.push(ptMM);
+    rebuildRoofBuild3DMarkers();
+    renderRoofBuild3DPanel();
+  }
+}
+
+function finishRoofBuildDrawing(){
+  if(!roofBuild3D || roofBuild3D.points.length<3) return;
+  roofBuild3D.phase = 'shaping';
+  syncRoofBuild3DDraftFromPoints();
+}
+window.finishRoofBuildDrawing = finishRoofBuildDrawing;
+
+// بعد أي تغيير عالنقاط بالثري دي (إضافة/نقل/قفل الشكل) - بنحوّلها فورًا لـanchor+bearingDeg+sides
+// جوا ceilingZoneEditor.draft (pointsToZoneSidesMM فوق) حتى النموذج الرقمي القديم يعرضها هو كمان.
+function syncRoofBuild3DDraftFromPoints(){
+  if(!roofBuild3D || !ceilingZoneEditor) return;
+  const converted = pointsToZoneSidesMM(roofBuild3D.points);
+  if(!converted) return;
+  ceilingZoneEditor.draft.anchor = converted.anchor;
+  ceilingZoneEditor.draft.bearingDeg = converted.bearingDeg;
+  ceilingZoneEditor.draft.sides = converted.sides;
+  const it = items.find(i=>i.id===roofBuild3D.itemId);
+  if(it) renderCeilingSidesUI(it);
+  rebuildRoofBuild3DMarkers();
+  renderRoofBuild3DPanel();
+}
+
+// بالاتجاه المعاكس: لو المستخدم عدّل رقم بالنموذج القديم (طول/زاوية ضلع، ارتفاع، مائل...) وجلسة بناء
+// ثلاثي الأبعاد شغالة بنفس اللحظة لنفس الجزء - بيعيد حساب نقاط الشكل من draft وبيحدّث المعاينة/اللوحة.
+function syncRoofBuild3DFromDraftIfActive(){
+  if(!roofBuild3D || !ceilingZoneEditor || roofBuild3D.itemId !== ceilingZoneEditor.itemId) return;
+  if(roofBuild3D.phase === 'shaping' && ceilingZoneEditor.draft.anchor){
+    const pts = computeZonePolygonMM(ceilingZoneEditor.draft).slice(0,-1);
+    roofBuild3D.points = pts.map(p=>({x:p.x,y:p.y}));
+  }
+  rebuildRoofBuild3DMarkers();
+  renderRoofBuild3DPanel();
+}
+
+function roofBuildUndoLastPoint(){
+  if(!roofBuild3D || roofBuild3D.phase!=='drawing') return;
+  roofBuild3D.points.pop();
+  rebuildRoofBuild3DMarkers();
+  renderRoofBuild3DPanel();
+}
+window.roofBuildUndoLastPoint = roofBuildUndoLastPoint;
+
+function roofBuildRedrawFromScratch(){
+  if(!roofBuild3D) return;
+  if(!confirm('بدك تمسحي الشكل الحالي وتبدئي رسم جديد من الصفر؟')) return;
+  roofBuild3D.points = [];
+  roofBuild3D.phase = 'drawing';
+  roofBuild3D.selectedVertexIdx = null;
+  rebuildRoofBuild3DMarkers();
+  renderRoofBuild3DPanel();
+}
+window.roofBuildRedrawFromScratch = roofBuildRedrawFromScratch;
+
+function roofBuildCancel(){
+  cancelCeilingZoneEditor(); // بيمسح ceilingZoneEditor وبينادي exitRoofBuild3D() هو نفسه
+}
+window.roofBuildCancel = roofBuildCancel;
+
+function roofBuildSetRoofType(type){
+  onCeilingZoneRoofTypeField(type);
+}
+window.roofBuildSetRoofType = roofBuildSetRoofType;
+
+function roofBuildAdjustHeight(deltaMm){
+  if(!ceilingZoneEditor) return;
+  const cur = ceilingZoneEditor.draft.heightOffsetMm||0;
+  onCeilingZoneHeightField(cur + deltaMm);
+}
+window.roofBuildAdjustHeight = roofBuildAdjustHeight;
+
+function roofBuildAdjustGableRise(deltaMm){
+  if(!ceilingZoneEditor) return;
+  const cur = ceilingZoneEditor.draft.gableRidgeRiseMm||600;
+  onCeilingZoneGableField('gableRidgeRiseMm', Math.max(1, cur+deltaMm));
+}
+window.roofBuildAdjustGableRise = roofBuildAdjustGableRise;
+
+function roofBuildAdjustGableSegments(delta){
+  if(!ceilingZoneEditor) return;
+  const cur = Math.max(1, Math.round(ceilingZoneEditor.draft.gableSegments||1));
+  onCeilingZoneGableField('gableSegments', Math.max(1, cur+delta));
+}
+window.roofBuildAdjustGableSegments = roofBuildAdjustGableSegments;
+
+// اللوحة العائمة فوق المشهد ثلاثي الأبعاد (تعليمات + أزرار التحكم) - بتتحدّث كل مرة تتغيّر فيها حالة
+// جلسة البناء (نقطة جديدة، قفل الشكل، تغيير ارتفاع/نوع سقف...).
+function renderRoofBuild3DPanel(){
+  if(!roofBuild3D || !ceilingZoneEditor) return;
+  const overlay = document.getElementById('room3DOverlay');
+  if(!overlay) return;
+  let panel = document.getElementById('roofBuild3DPanel');
+  if(!panel){
+    panel = document.createElement('div');
+    panel.id = 'roofBuild3DPanel';
+    panel.style.cssText = 'position:absolute;top:70px;inset-inline-start:16px;z-index:10750;background:rgba(11,22,32,0.94);border:1px solid #2a9d5c;border-radius:10px;padding:12px;max-width:280px;color:#fff;font-family:var(--wd-font-ui,inherit);box-shadow:0 6px 24px rgba(0,0,0,0.4);';
+    overlay.appendChild(panel);
+  }
+  const d = ceilingZoneEditor.draft;
+  const n = roofBuild3D.points.length;
+  let html = '<div style="font-size:13px;font-weight:700;margin-bottom:8px;color:#7fe0a8;">🏗️ بناء جزء سقف بالثري دي</div>';
+  if(roofBuild3D.phase === 'drawing'){
+    html += '<p style="font-size:11.5px;line-height:1.5;margin:0 0 8px;">دوسي على سطح السقف بالمشهد لتحددي زوايا الشكل ('+n+' نقطة لهلق) - عالأقل 3. دوسي قريب من أول نقطة، أو "✅ اقفل الشكل"، لما تخلصي.</p>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      + '<button class="small" onclick="roofBuildUndoLastPoint()" '+(n===0?'disabled':'')+' style="flex:1;min-width:110px;">↩️ تراجع آخر نقطة</button>'
+      + '<button class="small" onclick="finishRoofBuildDrawing()" '+(n<3?'disabled':'')+' style="flex:1;min-width:110px;background:#1e7a3d;color:#fff;">✅ اقفل الشكل</button>'
+      + '</div>'
+      + '<button class="small danger" onclick="roofBuildCancel()" style="width:100%;margin-top:6px;">✖️ إلغاء</button>';
+  } else {
+    html += '<p style="font-size:11px;color:#9db3c2;margin:0 0 8px;">دوسي على أي زاوية بالشكل (بتصير برتقالية) وبعدين دوسي مكانها الجديد لنقلها، أو "🔄 ارسم من جديد" لتبدئي من الصفر.</p>';
+    html += '<div style="display:flex;gap:6px;margin-bottom:8px;">'
+      + '<button class="small" onclick="roofBuildSetRoofType(\'flat\')" style="flex:1;'+(d.roofType!=='gable'?'background:#0f88cd;color:#fff;':'')+'">▭ مسطّح</button>'
+      + '<button class="small" onclick="roofBuildSetRoofType(\'gable\')" style="flex:1;'+(d.roofType==='gable'?'background:#0f88cd;color:#fff;':'')+'">🏔 مائل</button>'
+      + '</div>';
+    if(d.roofType==='gable'){
+      html += '<div style="margin-bottom:6px;font-size:11.5px;">ارتفاع القمة: <b>'+Math.round(d.gableRidgeRiseMm||0)+'</b> مم'
+        + '<div style="display:flex;gap:6px;margin-top:4px;">'
+        + '<button class="small" onclick="roofBuildAdjustGableRise(-50)" style="flex:1;">➖ 50</button>'
+        + '<button class="small" onclick="roofBuildAdjustGableRise(50)" style="flex:1;">➕ 50</button>'
+        + '</div></div>'
+        + '<div style="margin-bottom:6px;font-size:11.5px;">عدد الأقسام: <b>'+Math.max(1,Math.round(d.gableSegments||1))+'</b>'
+        + '<div style="display:flex;gap:6px;margin-top:4px;">'
+        + '<button class="small" onclick="roofBuildAdjustGableSegments(-1)" style="flex:1;">➖</button>'
+        + '<button class="small" onclick="roofBuildAdjustGableSegments(1)" style="flex:1;">➕</button>'
+        + '</div>'
+        + '<p class="hint" style="font-size:10px;margin:4px 0 0;color:#9db3c2;">🔍 معاينة مبسّطة هون (خيمة وحدة) - الشكل النهائي المتكرر الصحيح بيبين بعد الحفظ.</p></div>';
+    } else {
+      html += '<div style="margin-bottom:6px;font-size:11.5px;">الارتفاع (رفع/خفض): <b>'+Math.round(d.heightOffsetMm||0)+'</b> مم'
+        + '<div style="display:flex;gap:6px;margin-top:4px;">'
+        + '<button class="small" onclick="roofBuildAdjustHeight(-50)" style="flex:1;">➖ 50</button>'
+        + '<button class="small" onclick="roofBuildAdjustHeight(50)" style="flex:1;">➕ 50</button>'
+        + '</div></div>';
+    }
+    html += '<button class="small" onclick="roofBuildRedrawFromScratch()" style="width:100%;margin-top:4px;">🔄 ارسم من جديد</button>'
+      + '<div style="display:flex;gap:6px;margin-top:8px;">'
+      + '<button class="small" onclick="saveCeilingZoneDraft()" style="flex:1;background:#1e7a3d;color:#fff;">✅ حفظ الجزء</button>'
+      + '<button class="small danger" onclick="roofBuildCancel()" style="flex:1;">✖️ إلغاء</button>'
+      + '</div>';
+  }
+  panel.innerHTML = html;
+}
+window.renderRoofBuild3DPanel = renderRoofBuild3DPanel;
 
 // 🆕 2026-09-26 (طلب حمدي: "لازم بعد تسجيل مقطع الثري دي ينحفظ بملف الرفرنس بجوجل درايف") - بيرفع
 // نفس الفيديو المسجَّل تلقائيًا لنفس مجلد الرقم المرجعي بجوجل درايف (نفس المجلد بالضبط يلي فيه ملف
@@ -12059,6 +12493,7 @@ function startNewCeilingZone(itemId, parentId){
     }
   };
   renderCeilingSidesUI(it);
+  enterRoofBuild3D(); // 🆕 2026-09-28: بلش أداة بناء السقف التفاعلية بالثري دي مباشرة (شوف الشرح فوق)
 }
 window.startNewCeilingZone = startNewCeilingZone;
 
@@ -12078,6 +12513,7 @@ function startEditCeilingZone(itemId, zoneId){
     }
   };
   renderCeilingSidesUI(it);
+  enterRoofBuild3D(); // 🆕 2026-09-28: بلش أداة بناء السقف التفاعلية بالثري دي مباشرة (شوف الشرح فوق)
 }
 window.startEditCeilingZone = startEditCeilingZone;
 
@@ -12087,6 +12523,7 @@ function onCeilingZoneRoofTypeField(type){
   if(!ceilingZoneEditor) return;
   ceilingZoneEditor.draft.roofType = (type==='gable') ? 'gable' : 'flat';
   const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+  syncRoofBuild3DFromDraftIfActive(); // 🆕 2026-09-28: عشان لو أداة بناء السقف بالثري دي مفتوحة، معاينتها تتحدّث فورًا
 }
 window.onCeilingZoneRoofTypeField = onCeilingZoneRoofTypeField;
 
@@ -12095,6 +12532,7 @@ function onCeilingZoneGableField(field, value){
   if(field==='gableRidgeRiseMm') ceilingZoneEditor.draft.gableRidgeRiseMm = Math.max(1, parseFloat(value)||1);
   else if(field==='gableSegments') ceilingZoneEditor.draft.gableSegments = Math.max(1, Math.round(parseFloat(value)||1));
   const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+  syncRoofBuild3DFromDraftIfActive();
 }
 window.onCeilingZoneGableField = onCeilingZoneGableField;
 
@@ -12127,6 +12565,7 @@ function onCeilingZoneSideField(idx, field, value){
   if(field==='length') s.length = Math.max(50, parseFloat(value)||50);
   else if(field==='angleDeg') s.angleDeg = Math.max(1, Math.min(359, parseFloat(value)||90));
   const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+  syncRoofBuild3DFromDraftIfActive();
 }
 window.onCeilingZoneSideField = onCeilingZoneSideField;
 
@@ -12134,6 +12573,7 @@ function addCeilingZoneSide(){
   if(!ceilingZoneEditor) return;
   ceilingZoneEditor.draft.sides.push({ id:'czs'+(ceilingZoneSideIdCounter++), length:1000, angleDeg:90 });
   const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+  syncRoofBuild3DFromDraftIfActive();
 }
 window.addCeilingZoneSide = addCeilingZoneSide;
 
@@ -12142,17 +12582,20 @@ function removeCeilingZoneSide(idx){
   if(ceilingZoneEditor.draft.sides.length <= 3){ alert('لازم عالأقل 3 أضلاع لتشكيل جزء مغلق.'); return; }
   ceilingZoneEditor.draft.sides.splice(idx,1);
   const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+  syncRoofBuild3DFromDraftIfActive();
 }
 window.removeCeilingZoneSide = removeCeilingZoneSide;
 
 function onCeilingZoneHeightField(value){
   if(!ceilingZoneEditor) return;
   ceilingZoneEditor.draft.heightOffsetMm = parseFloat(value)||0;
+  syncRoofBuild3DFromDraftIfActive();
 }
 window.onCeilingZoneHeightField = onCeilingZoneHeightField;
 
 function cancelCeilingZoneEditor(){
   const itemId = ceilingZoneEditor && ceilingZoneEditor.itemId;
+  exitRoofBuild3D(); // 🆕 2026-09-28: سكّر جلسة بناء السقف بالثري دي (لو كانت مفتوحة) مع أي إلغاء للمحرر
   ceilingZoneEditor = null;
   if(itemId){ const it = items.find(i=>i.id===itemId); if(it) renderCeilingSidesUI(it); }
 }
@@ -12205,6 +12648,7 @@ function saveCeilingZoneDraft(){
       // (تمامًا نفس شكل نجاح الحفظ) بينما فعليًا ولا شي انصلح ولا الجزء رجع اتخلق. هلق منوري تنبيه
       // واضح، حتى المستخدم يعرف إنو التعديل ما انحفظ وليش (تراجع سبق حذف الجزء).
       alert('⚠️ تعذّر حفظ التعديل: هاد الجزء ما عاد موجود (على الأغلب لأنك عملتي "تراجع" رجع لحالة قبل ما ينخلق، أو انحذف من مكان تاني، وهو مفتوح لسا بالمحرر). التعديل يلي عملتيه هلق ما انحفظ - سكّري هالمحرر وابدئي جزء جديد لو لسا بدك نفس الشكل.');
+      exitRoofBuild3D();
       ceilingZoneEditor = null;
       renderCeilingSidesUI(it);
       renderGallery();
@@ -12220,6 +12664,7 @@ function saveCeilingZoneDraft(){
       gableSegments: draft.gableSegments
     });
   }
+  exitRoofBuild3D(); // 🆕 2026-09-28: خلص الحفظ - سكّر جلسة بناء السقف بالثري دي (المشهد نفسو رح يترسم من جديد صح تحت عبر refreshRoom3DIfOpenForItem)
   ceilingZoneEditor = null;
   renderCeilingSidesUI(it);
   renderGallery();
