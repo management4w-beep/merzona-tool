@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-27.3';
+  var CURRENT_VERSION = '2026-09-27.4';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -11021,8 +11021,20 @@ function handleGableRoofClickEdit(info){
     if(zone.sides[oppositeIdx]) zone.sides[oppositeIdx].length = newTotal;
   }
   renderGallery();
+  // 🛠️ إصلاح 2026-09-27 (فحص شامل جولة ٢ - باغ حرج لقيناه بنفس الميزة يلي ضفناها قبل شوي): كنا هون
+  // منستدعي buildRoom3DScene() مباشرة بدون closeRoom3D() قبلها (بعكس openRoom3D() يلي دايمًا بتسكّر
+  // المشهد القديم قبل ما تفتح واحد جديد) - يعني كل ضغطة على علامة تعديل بالسقف المائل كانت "تسرّب"
+  // renderer وحلقة رندر (requestAnimationFrame) ومستمع resize/click كامل يضلوا شغالين بالخلفية للأبد
+  // (بما إنو room3D.animId/onClick/onResize كانوا ينكتبوا فوق بس، مش يتقفلوا فعليًا) - كل تعديل عالقمة
+  // أو طول القسم كان يضيف تسريب جديد يتراكم مع الوقت. الحل: نفس نمط openRoom3D() بالضبط - closeRoom3D()
+  // أول قبل أي buildRoom3DScene() جديد.
+  closeRoom3D();
   const wrap = document.getElementById('room3DCanvasWrap');
-  if(wrap) buildRoom3DScene(it, wrap).catch(function(e){ console.error('تعذّر إعادة بناء المشهد بعد تعديل السقف المائل:', e); });
+  if(wrap){
+    document.getElementById('room3DOverlay').style.display = 'block';
+    room3D.itemId = it.id;
+    buildRoom3DScene(it, wrap).catch(function(e){ console.error('تعذّر إعادة بناء المشهد بعد تعديل السقف المائل:', e); });
+  }
   if(ceilingZoneEditor && ceilingZoneEditor.itemId===it.id) renderCeilingSidesUI(it);
 }
 window.handleGableRoofClickEdit = handleGableRoofClickEdit;
