@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-28.1';
+  var CURRENT_VERSION = '2026-09-28.2';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -5612,6 +5612,32 @@ async function scanDriveFolderForYearRefs(token){
   return { entries: allEntries, hadErrors };
 }
 
+// 🆕 2026-09-28 (طلب حمدي: عقد S-Q-260002 - "بيطلع بدون دفعات" بتبويب العقود رغم إنو جدول الدفعات
+// مكتوب فعليًا بعرض السعر الأصلي) - جذر المشكلة: extractQuotationSummaryFromFolder تحت كانت تكتب
+// payDown/payAlu/payGlass/payFin = null دايمًا لأي عرض سعر مكتشف بمطابقة جوجل درايف (source:
+// 'drive-scan') - بدون أي محاولة قراءة فعلية لجدول الدفعات الحقيقي المحفوظ بملف بيانات العرض
+// (data.rows['pay-rows'] - نفس الـHTML الخام لقسم "شروط الدفع" بأداة عروض الأسعار، شوف
+// captureFullQuotationData هناك). هاي الدالة بتحوّل هالـHTML الخام لمصفوفة {desc, pct} لكل صف -
+// بأي عدد وأي تسميات كتبها المستخدم فعليًا (مش محصورة بأربع خانات ثابتة زي النظام القديم).
+function parsePaymentScheduleFromPayRowsHtml(html){
+  if(!html || typeof html !== 'string') return [];
+  try{
+    const doc = new DOMParser().parseFromString('<div>'+html+'</div>', 'text/html');
+    const out = [];
+    doc.querySelectorAll('.pay-row').forEach(row=>{
+      const inputs = row.querySelectorAll('input');
+      if(inputs.length < 2) return; // صف ناقص (كسر بالبيانات) - نتجاهله بدل ما نطلّع رقم غلط
+      const en = (inputs[0].value || inputs[0].getAttribute('value') || '').trim();
+      const pctRaw = (inputs[1].value || inputs[1].getAttribute('value') || '').trim();
+      const ar = inputs[2] ? (inputs[2].value || inputs[2].getAttribute('value') || '').trim() : '';
+      const pct = parseFloat(pctRaw);
+      if(isNaN(pct) || pct<=0) return; // صف فاضي أو بدون نسبة صالحة (مثلاً سطر جديد لسا ما تعبّى) - نتجاهله
+      out.push({ desc: ar || en || 'دفعة', pct: Math.round(pct*100)/100 });
+    });
+    return out;
+  }catch(e){ console.warn('[جدول الدفعات] تعذّر تحليل pay-rows:', e); return []; }
+}
+
 // من جوا مجلد عرض سعر وحد، منجرب نستخرج أكبر قد ممكن من المعلومات (اسم الزبون، الرقم، التاريخ،
 // القيمة الإجمالية) من ملف البيانات JSON لو موجود (أسرع وأدق)، وإلا من ملف HTML المخبوز
 async function extractQuotationSummaryFromFolder(token, refEntry){
@@ -5620,7 +5646,7 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
     const children = await listDriveFolderChildren(token, refFolderId);
     const jsonFile = children.find(f=> f.name.endsWith('-data.json'));
     const htmlFile = children.find(f=> f.mimeType==='text/html' || /\.html?$/i.test(f.name));
-    let fields = {}, totalGuess = null;
+    let fields = {}, totalGuess = null, paymentSchedule = [];
     if(jsonFile){
       try{
         const text = await downloadDriveFileText(token, jsonFile.id);
@@ -5631,6 +5657,12 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
         // فورًا ومنتخطى قراءة ملف HTML للتخمين تمامًا.
         if(parsed.grandTotal!=null && !isNaN(parsed.grandTotal) && parsed.grandTotal>0){
           totalGuess = Math.round(parsed.grandTotal);
+        }
+        // 🆕 2026-09-28: جدول شروط الدفع الحقيقي (شوف الشرح جنب parsePaymentScheduleFromPayRowsHtml
+        // فوق) - نقرأه من هون لو موجود، حتى تحويل عرض السعر لعقد بعدين يعبّي جدول الدفعات تلقائيًا
+        // بنفس النسب/التسميات الحقيقية المكتوبة بالعرض، بدل ما يطلع فاضي.
+        if(parsed.rows && parsed.rows['pay-rows']){
+          paymentSchedule = parsePaymentScheduleFromPayRowsHtml(parsed.rows['pay-rows']);
         }
       }catch(e){ console.warn('[مطابقة الملفات] تعذّر قراءة ملف JSON لـ', refFolderName, e); }
     }
@@ -5658,7 +5690,7 @@ async function extractQuotationSummaryFromFolder(token, refEntry){
       // معنى حتى لو موجود بملف الـJSON - القيمة الحقيقية بس لفرع سوريا يلي فيه اختيار عملة فعلي).
       branch: branch || getDashBranchFromRef(ref),
       currency: (branch === 'syria') ? (fields['m-currency'] || null) : null,
-      duration: null, payDown:null, payAlu:null, payGlass:null, payFin:null,
+      duration: null, payDown:null, payAlu:null, payGlass:null, payFin:null, paymentSchedule,
       url: linkFile ? ('https://drive.google.com/file/d/'+linkFile.id+'/view') : null,
       source: 'drive-scan',
       // اسم مجلد جوجل درايف الفعلي (ممكن يختلف شوي عن ref لو الرقم المرجعي تغيّر بعد إنشاء المجلد) -
@@ -6426,15 +6458,24 @@ document.getElementById('contractRefInput').addEventListener('input', (e)=>{
   } else if(d){
     // ما في عقد محفوظ لسا بس عنده عرض سعر مسجّل - نعبّي جدول افتراضي واحد تلقائيًا من نسب عرض السعر نفسه (لو موجودة)
     const defaultPayments = [];
-    const stdPayments = [
-      { label:'دفعة مقدمة', pct:d.payDown },
-      { label:'دفعة توريد الألمنيوم', pct:d.payAlu },
-      { label:'دفعة توريد الزجاج', pct:d.payGlass },
-      { label:'دفعة التشطيب', pct:d.payFin }
-    ];
-    stdPayments.forEach(p=>{
-      if(p.pct != null){ defaultPayments.push(touchPayRow({desc:p.label, pct:p.pct, dueDate:'', status: defaultPayments.length===0 ? 'received' : 'notdue'})); }
-    });
+    // 🆕 2026-09-28: لو عندنا جدول شروط الدفع الحقيقي (متسحّب من عرض السعر نفسه عبر اكتشاف جوجل
+    // درايف) منفضّله - هيك بيطلع بنفس النسب/التسميات الفعلية المكتوبة بعرض السعر، مش بس 4 خانات
+    // ثابتة قديمة. لو مش موجود (بيانات قديمة مكتوبة يدويًا بـ DATA) منرجع للطريقة القديمة.
+    if(Array.isArray(d.paymentSchedule) && d.paymentSchedule.length){
+      d.paymentSchedule.forEach((p,i)=>{
+        defaultPayments.push(touchPayRow({desc:p.desc, pct:p.pct, dueDate:'', status: i===0 ? 'received' : 'notdue'}));
+      });
+    } else {
+      const stdPayments = [
+        { label:'دفعة مقدمة', pct:d.payDown },
+        { label:'دفعة توريد الألمنيوم', pct:d.payAlu },
+        { label:'دفعة توريد الزجاج', pct:d.payGlass },
+        { label:'دفعة التشطيب', pct:d.payFin }
+      ];
+      stdPayments.forEach(p=>{
+        if(p.pct != null){ defaultPayments.push(touchPayRow({desc:p.label, pct:p.pct, dueDate:'', status: defaultPayments.length===0 ? 'received' : 'notdue'})); }
+      });
+    }
     tempPaymentTables = [{name:'الجدول الرئيسي', total: d.total, payments: defaultPayments}];
   } else {
     // عقد يدوي جديد بالكامل، ولا عرض سعر ولا بيانات محفوظة - نبلّش بجدول فاضي، المستخدم بيعبّيه بـ"+ جدول يدوي جديد"
