@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-29.3';
+  var CURRENT_VERSION = '2026-09-29.4';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -6524,6 +6524,13 @@ window.wdApplyBack = function(results){
                   <button type="button" id="btnRoomDrawModePen" onclick="setRoomDrawMode('pen')">✏️ قلم (رسم خطوط)</button>
                   <button type="button" id="btnRoomDrawModeEraser" onclick="setRoomDrawMode('eraser')">🧹 ممحاة (محي نقطة/خط)</button>
                 </div>
+                <!-- 🆕 2026-09-29: طلب حمدي - "بدي حرية اختار من أي نقطة بدي أرسم/أعدل، مش دايمًا
+                     مجبر أكمل من آخر نقطة". الاستخدام: بوضع 🖱️ مؤشر دوس على أي نقطة موجودة لتحددها،
+                     وبعدين دوس هاد الزر - بيتحول لوضع القلم وأي نقطة جديدة (بالماوس أو بصندوق الطول)
+                     رح تنضاف "بعد" هاي النقطة بالذات، مش إجباريًا بعد آخر نقطة بالرسمة. -->
+                <div class="add-row" style="margin-bottom:8px;">
+                  <button type="button" class="small" style="flex:1;" onclick="continueRoomDrawFromSelectedPoint()">➕ تابع/عدّل الرسم من هاي النقطة (حدّدها أول بوضع 🖱️ مؤشر)</button>
+                </div>
                 <p class="hint" id="roomDrawModeHint" style="margin-top:-4px;"></p>
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
                   <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (استثناء نادر - بدون قفل ٩٠°)
@@ -9700,7 +9707,7 @@ function toggleRoomFreehandDraw(){
     // شكل فاضي (غرفة جديدة قبل ما ترسم، أو بعد "ابدأ رسمة فاضية") لسا خط مفتوح، ما في ضلع إغلاق
     // حقيقي بعد - شوف startRoomDrawFresh() وroomDrawPointerMove() تحت.
     roomDraw = { active:true, itemId:it.id, points:existingPts, mouse:null, freeAngle:false, gesture:null,
-      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null,
+      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
     const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
@@ -9731,6 +9738,7 @@ function startRoomDrawFresh(){
   roomDraw.points = [];
   roomDraw.selectedPointIdx = -1;
   roomDraw.selectedSegIdx = -1;
+  roomDraw.continueFromIdx = -1;
   roomDraw.gesture = null;
   roomDraw.lastClick = null;
   roomDraw.view = roomDrawComputeFitView([], 1500);
@@ -9744,7 +9752,7 @@ window.startRoomDrawFresh = startRoomDrawFresh;
 
 function cancelRoomFreehandDraw(){
   roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
-    mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
+    mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1, closedLoop:true };
   const wrap = document.getElementById('roomDrawWrap');
   if(wrap) wrap.style.display = 'none';
   // منرجّع #roomDrawWrap لمكانه الأصلي جوا لوحة التحكم (شوف الشرح فوق toggleRoomFreehandDraw) - حتى
@@ -9770,10 +9778,37 @@ function setRoomDrawMode(mode){
   roomDraw.gesture = null;
   roomDraw.selectedPointIdx = -1;
   roomDraw.selectedSegIdx = -1;
+  // 🆕 2026-09-29: تبديل الوضع يدويًا من أزرار الشريط (مش عن طريق زر "تابع من هاي النقطة") = يرجع
+  // لسلوك الإضافة الافتراضي (آخر نقطة بالرسمة)، حتى ما يضل في نقطة استمرار قديمة عالقة بالغلط.
+  roomDraw.continueFromIdx = -1;
   updateRoomDrawModeButtons();
   renderRoomDrawCanvas();
 }
 window.setRoomDrawMode = setRoomDrawMode;
+
+// 🆕 2026-09-29 (طلب حمدي: "كنت بلشت ارسم وحابب اعمل تعديل بسيط بس السيستم جبرني ارسم من نقطة محددة
+// بدون اي حرية لتحديد المكان يللي بدي ارسم منه او اعمل التعديل") - بوضع القلم، أي نقطة جديدة كانت
+// دايمًا بتنضاف بعد "آخر" نقطة بالمصفوفة بس (روح دايمًا لطرف الرسمة) - ما كان فيه طريقة يختار أي
+// نقطة تانية (بنص الشكل مثلًا) ويكمل/يعدّل الرسم منها بالذات. الحل: أول يحدد النقطة يلي بدو يشتغل
+// منها بوضع "🖱️ مؤشر" (تحديد عادي بدون أي تأثير جانبي)، وبعدين يدوس هالزر - فبيتحول لوضع القلم
+// وبيصير أي نقطة جديدة (بالماوس أو بصندوق الطول بالكيبورد) تنضاف "بعد" هاي النقطة بالذات (مش
+// إجباريًا آخر نقطة بالمصفوفة)، وهيك بيقدر يتفرّع/يعدّل من أي مكان بالشكل مش بس من طرفه.
+function continueRoomDrawFromSelectedPoint(){
+  if(!roomDraw.active) return;
+  if(roomDraw.selectedPointIdx < 0 || roomDraw.selectedPointIdx >= roomDraw.points.length){
+    alert('حدد أول نقطة (دوس عليها بوضع 🖱️ مؤشر) قبل ما تكمل/تعدّل الرسم منها.');
+    return;
+  }
+  const idx = roomDraw.selectedPointIdx;
+  roomDraw.mode = 'pen';
+  roomDraw.gesture = null;
+  roomDraw.selectedPointIdx = -1;
+  roomDraw.selectedSegIdx = -1;
+  roomDraw.continueFromIdx = idx;
+  updateRoomDrawModeButtons();
+  renderRoomDrawCanvas();
+}
+window.continueRoomDrawFromSelectedPoint = continueRoomDrawFromSelectedPoint;
 
 function updateRoomDrawModeButtons(){
   const map = { cursor:'btnRoomDrawModeCursor', pen:'btnRoomDrawModePen', eraser:'btnRoomDrawModeEraser' };
@@ -9782,8 +9817,8 @@ function updateRoomDrawModeButtons(){
     if(btn) btn.classList.toggle('active', roomDraw.mode === m);
   });
   const hints = {
-    cursor: '🖱️ وضع المؤشر: دوس على أي نقطة أو ضلع لتحدده، واسحب أي نقطة (طرف البداية أو النهاية تبع الضلع) لتحركها/تصغّرها/تكبّرها. كليك بالفراغ ما بيضيف ولا نقطة.',
-    pen: '✏️ وضع القلم: دوس بالفراغ لتضيف نقطة جديدة (خط جديد بيوصل آخر نقطة فيه). اسحب أي نقطة موجودة لتحريكها. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص الرسم، أو دوس على أي نقطة تانية موجودة لتوصلها بخط جديد.',
+    cursor: '🖱️ وضع المؤشر: دوس على أي نقطة أو ضلع لتحدده، واسحب أي نقطة (طرف البداية أو النهاية تبع الضلع) لتحركها/تصغّرها/تكبّرها. كليك بالفراغ ما بيضيف ولا نقطة. حدّد نقطة ودوس زر "➕ تابع/عدّل من هاي النقطة" فوق لتكمل الرسم منها بالذات.',
+    pen: '✏️ وضع القلم: دوس بالفراغ لتضيف نقطة جديدة (خط جديد بيوصل آخر نقطة فيه، أو نقطة الاستمرار المحددة بالبنفسجي لو في وحدة). اسحب أي نقطة موجودة لتحريكها. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص الرسم، أو دوس على أي نقطة تانية موجودة لتوصلها بخط جديد.',
     eraser: '🧹 وضع الممحاة: دوس على أي نقطة لحذفها فورًا (بيلتحم الخطين المتصلين فيها ببعض). لازم يضل عالأقل 3 نقاط.',
   };
   const hintEl = document.getElementById('roomDrawModeHint');
@@ -9854,9 +9889,14 @@ function roomDrawSnapToGeometry(candidate, excludeIndex){
 
 // النقطة المرشّحة التالية (سواء لمعاينة الخط المطاطي أو لتثبيتها فعليًا): قفل اتجاه أول، وبعدين
 // التصاق بالهندسة الموجودة (ممكن يلغي قفل الاتجاه لو في نقطة/خط قريب جدًا - وهاد مقصود).
-function roomDrawNextPointCandidate(rawMm){
+// anchorIdx (اختياري): index النقطة يلي منعتبرها "آخر نقطة" لغرض قفل الـ90° - افتراضيًا آخر نقطة
+// فعليًا بالمصفوفة (السلوك التاريخي)، بس لو في نقطة استمرار محددة (roomDraw.continueFromIdx - شوف
+// continueRoomDrawFromSelectedPoint) منستخدمها هي بدل آخر نقطة، حتى يقدر المستخدم يكمل/يعدّل من أي
+// نقطة بالشكل مش بس من طرفه.
+function roomDrawNextPointCandidate(rawMm, anchorIdx){
   const pts = roomDraw.points;
   let candidate = rawMm;
+  const aIdx = (anchorIdx!=null && anchorIdx > -1 && anchorIdx < pts.length) ? anchorIdx : pts.length-1;
   // 🆕 2026-09-25: طلب حمدي - "الخط يجب أن يكون دائمًا 90 درجة حصرًا" - باغ كان موجود: بعد قفل
   // الاتجاه لأفقي/عمودي (roomDrawAxisSnap)، كان بيصير كمان "التصاق بالهندسة" (roomDrawSnapToGeometry
   // تحت) يجذب النقطة لأقرب نقطة/خط موجود - ولو هيك التصاق ما كان بالظبط عالمحور المقفول، كان عم
@@ -9865,13 +9905,16 @@ function roomDrawNextPointCandidate(rawMm){
   // التاني (الحر)، وقفل 90° بيضل مضبوط 100% دايمًا لما "زاوية حرة" مطفية.
   let lockedAxis = null;
   if(pts.length > 0 && !roomDraw.freeAngle){
-    const last = pts[pts.length-1];
+    const last = pts[aIdx];
     candidate = roomDrawAxisSnap(last, candidate);
     lockedAxis = (candidate.y === last.y) ? 'y' : 'x';
   }
   candidate = roomDrawSnapToGeometry(candidate, -1);
-  if(lockedAxis === 'y') candidate.y = pts[pts.length-1].y;
-  else if(lockedAxis === 'x') candidate.x = pts[pts.length-1].x;
+  if(pts.length > 0){
+    const last = pts[aIdx];
+    if(lockedAxis === 'y') candidate.y = last.y;
+    else if(lockedAxis === 'x') candidate.x = last.x;
+  }
   return candidate;
 }
 
@@ -10125,7 +10168,19 @@ function roomDrawPointerUp(evt){
     } else {
       // g موجود وgesture.pointIndex === -1: يعني كان في mousedown حقيقي بلش من فوق فراغ فاضي بنفس
       // الرسمة، وهلق وصل mouseup المطابق إلو = دوسة (أو سحب) حقيقية = نقطة جديدة.
-      roomDraw.points.push(roomDrawNextPointCandidate(raw));
+      // 🆕 2026-09-29: لو في نقطة استمرار محددة (continueFromIdx - عن طريق زر "تابع من هاي النقطة")
+      // منضيف النقطة الجديدة "بعدها" مباشرة (splice) مش إجباريًا آخر نقطة بالمصفوفة، وبعدين منحرّك
+      // نقطة الاستمرار للنقطة الجديدة (حتى لو كبس كذا مرة متتالية يضل يتابع بنفس الاتجاه بشكل متسلسل).
+      const hasAnchor = roomDraw.continueFromIdx!=null && roomDraw.continueFromIdx > -1 && roomDraw.continueFromIdx < roomDraw.points.length;
+      const anchorIdx = hasAnchor ? roomDraw.continueFromIdx : roomDraw.points.length - 1;
+      const newPt = roomDrawNextPointCandidate(raw, anchorIdx);
+      if(anchorIdx === roomDraw.points.length - 1){
+        roomDraw.points.push(newPt);
+        if(hasAnchor) roomDraw.continueFromIdx = roomDraw.points.length - 1;
+      } else {
+        roomDraw.points.splice(anchorIdx + 1, 0, newPt);
+        roomDraw.continueFromIdx = anchorIdx + 1;
+      }
       roomDraw.lastClick = null;
     }
   }
@@ -10259,6 +10314,9 @@ function renderRoomDrawCanvas(){
     const si = roomDraw.selectedSegIdx, sj = (si+1)%n;
     highlightPts.add(si); highlightPts.add(sj);
   }
+  // 🆕 2026-09-29: نقطة "الاستمرار" الحالية (لو محددة عن طريق زر "تابع من هاي النقطة") - بنلوّنها
+  // بلون مختلف (بنفسجي) حتى يبين واضح من وين رح تنضاف أي نقطة جديدة جاية.
+  const anchorPtIdx = (roomDraw.continueFromIdx!=null && roomDraw.continueFromIdx > -1 && roomDraw.continueFromIdx < n) ? roomDraw.continueFromIdx : -1;
   let pathSvg = '', closeSvg = '', rubberSvg = '', segHighlightSvg = '';
   if(pts.length){
     pathSvg += `<polyline points="${pts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="#0f88cd" stroke-width="2.5"/>`;
@@ -10273,9 +10331,10 @@ function renderRoomDrawCanvas(){
       let fill = isFirst ? '#1e7a3d' : '#0f88cd';
       if(roomDraw.mode === 'eraser') fill = isFirst ? '#8b3a3a' : '#c0392b';
       const isHi = highlightPts.has(i);
-      const r = isHi ? 8 : 6;
-      const stroke = isHi ? '#e0862a' : '#fff';
-      const strokeW = isHi ? 3 : 1.5;
+      const isAnchor = (i === anchorPtIdx);
+      const r = (isHi || isAnchor) ? 8 : 6;
+      const stroke = isAnchor ? '#7c3aed' : (isHi ? '#e0862a' : '#fff');
+      const strokeW = (isHi || isAnchor) ? 3 : 1.5;
       pathSvg += `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeW}"/><text x="${p.x+8}" y="${p.y-8}" font-size="10" fill="#666">${i+1}</text>`;
     });
   }
@@ -10284,9 +10343,12 @@ function renderRoomDrawCanvas(){
   }
   const draggingNow = !!(roomDraw.gesture && roomDraw.gesture.dragging);
   // خط الـ"مطاط" (معاينة الخط الجاي) بس بوضع القلم - بوضع المؤشر/الممحاة ما في نقطة جديدة رح تنضاف.
+  // 🆕 2026-09-29: لو في نقطة استمرار محددة (continueFromIdx)، المعاينة بتنطلق منها هي، مش إجباريًا
+  // آخر نقطة بالمصفوفة.
   if(roomDraw.mode === 'pen' && roomDraw.points.length && roomDraw.mouse && !draggingNow){
-    const lastMm = roomDraw.points[roomDraw.points.length-1];
-    const targetMm = roomDrawNextPointCandidate(roomDraw.mouse);
+    const rIdx = (anchorPtIdx > -1) ? anchorPtIdx : roomDraw.points.length-1;
+    const lastMm = roomDraw.points[rIdx];
+    const targetMm = roomDrawNextPointCandidate(roomDraw.mouse, rIdx);
     const last = mmToPx(lastMm), target = mmToPx(targetMm);
     rubberSvg = `<line x1="${last.x}" y1="${last.y}" x2="${target.x}" y2="${target.y}" stroke="#e0862a" stroke-width="2" stroke-dasharray="5,4"/>`;
   }
@@ -10396,7 +10458,11 @@ function roomDrawCommitTypedLength(){
     alert('اكتب طول صحيح بالمليمتر (رقم أكبر من صفر) - ممكن كمان تجمع/تطرح متل 3000+250.');
     return;
   }
-  const last = pts[pts.length-1];
+  // 🆕 2026-09-29: لو في نقطة استمرار محددة (continueFromIdx)، الطول المكتوب بينضاف بعدها هي، مش
+  // إجباريًا آخر نقطة بالمصفوفة.
+  const hasAnchor = roomDraw.continueFromIdx!=null && roomDraw.continueFromIdx > -1 && roomDraw.continueFromIdx < pts.length;
+  const anchorIdx = hasAnchor ? roomDraw.continueFromIdx : pts.length - 1;
+  const last = pts[anchorIdx];
   let dirX = null, dirY = null;
   if(roomDraw.mouse){
     const dx = roomDraw.mouse.x - last.x, dy = roomDraw.mouse.y - last.y;
@@ -10412,17 +10478,23 @@ function roomDrawCommitTypedLength(){
   }
   if(dirX === null){
     // ما في اتجاه واضح من الماوس (مثلاً بلش الرسم وبعده ما حرك الماوس إطلاقًا) - منكمل بنفس اتجاه
-    // آخر ضلع مرسوم (نفس المنطق يلي بيحسبو finishRoomFreehandDraw لتحديد الزوايا)، وإلا (أول ضلع
-    // إطلاقًا) منفتراض يمين كبداية منطقية.
-    if(pts.length >= 2){
-      const prev = pts[pts.length-2];
+    // الضلع يلي قبل نقطة الاستمرار (نفس المنطق يلي بيحسبو finishRoomFreehandDraw لتحديد الزوايا)،
+    // وإلا (أول ضلع إطلاقًا) منفتراض يمين كبداية منطقية.
+    if(anchorIdx >= 1){
+      const prev = pts[anchorIdx-1];
       const ddx = last.x-prev.x, ddy = last.y-prev.y;
       const mag = Math.hypot(ddx,ddy) || 1;
       dirX = ddx/mag; dirY = ddy/mag;
     } else { dirX = 1; dirY = 0; }
   }
   const next = { x: last.x + dirX*len, y: last.y + dirY*len };
-  roomDraw.points.push(next);
+  if(anchorIdx === pts.length - 1){
+    pts.push(next);
+    if(hasAnchor) roomDraw.continueFromIdx = pts.length - 1;
+  } else {
+    pts.splice(anchorIdx + 1, 0, next);
+    roomDraw.continueFromIdx = anchorIdx + 1;
+  }
   roomDraw.lastClick = null;
   if(inp) inp.value = '';
   renderRoomDrawCanvas();
