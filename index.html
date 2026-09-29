@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-28.2';
+  var CURRENT_VERSION = '2026-09-29.1';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -6225,9 +6225,23 @@ function toggleWdHeader(){
 
 window.wdApplyBack = function(results){
   results.forEach(r=>{
-    if(!r.uid) return;
-    const tr = document.querySelector('#qty-rows tr[data-row-uid="'+r.uid+'"]');
-    if(!tr) return;
+    let tr = r.uid ? document.querySelector('#qty-rows tr[data-row-uid="'+r.uid+'"]') : null;
+    // 🛠️ إصلاح 2026-09-29 (طلب/بق حمدي - تصميم حر مفتوح من "🔓 افتح التصميم" بتبويب المسودات
+    // والتصاميم ما كان عم ينزل بجدول الكميات إطلاقًا لما تضغطي "استخدم هذا التصميم واحفظه للبند"):
+    // السبب: هالمسار (openDesignerWithImportedItems) بيفتح أداة التصميم من غير ما يكون في أي صف
+    // بجدول الكميات مرتبط أصلًا (r.uid فاضي لكل بند)، والكود القديم هون كان ببساطة يتجاهل (return)
+    // أي بند ما إله uid مطابق لصف موجود - يعني الزر كان يقفل النافذة بصمت بدون ما يعمل أي شي فعليًا،
+    // ومفيش ولا بند كان بينزل بعرض السعر. هلق لو ما لقينا صف موجود بنفس الـuid (أو ما في uid أصلًا)،
+    // منعمل صف جديد بجدول الكميات لهاد البند بدل ما نتجاهله - هيك أي تصميم (مرتبط بعرض سعر مفتوح
+    // أصلًا أو تصميم حر مستورد) بينزل ببنود العرض دايمًا.
+    const isNewRow = !tr;
+    if(isNewRow){
+      addQtyRow(Math.round(r.w)||'', Math.round(r.h)||'', 1, '', -1);
+      const allRows = document.querySelectorAll('#qty-rows tr');
+      tr = allRows[allRows.length-1];
+      if(!tr) return;
+      ensureRowUid(tr);
+    }
     const wInput = tr.querySelector('.w-input'), hInput = tr.querySelector('.h-input');
     // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حرج): wdSaveAndClose بيبعت نتائج *كل* بنود عرض السعر
     // (مش بس البند يلي فتحته فعليًا بأداة التصميم وعدّلته) - فكانت onDimensionInput تنّادى هون لكل
@@ -6239,7 +6253,7 @@ window.wdApplyBack = function(results){
     const hChanged = !!hInput && String(hInput.value) !== String(newH);
     if(wInput) wInput.value = newW;
     if(hInput) hInput.value = newH;
-    if(wChanged || hChanged){ onDimensionInput(wInput || hInput); }
+    if(isNewRow || wChanged || hChanged){ onDimensionInput(wInput || hInput); }
 
     const itemInput = tr.querySelector('.item-input');
     let linkedIdx = findItemIndexByName(itemInput ? itemInput.value : '');
