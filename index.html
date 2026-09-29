@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-29.2';
+  var CURRENT_VERSION = '2026-09-29.3';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10512,11 +10512,74 @@ function finishRoomFreehandDraw(){
       segments:[{ id:'rg'+(roomSegIdCounter++), length: mmLen, kind:'design', rowUid:null }] });
   }
   it.roomSides = newSides;
+  // 🆕 2026-09-29 (طلب حمدي: "بدي ياهم يكونوا موجودين كبنود في التصميم بعد تصميم المسقط... مافي داعي
+  // لاضغط على زر للتصميم انا اصلا بدي صمم الكل فمن البديهي يكونوا جاهزين للتصميم") - فور ما ينخلص
+  // الرسم وتتحول النقاط لأضلاع، منعمل تلقائيًا سطر مربوط بجدول الكمية لكل جزء/ضلع (نفس الشي يلي زر
+  // "🎨 صمم" كان يعمله لجزء وحيد) - بس بدون ما نفتح أداة الرسم (#wdOverlay) لأي واحد منهم، لأنو هاد
+  // الجزء التفاعلي (تصميم كل ضلع فعليًا) لازم يضل يدوي وحدة وحدة.
+  autoCreateRoomSideRowsForAllSegments(it);
   cancelRoomFreehandDraw();
   renderRoomSidesUI(it);
   renderGallery();
 }
 window.finishRoomFreehandDraw = finishRoomFreehandDraw;
+
+// 🆕 2026-09-29: بيعمل الجزء الأول بس من منطق designRoomSideSegment (إنشاء + ربط سطر بجدول الكمية)
+// لكل جزء "design" (مش "wall") بكل أضلاع الغرفة اللي لسا ما إلها سطر مربوط فعليًا - بدون ما يفتح أداة
+// الرسم (#wdOverlay) ولا يحدد بند تلقائيًا (هاد الجزء التفاعلي يضل بزر "🎨 صمم" العادي لكل واحد لحاله).
+function autoCreateRoomSideRowsForAllSegments(it){
+  const sides = it.roomSides || [];
+  let created = 0;
+  sides.forEach((side, sIdx)=>{
+    const segs = ensureRoomSideSegments(side);
+    segs.forEach((seg, gIdx)=>{
+      if(seg.kind !== 'design') return; // حائط/جدار - ما منعمله سطر تلقائي
+      if(seg.rowUid){
+        const existing = document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]');
+        if(existing) return; // مربوط بسطر موجود فعليًا - ما منكرر
+      }
+      const sideIdx = sIdx + 1;
+      const segIdx = gIdx + 1;
+      addQtyRow(Math.round(seg.length), Math.round(it.roomHeight||2500), '1', '');
+      const rows = document.querySelectorAll('#qty-rows tr');
+      const tr = rows[rows.length-1];
+      if(!tr) return;
+      const nameInput = tr.querySelector('.item-input');
+      if(nameInput){
+        const label = segs.length > 1
+          ? (it.label||'غرفة') + ' - ضلع ' + sideIdx + ' - جزء ' + segIdx
+          : (it.label||'غرفة') + ' - ضلع ' + sideIdx;
+        nameInput.value = label;
+        tr.dataset.itemName = label;
+      }
+      seg.rowUid = ensureRowUid(tr);
+      created++;
+    });
+  });
+  if(created > 0){
+    renumber();
+    const rowData = Array.from(document.querySelectorAll('#qty-rows tr')).map(rowTr=>{
+      const uid = ensureRowUid(rowTr);
+      const itemName = (rowTr.querySelector('.item-input')||{}).value || '';
+      const w = parseFloat((rowTr.querySelector('.w-input')||{}).value) || 0;
+      const h = parseFloat((rowTr.querySelector('.h-input')||{}).value) || 0;
+      const refCode = (rowTr.querySelector('.row-code')||{}).textContent || '';
+      const linkedIdx = findItemIndexByName(itemName);
+      const savedDesign = linkedIdx>=0 ? (ITEMS[linkedIdx].design || null) : null;
+      return { uid, itemName, w, h, refCode, savedDesign };
+    });
+    WD.loadFromRows(rowData);
+    sides.forEach(s=>{
+      (s.segments||[]).forEach(seg=>{
+        if(!seg.rowUid) return;
+        const target = items.find(i=>i.sourceRowUid === seg.rowUid);
+        if(target) target.isRoomWallElevation = true;
+      });
+    });
+  }
+  return created;
+}
+window.autoCreateRoomSideRowsForAllSegments = autoCreateRoomSideRowsForAllSegments;
 
 // ============================================================================
 // 🆕 2026-09-24: طلب حمدي - "المشهد 3D الحقيقي القابل للتدوير وتصدير الفيديو التلقائي 360°" (كانت
