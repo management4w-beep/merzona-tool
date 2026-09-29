@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-29.1';
+  var CURRENT_VERSION = '2026-09-29.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1224,6 +1224,17 @@
   @media (max-width: 900px){
     .panel.controls{ position: static; max-height: none; }
   }
+  /* 🆕 2026-09-29: الشاشة المقسومة لأضلاع الغرفة (شوف تعليق room-split-wrap بالـHTML) - بالشاشة
+     الضيقة (أو وضع الموبايل)، .panel.controls نفسها بتصير position:static (فوق) فما في سياق تمرير
+     مستقل يثبّت (sticky) عمود المسقط بداخلها بمعزل عن باقي الصفحة - فمنلغي sticky ومنعرض عمود
+     المسقط أول (column-reverse: هو تاني عنصر بالـHTML، فبيطلع فوق) قبل قائمة الأضلاع الطويلة. */
+  .rs-preview-col{ position:sticky; top:8px; }
+  @media (max-width: 900px){
+    .room-split-wrap{ display:flex; flex-direction:column-reverse; }
+    .room-split-wrap .rs-preview-col{ position:static; margin-bottom:14px; }
+  }
+  body.mode-mobile .room-split-wrap{ display:flex; flex-direction:column-reverse; }
+  body.mode-mobile .room-split-wrap .rs-preview-col{ position:static; margin-bottom:14px; }
   body.mode-mobile .panel.controls{ position: static; max-height: none; }
 
   h2.sec{
@@ -6546,19 +6557,34 @@ window.wdApplyBack = function(results){
               </div>
             </div>
           </div>
-          <label style="margin-top:8px;">أضلاع الأرضية (بالترتيب حول الغرفة)</label>
-          <p class="hint">كل ضلع = طوله بالمم + الزاوية الداخلية بينه وبين الضلع يلي بعده (افتراضي 90° لغرفة مستطيلة عادية). دوس "🎨 صمم" لتحويل الضلع (أو جزء منو) لبند تصميم عادي (زجاج/باب/هاندريل) - بينضاف تلقائيًا كسطر جديد بجدول عرض السعر فوق. مو شرط الضلع كامل يكون تصميم أو حائط - دوس "➕ قسّم لجزء" لو بدك جزء منو بس (مثلاً متر ونص حائط اسمنتي وباقي الضلع زجاج)، وبعدين حوّل كل جزء لحاله بزر "🧱 حوّله حائط" / "🎨 رجّعه تصميم".</p>
-          <div id="roomSidesList"></div>
-          <div class="add-row" style="margin-top:6px;">
-            <button onclick="addRoomSideFromControls()" class="small" style="flex:1;">+ ضلع جديد</button>
-          </div>
-          <div class="add-row" style="align-items:center;justify-content:space-between;margin-top:10px;">
-            <label style="margin:0;">مسقط الأرضية Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
-            <button type="button" class="small" onclick="openRoomFloorPreviewFullscreenForSelected()" title="كبّر المسقط لكامل الشاشة">🔍 كبّر لكامل الشاشة</button>
-          </div>
-          <div id="roomFloorPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
-          <div class="add-row" style="margin-top:8px;">
-            <button onclick="openRoom3D()" class="small" style="flex:1;">🏠 مشهد ثري دي حقيقي (منظور Elevation + تدوير + فيديو)</button>
+          <!-- 🆕 2026-09-29 (طلب حمدي - إعادة هيكلة شاشة الأضلاع: "لازم تفتح صفحة كبيرة يكون فيها
+               المسقط على جهة والأضلاع كل ضلع على جهة محددة لاقدر ارسم بسرعة واعرف كل واحد وين"):
+               عمود المسقط (rs-preview-col) صار "مثبّت" (position:sticky) طول ما شاشة عريضة كفاية
+               (نفس نقطة الكسر 900px يلي أصلاً .panel.controls نفسها بتستخدمها فوق) - فبتقدري تعدّلي
+               طول/زاوية أي ضلع بعمود قائمة الأضلاع وتشوفي المسقط يتحدّث حي بجنبه بنفس الوقت، بدون ما
+               تضطري تنزلي/تطلعي بالتمرير كل مرة. بالموبايل (شاشة ضيقة)، منعرض عمود المسقط أول
+               (column-reverse) قبل قائمة الأضلاع الطويلة، حتى يضل المسقط بالمتناول فورًا من غير سحب.
+               كل الـid الداخلية (roomSidesList/roomFloorPreview) ما تغيّرت إطلاقًا - فقط غلاف عرض جديد،
+               فكل كود renderRoomSidesUI/buildRoomSVG الموجود شغّال زي ما هو بدون أي تعديل. -->
+          <div class="room-split-wrap" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:8px;">
+            <div class="rs-side-col" style="flex:1 1 320px;min-width:0;">
+              <label style="margin-top:0;">أضلاع الأرضية (بالترتيب حول الغرفة)</label>
+              <p class="hint">كل ضلع = طوله بالمم + الزاوية الداخلية بينه وبين الضلع يلي بعده (افتراضي 90° لغرفة مستطيلة عادية). دوس "🎨 صمم" لتحويل الضلع (أو جزء منو) لبند تصميم عادي (زجاج/باب/هاندريل) - بينضاف تلقائيًا كسطر جديد بجدول عرض السعر فوق. مو شرط الضلع كامل يكون تصميم أو حائط - دوس "➕ قسّم لجزء" لو بدك جزء منو بس (مثلاً متر ونص حائط اسمنتي وباقي الضلع زجاج)، وبعدين حوّل كل جزء لحاله بزر "🧱 حوّله حائط" / "🎨 رجّعه تصميم".</p>
+              <div id="roomSidesList"></div>
+              <div class="add-row" style="margin-top:6px;">
+                <button onclick="addRoomSideFromControls()" class="small" style="flex:1;">+ ضلع جديد</button>
+              </div>
+            </div>
+            <div class="rs-preview-col" style="flex:1 1 260px;min-width:0;">
+              <div class="add-row" style="align-items:center;justify-content:space-between;">
+                <label style="margin:0;">مسقط الأرضية Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
+                <button type="button" class="small" onclick="openRoomFloorPreviewFullscreenForSelected()" title="كبّر المسقط لكامل الشاشة">🔍 كبّر لكامل الشاشة</button>
+              </div>
+              <div id="roomFloorPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
+              <div class="add-row" style="margin-top:8px;">
+                <button onclick="openRoom3D()" class="small" style="flex:1;">🏠 مشهد ثري دي حقيقي (منظور Elevation + تدوير + فيديو)</button>
+              </div>
+            </div>
           </div>
 
           <label style="margin-top:14px;">🏗️ السقف Ceiling</label>
