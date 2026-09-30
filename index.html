@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.1';
+  var CURRENT_VERSION = '2026-09-30.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10521,8 +10521,29 @@ function roomDrawRepairClosingEdge(pts){
   const n = pts.length;
   if(n < 3) return pts;
   const first = pts[0], last = pts[n-1], prev = pts[n-2];
-  const alreadyOk = Math.abs(last.x-first.x) < 0.01 || Math.abs(last.y-first.y) < 0.01;
+  const dx = Math.abs(last.x-first.x), dy = Math.abs(last.y-first.y);
+  const alreadyOk = dx < 0.01 || dy < 0.01;
   if(alreadyOk) return pts;
+  // 🆕 2026-09-30.2 (طلب حمدي: "المشكلة ما زالت موجودة بالضلع 13" - لسا في ضلع وهمي قصير بعد الإصلاح
+  // السابق) - السبب الحقيقي: كل نقطة أثناء الرسم بتنقفل 90° بالنسبة لآخر نقطة قبلها بس، مش بالنسبة
+  // لنقطة البداية - فبعد كذا ضلع (شكل "درج" فيه كتير زوايا)، آخر نقطة بتوصل قريبة جدًا من نقطة
+  // البداية على محور وحيد (فرق بسيط كم مم/سم بسبب دقة الكليك)، بس مش قريبة عالمحور التاني إطلاقًا -
+  // فالإصلاح القديم (تحت) كان يعتبرها "مو مقفولة أبدًا" ويضيف زاوية وسيطة جديدة، فبيطلع ضلع وهمي قصير
+  // (~بضع سنتيمترات) هو بالظبط الفرق البسيط هاد. الحل: لو الفرق البسيط هاد أصلًا جوا حدود "الالتصاق"
+  // العادي المستخدم بكل الرسمة (roomDrawPxRadiusToMm)، منسكّر بمحاذاة آخر نقطة مباشرة عالمحور المطلوب
+  // (تعديل طفيف غير محسوس بصريًا) بدل ما نضيف ضلع/زاوية وهمية جديدة. منضيف زاوية وسيطة فقط لو الفرق
+  // كبير فعليًا (زاوية حرة مقصودة).
+  const tolMm = roomDrawPxRadiusToMm(12);
+  if(dx <= tolMm){
+    const repaired = pts.slice();
+    repaired[n-1] = { x: first.x, y: last.y };
+    return repaired;
+  }
+  if(dy <= tolMm){
+    const repaired = pts.slice();
+    repaired[n-1] = { x: last.x, y: first.y };
+    return repaired;
+  }
   const prevEdgeIsHoriz = Math.abs(last.y - prev.y) < 0.01;
   const prevEdgeIsVert = Math.abs(last.x - prev.x) < 0.01;
   if(!prevEdgeIsHoriz && !prevEdgeIsVert) return pts; // آخر ضلع مرسوم كان أصلًا زاوية حرة - ما منلمسه
