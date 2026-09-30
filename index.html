@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.12';
+  var CURRENT_VERSION = '2026-09-30.14';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -2374,18 +2374,43 @@ function removeQtyRow(btn){
   // فورًا لو أكّد المستخدم، حتى القائمة/المشهد ثلاثي الأبعاد يعرفوا إنو التصميم هاد ما عاد موجود.
   const rowUid = tr ? tr.dataset.rowUid : null;
   if(rowUid){
+    // 🛑 اكتشاف حرج 2026-09-30.14 (هاد السبب الحقيقي المباشر لبلاغ حمدي "ماعم اقدر احذف بنود بعرض
+    // السعر"): هالفنكشن (removeQtyRow) معرّفة جوا كتلة <script> التانية (كلاسيكية، مش IIFE)، بينما
+    // متغيّر items (بنود أداة التصميم) معرّف جوا IIFE بكتلة <script> التالتة - يعني items أصلًا مش
+    // مرئي هون بتاتًا (خارج نطاقه اللغوي/lexical scope). الكود يلي انضاف بإصلاح 2026-09-28 (تحت هيك
+    // تمامًا) كان يكتب "for(const it of items)" مباشرة - وهاد كان يرمي خطأ JS حقيقي (ReferenceError:
+    // items is not defined) في كل مرة أي صف بجدول الكميات إلو rowUid (يعني كل صف تقريبًا، لأنو
+    // openDesignerFromToolbar/ensureRowUid بيولّد uid لكل صف أول ما تفتحي أداة التصميم ولو مرة وحدة) -
+    // وبما إنو الخطأ ما كان ممسوك (uncaught)، كان يوقف تنفيذ الفنكشن بالكامل فورًا عند أول سطر بعده،
+    // يعني السطر tr.remove() تحت (يلي المفروض يشيل الصف فعليًا) ما كان ينفّذ أبدًا - فكان الحذف "ما
+    // يشتغل" حرفيًا لأي صف تقريبًا، بالظبط متل ما وصف حمدي المشكلة. هلق: منستخدم نفس الجسر المعرّض
+    // أصلًا خارج الـIIFE (window.__getDesignItemsForExport__، شوف تعريفه قرب saveDesignItemsToStorage)
+    // بدل الإشارة المباشرة لـitems - بيرجع نفس المصفوفة الحقيقية بالمرجع (مش نسخة)، فأي تعديل عليها هون
+    // (linkedSeg.rowUid = null، linkedItem.sourceRowUid = null) بينعكس فعليًا على بيانات أداة التصميم.
+    const designItems = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__().items : [];
     let linkedSeg = null;
-    for(const it of items){
+    for(const it of designItems){
       for(const side of (it.roomSides||[])){
         const seg = (side.segments||[]).find(g=>g.rowUid===rowUid);
         if(seg){ linkedSeg = seg; break; }
       }
       if(linkedSeg) break;
     }
-    if(linkedSeg){
-      if(!confirm('هاد السطر مربوط بتصميم غرفة/مجلس. حذفه من هون رح يفك الربط (قائمة أضلاع الغرفة والمشهد ثلاثي الأبعاد رح يعرفوا إنو هاد الجزء ما عاد مسعّر). بدك تكمل الحذف؟')) return;
+    // 🛠️ إصلاح 2026-09-30.14 (فحص شامل - بلاغ حمدي: "ماعم اقدر احذف بنود بعرض السعر... عم تنزل بنود
+    // غريبة... حتى ارتفاعاتهم ما كانت متطابقة مع ارتفاع الغرفة"): كنا نفك بس ربط جزء ضلع الغرفة
+    // (seg.rowUid) لو هالصف مربوط بغرفة، بس ما كنا نلمس sourceRowUid تبع البند نفسه لو الصف مربوط
+    // ببند تصميم مستقل (شباك/باب/فولدينغ لحاله مش جوا غرفة). فكان هالبند يضل بأداة التصميم "معلّق"
+    // (sourceRowUid بيأشر لصف انحذف) - وبفتح الأداة الجاي كان بيضيع بصمت (لا بيتطابق مع صف حالي ولا
+    // بينحسب "مستقل" لأنو أصلاً عندو uid، بس uid ميت) - أو الأخطر: لو بعدين انفتحت الأداة لعرض سعر
+    // تاني بالكامل، هالبند (أو أمثاله من حالات مشابهة) ممكن يترحّل غلط وينزرع كسطر جديد "غريب" هونيك
+    // (شوف الإصلاح الجذري بـresetAllNoConfirm/applyFullQuotationData). هلق منفك ربط البند المستقل
+    // كمان (sourceRowUid = null) بنفس لحظة حذف الصف، تمامًا متل ما نفك ربط جزء الغرفة.
+    const linkedItem = designItems.find(i => i.sourceRowUid === rowUid);
+    if(linkedSeg || linkedItem){
+      if(!confirm('هاد السطر مربوط بتصميم (غرفة/مجلس أو بند مستقل بأداة التصميم). حذفه من هون رح يفك الربط بس (ما رح يحذف البند نفسه من أداة التصميم) - بدك تكمل الحذف؟')) return;
       pushHistory();
-      linkedSeg.rowUid = null;
+      if(linkedSeg) linkedSeg.rowUid = null;
+      if(linkedItem) linkedItem.sourceRowUid = null;
     }
   }
   if(tr) tr.remove();
@@ -3397,6 +3422,18 @@ function resetAll(){
 // وراء بعض على نفس الكبسة.
 function resetAllNoConfirm(){
   clearDraft(); // عرض سعر جديد فاضي بالنية - ما منحتاج نرجع نقترح مسودة عرض السعر القديم بعد هلق
+  // 🛠️ إصلاح جذري 2026-09-30.14 (فحص شامل - بلاغ حمدي: "عم تنزل بنود غريبة... مقاساتها غريبة
+  // ومختلفة... حتى ارتفاعاتهم ما كانت متطابقة مع الارتفاع تبع الغرفة"): هون بالضبط السبب الجذري.
+  // "عرض سعر جديد" كان يفضّي جدول الكميات (#qty-rows) بالكامل، بس ما كان يلمس items[] (بنود أداة
+  // التصميم - شبابيك/أبواب/غرف بكل تفاصيلها) إطلاقًا - items[] محفوظة بمفتاح localStorage عالمي واحد
+  // (merzona-design-items) مش مربوطة برقم مرجعي عرض سعر معيّن. فكانت أي بنود تصميم "مستقلة" (بدون
+  // sourceRowUid، مثلاً بند انرسم بعرض سعر سابق وما انربط بصف بعد) تضل قاعدة بالذاكرة، وأول ما تفتحي
+  // أداة التصميم بعرض السعر الجديد (WD.loadFromRows) كانت تترحّل معك تلقائيًا (نفس آلية حماية "البند
+  // اليدوي" من الضياع) - وبعدين لو ضغطتي "✅ استخدم هذا التصميم واحفظه للبند"، wdApplyBack كانت
+  // تزرعلهم صف جديد بجدول الكميات تبع عرض السعر الجديد هاد - رغم إنو ما إلهم أي علاقة فيه، وبمقاساتهم
+  // وارتفاعهم الأصلي (من عرض السعر/الغرفة القديمة) وليس مقاس/ارتفاع الغرفة الجديدة. هلق: عرض سعر
+  // جديد لازم يبلش بأداة تصميم فاضية تمامًا كمان، بالضبط متل ما بيبلش بجدول كميات فاضي.
+  if(window.__applyDesignItemsImport__) window.__applyDesignItemsImport__([], 1);
   // 🆕 2026-09-22: عرض سعر جديد فاضي لازم يبلش وقسمي الألمنيوم/الزجاج ظاهرين افتراضيًا (متل ما كانوا
   // قبل هالميزة) - حتى لو المستخدم كان لغاهم بعرض سعر سابق بنفس الجلسة.
   const alumToggleEl = document.getElementById('alum-section-toggle');
@@ -4019,8 +4056,15 @@ function applyFullQuotationData(data){
       const qtyBody = document.getElementById('qty-rows');
       if(qtyBody) qtyBody.innerHTML = data.qtyRowsHtml;
     }
-    if(Array.isArray(data.designItems) && window.__applyDesignItemsImport__){
-      window.__applyDesignItemsImport__(data.designItems, data.designNextId);
+    // 🛠️ إصلاح جذري 2026-09-30.14 (نفس فحص "بنود غريبة" فوق قرب resetAllNoConfirm): قبل هيك كنا
+    // بس نطبّق data.designItems لو كانت array فعليًا موجودة - يعني أي عرض سعر قديم/نسخة محفوظة ما
+    // فيها هالحقل إطلاقًا (سكيمة قديمة قبل ما نبلش نحفظ ربط التصميم أصلًا) كانت تسيب items[] الحالية
+    // (من مهما كان مفتوح قبلها بنفس التبويب) بدون أي لمس - يعني ممكن ترجع تترحّل بنود تصميم عرض سعر
+    // تاني بالغلط لهون. هلق: أي تحميل كامل لعرض سعر (فتح قديم، تراجع، استرجاع مسودة محلية) لازم يفرض
+    // دايمًا نفس بنود التصميم المحفوظة فيه بالضبط - فاضية لو ما محفوظ إشي أصلًا - أبدًا ما تبقى بنود
+    // معلّقة من جلسة/عرض سعر تاني.
+    if(window.__applyDesignItemsImport__){
+      window.__applyDesignItemsImport__(Array.isArray(data.designItems) ? data.designItems : [], data.designNextId);
     }
     document.body.setAttribute('data-prefilled','1');
     renumber();
@@ -7036,6 +7080,11 @@ window.wdApplyBack = function(results){
             <label>سماكة السقف (مم) - 🆕 عمق حقيقي للسقف بالمشهد ثلاثي الأبعاد (بدل ما يبين صفحة رفيعة)</label>
             <input type="text" inputmode="decimal" id="inCeilingThickness" min="20" oninput="restrictMeasureChars(this);onCeilingThicknessChange()" onblur="evalMeasureField(this);onCeilingThicknessChange()" value="200">
           </div>
+          <!-- 🆕 2026-09-30 (طلب حمدي - المرحلة ٢+٣ من إعادة تصميم السقف): نوع سطح السقف الأساسي -
+               ساندويتش بانل مصمت / زجاج ثابت / زجاج متحرك (سحاب) - شوف CEILING_PANEL_TYPE_LABELS
+               وbuildCeilingLevelRecursive فوق بالثري دي. هاد ينطبق على السقف كله ما عدا أي جزء
+               "مرفوع/مخفّض" (zone) عندو نوع سطح خاص فيه (شوف قائمة الأجزاء تحت). -->
+          <div id="ceilingBasePanelTypeBox" style="margin:8px 0;"></div>
           <div id="ceilingSidesList"></div>
           <div class="add-row" style="margin-top:6px;">
             <!-- 🆕 2026-09-30: طلب حمدي - رسم شكل سقف مستقل تمامًا عن شكل الأرضية (بدل بروز رقمي بس)،
@@ -8208,8 +8257,36 @@ function addItem(type){
 
 function deleteItem(id, evt){
   if(evt) evt.stopPropagation();
+  // 🛠️ إصلاح 2026-09-30.14 (فحص شامل - بلاغ حمدي المباشر: "لما عم احذفها بالمصمم ماعم تنطبق على
+  // عرض السعر"): كان الحذف هون بس يشيل البند من مصفوفة items المحلية جوا أداة التصميم - ما كان
+  // يلمس جدول عرض السعر (#qty-rows) إطلاقًا حتى لو هالبند مربوط بصف حقيقي فيه (sourceRowUid). فكان
+  // صف عرض السعر يضل قاعد بالجدول بالضبط زي ما هو (نفس المقاس/السعر) رغم إنو التصميم يلي وراه انحذف
+  // فعليًا - فيبين للمستخدم إنو "الحذف ما اشتغل". هلق: لو هالبند مربوط بصف حقيقي، منسأل تأكيد (نفس
+  // أسلوب removeQtyRow بالاتجاه المعاكس)، وبعد الموافقة منحذف صف الجدول المرتبط فعليًا كمان، ومنفك
+  // ربط أي جزء ضلع غرفة كان مؤشر لنفس الصف حتى ما يضل "معلّق".
+  const it = items.find(i => i.id === id);
+  let linkedTr = null;
+  if(it && it.sourceRowUid){
+    linkedTr = document.querySelector('#qty-rows tr[data-row-uid="'+it.sourceRowUid+'"]');
+    if(linkedTr){
+      if(!confirm('هاد البند مربوط بصف حقيقي بجدول عرض السعر. حذفه من هون رح يحذف صف الجدول المرتبط فيه كمان - بدك تكمل الحذف؟')) return;
+    }
+  }
   pushHistory();
   items = items.filter(i => i.id !== id);
+  if(linkedTr){
+    const itemName = linkedTr.dataset.itemName || '';
+    const uid = linkedTr.dataset.rowUid;
+    items.forEach(other => {
+      (other.roomSides||[]).forEach(side => {
+        (side.segments||[]).forEach(seg => { if(seg.rowUid === uid) seg.rowUid = null; });
+      });
+    });
+    linkedTr.remove();
+    renumber();
+    recalc();
+    removeLinkedSpecsIfUnused(itemName);
+  }
   if(selectedId === id){
     selectedId = items.length ? items[0].id : null;
   }
@@ -11954,11 +12031,84 @@ function buildRoomFurniture3D(scene, floorPts, n, MMTOM){
 // بيدعم holes جاهز - ما احتجنا أي حساب تقاطع أشكال يدوي/مكتبة خارجية). حول حدود كل جزء بالكامل بترتسم
 // "قصة" عمودية (صف صناديق رفيعة بلون الجدار) توصل بين ارتفاعه وارتفاع أبوه - تمامًا متل صندوق جبس حقيقي،
 // وبتنعاد نفس العملية بشكل متكرر لأي جزء مرسوم جوا جزء تاني (تدرّج أكتر من مستوى).
-function buildCeilingLevelRecursive(scene, it, parentId, parentPolyMM, parentHeightMM, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM){
+// 🆕 2026-09-30 (طلب حمدي - المرحلة ٢+٣ من إعادة تصميم السقف: "بدي يكون في خيار اما يكون ساندويتش
+// بانل يعني مصمت بدون شفافية او يكون زجاج... واذا كان زجاج فيه خيار يكون متحرك سحاب متل الفيديو
+// يللي ارسلتلك ياه وقتها او ثابت") - كل مستوى سقف (السقف الأساسي، أو أي جزء "zone" مرسوم جواه -
+// شوف ensureCeilingZones فوق) هلق إلو "نوع سطح" مستقل عن ارتفاعه/شكله تمامًا:
+//  - 'solid'        : ساندويتش بانل (مصمت، بدون شفافية) - هو نفس السلوك القديم بالضبط (افتراضي دايمًا
+//                      لو ما محدد نوع - توافقية كاملة مع أي غرفة قديمة محفوظة قبل هالميزة).
+//  - 'glass_fixed'   : زجاج ثابت (شفاف نوعًا ما، بعوارض/تقسيمات تقسّمه لألواح - شوف buildCeilingMullionBars).
+//  - 'glass_sliding' : زجاج متحرك (نظام سحاب) - نفس مظهر الزجاج الثابت لما يكون "مسكّر"، بس فيه خيار
+//                      إضافي (toggleCeilingZoneSlideOpen3D / toggleCeilingBaseSlideOpen3D) يعرضه
+//                      "مفتوح" بالثري دي: الألواح بتتجمّع/تتكدّس عند ضلع واحد (متل الفيديو المرجعي)
+//                      والباقي من السقف بيصير فتحة حقيقية (بدون أي سطح) - عرض بصري بس، ما بيأثر عالسعر
+//                      ولا عالتصميم الحقيقي المحفوظ إطلاقًا (بالضبط نفس فكرة seg.doorOpen3D الموجودة
+//                      أصلًا للأبواب).
+const CEILING_PANEL_TYPE_LABELS = { solid:'🧱 ساندويتش بانل', glass_fixed:'🪟 زجاج ثابت', glass_sliding:'🪟↔️ زجاج متحرك (سحاب)' };
+window.CEILING_PANEL_TYPE_LABELS = CEILING_PANEL_TYPE_LABELS;
+function ceilingPanelMaterialFor(panelType){
+  if(panelType === 'glass_fixed' || panelType === 'glass_sliding'){
+    return new THREE.MeshStandardMaterial({ color:0xbcdcec, roughness:0.15, metalness:0.05, transparent:true, opacity:0.45, side:THREE.DoubleSide });
+  }
+  return new THREE.MeshStandardMaterial({ color:0x5a4a3a, roughness:0.8, side:THREE.DoubleSide }); // 'solid' (أو أي قيمة غير معروفة) - نفس اللون القديم بالظبط
+}
+// بيقرّب كل نقطة من مضلع مغلق (بالمم) نحو إسقاطها العمودي على أول ضلع فيه (points[0]->points[1])
+// بنسبة "fraction" - نتيجتها شكل "متجمّع/متكدّس" قريب من هداك الضلع (تقريب بصري لسقف سحاب مفتوح
+// انسحبت ألواحه لجهة واحدة)، بدل باقي مساحة السقف الأصلية يلي بتضل بلا أي سطح (فتحة حقيقية).
+function collapsePolygonTowardEdgeMM(pts, fraction){
+  if(!pts || pts.length < 4) return pts;
+  const A = pts[0], B = pts[1];
+  const dx = B.x-A.x, dy = B.y-A.y;
+  const lenSq = (dx*dx+dy*dy) || 1;
+  return pts.map(p=>{
+    const t = ((p.x-A.x)*dx + (p.y-A.y)*dy) / lenSq;
+    const proj = { x: A.x + t*dx, y: A.y + t*dy };
+    return { x: p.x + (proj.x-p.x)*fraction, y: p.y + (proj.y-p.y)*fraction };
+  });
+}
+// عوارض/مسامات رفيعة (تقسيمات ألواح) موزّعة بالتساوي عبر مضلع سقف زجاجي (مسكّر) - بس مظهر بصري
+// (يوحي إنو السطح مقسوم لألواح حقيقية بدل لوح واحد ضخم)، ما بيغيّر أي بيانات/تسعير.
+function buildCeilingMullionBars(scene, polyPtsMM, heightMM, MMTOM, wallThicknessM){
+  if(!polyPtsMM || polyPtsMM.length < 4) return;
+  const A = polyPtsMM[0], B = polyPtsMM[1];
+  const uLen = Math.hypot(B.x-A.x, B.y-A.y) || 1;
+  const uHat = { x:(B.x-A.x)/uLen, y:(B.y-A.y)/uLen };
+  const vHat = { x:-uHat.y, y:uHat.x };
+  let minU=Infinity,maxU=-Infinity,minV=Infinity,maxV=-Infinity;
+  polyPtsMM.slice(0,-1).forEach(p=>{
+    const rx = p.x-A.x, ry = p.y-A.y;
+    const u = rx*uHat.x + ry*uHat.y, v = rx*vHat.x + ry*vHat.y;
+    if(u<minU)minU=u; if(u>maxU)maxU=u; if(v<minV)minV=v; if(v>maxV)maxV=v;
+  });
+  const uLenMM = maxU-minU, vLenMM = maxV-minV;
+  if(uLenMM < 100 || vLenMM < 100) return;
+  const count = Math.max(2, Math.min(12, Math.round(uLenMM/1400))); // لوح كل ~1.4م تقريبًا (مقاس نمطي)
+  const thicknessM = Math.max(0.02, wallThicknessM*0.3);
+  const barMat = new THREE.MeshStandardMaterial({ color:0x2c2c30, roughness:0.6, metalness:0.3 });
+  for(let k=1;k<count;k++){
+    const u = minU + uLenMM*k/count, v = (minV+maxV)/2;
+    const cx = A.x + uHat.x*u + vHat.x*v, cy = A.y + uHat.y*u + vHat.y*v;
+    const rad = Math.atan2(-vHat.y, vHat.x);
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.max(0.05, vLenMM*MMTOM), 0.03, thicknessM),
+      barMat
+    );
+    bar.position.set(cx*MMTOM, heightMM*MMTOM+0.035, cy*MMTOM);
+    bar.rotation.y = rad + Math.PI/2;
+    bar.castShadow = true; bar.receiveShadow = true;
+    scene.add(bar);
+  }
+}
+function buildCeilingLevelRecursive(scene, it, parentId, parentPolyMM, parentHeightMM, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM, levelPanelType, levelSlideOpen){
+  levelPanelType = levelPanelType || 'solid';
   const zones = ensureCeilingZones(it);
   const children = zones.filter(z=>z.parentId===parentId);
+  const isOpenSlider = levelPanelType === 'glass_sliding' && levelSlideOpen;
+  // 🆕 لو "زجاج متحرك" وحاليًا معروض كـ"مفتوح" - منرسم بس شريحة متجمّعة قرب أول ضلع (تمثيل الألواح
+  // المتكدّسة)، وباقي الشكل الأصلي بيضل بلا أي سطح (فتحة حقيقية) - نفس فكرة سقف سحاب مسحوب لجنب.
+  const shapePolyMM = isOpenSlider ? collapsePolygonTowardEdgeMM(parentPolyMM, 0.82) : parentPolyMM;
   const shape = new THREE.Shape();
-  parentPolyMM.forEach((p,i)=>{
+  shapePolyMM.forEach((p,i)=>{
     const X = p.x*MMTOM, Y = -p.y*MMTOM; // نفس إصلاح انعكاس الأرضية/السقف (شوف الشرح جنب floorMesh فوق)
     if(i===0) shape.moveTo(X,Y); else shape.lineTo(X,Y);
   });
@@ -11975,13 +12125,16 @@ function buildCeilingLevelRecursive(scene, it, parentId, parentPolyMM, parentHei
   });
   const capMesh = new THREE.Mesh(
     new THREE.ExtrudeGeometry(shape, { depth: ceilingThicknessM, bevelEnabled:false }),
-    new THREE.MeshStandardMaterial({ color:0x5a4a3a, roughness:0.8, side:THREE.DoubleSide })
+    ceilingPanelMaterialFor(levelPanelType)
   );
   capMesh.rotation.x = -Math.PI/2;
   capMesh.position.y = parentHeightMM*MMTOM + 0.02;
   capMesh.castShadow = true;
   capMesh.receiveShadow = true;
   scene.add(capMesh);
+  if((levelPanelType === 'glass_fixed' || levelPanelType === 'glass_sliding') && !isOpenSlider){
+    buildCeilingMullionBars(scene, parentPolyMM, parentHeightMM, MMTOM, wallThicknessM);
+  }
 
   children.forEach(z=>{
     const zPts = computeZonePolygonMM(z);
@@ -12014,7 +12167,7 @@ function buildCeilingLevelRecursive(scene, it, parentId, parentPolyMM, parentHei
       buildGableRoofMesh(scene, it, z, childHeightMM, MMTOM, wallColorNum);
       return;
     }
-    buildCeilingLevelRecursive(scene, it, z.id, zPts.slice(0, zPts.length-1), childHeightMM, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM);
+    buildCeilingLevelRecursive(scene, it, z.id, zPts.slice(0, zPts.length-1), childHeightMM, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM, z.panelType||'solid', !!z.slideOpen3D);
   });
 }
 
@@ -12265,7 +12418,7 @@ async function buildRoom3DScene(it, wrap){
   // 🆕 2026-09-26 (طلب حمدي: "بدي ارسم السقف... اعرف وين بدي ارفعها ووين بدي اخفضها") - بدل سطح مسطّح
   // واحد ثابت، منبني كل مستويات السقف (الأساسي + أي أجزاء مرفوعة/مخفّضة رسمها المستخدم) بشكل متكرر -
   // شوف buildCeilingLevelRecursive فوق للتفاصيل الكاملة (THREE.Shape.holes + قصات عمودية بين المستويات).
-  buildCeilingLevelRecursive(scene, it, null, ceilingPts.slice(0, ceilingPts.length-1), it.roomHeight||2500, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM);
+  buildCeilingLevelRecursive(scene, it, null, ceilingPts.slice(0, ceilingPts.length-1), it.roomHeight||2500, MMTOM, ceilingThicknessM, wallColorNum, wallThicknessM, it.ceilingBasePanelType||'solid', !!it.ceilingBaseSlideOpen3D);
 
   // كل ضلع -> كل جزء (segment) فيه: صندوق بمكانه وزاويته الصحيحة، بخامة تصميمه الفعلي لو موجود.
   for(let i=0;i<n;i++){
@@ -13446,9 +13599,49 @@ function closeRoomSidesFullscreen(){
 }
 window.closeRoomSidesFullscreen = closeRoomSidesFullscreen;
 
+// 🆕 2026-09-30 (طلب حمدي - المرحلة ٢+٣ من إعادة تصميم السقف) - يبني HTML اختيار "نوع سطح" مشترك
+// (ساندويتش بانل / زجاج ثابت / زجاج متحرك) - مستخدم هون للسقف الأساسي، وبمحرر أجزاء السقف تحت لكل
+// جزء لحاله. onSetType/onToggleOpen أسماء الفنكشنز (كنص) يلي تتنادى من الأزرار (onclick=...).
+function buildCeilingPanelTypeControlsHtml(currentType, slideOpen, onSetTypeFnName, onToggleOpenFnName){
+  const type = currentType || 'solid';
+  const btn = (val, label) => `<button type="button" class="small" onclick="${onSetTypeFnName}('${val}')" style="flex:1;${type===val ? 'background:#0f88cd;color:#fff;' : ''}">${label}</button>`;
+  let html = `<label style="font-size:11.5px;display:block;margin-bottom:4px;">نوع سطح السقف</label>
+    <div class="add-row" style="margin-bottom:4px;">
+      ${btn('solid', CEILING_PANEL_TYPE_LABELS.solid)}
+      ${btn('glass_fixed', CEILING_PANEL_TYPE_LABELS.glass_fixed)}
+      ${btn('glass_sliding', CEILING_PANEL_TYPE_LABELS.glass_sliding)}
+    </div>`;
+  if(type === 'glass_sliding'){
+    html += `<div class="add-row">
+      <button type="button" class="small" onclick="${onToggleOpenFnName}()" style="flex:1;${slideOpen?'background:#c9760f;color:#fff;':''}">${slideOpen ? '🎬 معروض حاليًا: مفتوح (دوسي لعرضه مسكّر)' : '🎬 معروض حاليًا: مسكّر (دوسي لعرضه مفتوح بالثري دي)'}</button>
+    </div>
+    <p class="hint" style="margin:4px 0 0;font-size:10.5px;">هاد بس تمثيل بصري بالمشهد ثلاثي الأبعاد (تشوفي شكل النظام مفتوح/مسكّر) - ما بيأثر عالتصميم ولا عالسعر إطلاقًا.</p>`;
+  }
+  return html;
+}
+function onCeilingBasePanelTypeField(type){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  pushHistory();
+  it.ceilingBasePanelType = (type==='glass_fixed'||type==='glass_sliding') ? type : 'solid';
+  renderCeilingSidesUI(it);
+  refreshRoom3DIfOpenForItem(it.id);
+}
+window.onCeilingBasePanelTypeField = onCeilingBasePanelTypeField;
+function toggleCeilingBaseSlideOpen3D(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  it.ceilingBaseSlideOpen3D = !it.ceilingBaseSlideOpen3D;
+  renderCeilingSidesUI(it);
+  refreshRoom3DIfOpenForItem(it.id);
+}
+window.toggleCeilingBaseSlideOpen3D = toggleCeilingBaseSlideOpen3D;
+
 function renderCeilingSidesUI(it){
   const list = document.getElementById('ceilingSidesList');
   if(!list) return;
+  const basePanelTypeBox = document.getElementById('ceilingBasePanelTypeBox');
+  if(basePanelTypeBox){
+    basePanelTypeBox.innerHTML = buildCeilingPanelTypeControlsHtml(it.ceilingBasePanelType, it.ceilingBaseSlideOpen3D, 'onCeilingBasePanelTypeField', 'toggleCeilingBaseSlideOpen3D');
+  }
   // 🆕 2026-09-30: طلب حمدي - لو في شكل سقف مستقل مرسوم بالفأرة (it.ceilingSides)، قائمة "بروز لكل
   // ضلع" (تحت) ما إلها معنى/تأثير أصلاً (computeCeilingPolygonMM بيتجاهلها تمامًا بهاي الحالة - شوف
   // الشرح فوقها) - فبدل ما نعرضها بشكل مضلّل وكأنها فعّالة، منعرض رسالة توضيحية بدالها. "🔄 رجّعه
@@ -13501,7 +13694,10 @@ function startNewCeilingZone(itemId, parentId){
       // 🆕 2026-09-27 (طلب حمدي - سقف جملون مائل): افتراضيًا كل جزء جديد "مسطّح" (roofType='flat')
       // متل ما كان دايمًا - القيم تحت (gableRidgeRiseMm/gableSegments) بس بتنستخدم لو المستخدم بدّل
       // النوع لـ"مائل (جملون)" من زر التبديل بالمحرر تحت.
-      roofType: 'flat', gableRidgeRiseMm: 600, gableSegments: 1
+      roofType: 'flat', gableRidgeRiseMm: 600, gableSegments: 1,
+      // 🆕 2026-09-30 (المرحلة ٢+٣ من إعادة تصميم السقف): كل جزء جديد افتراضيًا "ساندويتش بانل" (مصمت)
+      // - نفس مظهر أي جزء مرفوع/مخفّض قديم بالضبط، وما بيتغيّر شي إلا لو المستخدم بدّله بنفسه بالمحرر.
+      panelType: 'solid', slideOpen3D: false
     }
   };
   renderCeilingSidesUI(it);
@@ -13521,7 +13717,8 @@ function startEditCeilingZone(itemId, zoneId){
       heightOffsetMm: zone.heightOffsetMm,
       roofType: zone.roofType || 'flat',
       gableRidgeRiseMm: zone.gableRidgeRiseMm || 600,
-      gableSegments: zone.gableSegments || 1
+      gableSegments: zone.gableSegments || 1,
+      panelType: zone.panelType || 'solid', slideOpen3D: !!zone.slideOpen3D
     }
   };
   renderCeilingSidesUI(it);
@@ -13538,6 +13735,33 @@ function onCeilingZoneRoofTypeField(type){
   syncRoofBuild3DFromDraftIfActive(); // 🆕 2026-09-28: عشان لو أداة بناء السقف بالثري دي مفتوحة، معاينتها تتحدّث فورًا
 }
 window.onCeilingZoneRoofTypeField = onCeilingZoneRoofTypeField;
+
+// 🆕 2026-09-30 (المرحلة ٢+٣ من إعادة تصميم السقف - طلب حمدي: "بدي يكون في خيار اما يكون ساندويتش
+// بانل...او يكون زجاج...واذا كان زجاج فيه خيار يكون متحرك سحاب...او ثابت") - نوع سطح هاد الجزء بالذات
+// (مستقل عن نوع سطح السقف الأساسي وعن باقي الأجزاء - كل جزء إله نوعه الخاص فيه).
+function onCeilingZonePanelTypeField(type){
+  if(!ceilingZoneEditor) return;
+  ceilingZoneEditor.draft.panelType = (type==='glass_fixed'||type==='glass_sliding') ? type : 'solid';
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+  syncRoofBuild3DFromDraftIfActive();
+}
+window.onCeilingZonePanelTypeField = onCeilingZonePanelTypeField;
+function toggleCeilingZoneEditorSlideOpen3D(){
+  if(!ceilingZoneEditor) return;
+  ceilingZoneEditor.draft.slideOpen3D = !ceilingZoneEditor.draft.slideOpen3D;
+  const it = items.find(i=>i.id===ceilingZoneEditor.itemId); if(it) renderCeilingSidesUI(it);
+  syncRoofBuild3DFromDraftIfActive();
+}
+window.toggleCeilingZoneEditorSlideOpen3D = toggleCeilingZoneEditorSlideOpen3D;
+// تبديل سريع لعرض جزء "زجاج متحرك" مفتوح/مسكّر بالثري دي مباشرة من القائمة (بدون فتح المحرر أصلًا).
+function toggleCeilingZoneSlideOpen3D(itemId, zoneId){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const zone = ensureCeilingZones(it).find(z=>z.id===zoneId); if(!zone) return;
+  zone.slideOpen3D = !zone.slideOpen3D;
+  renderCeilingZonesUI(it);
+  refreshRoom3DIfOpenForItem(it.id);
+}
+window.toggleCeilingZoneSlideOpen3D = toggleCeilingZoneSlideOpen3D;
 
 function onCeilingZoneGableField(field, value){
   if(!ceilingZoneEditor) return;
@@ -13625,7 +13849,13 @@ function saveCeilingZoneDraft(){
   if(draft.roofType === 'gable'){
     if(!draft.gableRidgeRiseMm || draft.gableRidgeRiseMm <= 0){ alert('لازم تكتبي ارتفاع قمة أكبر من صفر للسقف المائل.'); return; }
   } else if(!draft.heightOffsetMm){
-    alert('لازم تكتبي رقم ارتفاع غير صفر (موجب = رفع، سالب = خفض).'); return;
+    // 🛠️ 2026-09-30 (المرحلة ٢+٣ من إعادة تصميم السقف): قبل هيك كان لازم رقم ارتفاع غير صفر إجباريًا
+    // (0 مالوش معنى - كان أصلاً الغرض الوحيد من "جزء" هو الرفع/الخفض). هلق صار في غرض تاني مشروع
+    // لجزء بارتفاع صفر: تحديد نوع سطح مختلف (زجاج بدل ساندويتش بانل) بنفس مستوى السقف تمامًا - فمنسمح
+    // فيه، وبس لو النوع "ساندويتش بانل" (يعني الجزء فعلاً ما رح يغيّر أي شي محسوس) منسأل تأكيد.
+    if((draft.panelType||'solid') === 'solid'){
+      if(!confirm('الارتفاع صفر ونوع السطح "ساندويتش بانل" - هيك الجزء ما رح يغيّر أي شي محسوس بالمشهد (مو مرفوع ولا مخفّض ولا نوعه مختلف). لو قصدك بس تغيّري نوع السطح، اختاري "زجاج ثابت" أو "زجاج متحرك" فوق. بدك تحفظي هيك متل ما هو؟')) return;
+    }
   }
   const parentPts = getCeilingZoneParentPolygonMM(it, ceilingZoneEditor.parentId);
   const zonePts = computeZonePolygonMM(draft);
@@ -13653,6 +13883,8 @@ function saveCeilingZoneDraft(){
       existing.roofType = draft.roofType || 'flat';
       existing.gableRidgeRiseMm = draft.gableRidgeRiseMm;
       existing.gableSegments = draft.gableSegments;
+      existing.panelType = draft.panelType || 'solid';
+      existing.slideOpen3D = !!draft.slideOpen3D;
     } else {
       // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): لو صار Undo (تراجع) وهاد الجزء مفتوح بمحرره
       // بالضبط، الجزء بينمسح من it.ceilingZones بس المحرر بيضل مفتوح وكأنو شي طبيعي. قبل هالإصلاح،
@@ -13673,7 +13905,9 @@ function saveCeilingZoneDraft(){
       sides: draft.sides, heightOffsetMm: draft.heightOffsetMm,
       roofType: draft.roofType || 'flat',
       gableRidgeRiseMm: draft.gableRidgeRiseMm,
-      gableSegments: draft.gableSegments
+      gableSegments: draft.gableSegments,
+      panelType: draft.panelType || 'solid',
+      slideOpen3D: !!draft.slideOpen3D
     });
   }
   exitRoofBuild3D(); // 🆕 2026-09-28: خلص الحفظ - سكّر جلسة بناء السقف بالثري دي (المشهد نفسو رح يترسم من جديد صح تحت عبر refreshRoom3DIfOpenForItem)
@@ -13715,7 +13949,9 @@ function renderCeilingZonesUI(it){
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:4px;margin-inline-start:${depth*18}px;${isEditingThis?'background:rgba(15,136,205,0.08);':''}">
         <span style="font-size:12px;font-weight:700;">${'▫'.repeat(depth+1)} جزء ${labelForZone(z)}</span>
         <span style="font-size:10.5px;color:var(--wd-ink-dim,#6b7280);">(${z.sides.length} أضلاع)</span>
+        <span style="font-size:10.5px;color:var(--wd-accent,#0f88cd);font-weight:700;">${(CEILING_PANEL_TYPE_LABELS[z.panelType]||CEILING_PANEL_TYPE_LABELS.solid)}</span>
         ${outOfBoundsWarning}
+        ${z.panelType==='glass_sliding' ? `<button class="small" onclick="toggleCeilingZoneSlideOpen3D(${it.id},'${z.id}')" style="font-size:10px;${z.slideOpen3D?'background:#c9760f;color:#fff;':''}" title="عرض بصري بس بالثري دي - ما بيأثر عالتصميم">${z.slideOpen3D?'🎬 مفتوح':'🎬 مسكّر'}</button>` : ''}
         <button class="small" onclick="startEditCeilingZone(${it.id},'${z.id}')" style="font-size:10px;">✏️ عدّل</button>
         ${z.roofType==='gable' ? '' : `<button class="small" onclick="startNewCeilingZone(${it.id},'${z.id}')" style="font-size:10px;" title="ارسمي جزء جديد جوا هاد الجزء (مستوى إضافي)">➕ جزء جوّاه</button>`}
         <button class="small danger" onclick="deleteCeilingZoneCascade(${it.id},'${z.id}')" style="font-size:10px;margin-inline-start:auto;">🗑 حذف</button>
@@ -13769,6 +14005,11 @@ function renderCeilingZonesUI(it){
             <input type="number" step="1" min="1" value="${Math.max(1, Math.round(d.gableSegments||1))}" onchange="onCeilingZoneGableField('gableSegments',this.value)" style="width:100%;">
           </div>` : ''}
         </div>
+        ${d.roofType==='gable' ? `<p class="hint" style="margin:2px 0 8px;font-size:10.5px;">ملاحظة: السقف المائل (جملون) بيترسم دايمًا كزجاج - نوع السطح (ساندويتش بانل/زجاج) مو متاح إلو حاليًا.</p>` : `
+        <!-- 🆕 2026-09-30 (المرحلة ٢+٣ من إعادة تصميم السقف): نوع سطح هاد الجزء بالذات. -->
+        <div style="margin:10px 0 6px;padding-top:8px;border-top:1px dashed var(--wd-line,#333);">
+          ${buildCeilingPanelTypeControlsHtml(d.panelType, d.slideOpen3D, 'onCeilingZonePanelTypeField', 'toggleCeilingZoneEditorSlideOpen3D')}
+        </div>`}
         <div class="add-row">
           <button class="small" onclick="saveCeilingZoneDraft()" style="flex:1;background:var(--wd-ok,#1e7a3d);color:#fff;">✅ حفظ الجزء</button>
           <button class="small danger" onclick="cancelCeilingZoneEditor()" style="flex:1;">✖️ إلغاء</button>
