@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.8';
+  var CURRENT_VERSION = '2026-09-30.10';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -6899,6 +6899,9 @@ window.wdApplyBack = function(results){
             <button type="button" class="small" onclick="toggleRoomFreehandDraw()" style="width:100%;">✏️ ارسم شكل الأرضية بالفأرة (بدل التعبئة اليدوية)</button>
             <div id="roomDrawWrap" style="display:none;">
               <div class="rd-header">
+                <!-- 🆕 2026-09-30: نفس #roomDrawWrap صار مستخدم لرسم الأرضية أو السقف (شوف roomDraw.target) -
+                     هالسطر بيبيّن للمستخدم بوضوح شو عم يرسم هلق حتى ما يلتبس عليه. -->
+                <p id="roomDrawTargetLabel" style="margin:0 0 6px;font-weight:700;font-size:13px;color:var(--wd-accent,#0f88cd);">✏️ عم ترسم شكل الأرضية</p>
                 <div class="add-row" style="margin-bottom:6px;">
                   <button type="button" class="small danger" style="flex:1;font-weight:700;" onclick="startRoomDrawFresh()">🆕 ابدأ رسمة فاضية من نقطة أنا بحددها (يمسح الشكل الحالي كامل)</button>
                 </div>
@@ -7003,6 +7006,11 @@ window.wdApplyBack = function(results){
             <input type="text" inputmode="decimal" id="inCeilingThickness" min="20" oninput="restrictMeasureChars(this);onCeilingThicknessChange()" onblur="evalMeasureField(this);onCeilingThicknessChange()" value="200">
           </div>
           <div id="ceilingSidesList"></div>
+          <div class="add-row" style="margin-top:6px;">
+            <!-- 🆕 2026-09-30: طلب حمدي - رسم شكل سقف مستقل تمامًا عن شكل الأرضية (بدل بروز رقمي بس)،
+                 بنفس أداة رسم الأرضية بالفأرة بالضبط (شوف toggleCeilingFreehandDraw). -->
+            <button type="button" class="small" onclick="toggleCeilingFreehandDraw()" style="flex:1;">✏️ ارسم شكل السقف بالفأرة (مستقل عن شكل الأرضية)</button>
+          </div>
           <div class="add-row" style="margin-top:6px;">
             <button onclick="resetCeilingToFloor()" class="small" style="flex:1;">🔄 رجّعه لشكل الأرضية</button>
           </div>
@@ -7940,7 +7948,14 @@ let roomSegIdCounter = 1;
 // mode='pen' (قلم - كليك عالفراغ بيضيف نقطة/خط جديد، نفس السلوك التاريخي)، mode='eraser' (ممحاة -
 // كليك عالنقطة بيحذفها فورًا بدون داعي لـ double-click). selectedPointIdx/selectedSegIdx: أي نقطة أو
 // ضلع محدد حاليًا بوضع "مؤشر" (لتلوينه/تمييزه بالرسمة وتسهيل مسك طرفيه بالضبط).
-let roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
+// 🆕 2026-09-30: طلب حمدي - "بدي ارسم شكل السقف بنفس أداة رسم الأرضية، بس مستقل عن شكلها تمامًا"
+// (بدل ما يضل مقفول بـ"شكل الأرضية + بروز رقمي لكل ضلع" فقط). بدل ما نبني أداة رسم/كانفس/state ثانية
+// مكررة بالكامل، أضفنا حقل واحد بس `target` ('floor' أو 'ceiling') فوق نفس آلة roomDraw الناضجة -
+// المنطق الداخلي كله (roomDrawPointerDown/Move/Up، القفل ٩٠°، التكبير/التدوير...) ما إلو أي علاقة
+// بـ`target` (بيشتغل بس على roomDraw.points/view المجردة) - الفرع الوحيد صار بحدّي الدخول (تحميل
+// النقاط الأولية من roomSides أو ceilingSides - شوف toggleRoomFreehandDraw/toggleCeilingFreehandDraw)
+// والالتزام (كتابة roomSides أو ceilingSides - شوف finishRoomFreehandDraw تحت).
+let roomDraw = { active:false, itemId:null, target:'floor', points:[], mouse:null, freeAngle:false, view:null, gesture:null,
   mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
 const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340; // مقاس الكانفس الثابت بالبكسل (نسبة العرض للارتفاع محفوظة بحساب mmPerPx واحد لكل من x/y)
 
@@ -9813,6 +9828,10 @@ function resetCeilingToFloor(){
   const it = getSelected(); if(!it || !isRoom(it)) return;
   pushHistory();
   (it.roomSides||[]).forEach(s => { s.ceilingOverhangMm = 0; });
+  // 🆕 2026-09-30: طلب حمدي - هالزر غرضه "رجّع السقف يشتق من شكل الأرضية" بشكل كامل، فلازم كمان
+  // يمسح أي شكل سقف مستقل رسمه المستخدم بالفأرة (it.ceilingSides - شوف toggleCeilingFreehandDraw/
+  // finishRoomFreehandDraw) - null يعني "مافي شكل مستقل، اشتق من الأرضية" (شوف computeCeilingPolygonMM).
+  it.ceilingSides = null;
   renderCeilingSidesUI(it);
   renderGallery();
 }
@@ -9832,6 +9851,16 @@ window.onCeilingSideField = onCeilingSideField;
 // اتجاه "الخارج" الصحيح لكل ضلع بينحدد من اتجاه دوران المضلع (مساحة موقّعة - shoelace)، فمنجيب
 // النتيجة الصح بغض النظر عن اتجاه رسم المستخدم الأصلي (مع عقارب الساعة أو عكسها).
 function computeCeilingPolygonMM(it){
+  // 🆕 2026-09-30: طلب حمدي - "بدي ارسم شكل السقف بنفس أداة رسم الأرضية، مستقل تمامًا عنها" (بدل ما
+  // يضل مربوط إجباريًا بـ"شكل الأرضية + بروز رقمي لكل ضلع" بس). لو المستخدم رسم شكل سقف مستقل فعليًا
+  // (it.ceilingSides - شوف toggleCeilingFreehandDraw/finishRoomFreehandDraw)، منستخدمه مباشرة بدل
+  // الاشتقاق من الأرضية - نفس منطق تحويل أضلاع→مضلع (computeSidesPolygonMM) يلي بتستخدمه الأرضية نفسها
+  // (computeRoomPolygonMM تحت)، فمافي أي فرق سلوك/دقة بين الحالتين، بس المصدر يختلف. غياب ceilingSides
+  // (null/undefined أو أقل من 3 أضلاع، متل كل الغرف القديمة المحفوظة قبل هالميزة) = توافقية كاملة مع
+  // القديم: نفس الاشتقاق من الأرضية+البروز يلي كان موجود دايمًا (باقي الكود تحت ما تغيّر إطلاقًا).
+  if(it.ceilingSides && it.ceilingSides.length >= 3){
+    return computeSidesPolygonMM(it.ceilingSides);
+  }
   const sides = it.roomSides || [];
   const floorPts = computeSidesPolygonMM(sides);
   const n = sides.length;
@@ -10208,6 +10237,14 @@ let roomDrawResizeHandler = null;
 // بشكل مضمون بأي متصفح، وبيرجع لمكانه الأصلي جوا لوحة التحكم لما نسكر/ننهي الرسم (cancelRoomFreehandDraw).
 let roomDrawWrapHome = null;
 
+// 🆕 2026-09-30: نص عنوان لوحة الرسم المشتركة (#roomDrawWrap) - بيتحدّث حسب roomDraw.target
+// ('floor' أو 'ceiling') حتى المستخدم يعرف دايمًا شو عم يرسم بالضبط (نفس اللوحة مستخدمة للاثنين).
+function updateRoomDrawTargetLabel(target){
+  const el = document.getElementById('roomDrawTargetLabel');
+  if(!el) return;
+  el.textContent = target === 'ceiling' ? '✏️ عم ترسم شكل السقف (مستقل عن الأرضية)' : '✏️ عم ترسم شكل الأرضية';
+}
+
 function toggleRoomFreehandDraw(){
   const it = getSelected(); if(!it || !isRoom(it)) return;
   const wrap = document.getElementById('roomDrawWrap');
@@ -10219,10 +10256,11 @@ function toggleRoomFreehandDraw(){
     // إغلاق حقيقي بين آخر نقطة وأول نقطة) - فمنقفل الزاوية 90° بالسحب باعتبار أول/آخر نقطة جيران.
     // شكل فاضي (غرفة جديدة قبل ما ترسم، أو بعد "ابدأ رسمة فاضية") لسا خط مفتوح، ما في ضلع إغلاق
     // حقيقي بعد - شوف startRoomDrawFresh() وroomDrawPointerMove() تحت.
-    roomDraw = { active:true, itemId:it.id, points:existingPts, mouse:null, freeAngle:false, gesture:null,
+    roomDraw = { active:true, itemId:it.id, target:'floor', points:existingPts, mouse:null, freeAngle:false, gesture:null,
       mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
+    updateRoomDrawTargetLabel('floor');
     const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
     updateRoomDrawModeButtons();
     if(wrap && wrap.parentElement !== document.body){
@@ -10238,6 +10276,39 @@ function toggleRoomFreehandDraw(){
   }
 }
 window.toggleRoomFreehandDraw = toggleRoomFreehandDraw;
+
+// 🆕 2026-09-30: طلب حمدي - نفس أداة رسم الأرضية بالفأرة بالضبط (نفس roomDraw، نفس #roomDrawWrap/
+// #roomDrawCanvasWrap، نفس القفل ٩٠°/التكبير/التدوير...) بس لرسم شكل السقف كمضلع مستقل تمامًا عن
+// شكل الأرضية (it.ceilingSides بدل it.roomSides) - شوف الشرح الكامل فوق تعريف roomDraw وفوق
+// computeCeilingPolygonMM. مطابقة toggleRoomFreehandDraw() تمامًا بنيويًا، الفرق الوحيد: مصدر تحميل
+// النقاط الأولية (ceilingSides) والـtarget المخزّن (يلي finishRoomFreehandDraw بيفرّع عليه لاحقًا).
+function toggleCeilingFreehandDraw(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  const wrap = document.getElementById('roomDrawWrap');
+  if(roomDraw.active){
+    cancelRoomFreehandDraw();
+  } else {
+    const existingPts = (it.ceilingSides && it.ceilingSides.length>=3) ? roomDrawPointsFromSides(it.ceilingSides) : [];
+    roomDraw = { active:true, itemId:it.id, target:'ceiling', points:existingPts, mouse:null, freeAngle:false, gesture:null,
+      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
+      closedLoop: existingPts.length >= 3,
+      view: roomDrawComputeFitView(existingPts, 500) };
+    updateRoomDrawTargetLabel('ceiling');
+    const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
+    updateRoomDrawModeButtons();
+    if(wrap && wrap.parentElement !== document.body){
+      roomDrawWrapHome = { parent: wrap.parentElement, nextSibling: wrap.nextSibling };
+      document.body.appendChild(wrap);
+    }
+    if(wrap) wrap.style.display = 'flex';
+    if(!roomDrawResizeHandler){
+      roomDrawResizeHandler = () => { if(roomDraw.active) renderRoomDrawCanvas(); };
+      window.addEventListener('resize', roomDrawResizeHandler);
+    }
+    renderRoomDrawCanvas();
+  }
+}
+window.toggleCeilingFreehandDraw = toggleCeilingFreehandDraw;
 
 // 🆕 2026-09-25: طلب حمدي - "ما بقدر حدد من أي نقطة رح ابلش الرسم، عم ياخدها تلقائي بشكل غريب".
 // السبب: فتح الرسم دايمًا بيحمّل شكل الغرفة الحالي (مربع 3×3م افتراضي لغرفة جديدة، أو آخر شكل
@@ -10264,7 +10335,7 @@ function startRoomDrawFresh(){
 window.startRoomDrawFresh = startRoomDrawFresh;
 
 function cancelRoomFreehandDraw(){
-  roomDraw = { active:false, itemId:null, points:[], mouse:null, freeAngle:false, view:null, gesture:null,
+  roomDraw = { active:false, itemId:null, target:'floor', points:[], mouse:null, freeAngle:false, view:null, gesture:null,
     mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1, closedLoop:true };
   const wrap = document.getElementById('roomDrawWrap');
   if(wrap) wrap.style.display = 'none';
@@ -11087,6 +11158,33 @@ function roomDrawDedupePoints(pts){
   return out;
 }
 
+// 🆕 2026-09-30: بيحوّل نقاط الرسم الخام (roomDraw.points بعد التنضيف/إصلاح ضلع الإغلاق) لمصفوفة
+// "أضلاع" بنفس شكل roomSides/ceilingSides ({id,length,angleDeg,segments:[{id,length,kind:'design',
+// rowUid:null}]}) - معمّم عن قصد (بدل تكراره مرتين) حتى يستخدمه فرعا الأرضية والسقف بـ
+// finishRoomFreehandDraw تحت، كل واحد فيهم بيكتب النتيجة لمكانها الصحيح (roomSides أو ceilingSides).
+function roomDrawSidesFromPoints(pts){
+  const n = pts.length;
+  const dirs = [];
+  for(let i=0; i<n; i++){
+    const a = pts[i], b = pts[(i+1)%n];
+    dirs.push(Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI);
+  }
+  const newSides = [];
+  for(let i=0; i<n; i++){
+    const a = pts[i], b = pts[(i+1)%n];
+    const mmLen = Math.max(50, Math.round(Math.hypot(b.x-a.x, b.y-a.y)/10)*10);
+    let diff = dirs[(i+1)%n] - dirs[i];
+    diff = ((diff % 360) + 360) % 360;
+    let interior = 180 - diff;
+    if(interior <= 0) interior += 360;
+    if(interior >= 360) interior -= 360;
+    interior = Math.max(1, Math.min(359, Math.round(interior)));
+    newSides.push({ id:'rs'+(roomSideIdCounter++), length: mmLen, angleDeg: interior,
+      segments:[{ id:'rg'+(roomSegIdCounter++), length: mmLen, kind:'design', rowUid:null }] });
+  }
+  return newSides;
+}
+
 function finishRoomFreehandDraw(){
   if(!roomDraw.active) return;
   const it = items.find(i=>i.id===roomDraw.itemId);
@@ -11114,6 +11212,19 @@ function finishRoomFreehandDraw(){
   }
   if(pts.length < 3){ alert('لازم عالأقل 3 نقاط لتشكيل أرضية مغلقة (كل نقطة = زاوية بالأرضية).'); return; }
   pts = roomDrawRepairClosingEdge(pts);
+  // 🆕 2026-09-30: طلب حمدي - رسم شكل السقف المستقل (roomDraw.target==='ceiling') بيتفرّع هون
+  // لالتزام (commit) منفصل تمامًا عن التزام الأرضية تحت: ceilingSides شكل مستقل بالكامل عن roomSides
+  // (مافي "أضلاع سقف" مربوطة ببنود جدول الكمية زي أضلاع الأرضية - هاي ميزة لمرحلة تانية لاحقًا خارج
+  // نطاق هالتعديل)، فما في داعي/معنى لمنطق "ربط بنود جدول الكمية القديمة" تحت (خاص بأضلاع الأرضية بس).
+  if(roomDraw.target === 'ceiling'){
+    pushHistory();
+    it.ceilingSides = roomDrawSidesFromPoints(pts);
+    selectItem(it.id);
+    cancelRoomFreehandDraw();
+    renderCeilingSidesUI(it);
+    renderGallery();
+    return;
+  }
   // 🆕 2026-09-30 (طلب حمدي: بعد ما صار في تكرار للأضلاع بجدول عرض السعر لما أعاد الرسم مرتين) -
   // منلتقط الأضلاع/الأجزاء "القديمة" (يلي كانت مربوطة بسطر بجدول الكمية) قبل ما نستبدلها بالشكل
   // الجديد، حتى نقدر نربط أي جزء جديد بنفس السطر القديم (حسب ترتيبه) بدل ما ننشئ سطر مكرر من الصفر.
@@ -11122,25 +11233,7 @@ function finishRoomFreehandDraw(){
   const hasDesigned = oldFlatSegments.some(g=>g.rowUid);
   if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تحاول تربط نفس بنود عرض السعر القديمة بالأضلاع الجديدة (حسب ترتيبها) تلقائيًا - أي بند قديم ما انطبق عليه ضلع جديد رح يضل موجود بجدول عرض السعر بس بدون ربط. بدك تكمل؟')) return;
   pushHistory();
-  const n = pts.length;
-  const dirs = [];
-  for(let i=0; i<n; i++){
-    const a = pts[i], b = pts[(i+1)%n];
-    dirs.push(Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI);
-  }
-  const newSides = [];
-  for(let i=0; i<n; i++){
-    const a = pts[i], b = pts[(i+1)%n];
-    const mmLen = Math.max(50, Math.round(Math.hypot(b.x-a.x, b.y-a.y)/10)*10);
-    let diff = dirs[(i+1)%n] - dirs[i];
-    diff = ((diff % 360) + 360) % 360;
-    let interior = 180 - diff;
-    if(interior <= 0) interior += 360;
-    if(interior >= 360) interior -= 360;
-    interior = Math.max(1, Math.min(359, Math.round(interior)));
-    newSides.push({ id:'rs'+(roomSideIdCounter++), length: mmLen, angleDeg: interior,
-      segments:[{ id:'rg'+(roomSegIdCounter++), length: mmLen, kind:'design', rowUid:null }] });
-  }
+  const newSides = roomDrawSidesFromPoints(pts);
   // 🆕 2026-09-30: ربط بالترتيب (index مقابل index) بين أجزاء الشكل الجديد والأجزاء القديمة يلي كانت
   // مربوطة بسطر بجدول الكمية - هيك إعادة رسم نفس الغرفة (حتى لو تغيّرت الأطوال شوي) بتحدّث نفس
   // البنود الموجودة بدل ما تنشئ بنود جديدة مكررة فوقها.
@@ -12443,6 +12536,25 @@ async function openRoom3D(){
 }
 window.openRoom3D = openRoom3D;
 
+// 🛠️ إصلاح 2026-09-30 (بلاغ حمدي: "عم حاول ارسم السقف... المتصفح صار كتير تقيل"): لقينا تسريب ذاكرة
+// أعمق وأشمل من مجرد علامات بناء السقف (شوف disposeThreeMaterialDeep/clearRoofBuild3DMarkers فوق) -
+// closeRoom3D تحت كانت بس بتتخلص من الـrenderer نفسه (renderer.dispose()) بدون ما "تمشي" على كل عناصر
+// المشهد (جدران/شبابيك/أبواب/بطاقات أطوال...) وتحرر geometry/material/texture كل واحد فيها لحاله - وهاد
+// شي renderer.dispose() لا يعمله تلقائيًا. يعني كل مرة ينفتح وينسكر المشهد الثلاثي الأبعاد (وهلق عم يصير
+// هيك تلقائيًا كل مرة تفتحي/تعدّلي جزء سقف - شوف enterRoofBuild3D)، كل عناصر المشهد القديم كانت تضل
+// عالقة بذاكرة الكرت الرسومي (GPU) بدون تحرير، فتتراكم أكتر كل ما فتحتي/عدّلتي وتصير أتقل تدريجيًا -
+// بالضبط زي ما وصف حمدي المشكلة. الحل: قبل ما نرمي المشهد القديم، منمشي عليه بالكامل (scene.traverse)
+// ومنحرر geometry/material/textures كل عنصر فيه.
+function disposeThreeSceneDeep(scene){
+  if(!scene || typeof scene.traverse !== 'function') return;
+  scene.traverse(obj=>{
+    try{
+      if(obj.geometry && typeof obj.geometry.dispose === 'function') obj.geometry.dispose();
+      if(obj.material) disposeThreeMaterialDeep(obj.material);
+    }catch(e){}
+  });
+}
+
 function closeRoom3D(){
   if(room3D.activeRecorder){
     try{ if(room3D.activeRecorder.state !== 'inactive') room3D.activeRecorder.stop(); }catch(e){}
@@ -12455,6 +12567,7 @@ function closeRoom3D(){
   if(room3D.onClick && room3D.renderer){ try{ room3D.renderer.domElement.removeEventListener('click', room3D.onClick); }catch(e){} }
   room3D.onClick = null;
   if(room3D.controls){ try{ room3D.controls.dispose(); }catch(e){} }
+  if(room3D.scene){ try{ disposeThreeSceneDeep(room3D.scene); }catch(e){} }
   if(room3D.renderer){
     try{ renderer_dispose_safe(room3D.renderer); }catch(e){}
   }
@@ -12556,6 +12669,27 @@ function exitRoofBuild3D(){
   roofBuild3D = null;
 }
 
+// 🛠️ إصلاح 2026-09-30 (بلاغ حمدي: "عم حاول ارسم السقف... المتصفح صار كتير تقيل"): لقينا تسريب حقيقي
+// بالذاكرة (memory leak) هون. rebuildRoofBuild3DMarkers تحت بتنادى هاد الفنكشن قبل كل إعادة رسم (يعني
+// مع كل كليكة/سحب نقطة/تغيير ارتفاع أثناء رسم السقف) وبتتخلص من geometry/material كل عنصر - بس بطاقات
+// أطوال الأضلاع (الـsprites يلي جايين من makeMMLabelSprite3D) عندها كمان "texture" (كانفاس مرسوم عليه
+// الرقم، مرفوع كـGPU texture) محفوظ بـ material.map - وdispose() على material وحده ما بيمسح الـtexture
+// المرتبط فيه، لازم استدعاء map.dispose() منفصل. يعني كل نقطة/تعديل أثناء الرسم كان يخلق كانفاس+texture
+// جديد على GPU بدون ما يحرر القديم إطلاقًا - فكل ما ترسمي أكتر، كل ما تراكمت الذاكرة المسرّبة أكتر وصار
+// المتصفح أتقل وأتقل تدريجيًا (بالضبط الشكوى: "عم حاول ارسم من جديد... المتصفح صار كتير تقيل"، مش بطيء
+// من أول لحظة - كان عم يتراكم مع كل نقطة/تعديل).
+function disposeThreeMaterialDeep(material){
+  if(!material) return;
+  const mats = Array.isArray(material) ? material : [material];
+  mats.forEach(m=>{
+    if(!m) return;
+    ['map','alphaMap','normalMap','roughnessMap','metalnessMap','emissiveMap','bumpMap'].forEach(key=>{
+      if(m[key] && typeof m[key].dispose === 'function') m[key].dispose();
+    });
+    m.dispose();
+  });
+}
+
 function clearRoofBuild3DMarkers(){
   if(!roofBuild3D) return;
   const scene = room3D && room3D.scene;
@@ -12563,7 +12697,7 @@ function clearRoofBuild3DMarkers(){
     try{
       if(scene) scene.remove(obj);
       if(obj.geometry) obj.geometry.dispose();
-      if(obj.material){ if(Array.isArray(obj.material)) obj.material.forEach(m=>m.dispose()); else obj.material.dispose(); }
+      disposeThreeMaterialDeep(obj.material);
     }catch(e){}
   });
   roofBuild3D.markers = [];
@@ -12571,7 +12705,7 @@ function clearRoofBuild3DMarkers(){
     try{
       if(scene) scene.remove(roofBuild3D.previewMesh);
       if(roofBuild3D.previewMesh.geometry) roofBuild3D.previewMesh.geometry.dispose();
-      if(roofBuild3D.previewMesh.material) roofBuild3D.previewMesh.material.dispose();
+      disposeThreeMaterialDeep(roofBuild3D.previewMesh.material);
     }catch(e){}
     roofBuild3D.previewMesh = null;
   }
@@ -13284,6 +13418,17 @@ window.closeRoomSidesFullscreen = closeRoomSidesFullscreen;
 function renderCeilingSidesUI(it){
   const list = document.getElementById('ceilingSidesList');
   if(!list) return;
+  // 🆕 2026-09-30: طلب حمدي - لو في شكل سقف مستقل مرسوم بالفأرة (it.ceilingSides)، قائمة "بروز لكل
+  // ضلع" (تحت) ما إلها معنى/تأثير أصلاً (computeCeilingPolygonMM بيتجاهلها تمامًا بهاي الحالة - شوف
+  // الشرح فوقها) - فبدل ما نعرضها بشكل مضلّل وكأنها فعّالة، منعرض رسالة توضيحية بدالها. "🔄 رجّعه
+  // لشكل الأرضية" (الزر تحت هالقائمة) بيمسح ceilingSides ويرجع وضع البروز الفعّال.
+  if(it.ceilingSides && it.ceilingSides.length >= 3){
+    list.innerHTML = `<p class="hint" style="margin:0;">🎨 السقف حاليًا مرسوم كشكل مستقل بالفأرة (${it.ceilingSides.length} أضلاع) - قائمة "بروز لكل ضلع" مو مستخدمة طول ما هالشكل المستقل موجود. دوس "✏️ ارسم شكل السقف بالفأرة" فوق لتعديله، أو "🔄 رجّعه لشكل الأرضية" تحت لحذفه والرجوع لوضع البروز الرقمي.</p>`;
+    const previewEl = document.getElementById('ceilingPreview');
+    if(previewEl) previewEl.innerHTML = buildCeilingSVG(it);
+    renderCeilingZonesUI(it);
+    return;
+  }
   const sides = ensureCeilingOverhangs(it);
   list.innerHTML = sides.map((s, idx)=>`
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px;border:1px solid var(--wd-line,#333);border-radius:6px;margin-bottom:4px;">
@@ -13636,7 +13781,12 @@ function buildCeilingSVG(it){
   const floorPolyStr = floorPxPts.slice(0,-1).map(p=>p.x+','+p.y).join(' ');
   const totalW = rangeW*scale + pad*2, totalH = rangeH*scale + pad*2;
   let labelsSvg = '';
-  for(let i=0;i<sides.length;i++){
+  // 🆕 2026-09-30: كان هون `sides.length` (عدد أضلاع الأرضية) - صحيح دايمًا طالما السقف مشتق منها
+  // (عدد أضلاعه نفس عدد أضلاع الأرضية بالضبط)، بس غلط لو السقف مرسوم بشكل مستقل (it.ceilingSides)
+  // بعدد أضلاع مختلف تمامًا - فبنستخدم عدد أضلاع مضلع السقف الفعلي (pts) نفسه دايمًا، يلي صحيح
+  // بالحالتين (بالحالة المشتقة بيطلع نفس sides.length تمامًا، فما تغيّر شي بالسلوك القديم).
+  const ceilPolySides = pts.length - 1;
+  for(let i=0;i<ceilPolySides;i++){
     const p1 = pxPts[i], p2 = pxPts[i+1];
     let dirDeg = Math.atan2(p2.y-p1.y, p2.x-p1.x) * 180/Math.PI;
     dirDeg = dirDeg % 360; if(dirDeg < 0) dirDeg += 360;
