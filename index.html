@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.3';
+  var CURRENT_VERSION = '2026-09-30.4';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1666,6 +1666,7 @@
     <button onclick="resetAll()">Reset form</button>
     <button class="mode-switch-btn" onclick="showModeChooser()">📱💻 Switch layout</button>
     <button onclick="toggleItemsManager()">🗂️ Manage Items</button>
+    <button onclick="mergeInAnotherQuotation()" title="بيجيب بيانات عرض سعر تاني محفوظ بجوجل درايف (برقمه المرجعي) وبيضيف كل بنوده ومواصفاته فوق هاد العرض المفتوح حاليًا، ليصير مجموع واحد للاثنين سوا">🔗 دمج عرض سعر تاني بهاد العرض</button>
     <button class="primary" onclick="window.openCameraOverlay()">📷 كاميرا</button>
     <button class="danger" onclick="deleteQuotationFromDrive()" title="بيحذف مجلد عرض السعر هيدا (بكل ملفاته) من جوجل درايف - بينحط بسلة المهملات، فيك تسترجعه خلال 30 يوم لو غلطتي">🗑️ حذف عرض السعر</button>
   </div>
@@ -4432,6 +4433,98 @@ async function findRefFolderIfExistsForBranch(refFull, branch, token){
   const data = await res.json();
   return !!(data.files && data.files.length);
 }
+
+/* ================= 🔗 دمج عرض سعر تاني بهاد العرض (طلب حمدي 2026-09-30: "عندي عرضين سعر لزبون
+   واحد كيف بقدر ادمج عرضين السعر لحتى يندمجوا بعرض سعر واحد بمجموع واحد بمواصفات وتفاصيل مجتمعة")
+   الفكرة: بتفتحي العرض الأول (يلي بدك تخليه "الأساس")، بتدوسي زر الدمج، بتحطي الرقم المرجعي تبع
+   العرض التاني، والأداة بتجيب بياناته من جوجل درايف (بنفس آلية تحديد الفرع/السنة/المجلد المستخدمة
+   بباقي الأداة) وبتضيف *فوق* العرض المفتوح حاليًا: كل صفوف جدول الكميات، كل صفوف الأقسام التانية
+   (التوريد/مواصفات الألمنيوم/مواصفات الزجاج/الإكسسوارات/شروط الدفع/الملاحظات)، وكل بنود أداة
+   التصميم (شبابيك/أبواب/غرف...) - المجموع الكلي بيتحدث تلقائيًا (recalc) ليصير مجموع واحد للاثنين
+   سوا. بيانات ترويسة العرض (اسم الزبون/المشروع/الرقم المرجعي...) بتضل زي ما هي بالعرض المفتوح
+   حاليًا (الأساس) - ما منلمسها، لأنو مش منطقي ندمج قيمتين مختلفتين بخانة وحدة.
+   ⚠️ مهم: صفوف الشروط/الملاحظات القياسية (لو نفس النص موجود بالعرضين) ممكن تتكرر بعد الدمج -
+   هاد مقصود (أسلم من محاولة "تخمين" شو مكرر وشو مو، فممكن نمسح شي حقيقي بالغلط) - راجعي جدول
+   الملاحظات/الشروط بعد الدمج واحذفي يدويًا أي سطر متكرر شفتيه.
+   كل صف بجدول الكميات إلو "رمز ربط" داخلي (rowUid) بيستخدم لربطه بتصميمه بأداة الرسم - وبما إنو
+   العرضين انحفظوا كل وحدة لحالها، ممكن يكون عندهم نفس الرمز بالضبط بالصدفة (كل عرض بيبلش ترقيمه
+   من 1). فلازم *نولّد أرقام جديدة* لكل صفوف/بنود العرض "التاني" المستورد قبل ما نلزقها، حتى ما
+   يصير تصادم/تشابك بين تصميم من هاد العرض وتصميم من هداك (uidMap تحت). */
+
+// 🔎 مثل findRefFolderIfExistsForBranch فوق بالضبط، بس بيرجع الـID الفعلي للمجلد (مش بس true/false) -
+// لازم الـID حتى نقدر نفتش جواه عن ملف البيانات (-data.json).
+async function findRefFolderIdIfExists(refFull, branch, token){
+  const year = getYearFromReference(refFull);
+  const rootId = getBranchConfig(branch).driveRootFolderId;
+  const yearFolderId = await findYearFolderIfExists(year, token, rootId);
+  if(!yearFolderId) return null;
+  const refSafe = (refFull||'').replace(/\s+/g,'').replace(/[^a-zA-Z0-9-؀-ۿ]+/g,'_').replace(/'/g,"\\'") || 'Merzona-Quotation';
+  const q = encodeURIComponent(`name = '${refSafe}' and '${yearFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+  const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: 'Bearer ' + token }
+  }, 20000);
+  const data = await res.json();
+  return (data.files && data.files.length) ? data.files[0].id : null;
+}
+
+// بيدوّر عن ملف بالاسم بالضبط (exact match) جوا مجلد محدد - مستخدمة هون تحت لتلاقي "<refSafe>-data.json".
+async function findExactFileInFolder(filename, parentId, token){
+  const q = encodeURIComponent(`name = '${filename.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed = false`);
+  const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
+    headers: { Authorization: 'Bearer ' + token }
+  }, 20000);
+  const data = await res.json();
+  return (data.files && data.files.length) ? data.files[0] : null;
+}
+
+// بيجيب بيانات عرض سعر محفوظ (نفس بنية captureFullQuotationData) من جوجل درايف عبر رقمه المرجعي بس -
+// بيحدد الفرع تلقائيًا من حرف الرقم (getBranchFromRef)، بدون ما يحتاج يسأل حمدي أي فرع.
+async function fetchQuotationDataByRef(refRaw){
+  const refFull = (refRaw||'').trim().replace(/\s+/g,'');
+  if(!refFull) throw new Error('لازم تكتب رقم مرجعي.');
+  const branch = getBranchFromRef(refFull);
+  const token = await getGoogleAccessToken(false);
+  if(!token) throw new Error('تعذّر تسجيل الدخول لجوجل درايف - جرب تاني.');
+  const folderId = await findRefFolderIdIfExists(refFull, branch, token);
+  if(!folderId){
+    throw new Error('ما لقيت مجلد عرض سعر بالرقم المرجعي "' + refFull + '" بفرع ' + (branch==='syria' ? 'دمشق-سوريا' : 'الإمارات') + '. تأكدي إنو الرقم مكتوب صح ومحفوظ أصلًا بجوجل درايف.');
+  }
+  const refSafe = refFull.replace(/[^a-zA-Z0-9-؀-ۿ]+/g,'_');
+  const fileEntry = await findExactFileInFolder(refSafe + '-data.json', folderId, token);
+  if(!fileEntry){
+    throw new Error('لقيت مجلد العرض "' + refFull + '" بس ما في جواه ملف بيانات محفوظ (-data.json) - يمكن هاد العرض انحفظ بس كـPDF/HTML قديم بدون البيانات القابلة لإعادة الفتح، فما فيني أدمجه تلقائيًا.');
+  }
+  const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileEntry.id}?alt=media`, {
+    headers: { Authorization: 'Bearer ' + token }
+  }, 30000);
+  if(!res.ok) throw new Error('فشل تحميل ملف بيانات عرض السعر "' + refFull + '" من جوجل درايف.');
+  const data = await res.json();
+  return data;
+}
+
+// منولّد رمز ربط (rowUid) جديد فريد لكل صف/جزء مستورد من العرض التاني، ومنسجل الخارطة (قديم -> جديد)
+// حتى نقدر نصحح كل الإشارات التانية إلها (seg.rowUid، it.sourceRowUid) بنفس القيم الجديدة.
+function mergeQtyRowsFromOtherData(otherQtyRowsHtml){
+  const uidMap = {};
+  const qtyBody = document.getElementById('qty-rows');
+  if(!qtyBody || typeof otherQtyRowsHtml !== 'string' || !otherQtyRowsHtml.trim()) return uidMap;
+  const tmp = document.createElement('tbody');
+  tmp.innerHTML = otherQtyRowsHtml;
+  Array.from(tmp.querySelectorAll('tr')).forEach(tr=>{
+    const oldUid = tr.dataset.rowUid;
+    if(oldUid){
+      const newUid = 'r' + (++rowUidCounter);
+      uidMap[oldUid] = newUid;
+      tr.dataset.rowUid = newUid;
+    }
+    qtyBody.appendChild(tr);
+  });
+  return uidMap;
+}
+
+// ملاحظة: mergeDesignItemsFromOtherData وmergeInAnotherQuotation نفسهم موجودين تحت (قرب
+// __applyDesignItemsImport__) مش هون - لازم يكونوا بنفس كتلة <script> يلي فيها items/nextId/
+// resyncSubItemIdCounters (متغيرات let معرّفة بكتلة تانية) وإلا ما رح يشوفوها كمتغيرات عامة.
 
 // 🛠️ إصلاح 2026-09-28 (بلاغ حمدي المباشر: لقى مجلد عرض سعر رقمه بصيغة سوريا "S-Q-260002" بس فعليًا
 // محفوظ جوا مجلدات الإمارات بجوجل درايف) - saveToGoogleDriveInner (فوق) بتحدد مجلد الفرع الصحيح
@@ -7329,6 +7422,86 @@ window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
     scheduleDesignSave();
   }catch(e){ console.error('__applyDesignItemsImport__ failed', e); }
 };
+
+/* ================= 🔗 دمج عرض سعر تاني (تكملة - شوف الشرح الكامل قرب findRefFolderIdIfExists/
+   fetchQuotationDataByRef فوق بالملف) - الجزئين هون (مش هناك) لازم يشوفوا items/nextId/
+   resyncSubItemIdCounters مباشرة كمتغيرات عامة، وهاي معرّفة بنفس كتلة <script> هاي بالذات. */
+
+// منستنسخ بنود أداة التصميم (شبابيك/أبواب/غرف...) تبع العرض التاني ومنلزقها فوق بنود العرض الحالي -
+// كل بند بياخد id جديد (نفس عداد nextId الحالي)، وأي ربط بصف جدول كميات (sourceRowUid لبند عادي،
+// أو seg.rowUid لجزء ضلع غرفة) بيتصحح حسب uidMap يلي رجعتها mergeQtyRowsFromOtherData. لو صف
+// أصلًا انمسح بالغلط قبل الدمج (uidMap ما فيها قيمته)، منصفّر الربط (null) بدل ما نسيبه يأشر لصف
+// غلط عائد لعرض السعر الحالي بالصدفة (نفس رمز "r3" مثلاً موجود بالاثنين).
+function mergeDesignItemsFromOtherData(otherDesignItems, uidMap){
+  if(!Array.isArray(otherDesignItems) || !otherDesignItems.length) return 0;
+  let clones;
+  try{ clones = JSON.parse(JSON.stringify(otherDesignItems)); }catch(e){ return 0; }
+  clones.forEach(it=>{
+    it.id = nextId++;
+    if(it.sourceRowUid) it.sourceRowUid = uidMap[it.sourceRowUid] || null;
+    (it.roomSides||[]).forEach(side=>{
+      (side.segments||[]).forEach(seg=>{
+        if(seg.rowUid) seg.rowUid = uidMap[seg.rowUid] || null;
+      });
+    });
+  });
+  items = items.concat(clones);
+  resyncSubItemIdCounters(items);
+  return clones.length;
+}
+window.mergeDesignItemsFromOtherData = mergeDesignItemsFromOtherData; // للفحص/التصحيح فقط - نفس أسلوب __applyDesignItemsImport__
+
+async function mergeInAnotherQuotation(){
+  const currentRef = (document.getElementById('m-ref')?.value || '').trim();
+  const otherRefRaw = prompt('اكتبي الرقم المرجعي لعرض السعر التاني يلي بدك تدمجيه جوا هاد العرض المفتوح حاليًا (مثلاً S-Q-260015):\n\nملاحظة: بيانات ترويسة هاد العرض (الزبون/المشروع/الرقم المرجعي) رح تضل زي ما هي - بس رح يتم جمع كل البنود والمواصفات والتفاصيل من الاثنين سوا بمجموع واحد.');
+  if(!otherRefRaw || !otherRefRaw.trim()) return;
+  const otherRef = otherRefRaw.trim().replace(/\s+/g,'');
+  if(currentRef && otherRef.toLowerCase() === currentRef.toLowerCase()){
+    alert('هاد نفس الرقم المرجعي لعرض السعر المفتوح حاليًا - اكتبي رقم عرض سعر تاني فعليًا.');
+    return;
+  }
+  let otherData;
+  try{
+    otherData = await fetchQuotationDataByRef(otherRef);
+  }catch(e){
+    alert('❌ ' + (e && e.message ? e.message : 'صار خطأ غير متوقع أثناء جلب عرض السعر التاني.'));
+    return;
+  }
+  const otherRowCount = (function(){
+    try{
+      const tmp = document.createElement('tbody');
+      tmp.innerHTML = otherData.qtyRowsHtml || '';
+      return tmp.querySelectorAll('tr').length;
+    }catch(e){ return 0; }
+  })();
+  const otherClientName = (otherData.fields && otherData.fields['m-client']) || '';
+  if(!confirm('لقيت عرض السعر "' + otherRef + '"' + (otherClientName ? (' (الزبون: ' + otherClientName + ')') : '') + ' - فيه ' + otherRowCount + ' صف بجدول الكميات.\n\nرح تنضاف كل بنوده (جدول الكميات + مواصفات الألمنيوم/الزجاج + التوريد + الإكسسوارات + شروط الدفع + الملاحظات + كل تصاميم النوافذ/الأبواب/الغرف) فوق العرض المفتوح حاليًا "' + (currentRef||'(بدون رقم بعد)') + '"، والمجموع الكلي رح يتحدث تلقائيًا ليصير مجموع واحد للاثنين سوا.\n\n⚠️ لو في نصوص شروط/ملاحظات قياسية متكررة بالعرضين، ممكن تتكرر بعد الدمج - راجعيها وامسحي يدويًا أي تكرار.\n\nبيانات ترويسة العرض (الزبون/المشروع/الرقم المرجعي الحالي) رح تضل زي ما هي بدون ما تتغير. متأكدة بدك تكملي الدمج؟')) return;
+
+  pushQuotationHistorySnapshotNow();
+  try{
+    QUOTATION_ROW_CONTAINERS.forEach(cid=>{
+      const el = document.getElementById(cid);
+      const html = otherData.rows && otherData.rows[cid];
+      if(el && typeof html === 'string' && html.trim()) el.insertAdjacentHTML('beforeend', html);
+    });
+    const uidMap = mergeQtyRowsFromOtherData(otherData.qtyRowsHtml);
+    mergeDesignItemsFromOtherData(otherData.designItems, uidMap);
+    if(typeof renderChips === 'function') renderChips();
+    if(typeof loadSelectedIntoControls === 'function') loadSelectedIntoControls();
+    if(typeof renderGallery === 'function') renderGallery();
+    if(typeof updateUndoButton === 'function') updateUndoButton();
+    renumber();
+    recalc();
+    syncPage2Header();
+    scheduleDesignSave();
+    scheduleQuotationHistorySnapshot();
+    alert('✅ تم دمج عرض السعر "' + otherRef + '" جوا هاد العرض بنجاح - المجموع تحدث تلقائيًا. لا تنسي تراجعي جدول الملاحظات/الشروط لحذف أي سطر تكرر، وتحفظي العرض (كمسودة أو نهائي) لتثبيت الدمج.');
+  }catch(e){
+    console.error('mergeInAnotherQuotation failed', e);
+    alert('❌ صار خطأ أثناء تطبيق الدمج - دوسي "↩️ تراجع" بالشريط العلوي لإلغاء أي تغيير جزئي صار، وجربي تاني.');
+  }
+}
+window.mergeInAnotherQuotation = mergeInAnotherQuotation;
 
 /* ---------- UNDO HISTORY ---------- */
 let historyStack = [];
