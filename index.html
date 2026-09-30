@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.14';
+  var CURRENT_VERSION = '2026-09-30.15';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -584,6 +584,13 @@
   .row-move-btns{ display:flex; gap:2px; justify-content:center; margin-bottom:2px; }
   .row-move-btns button{ padding:1px 4px; font-size:9px; line-height:1.2; }
   .row-move-up:disabled, .row-move-down:disabled{ opacity:.3; cursor:not-allowed; }
+  /* 🆕 2026-09-30.15 (طلب حمدي: "بدي امسك السطر وارفعو او نزلو... الزر الموجود لرفع البند عشر بنود
+     لفوق بتصير صعبة") - مقبض سحب (drag handle) فوق زري ▲▼ بنفس عمود الحذف، بيسمح تسحب السطر بالفأرة
+     مباشرة لأي مكان بالجدول دفعة وحدة، بدل ما تضغطي ▲ عشر مرات. نفس منطق الإخفاء بالطباعة/PDF أصلًا
+     موجود (remove-col مخفي بالكامل هناك) فمنحتاج قاعدة إضافية. */
+  .row-drag-handle{ width:100%; cursor:grab; font-size:13px; padding:1px 4px; margin-bottom:2px; letter-spacing:1px; }
+  .row-drag-handle:active{ cursor:grabbing; }
+  #qty-rows tr.row-dragging{ opacity:.35; }
 
   .page{
     max-width:900px;
@@ -1878,7 +1885,7 @@
           <th style="width:34px" class="remove-col"></th>
         </tr>
       </thead>
-      <tbody id="qty-rows"><tr>
+      <tbody id="qty-rows"><tr ondragover="onQtyRowDragOver(event)" ondrop="onQtyRowDrop(event)">
     <td class="elevation-cell"><select class="elevation-select" onchange="onElevationChange(this)" title="الواجهة / Elevation">
     <option value="" selected="">—</option><option value="front">الواجهة الامامية</option><option value="right">الواجهة اليمنى</option><option value="rear">الواجهة الخلفية</option><option value="left">الواجهة اليسرى</option>
     
@@ -1894,6 +1901,7 @@
     <td class="price-col"><input class="price" value="" oninput="onPriceInput(this)" onkeydown="handleRowEnter(event)" placeholder="AED/m²" enterkeyhint="done"></td>
     <td><input class="line-total" value="0" oninput="onManualTotalInput(this)" onkeydown="handleRowEnter(event)" style="background:#f4f5f7;font-weight:bold;text-align:center;" title="Auto-calculated — edit directly to override with a fixed total" enterkeyhint="done"></td>
     <td class="remove-col">
+      <button type="button" class="small row-drag-handle" draggable="true" ondragstart="onQtyRowDragStart(event)" ondragend="onQtyRowDragEnd(event)" title="اسحب لتحريك السطر لأي مكان بالجدول دفعة وحدة - أسرع من ▲▼ لمسافات طويلة">⠿</button>
       <div class="row-move-btns">
         <button type="button" class="small row-move-up" onclick="moveQtyRowUp(this)" title="Move row up / تحريك السطر لأعلى">▲</button>
         <button type="button" class="small row-move-down" onclick="moveQtyRowDown(this)" title="Move row down / تحريك السطر لأسفل">▼</button>
@@ -2435,6 +2443,50 @@ function moveQtyRowDown(btn){
   if(!tr || !next) return;
   tr.parentNode.insertBefore(next, tr);
   renumber();
+}
+
+// 🆕 2026-09-30.15 (طلب حمدي: "بدي امسك السطر وارفعو او نزلو... الزر الموجود لرفع البند عشر بنود
+// لفوق بتصير صعبة") - سحب وإفلات (drag & drop) حقيقي للسطر بالفأرة، بديل أسرع لأزرار ▲▼ لما يكون
+// بدك تنقلي بند لمسافة طويلة بضغطة/سحبة وحدة بدل عشرات الضغطات. منستخدم مقبض سحب مخصص (⠿) بدل ما
+// نخلي السطر كامل قابل للسحب - حتى ما يتعارض السحب مع الكتابة/التحديد بخانات الإدخال جوا السطر.
+// أثناء السحب فوق أي سطر تاني، منحرك السطر المسحوب فورًا لمكانه الجديد بالـDOM (نفس إحساس "معاينة حية"
+// شائع بقوائم السحب) - وبما إنو نظام التراجع/الحفظ التلقائي لعرض السعر أصلًا بيراقب أي تغيير ببنية
+// الجدول (MutationObserver عالـ#page)، ما في داعي أي كود إضافي حتى يلتقط هالتغيير كخطوة تراجع.
+let qtyRowDragEl = null;
+function onQtyRowDragStart(event){
+  const tr = event.target.closest('tr');
+  if(!tr) return;
+  qtyRowDragEl = tr;
+  tr.classList.add('row-dragging');
+  try{
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', ''); // فايرفوكس بالذات بيحتاج setData حتى يشتغل drag أصلًا
+    event.dataTransfer.setDragImage(tr, 20, 20);
+  }catch(e){}
+}
+function onQtyRowDragOver(event){
+  if(!qtyRowDragEl) return;
+  event.preventDefault(); // لازم حتى نسمح بالإفلات (drop) هون أصلًا
+  event.dataTransfer.dropEffect = 'move';
+  const overTr = event.target.closest('tr');
+  if(!overTr || overTr === qtyRowDragEl) return;
+  const rect = overTr.getBoundingClientRect();
+  const before = (event.clientY - rect.top) < (rect.height / 2);
+  const parent = overTr.parentNode;
+  if(before){
+    if(overTr.previousElementSibling !== qtyRowDragEl) parent.insertBefore(qtyRowDragEl, overTr);
+  } else {
+    if(overTr.nextElementSibling !== qtyRowDragEl) parent.insertBefore(qtyRowDragEl, overTr.nextElementSibling);
+  }
+}
+function onQtyRowDrop(event){
+  event.preventDefault();
+}
+function onQtyRowDragEnd(event){
+  if(qtyRowDragEl) qtyRowDragEl.classList.remove('row-dragging');
+  qtyRowDragEl = null;
+  renumber();
+  recalc();
 }
 
 function specRowExists(containerId, enText){
@@ -3091,6 +3143,8 @@ function addQtyRow(w='',h='',qty='1',price='', selectedIdx=-1){
   qtyCount++;
   const tbody=document.getElementById('qty-rows');
   const tr=document.createElement('tr');
+  tr.setAttribute('ondragover','onQtyRowDragOver(event)');
+  tr.setAttribute('ondrop','onQtyRowDrop(event)');
   const initialItemVal = (selectedIdx>=0 && ITEMS[selectedIdx]) ? ITEMS[selectedIdx].en.replace(/"/g,'&quot;') : '';
   tr.innerHTML=`
     <td class="elevation-cell"></td>
@@ -3103,6 +3157,7 @@ function addQtyRow(w='',h='',qty='1',price='', selectedIdx=-1){
     <td class="price-col"><input class="price" value="${price}" oninput="onPriceInput(this)" onkeydown="handleRowEnter(event)" placeholder="${getCurrentCurrencyConfig().code}/m²" enterkeyhint="done"></td>
     <td><input class="line-total" value="0" oninput="onManualTotalInput(this)" onkeydown="handleRowEnter(event)" style="background:#f4f5f7;font-weight:bold;text-align:center;" title="Auto-calculated — edit directly to override with a fixed total" enterkeyhint="done"></td>
     <td class="remove-col">
+      <button type="button" class="small row-drag-handle" draggable="true" ondragstart="onQtyRowDragStart(event)" ondragend="onQtyRowDragEnd(event)" title="اسحب لتحريك السطر لأي مكان بالجدول دفعة وحدة - أسرع من ▲▼ لمسافات طويلة">⠿</button>
       <div class="row-move-btns">
         <button type="button" class="small row-move-up" onclick="moveQtyRowUp(this)" title="Move row up / تحريك السطر لأعلى">▲</button>
         <button type="button" class="small row-move-down" onclick="moveQtyRowDown(this)" title="Move row down / تحريك السطر لأسفل">▼</button>
@@ -6792,6 +6847,10 @@ window.wdApplyBack = function(results){
       <button class="printBtn" onclick="open3DPreview()">🧊 عرض ثري دي</button>
       <button class="printBtn" onclick="openPurchasingOverlay()">🛒 المشتريات</button>
       <button class="printBtn" onclick="openMfgSizesOverlay()">📐 مقاسات التصنيع</button>
+      <!-- 🆕 2026-09-30.15 (طلب حمدي) - اختصار سريع لأزرار الغرفة/المجلس (ثري دي حقيقي، رسم المسقط، رسم السقف) بشريط الأزرار العلوي -->
+      <button class="printBtn" onclick="quickOpenRoom3DFromToolbar()" title="بدك تكوني حددتي بند غرفة/مجلس، أو منختارلك أول وحدة موجودة تلقائيًا">🏠 ثري دي الغرفة</button>
+      <button class="printBtn" onclick="quickStartRoomFloorDrawFromToolbar()" title="بدك تكوني حددتي بند غرفة/مجلس، أو منختارلك أول وحدة موجودة تلقائيًا">✏️ ارسم المسقط</button>
+      <button class="printBtn" onclick="quickStartCeilingDrawFromToolbar()" title="بدك تكوني حددتي بند غرفة/مجلس، أو منختارلك أول وحدة موجودة تلقائيًا">🔲 ارسم السقف</button>
     </div>
     <div class="wd-header-toggle"><button id="wdHeaderToggleBtn" onclick="toggleWdHeader()" type="button">▼ إظهار الترويسة والأدوات</button></div>
   </header>
@@ -12719,6 +12778,46 @@ async function openRoom3D(){
   await openRoom3DForItem(getSelected());
 }
 window.openRoom3D = openRoom3D;
+
+// 🆕 2026-09-30.15 (طلب حمدي: "بدي الزر تبع تصميم ثلاثي الابعاد للغرفة وزر رسم المسقط وزر رسم السقف
+// يكونوا فوق جمب الطباعة والمشتريات وباقي الأزرار"): هالثلاث أزرار أصلًا موجودين بس جوا لوحة تحكم
+// الغرفة نفسها (لازم تختاري الغرفة وتنزلي لتحتها بالصفحة حتى توصليلهم) - هلق منضيف اختصار سريع
+// إلهم بشريط الأزرار العلوي الثابت (نفس مكان زر الطباعة/المشتريات/مقاسات التصنيع)، حتى توصليلهم من
+// أي مكان بالصفحة بضغطة وحدة، بدون ما تحتاجي تدوّري/تنزلي لتحت. الاختصار بيتأكد أول شي إنو في غرفة/
+// مجلس مختارة (أو يختار أول وحدة موجودة تلقائيًا لو ما في شي مختار)، وبعدين ينفّذ بالضبط نفس الفنكشن
+// يلي زر اللوحة الأصلي بينفّذه (توحيد كامل بالسلوك، صفر منطق جديد) - ومنعمل تمرير (scroll) لمكان
+// اللوحة/الرسمة حتى تبين قدام عينك فورًا.
+function ensureRoomSelectedForQuickAction(){
+  let it = getSelected();
+  if(!it || !isRoom(it)){
+    it = items.find(isRoom);
+    if(!it){
+      alert('ما في غرفة/مجلس بهاد التصميم بعد. ضيفي "🏛️ + غرفة/مجلس جديد" من قسم العناصر أول، وبعدين جربي الزر هاد.');
+      return null;
+    }
+    selectItem(it.id);
+  }
+  return it;
+}
+function quickOpenRoom3DFromToolbar(){
+  if(!ensureRoomSelectedForQuickAction()) return;
+  openRoom3D();
+}
+window.quickOpenRoom3DFromToolbar = quickOpenRoom3DFromToolbar;
+function quickStartRoomFloorDrawFromToolbar(){
+  if(!ensureRoomSelectedForQuickAction()) return;
+  toggleRoomFreehandDraw();
+  const wrap = document.getElementById('roomDrawWrap');
+  if(wrap) wrap.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+window.quickStartRoomFloorDrawFromToolbar = quickStartRoomFloorDrawFromToolbar;
+function quickStartCeilingDrawFromToolbar(){
+  if(!ensureRoomSelectedForQuickAction()) return;
+  toggleCeilingFreehandDraw();
+  const wrap = document.getElementById('roomDrawWrap');
+  if(wrap) wrap.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+window.quickStartCeilingDrawFromToolbar = quickStartCeilingDrawFromToolbar;
 
 // 🛠️ إصلاح 2026-09-30 (بلاغ حمدي: "عم حاول ارسم السقف... المتصفح صار كتير تقيل"): لقينا تسريب ذاكرة
 // أعمق وأشمل من مجرد علامات بناء السقف (شوف disposeThreeMaterialDeep/clearRoofBuild3DMarkers فوق) -
