@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.20';
+  var CURRENT_VERSION = '2026-09-30.21';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -4120,6 +4120,11 @@ function applyFullQuotationData(data){
       const qtyBody = document.getElementById('qty-rows');
       if(qtyBody) qtyBody.innerHTML = data.qtyRowsHtml;
     }
+    // 🛠️ إصلاح جذري 2026-09-30.21 (شوف الشرح الكامل قرب resyncRowUidCounter فوق بهاي الكتلة بالذات):
+    // لازم نزامن rowUidCounter مباشرة بعد ما نستعيد صفوف جدول الكمية الحقيقية من عرض السعر المحمّل،
+    // *قبل* ما نستورد بنود التصميم (يلي فيها seg.rowUid يشير لهاي الصفوف بالذات) - وإلا أي صف جديد
+    // ينضاف بهالجلسة (تلقائيًا أو يدويًا) ممكن ياخد معرّف "rN" يصادف معرّف صف قديم موجود أصلًا.
+    resyncRowUidCounter();
     // 🛠️ إصلاح جذري 2026-09-30.14 (نفس فحص "بنود غريبة" فوق قرب resetAllNoConfirm): قبل هيك كنا
     // بس نطبّق data.designItems لو كانت array فعليًا موجودة - يعني أي عرض سعر قديم/نسخة محفوظة ما
     // فيها هالحقل إطلاقًا (سكيمة قديمة قبل ما نبلش نحفظ ربط التصميم أصلًا) كانت تسيب items[] الحالية
@@ -6648,6 +6653,10 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
   } else if(pendingDesignLoad){
     // تصميم حر بس (مش مرتبط بعرض سعر مفتوح) - ولا شي هون؛ رح ينفتح مباشرة بـwdOverlay تحت.
   } else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
+    // 🛠️ إصلاح جذري 2026-09-30.21 (شوف شرح resyncRowUidCounter فوق): صفحة عرض سعر جاهزة من قبل
+    // (HTML ثابت فيه صفوف جدول كمية أصلًا) لازم تزامن rowUidCounter كمان، نفس مسار pendingQuotationLoad
+    // فوق بالضبط - وإلا أي صف جديد ينضاف بهالجلسة ممكن ياخد معرّف يصادف صف قديم موجود فعليًا بالصفحة.
+    resyncRowUidCounter();
     renumber();
     recalc();
     syncPage2Header();
@@ -6730,6 +6739,29 @@ function ensureRowUid(tr){
   if(!tr.dataset.rowUid) tr.dataset.rowUid = 'r' + (++rowUidCounter);
   return tr.dataset.rowUid;
 }
+
+// 🛠️ إصلاح جذري 2026-09-30.21 (بلاغ حمدي المتكرر: "بيرجع التصميم بيتخربط والتقسيمات بتخرب وبتنزل
+// بنود اضافية اكتر من عدد الاضلاع الافتراضية"): السبب الجذري الحقيقي يلي لقيناه - rowUidCounter فوق
+// (يلي بيولّد معرّف فريد "rN" لكل صف جديد بجدول الكمية عبر ensureRowUid) كان دايمًا يبلش من صفر كل
+// ما تنفتح الصفحة من جديد، بعكس nextId/roomSideIdCounter (يلي عندهم resyncSubItemIdCounters تحت)
+// - بغض النظر عن كم صف أصلًا موجود بعرض السعر المحمّل (يلي ممكن يوصل لمعرّفات "r20" وأكتر بعروض
+// أسعار فيها غرف/بنود كتيرة). فأول صف جديد ينضاف بهالجلسة (تلقائيًا عبر
+// autoCreateRoomSideRowsForAllSegments لضلع غرفة جديد، أو يدويًا) كان ياخد "r1" من جديد - يصادف
+// بالضبط معرّف صف قديم موجود أصلًا بنفس عرض السعر! هيك صار عندنا صفّين مختلفين بنفس المعرّف تمامًا،
+// وWD.loadFromRows (يلي بتربط كل صف ببنده المصمم عبر sourceRowUid===rowUid) كانت تلخبط وتحدّث نفس
+// البند الواحد بقيم الصفّين المتضاربين بالتناوب، وأحيانًا تنشئ بند إضافي وهمي كامل - وهاد بالضبط
+// السبب يلي كان يخرب التقسيمات/الأبعاد ويولّد "بنود إضافية" بمجرد فتح/تعديل التصميم من جديد. الحل:
+// نفس أسلوب resyncSubItemIdCounters بالضبط بس لمعرّفات الصفوف - نمشي على كل صف موجود فعليًا بجدول
+// الكمية (بعد ما ينحمّل عرض السعر) ومنرفع rowUidCounter ليصير أكبر من أعلى رقم موجود فعليًا.
+function resyncRowUidCounter(){
+  let maxR = 0;
+  document.querySelectorAll('#qty-rows tr[data-row-uid]').forEach(tr=>{
+    const m = /^r(\d+)$/.exec(tr.dataset.rowUid||'');
+    if(m) maxR = Math.max(maxR, parseInt(m[1],10));
+  });
+  if(maxR + 1 > rowUidCounter) rowUidCounter = maxR + 1;
+}
+window.resyncRowUidCounter = resyncRowUidCounter;
 
 function findItemIndexByName(name){
   if(!name) return -1;
@@ -7888,6 +7920,34 @@ function resyncSubItemIdCounters(itemsArr){
   // 🛠️ 2026-09-30.19: شيلنا مزامنة ceilingZoneIdCounter/ceilingZoneSideIdCounter - نظام "الأجزاء
   // المرفوعة/المخفّضة" (ceilingZones) انحذف بالكامل بطلب حمدي (شوف الشرح المطوّل قرب لوحة السقف فوق).
 }
+// 🛠️ إصلاح جذري 2026-09-30.21 (بلاغ حمدي المتكرر: "بيرجع التصميم بيتخربط والتقسيمات بتخرب وبتنزل
+// بنود اضافية اكتر من عدد الاضلاع الافتراضية" - شوف الشرح الكامل قرب resyncRowUidCounter بكتلة
+// <script> التانية): تنظيف استدراكي لأي ضرر سبق وصار بعروض أسعار قديمة (متل S-Q-260003) بسبب تصادم
+// معرّفات الصفوف (rowUid) قبل هالإصلاح - لو بندين أو أكتر (مثلاً بند "غرفة - ضلع 1" وبند "غرفة - ضلع
+// 13" وهميين) انتهوا صدفة بنفس sourceRowUid، منحتفظ ببند واحد بس (نفضّل البند المرتبط فعليًا بضلع/جزء
+// غرفة حقيقي - isRoomWallElevation، وإلا الأغنى تصميمًا - أكبر حجم layout) ومنشيل الباقي. بترجع
+// removedCount (عدد البنود المحذوفة، 0 = ولا مشكلة). منناديها تلقائيًا كل مرة ينستورد فيها تصميم كامل
+// (__applyDesignItemsImport__ تحت) حتى أي عرض سعر قديم متضرر ينظّف نفسه أول ما ينفتح من جديد.
+function dedupeDuplicateSourceRowItems(){
+  const groups = {};
+  items.forEach(it=>{ if(it.sourceRowUid){ (groups[it.sourceRowUid] = groups[it.sourceRowUid]||[]).push(it); } });
+  let removedCount = 0;
+  Object.keys(groups).forEach(uid=>{
+    const group = groups[uid];
+    if(group.length < 2) return;
+    let best = group[0], bestScore = -1;
+    group.forEach(it=>{
+      let score = 0;
+      try{ score = JSON.stringify(it.layout||{}).length; }catch(e){}
+      if(it.isRoomWallElevation) score += 1000000; // دايمًا نفضّل البند المرتبط فعليًا بضلع غرفة لو موجود
+      if(score >= bestScore){ bestScore = score; best = it; }
+    });
+    removedCount += group.length - 1;
+    items = items.filter(it => it.sourceRowUid !== uid || it === best);
+  });
+  return removedCount;
+}
+window.dedupeDuplicateSourceRowItems = dedupeDuplicateSourceRowItems;
 window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
   try{
     if(Array.isArray(importedItems)){
@@ -7895,6 +7955,10 @@ window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
       nextId = importedNextId || (items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
       selectedId = items.length ? items[0].id : null;
       resyncSubItemIdCounters(items);
+      const removedDupes = dedupeDuplicateSourceRowItems();
+      if(removedDupes > 0){
+        console.warn('[تنظيف تلقائي] لقينا وحذفنا ' + removedDupes + ' بند مكرر (نفس السطر بجدول الكمية) - كانوا ناتجين عن باغ تصادم معرّفات صفوف تصحّح بتاريخ 2026-09-30.21.');
+      }
     }
     if(typeof renderChips === 'function') renderChips();
     if(typeof loadSelectedIntoControls === 'function') loadSelectedIntoControls();
