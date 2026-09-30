@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.16';
+  var CURRENT_VERSION = '2026-09-30.18';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -2417,7 +2417,16 @@ function removeQtyRow(btn){
     if(linkedSeg || linkedItem){
       if(!confirm('هاد السطر مربوط بتصميم (غرفة/مجلس أو بند مستقل بأداة التصميم). حذفه من هون رح يفك الربط بس (ما رح يحذف البند نفسه من أداة التصميم) - بدك تكمل الحذف؟')) return;
       pushHistory();
-      if(linkedSeg) linkedSeg.rowUid = null;
+      // 🛠️ إصلاح 2026-09-30.17 (بلاغ حمدي مع صور: أضلاع غرفة "مو ظاهرين بالثري دي" وبنفس الوقت "مو
+      // محطوطين على انهم جدار" - فحصت بيانات S-Q-260003 الحقيقية ولقيت بالضبط هيك: ضلعين kind:'design'
+      // بس rowUid:null): قبل هيك كنا نصفّر seg.rowUid بس ونسيب seg.kind زي ما هو ('design') - فالجزء
+      // يضل "معلّق" بحالة نص-نص: مش حائط (ما في تحويل فعلي لـkind)، ومش تصميم حقيقي (ما في بند وراه) -
+      // فبيترسم بالثري دي كزجاج شفاف فارغ بدون أي إطار/تقسيمات (شوف room3DResolveSegmentItem)، وهاد
+      // بالضبط يلي بيبين "مو ظاهر" لعين المستخدم. الطريق الرسمي الصحيح لتحويل جزء مصمم لحائط
+      // (toggleRoomSegKind) أصلًا بيصفّر kind و rowUid مع بعض بنفس اللحظة - هلق منطبّق نفس الشي هون
+      // كمان حتى الحذف من هالمسار (مباشرة من جدول عرض السعر) يعطي نفس النتيجة المتوقعة: الجزء يرجع
+      // يبين كحائط عادي فورًا، مش يضل معلّق فاضي.
+      if(linkedSeg){ linkedSeg.rowUid = null; linkedSeg.kind = 'wall'; }
       if(linkedItem) linkedItem.sourceRowUid = null;
     }
   }
@@ -4256,10 +4265,35 @@ function undoQuotation(){
   if(!quotationHistoryStack.length) return;
   quotationUndoInProgress = true;
   clearTimeout(quotationHistoryDebounceTimer);
+  // 🛠️ إصلاح جذري 2026-09-30.18 (فحص شامل - بلاغ حمدي عن S-Q-260003: "لما عم اكبس حفظ التصميم كأنه
+  // ماعم ينحفظ بشكل صحيح"، ولقينا 4 ملفات مكررة بمجلد _Designs لنفس عرض السعر بدل ملف واحد يتحدّث):
+  // السبب الجذري - captureFullQuotationData() (فوق) بتلتقط currentDesignId/currentDesignName/
+  // currentDraftId "الحاليين" مع كل لقطة تراجع (كل 700ms أوتوماتيكي عند أي تعديل بالصفحة)، حتى لو
+  // كانت لسا null (يعني قبل أول "💾 حفظ التصميم"/"حفظ كمسودة"). فلو حمدي صمم تصميم، حفظه (تولّد له
+  // id جديد مثلاً "abc" وصار currentDesignId="abc")، وبعدين عدّل شي تاني بعرض السعر (سعر، ملاحظة...)
+  // وضغط "↩️ تراجع" - applyFullQuotationData تحت كانت ترجع currentDesignId لقيمته باللقطة الأقدم
+  // (يلي التقطناها قبل أول حفظ تصميم، يعني null) - فلو حمدي حفظ التصميم مرة تانية بعدها، saveDesignToDrive
+  // كانت تشوف currentDesignId=null فتولّد id **جديد** وتنشئ ملف _Designs **تاني** بدل ما تحدّث نفس
+  // الملف "abc" الأصلي - وهيك يتكرر الملف مرة بعد مرة كل ما يصير تراجع بينهم. نفس القصة بالضبط ممكن
+  // تصير مع currentDraftId ("حفظ كمسودة"). الحل: هوية الربط هاي (أي id تصميم/مسودة هاد العرض مرتبط
+  // فيه) مش جزء من المحتوى القابل للتراجع عنه أصلًا - هي حالة تقنية داخلية لازم تضل زي ما هي بغض
+  // النظر عن التراجع/الإعادة لحقول الصفحة. فمنحفظ قيمتها الحالية قبل تطبيق اللقطة القديمة، ومنرجّعها
+  // فورًا بعدها (تراجع فعلي بس لحقول عرض السعر المرئية، مش لهوية الربط الداخلية بالتصميم/المسودة).
+  const savedDesignId = currentDesignId, savedDesignName = currentDesignName, savedDraftId = currentDraftId;
   try{
     const prevJson = quotationHistoryStack.pop();
-    applyFullQuotationData(JSON.parse(prevJson));
-    lastQuotationSnapshotJson = prevJson;
+    const prevData = JSON.parse(prevJson);
+    applyFullQuotationData(prevData);
+    currentDesignId = savedDesignId;
+    currentDesignName = savedDesignName;
+    currentDraftId = savedDraftId;
+    // منصحح نفس الحقول جوا نص اللقطة المحفوظة (lastQuotationSnapshotJson) كمان - وإلا أول لقطة
+    // جاية (حتى لو ما تغيّر إشي فعلي بالصفحة) رح تختلف عنها بسبب هالحقول بس، وتنزرع لقطة تراجع
+    // زايدة بدون داعي بالمكدس (شوف pushQuotationHistorySnapshotNow فوق - مقارنة snap===lastQuotationSnapshotJson).
+    prevData.currentDesignId = savedDesignId || null;
+    prevData.currentDesignName = savedDesignName || null;
+    prevData.draftId = savedDraftId || null;
+    lastQuotationSnapshotJson = JSON.stringify(prevData);
   }catch(e){ console.error('[تراجع عرض السعر] فشل:', e); }
   updateQuotationUndoButton();
   // منسمح بجدولة لقطات جديدة تاني بس بعد ما تخلص كل ردود فعل الاسترجاع (renumber/recalc) وتهدى الصفحة
@@ -8336,9 +8370,12 @@ function deleteItem(id, evt){
   if(linkedTr){
     const itemName = linkedTr.dataset.itemName || '';
     const uid = linkedTr.dataset.rowUid;
+    // 🛠️ إصلاح 2026-09-30.17 (نفس فحص "أضلاع مو ظاهرة بالثري دي ومو محطوطين إنهم جدار" قرب
+    // removeQtyRow): لازم نصفّر kind لـ'wall' مع rowUid مع بعض بنفس اللحظة - وإلا الجزء يضل "معلّق"
+    // (kind:'design' بدون بند وراه) وبيترسم بالثري دي كزجاج فاضي بدون إطار، يعني عمليًا "مو ظاهر".
     items.forEach(other => {
       (other.roomSides||[]).forEach(side => {
-        (side.segments||[]).forEach(seg => { if(seg.rowUid === uid) seg.rowUid = null; });
+        (side.segments||[]).forEach(seg => { if(seg.rowUid === uid){ seg.rowUid = null; seg.kind = 'wall'; } });
       });
     });
     linkedTr.remove();
