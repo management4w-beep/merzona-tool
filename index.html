@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.5';
+  var CURRENT_VERSION = '2026-09-30.6';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -3381,23 +3381,13 @@ function resetAllNoConfirm(){
   autoSuggestNextReference();
 }
 
-function seedDefaults(){
-  document.getElementById('m-date').valueAsDate = new Date();
-  const yy = new Date().getFullYear().toString().slice(-2);
-  // الرقم المرجعي ما بيحتوي مسافة أبدًا - المستخدم بيكمل يكتب رقم التسلسل ملزوق مباشرة (مثلاً
-  // "M-Q-260204") - هيك نفس التنسيق يلي بيولّده الاقتراح التلقائي بالأسفل، وما بيصير عنا نفس
-  // الرقم المرجعي مسجّل مرتين (مرة بمسافة ومرة بدونها) بمكانين مختلفين.
-  // 🆕 2026-09-22: حرف البادئة (M أو S) صار حسب الفرع المختار بقائمة #m-branch (افتراضيًا الإمارات/M).
-  const branchNow = document.getElementById('m-branch') ? document.getElementById('m-branch').value : 'uae';
-  const refPrefixNow = getBranchConfig(branchNow).refPrefix;
-  document.getElementById('m-ref').value = `${refPrefixNow}-Q-${yy}0`;
-  const deliveryEl = document.getElementById('delivery-days');
-  if(deliveryEl) deliveryEl.value = '45';
-
-  addBiRow('alum-spec-rows','System statement (English)','جملة النظام بالعربي',
-    'Using below Al Ghurair Thermal Break System, we can change it as per client request:',
-    'سيتم العمل على المقاطع العازلة للحرارة من الغرير أدناه وبالإمكان التغيير حسب رغبة الزبون:');
-
+// 🆕 2026-09-30 (طلب حمدي: دمج عرضين سعر كان عم يكرر صفوف "الإكسسوارات والضمانات" - كل عرض أصلًا
+// بيبلش بنفس القائمة القياسية السبعة هاي، فدمج الاثنين كان عم يلزق 14 صف بدل 7). فصلناها لفنكشن
+// مستقلة (نفس المحتوى بالضبط يلي كان جوا seedDefaults تحت) حتى نقدر نعيد استخدامها لإعادة تصفير
+// هاد القسم لشكله القياسي النضيف بعد أي دمج (شوف mergeInAnotherQuotation) - بدل ما يضل مكرر ومربك.
+function seedStandardAccessoryRows(){
+  const el = document.getElementById('acc-rows');
+  if(el) el.innerHTML = '';
   addBiRow('acc-rows','Accessory / guarantee (English)','التفصيل بالعربي','German Sillicon Dow Company','*السيليكون الألماني من شركة داو كورنينغ او ما يعادله');
   addBiRow('acc-rows','Accessory / guarantee (English)','التفصيل بالعربي','Italian Accessories 5 Years','إيطالي ضمان 5 سنوات');
   addBiRow('acc-rows','Accessory / guarantee (English)','التفصيل بالعربي','Or Australian Accessories 10 Years','أو أسترالي ضمان 10 سنوات');
@@ -3405,14 +3395,14 @@ function seedDefaults(){
   addBiRow('acc-rows','Accessory / guarantee (English)','التفصيل بالعربي','Glass Warranty 15 Years on Colors','*ضمان الزجاج 15 سنة على اللون');
   addBiRow('acc-rows','Accessory / guarantee (English)','التفصيل بالعربي','Rubbers and Gaskets EBDM German Standard','*ألمانية مواصفات EBDM الربرات و الغاسكت نوعية');
   addBiRow('acc-rows','Accessory / guarantee (English)','التفصيل بالعربي','All Screws are Stainless Steel 304','البراغي فجميعها من نوعية الستانلس استيل 304');
+}
+window.seedStandardAccessoryRows = seedStandardAccessoryRows;
 
-  addQtyRow();
-
-  addPayRow('Down Payment on signing the contract','دفعة مقدمة عن المشروع','40');
-  addPayRow('Payment on Delivering Aluminum','دفعة عند توريد الألمنيوم','30');
-  addPayRow('Payment on Delivering Glass','دفعة عند توريد الزجاج','25');
-  addPayRow('Payment on Finishing','دفعة عند التشطيب','5');
-
+// نفس الفكرة بالضبط بس لقسم "الشروط والأحكام" (notes-rows) - القائمة القياسية الكاملة الخمستعشر
+// بند يلي كل عرض سعر جديد بيبلش فيها. مفصولة هون لنفس سبب seedStandardAccessoryRows فوق بالضبط.
+function seedStandardNotesRows(){
+  const el = document.getElementById('notes-rows');
+  if(el) el.innerHTML = '';
   addNoteRow(
     'The price does not include scaffolding, generators, water, water tests, all types of cranes, and any construction problems on the site that prevent us from installing our own items.',
     'عرض السعر لا يشمل السقالات ومولدات الكهرباء والماء واختبارات الماء والرافعات بأنواعها وأية مشاكل إنشائية في الموقع.'
@@ -3485,6 +3475,39 @@ function seedDefaults(){
     'The client\'s signature on any single page of this quotation shall be deemed as acceptance of all terms, conditions, and items stated throughout all pages of this document.',
     'يُعتبر توقيع العميل على أي صفحة واحدة من صفحات هذا العرض بمثابة موافقة على كافة الشروط والأحكام والبنود الواردة في جميع صفحات هذا المستند.'
   );
+  // فقرة الاختصاص القضائي فوق منزرعها دايمًا بنص الشارقة الافتراضي - منصححها فورًا حسب الفرع الحالي
+  // (نفس ما بيصير جوا resetAll بعد seedDefaults العادية).
+  if(typeof applyBranchJurisdictionClause === 'function') applyBranchJurisdictionClause(getCurrentBranch());
+}
+window.seedStandardNotesRows = seedStandardNotesRows;
+
+function seedDefaults(){
+  document.getElementById('m-date').valueAsDate = new Date();
+  const yy = new Date().getFullYear().toString().slice(-2);
+  // الرقم المرجعي ما بيحتوي مسافة أبدًا - المستخدم بيكمل يكتب رقم التسلسل ملزوق مباشرة (مثلاً
+  // "M-Q-260204") - هيك نفس التنسيق يلي بيولّده الاقتراح التلقائي بالأسفل، وما بيصير عنا نفس
+  // الرقم المرجعي مسجّل مرتين (مرة بمسافة ومرة بدونها) بمكانين مختلفين.
+  // 🆕 2026-09-22: حرف البادئة (M أو S) صار حسب الفرع المختار بقائمة #m-branch (افتراضيًا الإمارات/M).
+  const branchNow = document.getElementById('m-branch') ? document.getElementById('m-branch').value : 'uae';
+  const refPrefixNow = getBranchConfig(branchNow).refPrefix;
+  document.getElementById('m-ref').value = `${refPrefixNow}-Q-${yy}0`;
+  const deliveryEl = document.getElementById('delivery-days');
+  if(deliveryEl) deliveryEl.value = '45';
+
+  addBiRow('alum-spec-rows','System statement (English)','جملة النظام بالعربي',
+    'Using below Al Ghurair Thermal Break System, we can change it as per client request:',
+    'سيتم العمل على المقاطع العازلة للحرارة من الغرير أدناه وبالإمكان التغيير حسب رغبة الزبون:');
+
+  seedStandardAccessoryRows();
+
+  addQtyRow();
+
+  addPayRow('Down Payment on signing the contract','دفعة مقدمة عن المشروع','40');
+  addPayRow('Payment on Delivering Aluminum','دفعة عند توريد الألمنيوم','30');
+  addPayRow('Payment on Delivering Glass','دفعة عند توريد الزجاج','25');
+  addPayRow('Payment on Finishing','دفعة عند التشطيب','5');
+
+  seedStandardNotesRows();
 
   recalc();
 }
@@ -5542,6 +5565,25 @@ async function saveToGoogleDriveInner(){
       quotationDataJsonFileId = dataUploadResult && dataUploadResult.id;
     }catch(e){ console.warn('تعذّر حفظ ملف بيانات JSON الإضافي (مش عائق - نسخة HTML اتحفظت تمام):', e); }
 
+    // 🆕 2026-09-30 (طلب حمدي: "لازم عند الحفظ ينحفظ عرض السعر وينحفظ بمجلد اسمو دمج داخل مجلد عرض
+    // السعر نفسه") - لو صار دمج عرض سعر تاني جوا هاد العرض بنفس الجلسة (شوف mergeInAnotherQuotation)،
+    // منحفظ نسخة إضافية (HTML + JSON) داخل مجلد فرعي اسمه "دمج" جوا مجلد عرض السعر نفسه (refFolderId) -
+    // بتوثّق حالة العرض المدموج بشكل منفصل وواضح، بدون ما تأثر عالحفظ العادي (لو فشلت هاي الخطوة
+    // لأي سبب، ما بتوقف باقي الحفظ - best-effort بس). اسم الملف بيحمل رقم العرض التاني المدموج، حتى
+    // لو دمجتي أكتر من عرض بنفس الجلسة يضل كل وحدة إلها نسخة موثقة منفصلة بدل ما تنكتب فوق بعض.
+    if(window.__mzMergedFromRefs && window.__mzMergedFromRefs.length){
+      try{
+        const mergeFolderId = await findOrCreateDriveFolder('دمج', refFolderId, token);
+        for(const otherRefRaw of window.__mzMergedFromRefs){
+          const otherRefSafe = (otherRefRaw||'').replace(/\s+/g,'').replace(/[^a-zA-Z0-9-؀-ۿ]+/g,'_') || 'عرض-تاني';
+          const mergeHtmlBlob = new Blob([htmlContent], {type:'text/html'});
+          const mergeDataBlob = new Blob([JSON.stringify(quotationFullDataForSignBox || captureFullQuotationData())], {type:'application/json'});
+          await uploadOrUpdateFileInDriveFolder(refSafe + '-مدموج-مع-' + otherRefSafe + '.html', 'text/html', mergeHtmlBlob, mergeFolderId, token);
+          await uploadOrUpdateFileInDriveFolder(refSafe + '-مدموج-مع-' + otherRefSafe + '-data.json', 'application/json', mergeDataBlob, mergeFolderId, token);
+        }
+      }catch(e){ console.warn('تعذّر حفظ نسخة مجلد "دمج" (مش عائق - الحفظ الأساسي اتحفظ تمام):', e); }
+    }
+
     // نسخة PDF من صفحة عرض السعر - نفعّل شكل الطباعة النضيف ونستنى تحميل الخطوط قبل الالتقاط
     const wasMobileMode = document.body.classList.contains('mode-mobile');
     document.body.classList.remove('mode-mobile'); // نفرض شكل سطح المكتب وقت الالتقاط بس، حتى لو كنت عالموبايل، عشان الصفحة تلتقط بعرضها الكامل مش عرض شاشة الموبايل الضيق
@@ -7475,15 +7517,26 @@ async function mergeInAnotherQuotation(){
     }catch(e){ return 0; }
   })();
   const otherClientName = (otherData.fields && otherData.fields['m-client']) || '';
-  if(!confirm('لقيت عرض السعر "' + otherRef + '"' + (otherClientName ? (' (الزبون: ' + otherClientName + ')') : '') + ' - فيه ' + otherRowCount + ' صف بجدول الكميات.\n\nرح تنضاف كل بنوده (جدول الكميات + مواصفات الألمنيوم/الزجاج + التوريد + الإكسسوارات + شروط الدفع + الملاحظات + كل تصاميم النوافذ/الأبواب/الغرف) فوق العرض المفتوح حاليًا "' + (currentRef||'(بدون رقم بعد)') + '"، والمجموع الكلي رح يتحدث تلقائيًا ليصير مجموع واحد للاثنين سوا.\n\n⚠️ لو في نصوص شروط/ملاحظات قياسية متكررة بالعرضين، ممكن تتكرر بعد الدمج - راجعيها وامسحي يدويًا أي تكرار.\n\nبيانات ترويسة العرض (الزبون/المشروع/الرقم المرجعي الحالي) رح تضل زي ما هي بدون ما تتغير. متأكدة بدك تكملي الدمج؟')) return;
+  // 🆕 2026-09-30 (طلب حمدي: "موضوع تكرار الشروط والاحكام بالإضافة الى ضمانات الإكسسوارات - برأيي
+  // الحل يكون اعادة الضمانات بالشكل الستاندارد لحتى نشيل منها شي لو امكن") - قسمين "الإكسسوارات
+  // والضمانات" (acc-rows) و"الشروط والأحكام" (notes-rows) كل عرض سعر جديد بيبلش بنفس القائمة
+  // القياسية الثابتة (نفس النص بالضبط بكل عرض) - فدمجهم بالطريقة العادية (لزق فوق بعض) كان عم يكرر
+  // نفس البنود مرتين. الحل يلي طلبه: بدل ما نلزق قسمين هدول، منصفّرهم للشكل القياسي النضيف (نسخة
+  // وحدة بس)، وهو بعدين فيه يشيل يدويًا أي بند قياسي ما بينطبق. باقي الأقسام (جدول الكميات، مواصفات
+  // الألمنيوم/الزجاج، التوريد، شروط الدفع) بتضل تنلزق عادي متل ما هي لأنو بتحمل تفاصيل حقيقية
+  // مختلفة لكل عرض (مش نص قياسي ثابت).
+  if(!confirm('لقيت عرض السعر "' + otherRef + '"' + (otherClientName ? (' (الزبون: ' + otherClientName + ')') : '') + ' - فيه ' + otherRowCount + ' صف بجدول الكميات.\n\nرح تنضاف كل بنوده (جدول الكميات + مواصفات الألمنيوم/الزجاج + التوريد + شروط الدفع + كل تصاميم النوافذ/الأبواب/الغرف) فوق العرض المفتوح حاليًا "' + (currentRef||'(بدون رقم بعد)') + '"، والمجموع الكلي رح يتحدث تلقائيًا ليصير مجموع واحد للاثنين سوا.\n\nℹ️ قسمي "الإكسسوارات والضمانات" و"الشروط والأحكام" ما رح ينلزقوا فوق بعض (تلافيًا لتكرار نفس النص القياسي) - رح ينصفروا للشكل القياسي النضيف بدل هيك، وبتقدري تشيلي يدويًا أي بند قياسي ما بينطبق بعد الدمج.\n\nبيانات ترويسة العرض (الزبون/المشروع/الرقم المرجعي الحالي) رح تضل زي ما هي بدون ما تتغير. متأكدة بدك تكملي الدمج؟')) return;
 
   pushQuotationHistorySnapshotNow();
   try{
     QUOTATION_ROW_CONTAINERS.forEach(cid=>{
+      if(cid === 'acc-rows' || cid === 'notes-rows') return; // منصفّرهم للشكل القياسي تحت بدل ما نلزق فوقهم
       const el = document.getElementById(cid);
       const html = otherData.rows && otherData.rows[cid];
       if(el && typeof html === 'string' && html.trim()) el.insertAdjacentHTML('beforeend', html);
     });
+    if(typeof seedStandardAccessoryRows === 'function') seedStandardAccessoryRows();
+    if(typeof seedStandardNotesRows === 'function') seedStandardNotesRows();
     const uidMap = mergeQtyRowsFromOtherData(otherData.qtyRowsHtml);
     mergeDesignItemsFromOtherData(otherData.designItems, uidMap);
     if(typeof renderChips === 'function') renderChips();
@@ -7495,7 +7548,12 @@ async function mergeInAnotherQuotation(){
     syncPage2Header();
     scheduleDesignSave();
     scheduleQuotationHistorySnapshot();
-    alert('✅ تم دمج عرض السعر "' + otherRef + '" جوا هاد العرض بنجاح - المجموع تحدث تلقائيًا. لا تنسي تراجعي جدول الملاحظات/الشروط لحذف أي سطر تكرر، وتحفظي العرض (كمسودة أو نهائي) لتثبيت الدمج.');
+    // 🆕 2026-09-30 (طلب حمدي: "لازم عند الحفظ ينحفظ عرض السعر وينحفظ بمجلد اسمو دمج داخل مجلد عرض
+    // السعر نفسه") - منسجل رقم العرض التاني يلي انضم، حتى saveToGoogleDriveInner (فوق بالملف) يعرف
+    // يحفظ نسخة إضافية موثّقة بمجلد فرعي "دمج" جوا مجلد هاد العرض بالذات، بالمرة الجاية يلي تنحفظ فيها.
+    window.__mzMergedFromRefs = window.__mzMergedFromRefs || [];
+    if(window.__mzMergedFromRefs.indexOf(otherRef) === -1) window.__mzMergedFromRefs.push(otherRef);
+    alert('✅ تم دمج عرض السعر "' + otherRef + '" جوا هاد العرض بنجاح - المجموع تحدث تلقائيًا، وقسمي الإكسسوارات/الشروط رجعوا للشكل القياسي النضيف. لا تنسي تحفظي العرض (كمسودة أو نهائي) لتثبيت الدمج - رح تنحفظ كمان نسخة موثّقة تلقائيًا بمجلد فرعي اسمه "دمج" جوا مجلد هاد العرض.');
   }catch(e){
     console.error('mergeInAnotherQuotation failed', e);
     alert('❌ صار خطأ أثناء تطبيق الدمج - دوسي "↩️ تراجع" بالشريط العلوي لإلغاء أي تغيير جزئي صار، وجربي تاني.');
