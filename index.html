@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.6';
+  var CURRENT_VERSION = '2026-09-30.7';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1667,6 +1667,7 @@
     <button class="mode-switch-btn" onclick="showModeChooser()">📱💻 Switch layout</button>
     <button onclick="toggleItemsManager()">🗂️ Manage Items</button>
     <button onclick="mergeInAnotherQuotation()" title="بيجيب بيانات عرض سعر تاني محفوظ بجوجل درايف (برقمه المرجعي) وبيضيف كل بنوده ومواصفاته فوق هاد العرض المفتوح حاليًا، ليصير مجموع واحد للاثنين سوا">🔗 دمج عرض سعر تاني بهاد العرض</button>
+    <button onclick="openVersionHistoryPanel()" title="بيعرض كل النسخ القديمة المحفوظة تلقائيًا لهاد العرض (من كل مرة ضغطتي فيها ☁️ حفظ لجوجل درايف) - فيك تشوفي شو تغيّر بين نسخة ونسخة وترجعي لأي وحدة منهم">🕘 سجل النسخ السابقة</button>
     <button class="primary" onclick="window.openCameraOverlay()">📷 كاميرا</button>
     <button class="danger" onclick="deleteQuotationFromDrive()" title="بيحذف مجلد عرض السعر هيدا (بكل ملفاته) من جوجل درايف - بينحط بسلة المهملات، فيك تسترجعه خلال 30 يوم لو غلطتي">🗑️ حذف عرض السعر</button>
   </div>
@@ -1683,6 +1684,17 @@
     <p class="items-manager-hint">Edit item names, aluminum spec, and glass spec here. Changes apply immediately to the item picker in the Table of Qty, and are kept when you use "Save copy with data".</p>
     <div id="items-manager-rows"></div>
     <div class="add-btn-wrap"><button class="small" onclick="addItemManagerRow()">+ Add new item</button></div>
+  </div>
+</div>
+
+<div id="version-history-panel" class="items-manager" style="display:none;">
+  <div class="items-manager-inner">
+    <div class="items-manager-head">
+      <h2>🕘 سجل النسخ السابقة</h2>
+      <button class="small" onclick="closeVersionHistoryPanel()">✕ إغلاق</button>
+    </div>
+    <p class="items-manager-hint">كل مرة تضغطي "☁️ حفظ لجوجل درايف" بينحفظ نسخة إضافية هون تلقائيًا - فيك تشوفي شو تغيّر بين نسخة ونسخة (المجموع، عدد البنود) وترجعي لأي نسخة قديمة لو احتجتي.</p>
+    <div id="version-history-rows"></div>
   </div>
 </div>
 
@@ -3916,6 +3928,13 @@ function captureFullQuotationData(){
   // 🆕 2026-09-24: ربط سجل المسودات (شوف الشرح فوق قرب تعريف currentDraftId) - null لو هاد العرض
   // لسا ما انحفظ كمسودة عالدرايف ولا مرة (عرض سعر عادي جديد).
   data.draftId = currentDraftId || null;
+  // 🆕 2026-09-30: ربط "التصميم المحفوظ بسجل _Designs" بعرض السعر نفسه - لو سبق وصار حفظ للتصميم
+  // (زر "💾 حفظ التصميم" جوا أداة الرسم، شوف saveDesignToDrive) لهاد العرض بالذات، منسجّل نفس
+  // الـ id/الاسم هون كمان حتى لو حمدي سكّر الصفحة وفتحها من جديد (فتح عادي لعرض سعر قائم)، وبعدين
+  // ضغط "حفظ التصميم" مرة تانية، يتحدّث نفس ملف _Designs الأصلي بدل ما ينخلق ملف جديد مكرر بكل مرة
+  // (كان هاد بالضبط سبب تكرار/ضياع الربط بين التصميم وعرض السعر يلي اشتكى منّو حمدي).
+  data.currentDesignId = currentDesignId || null;
+  data.currentDesignName = currentDesignName || null;
   return data;
 }
 
@@ -3925,6 +3944,10 @@ function applyFullQuotationData(data){
   // تربط currentDraftId بنفس القيمة المحفوظة فيها - هيك "حفظ كمسودة" التالي بيحدّث نفس ملف الـJSON
   // عالدرايف بدل ما ينشئ ملف تاني مكرر.
   currentDraftId = data.draftId || null;
+  // 🆕 2026-09-30: نفس فكرة currentDraftId فوق بالضبط - نرجع نربط أي تصميم كان محفوظ سابقًا بسجل
+  // _Designs لهاد العرض بالذات، حتى "حفظ التصميم" الجاي يحدّث نفس الملف مش ينشئ وحدة جديدة.
+  currentDesignId = data.currentDesignId || null;
+  currentDesignName = data.currentDesignName || null;
   try{
     // منفضي كل الجداول أول (نفس خطوة resetAll) قبل ما نطبّق بيانات العرض القديم - حتى ما تختلط
     // مع أي بنود افتراضية كانت انزرعت للتو (seedDefaults) قبل ما توصل بيانات التحميل.
@@ -5136,6 +5159,167 @@ async function uploadOrUpdateFileInDriveFolder(filename, mimeType, blob, parentI
   return await uploadFileToDriveFolder(filename, mimeType, blob, parentId, token);
 }
 
+/* ================= 🕘 سجل النسخ السابقة (Version History) - طلب حمدي صراحة: "ميزة الهيتوري
+   HISTORY يللي طلبتها منك انك تبنيها لحتى اعرف شو التغييرات يللي صارت بعرض السعر لاقدر ارجعلها
+   او اختار يللي بدي ياه". كل حفظة فعلية لعرض السعر (saveToGoogleDriveInner فوق) بتخزّن نسخة إضافية
+   بمجلد فرعي "سجل النسخ" جوا مجلد العرض نفسه (شوف فوق) - هون منعرض هالنسخ ومنسمح بالرجوع لأي وحدة. */
+
+// حماية بسيطة من HTML injection عند عرض نصوص جاية من بيانات محفوظة (اسم الزبون، إلخ) جوا سجل النسخ.
+function escapeHtmlForHistory(str){
+  return String(str == null ? '' : str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// بيرجع {id,name}[] لكل ملفات JSON جوا مجلد معيّن - عامة، مش خاصة بفرع معيّن (بعكس scanDriveSubfolderAcrossBranches
+// بالداشبورد يلي بتفحص فروع كتير سوا)، لأنو هون عندنا مجلد العرض نفسه محدد أصلًا (refFolderId).
+async function listDriveFolderChildrenSimple(folderId, token){
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+  const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=1000`, {
+    headers: { Authorization: 'Bearer ' + token }
+  }, 30000);
+  const data = await res.json();
+  return (data.files || []).filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+}
+
+async function downloadDriveJsonFile(fileId, token){
+  const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: 'Bearer ' + token }
+  }, 30000);
+  if(!res.ok) throw new Error('فشل تحميل الملف من جوجل درايف.');
+  return await res.json();
+}
+
+// عدد صفوف جدول الكميات جوا لقطة بيانات محفوظة - مقياس بسيط وسريع لـ"شو تغيّر" بين نسختين، بدون
+// الحاجة لمقارنة كل حقل/صف بالتفصيل (diff كامل حاليًا أكبر بكثير من الحاجة الفعلية المطلوبة).
+function countQtyRowsInSnapshot(data){
+  try{
+    const tmp = document.createElement('tbody');
+    tmp.innerHTML = (data && data.qtyRowsHtml) || '';
+    return tmp.querySelectorAll('tr').length;
+  }catch(e){ return 0; }
+}
+
+function openVersionHistoryPanel(){
+  const refRaw = (document.getElementById('m-ref') && document.getElementById('m-ref').value || '').trim();
+  if(!refRaw){
+    alert('لازم يكون عرض السعر إله رقم مرجعي ومحفوظ أول مرة على الأقل (☁️ حفظ لجوجل درايف) قبل ما يكون في سجل نسخ لعرضه.');
+    return;
+  }
+  const panel = document.getElementById('version-history-panel');
+  const rowsEl = document.getElementById('version-history-rows');
+  if(!panel || !rowsEl) return;
+  panel.style.display = 'flex';
+  rowsEl.innerHTML = '<p style="color:var(--muted);font-size:12.5px;">⏳ عم نجيب سجل النسخ السابقة من جوجل درايف...</p>';
+  refreshVersionHistoryPanel(refRaw);
+}
+window.openVersionHistoryPanel = openVersionHistoryPanel;
+
+function closeVersionHistoryPanel(){
+  const panel = document.getElementById('version-history-panel');
+  if(panel) panel.style.display = 'none';
+}
+window.closeVersionHistoryPanel = closeVersionHistoryPanel;
+
+async function refreshVersionHistoryPanel(refRaw){
+  const rowsEl = document.getElementById('version-history-rows');
+  try{
+    const branch = getBranchFromRef(refRaw);
+    const token = await getGoogleAccessToken();
+    const folderId = await findRefFolderIdIfExists(refRaw, branch, token);
+    if(!folderId){
+      rowsEl.innerHTML = '<p style="color:var(--muted);font-size:12.5px;">هاد الرقم المرجعي لسا ما انحفظ بجوجل درايف - اضغطي "☁️ حفظ لجوجل درايف" أول مرة.</p>';
+      return;
+    }
+    const historyFolderId = await findExactFileInFolder('سجل النسخ', folderId, token);
+    if(!historyFolderId){
+      rowsEl.innerHTML = '<p style="color:var(--muted);font-size:12.5px;">ما في أي نسخة قديمة مسجّلة بعد لهاد العرض - سجل النسخ بيتبنى تلقائيًا بدءًا من أول حفظة تصير من هلق وطالع.</p>';
+      return;
+    }
+    const files = await listDriveFolderChildrenSimple(historyFolderId.id, token);
+    if(!files.length){
+      rowsEl.innerHTML = '<p style="color:var(--muted);font-size:12.5px;">ما في أي نسخة قديمة مسجّلة بعد لهاد العرض.</p>';
+      return;
+    }
+    const CONCURRENCY = 8;
+    const entries = [];
+    let nextIdx = 0;
+    async function worker(){
+      while(nextIdx < files.length){
+        const f = files[nextIdx++];
+        try{
+          const data = await downloadDriveJsonFile(f.id, token);
+          entries.push({ fileId: f.id, data });
+        }catch(e){ console.warn('[سجل النسخ] تعذّر قراءة نسخة', f.name, e); }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, worker));
+    // الأقدم أول (savedAt تصاعديًا) حتى نحسب فرق كل نسخة عن يلي قبلها بشكل صحيح، وبعدين منعكس الترتيب
+    // للعرض (الأحدث فوق - أسهل لحمدي يلاقي آخر نسخة).
+    entries.sort((a,b)=>(a.data.savedAt||0)-(b.data.savedAt||0));
+    let prevEntry = null;
+    const rowsHtml = entries.map(entry=>{
+      const d = entry.data;
+      const when = d.savedAt ? new Date(d.savedAt).toLocaleString('ar') : 'غير معروف';
+      const client = (d.fields && d.fields['m-client']) || '';
+      const total = (typeof d.grandTotal === 'number') ? d.grandTotal.toLocaleString('en-US') : '؟';
+      const rowCount = countQtyRowsInSnapshot(d);
+      let diffLine = 'أول نسخة مسجّلة';
+      if(prevEntry){
+        const prevTotal = (typeof prevEntry.data.grandTotal === 'number') ? prevEntry.data.grandTotal : null;
+        const prevRowCount = countQtyRowsInSnapshot(prevEntry.data);
+        const parts = [];
+        if(prevTotal !== null && prevTotal !== d.grandTotal){
+          const diff = (d.grandTotal||0) - prevTotal;
+          parts.push('المجموع تغيّر ' + (diff>0?'+':'') + diff.toLocaleString('en-US'));
+        }
+        if(prevRowCount !== rowCount){
+          const diff = rowCount - prevRowCount;
+          parts.push('عدد بنود الجدول تغيّر ' + (diff>0?'+':'') + diff);
+        }
+        diffLine = parts.length ? parts.join(' — ') : 'بدون تغيير ملحوظ بالمجموع/عدد البنود (يمكن تعديل بالتفاصيل/المواصفات فقط)';
+      }
+      prevEntry = entry;
+      return { fileId: entry.fileId, when, client, total, rowCount, diffLine, savedAt: d.savedAt||0 };
+    }).reverse(); // الأحدث فوق
+    rowsEl.innerHTML = rowsHtml.map(r=>{
+      return `<div class="controls" style="justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:8px 0;flex-wrap:wrap;gap:6px;">
+        <div>
+          <b style="font-size:13px;">🕘 ${escapeHtmlForHistory(r.when)}</b><br>
+          <span style="font-size:11.5px;color:var(--muted);">${r.client ? ('الزبون: ' + escapeHtmlForHistory(r.client) + ' — ') : ''}المجموع: ${escapeHtmlForHistory(String(r.total))} — عدد البنود: ${r.rowCount}</span><br>
+          <span style="font-size:11.5px;color:var(--aux1);">${escapeHtmlForHistory(r.diffLine)}</span>
+        </div>
+        <div class="controls" style="gap:6px;">
+          <button class="export-btn restore-version-btn" data-file-id="${escapeHtmlForHistory(r.fileId)}">↩️ استرجع هالنسخة</button>
+        </div>
+      </div>`;
+    }).join('');
+    rowsEl.querySelectorAll('.restore-version-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> restoreVersionFromHistory(btn.dataset.fileId, token));
+    });
+  }catch(e){
+    console.error('[سجل النسخ] فشل الجلب:', e);
+    rowsEl.innerHTML = '<p style="color:var(--danger);font-size:12.5px;">صار خطأ وإحنا عم نجيب سجل النسخ: ' + escapeHtmlForHistory((e && e.message) || e) + '</p>';
+  }
+}
+
+async function restoreVersionFromHistory(fileId, token){
+  if(!confirm('رح نستبدل محتوى الصفحة الحالي (أي تعديل غير محفوظ حاليًا رح يضيع) بهاي النسخة القديمة. لو غيّرتي رأيك بعدين، فيك تدوسي "↩️ تراجع" بأعلى الصفحة للرجوع للحالة الحالية (بس بنفس هالجلسة/الصفحة المفتوحة). متأكدة بدك تكملي؟')) return;
+  try{
+    // منلقط الحالة الحالية بمكدس "تراجع" العادي قبل ما نستبدلها - هيك حمدي يقدر يرجع لهلق (قبل
+    // الاسترجاع) بزر "↩️ تراجع" العادي لو غيّر رأيه بنفس الجلسة.
+    pushQuotationHistorySnapshotNow();
+    const data = await downloadDriveJsonFile(fileId, token);
+    applyFullQuotationData(data);
+    lastQuotationSnapshotJson = JSON.stringify(data);
+    updateQuotationUndoButton();
+    closeVersionHistoryPanel();
+    alert('✅ تم استرجاع النسخة القديمة. إذا حابة تثبتيها، ما تنسي تضغطي "☁️ حفظ لجوجل درايف" من جديد.');
+  }catch(e){
+    console.error('[سجل النسخ] فشل الاسترجاع:', e);
+    alert('تعذّر استرجاع هاي النسخة: ' + ((e && e.message) || e));
+  }
+}
+window.restoreVersionFromHistory = restoreVersionFromHistory;
+
 function generateDraftId(){ return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function generateDesignId(){ return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
@@ -5208,7 +5392,13 @@ async function saveDesignToDrive(){
   let designName = currentDesignName;
   if(!refRaw){
     designName = (prompt('هاد تصميم حر (مش مرتبط برقم مرجعي لعرض سعر حاليًا) - اكتب اسم يميّزه عن باقي التصاميم:', currentDesignName || '') || '').trim();
-    if(!designName){ return; } // المستخدم ألغى أو ترك الاسم فاضي - ما منحفظ بدون اسم لتصميم حر
+    if(!designName){
+      // 🔧 2026-09-30: كانت هون ترجع بصمت تام بدون أي تنبيه - وهاد بالضبط يلي كان يخلي حمدي يظن إنو
+      // الحفظ صار عادي بينما فعليًا ما انحفظ ولا شي (لو ألغى نافذة الاسم أو تركها فاضية بالغلط).
+      // هلق دايمًا منعرض تنبيه واضح إنو الحفظ ما تم، حتى ما يصير هيك لبس تاني.
+      alert('⚠️ ما انحفظ التصميم - لازم تكتب اسم للتصميم الحر حتى يتحفظ. جرّب "💾 حفظ التصميم" من جديد واكتب اسم.');
+      return;
+    }
     currentDesignName = designName;
   }
   const btn = document.getElementById('saveDesignBtn');
@@ -5564,6 +5754,22 @@ async function saveToGoogleDriveInner(){
       const dataUploadResult = await uploadOrUpdateFileInDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
       quotationDataJsonFileId = dataUploadResult && dataUploadResult.id;
     }catch(e){ console.warn('تعذّر حفظ ملف بيانات JSON الإضافي (مش عائق - نسخة HTML اتحفظت تمام):', e); }
+
+    // 🆕 2026-09-30 (طلب حمدي صراحة: "ميزة الهيتوري HISTORY يللي طلبتها منك انك تبنيها لحتى اعرف شو
+    // التغييرات يللي صارت بعرض السعر لاقدر ارجعلها او اختار يللي بدي ياه") - كل ما ينحفظ عرض السعر
+    // فعليًا لجوجل درايف (نفس هالفنكشن)، منحفظ *نسخة إضافية* موقّتة (snapshot) داخل مجلد فرعي اسمه
+    // "سجل النسخ" جوا مجلد عرض السعر نفسه (refFolderId) - هاي النسخ ما بتتمسح ولا تتحدّث فوق بعضها،
+    // كل حفظة إلها ملفها الخاص (اسمه فيه الطابع الزمني)، فبتضل موجودة زي "تاريخ" كامل لكل التعديلات
+    // يلي صارت عبر الزمن، حتى لو حمدي سكّر المتصفح وفتحه بعد أيام - عكس زر "↩️ تراجع" العادي (فوق)
+    // يلي بس بيشتغل بنفس جلسة المتصفح المفتوحة وبيضيع لما تنسكر الصفحة. لوحة "🕘 سجل النسخ السابقة"
+    // (شوف openVersionHistoryPanel تحت) هي يلي بتعرض هالنسخ وبتخلي حمدي يرجع/يستعرض أي وحدة فيهم.
+    // best-effort بحت - لو فشلت هاي الخطوة لأي سبب (مثلاً مشكلة شبكة مؤقتة)، ما بتوقف باقي الحفظ الأساسي.
+    try{
+      const historyFolderId = await findOrCreateDriveFolder('سجل النسخ', refFolderId, token);
+      const histSnapshot = quotationFullDataForSignBox || captureFullQuotationData();
+      const histBlob = new Blob([JSON.stringify(histSnapshot)], {type:'application/json'});
+      await uploadOrUpdateFileInDriveFolder(refSafe + '-نسخة-' + Date.now() + '.json', 'application/json', histBlob, historyFolderId, token);
+    }catch(e){ console.warn('تعذّر حفظ نسخة بسجل النسخ السابقة (مش عائق - الحفظ الأساسي اتحفظ تمام):', e); }
 
     // 🆕 2026-09-30 (طلب حمدي: "لازم عند الحفظ ينحفظ عرض السعر وينحفظ بمجلد اسمو دمج داخل مجلد عرض
     // السعر نفسه") - لو صار دمج عرض سعر تاني جوا هاد العرض بنفس الجلسة (شوف mergeInAnotherQuotation)،
@@ -6271,6 +6477,20 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
     setTimeout(()=> runWhenDesignBridgeReady(fn, attemptsLeft-1), 50);
   }
   if(pendingDesignLoad){
+    // 🔧 2026-09-30: باغ خطير لقيناه بطلب حمدي - "دخلت على مسودات التصميم على الرفرنس S-Q-260002
+    // وعدلت عليه وعملت التصميم وكل شي وعملت حفظ بكتشف اني رجعت دخلت ومالقيتو حافظ اي شي". السبب:
+    // فتح "تصميم" من سجل الداشبورد (🔓 افتح التصميم) بيسيب صفحة عرض السعر فاضية تمامًا (نية مقصودة،
+    // شوف الشرح فوق) - يعني خانة m-ref كانت تضل فاضية حتى لو التصميم أصلًا محفوظ ومرتبط برقم مرجعي.
+    // ولما حمدي يضغط "💾 حفظ التصميم" بعدين، saveDesignToDrive كانت شايفة refRaw فاضي فتفتح نافذة
+    // prompt() تسأل "اكتب اسم للتصميم الحر" - ولو حمدي ألغاها أو تركها فاضية (ظانًا إنو الحفظ صار
+    // عادي زي أي زر تاني)، الدالة كانت ترجع (return) بصمت تام بدون أي تنبيه إنو الحفظ ما صار! الحل:
+    // منرجّع نعبّي خانة m-ref من الرقم المرجعي الأصلي المحفوظ مع التصميم (لو موجود) قبل ما نفتح أداة
+    // الرسم، فـsaveDesignToDrive بتعرف تلقائيًا إنو هاد تصميم مرتبط بعرض سعر (مش تصميم حر) وما بتسأل
+    // عن اسم إطلاقًا - وبتحدّث نفس ملف _Designs الأصلي مباشرة زي المفروض بالضبط.
+    if(pendingDesignLoad.ref){
+      const refElForDesign = document.getElementById('m-ref');
+      if(refElForDesign && !refElForDesign.value) refElForDesign.value = pendingDesignLoad.ref;
+    }
     runWhenDesignBridgeReady(()=>{
       currentDesignId = pendingDesignLoad.designId || null;
       currentDesignName = pendingDesignLoad.name || null;
