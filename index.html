@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.22';
+  var CURRENT_VERSION = '2026-09-30.23';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1677,10 +1677,14 @@
     <button onclick="openVersionHistoryPanel()" title="بيعرض كل النسخ القديمة المحفوظة تلقائيًا لهاد العرض (من كل مرة ضغطتي فيها ☁️ حفظ لجوجل درايف) - فيك تشوفي شو تغيّر بين نسخة ونسخة وترجعي لأي وحدة منهم">🕘 سجل النسخ السابقة</button>
     <button class="primary" onclick="window.openCameraOverlay()">📷 كاميرا</button>
     <!-- 🆕 2026-09-30.21 (طلب حمدي المباشر: "بدي نعمل زر لما نضغط عليه يعمل reset لكل البنود حسب عرض
-         السعر وارجع اشتغل واحفظ") - زر طوارئ: لو حسيتي إنو تصاميم البنود (شبابيك/أبواب/منظور حيطان
+         السعر وارجع اشتغل واحفظ") - زر طوارئ: لو حس إنو تصاميم البنود (شبابيك/أبواب/منظور حيطان
          الغرف) تخربطت أو تكررت، هاد بيصفّرها كلها ويبنيها فاضية من جديد حسب جدول عرض السعر الحالي
          بالضبط، بدون ما يأثر إطلاقًا على شكل/مسقط الغرف نفسها (الأرضية والسقف). -->
     <button class="danger" onclick="resetAllItemDesignsFromQuotationTable()" title="لو تصاميم البنود (شبابيك/أبواب/منظور حيطان الغرف) تخربطت أو تكررت - هاد بيصفّرها كلها ويرجعها فاضية حسب جدول عرض السعر الحالي بالضبط، بدون ما يأثر على شكل/مسقط الغرف نفسها">🔄 إعادة تعيين تصاميم البنود</button>
+    <!-- 🆕 2026-09-30.22 (بلاغ حمدي المستمر: "الأخطار ما زالت نفسها... أضلاع بالغرفة الثري دي بالذاتها") -
+         أداة تشخيص قراءة فقط (ما بتغيّر ولا شي) بتطبع تقرير مفصّل عن الحالة الفعلية لكل غرفة، حتى يقدر
+         حمدي ينسخلي النتيجة الحقيقية من عرض السعر المتضرر بدل ما نستمر نخمّن. -->
+    <button onclick="showRoomDiagnosticOverlay()" title="تقرير قراءة فقط عن كل غرفة/مجلس بالتصميم الحالي - عدد الأضلاع الفعلي، طول/زاوية كل ضلع، وهل في تكرار حقيقي بمعرّفاتها. ما بيغيّر ولا شي بالتصميم.">🔍 تشخيص الغرف</button>
     <button class="danger" onclick="deleteQuotationFromDrive()" title="بيحذف مجلد عرض السعر هيدا (بكل ملفاته) من جوجل درايف - بينحط بسلة المهملات، فيك تسترجعه خلال 30 يوم لو غلطتي">🗑️ حذف عرض السعر</button>
   </div>
 </div>
@@ -8195,6 +8199,85 @@ const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340; // مقاس الكانفس ا�
 function isHandrail(it){ return it.shapeType === 'handrail'; }
 function isRoom(it){ return it.shapeType === 'room'; }
 
+// 🆕 2026-09-30.22 (بلاغ حمدي المستمر رغم إصلاحات 2026-09-30.21: "الأخطار ما زالت نفسها... أضلاع
+// بالغرفة (الثري دي) بالذاتها") - بما إنو الإصلاحات السابقة (تصادم معرّفات الصفوف + تنظيف البنود
+// المكررة) ما لمست roomSides نفسها إطلاقًا (بتصميم مقصود، حتى ما نخاطر نمسح شكل غرفة حقيقي بدون
+// دليل)، والمشكلة لسا موجودة فعليًا جوا roomSides نفسها - بدل ما نستمر نخمّن بدون دليل حقيقي، هاد
+// أداة تشخيص "قراءة فقط" (ما بتغيّر ولا شي) بتطبع تقرير مفصّل عن *الحالة الفعلية* لكل غرفة بالتصميم
+// المفتوح حاليًا (عدد الأضلاع الحقيقي، طول/زاوية كل ضلع، عدد أقسامه، وهل معرّف كل قسم (rowUid) لسا
+// مرتبط بصف حقيقي بجدول الكمية أو لأ) - حتى حمدي يقدر يشغّلها عالرفرنس المتضرر فعليًا وينسخلي
+// النتيجة، فنصلّح بالاستناد لدليل حقيقي مش تخمين.
+function diagnoseRoomStructure(){
+  const rooms = items.filter(isRoom);
+  if(!rooms.length) return 'ما في أي غرفة/مجلس بهاد التصميم المفتوح حاليًا.';
+  const lines = [];
+  lines.push('تشخيص الغرف - ' + new Date().toLocaleString('ar'));
+  lines.push('عدد الغرف/المجالس بهاد التصميم: ' + rooms.length);
+  lines.push('');
+  rooms.forEach((room, rIdx)=>{
+    const sides = room.roomSides || [];
+    lines.push('════ غرفة #' + (rIdx+1) + ' (id=' + room.id + ', اسمها: "' + (room.label||'') + '") ════');
+    lines.push('عدد الأضلاع الفعلي بهاي الغرفة: ' + sides.length);
+    // فحص تكرار معرّفات الأضلاع (side.id) - لو نفس الـid تكرر أكتر من مرة بنفس الغرفة، هاد دليل مباشر
+    // على تلف حقيقي بالبنية (مش المفروض يصير إطلاقًا بالنظام الطبيعي).
+    const idCounts = {};
+    sides.forEach(s => { idCounts[s.id] = (idCounts[s.id]||0) + 1; });
+    const dupIds = Object.keys(idCounts).filter(k => idCounts[k] > 1);
+    if(dupIds.length) lines.push('⚠️ معرّفات أضلاع مكررة (side.id) بنفس الغرفة: ' + dupIds.join(', '));
+    sides.forEach((s, sIdx)=>{
+      const segs = s.segments || [];
+      lines.push('  ضلع ' + (sIdx+1) + ' (id=' + s.id + '): طول=' + Math.round(s.length) + 'مم، زاوية=' + Math.round(s.angleDeg) + '°، عدد الأقسام=' + segs.length);
+      segs.forEach((seg, gIdx)=>{
+        let rowStatus = 'بدون سطر (حائط أو لسا ما انصمم)';
+        if(seg.rowUid){
+          const trExists = !!document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]');
+          const matchingItems = items.filter(i => i.sourceRowUid === seg.rowUid).length;
+          rowStatus = 'rowUid=' + seg.rowUid + ' | الصف بالجدول موجود: ' + (trExists?'نعم':'❌ لأ') + ' | عدد البنود المرتبطة بنفس الصف: ' + matchingItems + (matchingItems > 1 ? ' ⚠️ تكرار!' : '');
+        }
+        lines.push('    قسم ' + (gIdx+1) + ' (id=' + seg.id + ', kind=' + seg.kind + '): طول=' + Math.round(seg.length) + 'مم | ' + rowStatus);
+      });
+    });
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+window.diagnoseRoomStructure = diagnoseRoomStructure;
+
+function showRoomDiagnosticOverlay(){
+  const report = diagnoseRoomStructure();
+  let overlay = document.getElementById('roomDiagnosticOverlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'roomDiagnosticOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(20,20,20,0.94);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:16px;overflow:auto;';
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;width:100%;max-width:900px;margin-bottom:10px;gap:10px;flex-wrap:wrap;">
+      <span style="color:#fff;font-size:13px;font-weight:700;">🔍 تشخيص الغرف (قراءة فقط - ما بيغيّر ولا شي بالتصميم)</span>
+      <div style="display:flex;gap:8px;">
+        <button class="small" onclick="copyRoomDiagnosticReport()" style="font-size:13px;padding:8px 16px;">📋 انسخ التقرير</button>
+        <button class="small" onclick="document.getElementById('roomDiagnosticOverlay').remove()" style="font-size:13px;padding:8px 16px;">✖️ إغلاق</button>
+      </div>
+    </div>
+    <textarea id="roomDiagnosticText" readonly style="width:100%;max-width:900px;height:70vh;background:#fff;border-radius:8px;padding:14px;font-family:var(--wd-font-mono,monospace);font-size:12px;direction:ltr;text-align:left;white-space:pre;" dir="ltr"></textarea>
+    <p style="color:#cfd8e0;font-size:11.5px;margin-top:8px;max-width:900px;">دوس "📋 انسخ التقرير" وابعتلي النص هون بالشات حتى أفحص السبب الحقيقي بالاستناد لبياناتك الفعلية.</p>`;
+  document.getElementById('roomDiagnosticText').value = report;
+}
+window.showRoomDiagnosticOverlay = showRoomDiagnosticOverlay;
+
+function copyRoomDiagnosticReport(){
+  const ta = document.getElementById('roomDiagnosticText');
+  if(!ta) return;
+  ta.select();
+  try{
+    navigator.clipboard.writeText(ta.value).then(()=>{ alert('✅ انتسخ التقرير - الصقه هلق بالشات.'); }).catch(()=>{ document.execCommand('copy'); alert('✅ انتسخ التقرير - الصقه هلق بالشات.'); });
+  }catch(e){
+    try{ document.execCommand('copy'); alert('✅ انتسخ التقرير - الصقه هلق بالشات.'); }catch(e2){ alert('تعذّر النسخ التلقائي - حدد النص يدويًا (Ctrl+A) وانسخه (Ctrl+C).'); }
+  }
+}
+window.copyRoomDiagnosticReport = copyRoomDiagnosticReport;
+
 // أجزاء الدرج (مائل / استراحة) - بتتأكد إنو في جزء وحد عالأقل، وبترجع المصفوفة
 function ensureHandrailSegments(it){
   if(!it.hrSegments || !it.hrSegments.length){
@@ -14488,7 +14571,7 @@ WD.resetAllFromRows = function(rowData){
 function resetAllItemDesignsFromQuotationTable(){
   const rows = Array.from(document.querySelectorAll('#qty-rows tr'));
   if(!rows.length){ alert('ما في بنود بجدول عرض السعر بعد - ضيفي بند واحد عالأقل أول.'); return; }
-  if(!confirm('⚠️ هاد رح يصفّر تصميم كل بند (شبابيك/أبواب/منظور حيطان الغرف) ويرجعهم فاضيين حسب جدول عرض السعر الحالي بالضبط - رح تحتاجي تصممي كل واحد من جديد بزر "🎨 صمم".\n\nشكل ومسقط الغرف (الأرضية والسقف) ما رح يتأثروا إطلاقًا - رح يضلوا متل ما هنّي بالضبط.\n\nهاد الإجراء ما فيه "تراجع" سهل لو حفظتي بعده - بدك تكملي؟')) return;
+  if(!confirm('⚠️ هاد رح يصفّر تصميم كل بند (شبابيك/أبواب/منظور حيطان الغرف) ويرجعهم فاضيين حسب جدول عرض السعر الحالي بالضبط - رح تحتاج تصمم كل واحد من جديد بزر "🎨 صمم".\n\nشكل ومسقط الغرف (الأرضية والسقف) ما رح يتأثروا إطلاقًا - رح يضلوا متل ما هنّي بالضبط.\n\nهاد الإجراء ما فيه "تراجع" سهل لو حفظت بعده - بدك تكمل؟')) return;
   renumber();
   const rowData = rows.map(tr => {
     const uid = ensureRowUid(tr);
