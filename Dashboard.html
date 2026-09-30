@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-28.2';
+  var CURRENT_VERSION = '2026-09-30.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -5440,7 +5440,7 @@ async function openDesignFromLog(fileId, cachedList){
     const envelope = JSON.parse(text);
     if(!envelope) throw new Error('empty-design-data');
     localStorage.setItem('merzona-pending-design-load', JSON.stringify({
-      designId: envelope.designId, name: envelope.name,
+      designId: envelope.designId, name: envelope.name, ref: envelope.ref || null,
       designItems: envelope.designItems, designNextId: envelope.designNextId
     }));
     localStorage.setItem('merzona_sync_connected', '1');
