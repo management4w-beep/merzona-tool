@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-29.4';
+  var CURRENT_VERSION = '2026-09-30.1';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -10560,9 +10560,33 @@ function finishRoomFreehandDraw(){
   if(roomDraw.points.length < 3){ alert('لازم عالأقل 3 نقاط لتشكيل أرضية مغلقة (كل نقطة = زاوية بالأرضية).'); return; }
   const dedupedPts = roomDrawDedupePoints(roomDraw.points);
   if(dedupedPts.length < 3){ alert('لازم عالأقل 3 نقاط لتشكيل أرضية مغلقة (كل نقطة = زاوية بالأرضية).'); return; }
-  const pts = roomDrawRepairClosingEdge(dedupedPts);
-  const hasDesigned = (it.roomSides||[]).some(s => (s.segments||[]).some(g=>g.rowUid));
-  if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تستبدل قائمة الأضلاع بالكامل بالشكل الجديد يلي رسمتو. البنود يلي كانت مصممة رح تضل موجودة بجدول عرض السعر (ما رح تنحذف) بس ما رح تضل مربوطة بضلع بعد هلق. بدك تكمل؟')) return;
+  // 🆕 2026-09-30 (طلب حمدي: "اذا بدي انهي الرسمة وارسم اخر ضلع ما بتجي اول نقطة على اخر نقطة، بتلاقي
+  // فيه نقاط صغيرة واصلة بين النقطتين متل وصلات وبالتالي الاضلاع ما بتطلع بشكل صحيح") - السبب: كليك
+  // "الإقفال" غالبًا ما بيوصل بالظبط لنفس إحداثيات أول نقطة (فرق كم مم/سم بسبب دقة الماوس)، والتفاوت
+  // الصغير هاد أكبر من عتبة roomDrawDedupePoints (0.5مم بس) بس برضو قريب جدًا بصريًا - فبيضل موجود
+  // كنقطة/ضلع حقيقي قصير جدًا، وroomDrawRepairClosingEdge (تحت) كان عم "يصلحه" بإضافة زاوية وسيطة
+  // كمان فوقه (بدل ما يعتبره إغلاق فعلي) - فبيصير عندنا ضلعين وهميين صغار إضافيين بدل ضلع واحد نظيف.
+  // الحل: قبل الإصلاح، لو آخر نقطة قريبة من أول نقطة بنفس مسافة "الالتصاق" المستخدمة أثناء الرسم نفسه
+  // (roomDrawPxRadiusToMm(12) - نفس الإحساس البصري يلي شافه وهو عم يرسم)، منعتبرها نفس النقطة تمامًا
+  // ومنشيلها (الحلقة أصلاً بترجع لأول نقطة تلقائيًا بحساب الأضلاع تحت، فما في داعي نقطة إضافية قريبة منها).
+  let pts = dedupedPts;
+  if(pts.length >= 3){
+    const first = pts[0], lastPt = pts[pts.length-1];
+    const closeTolMm = roomDrawPxRadiusToMm(12);
+    const closeDist = Math.hypot(lastPt.x-first.x, lastPt.y-first.y);
+    if(closeDist > 0 && closeDist <= closeTolMm){
+      pts = pts.slice(0, -1);
+    }
+  }
+  if(pts.length < 3){ alert('لازم عالأقل 3 نقاط لتشكيل أرضية مغلقة (كل نقطة = زاوية بالأرضية).'); return; }
+  pts = roomDrawRepairClosingEdge(pts);
+  // 🆕 2026-09-30 (طلب حمدي: بعد ما صار في تكرار للأضلاع بجدول عرض السعر لما أعاد الرسم مرتين) -
+  // منلتقط الأضلاع/الأجزاء "القديمة" (يلي كانت مربوطة بسطر بجدول الكمية) قبل ما نستبدلها بالشكل
+  // الجديد، حتى نقدر نربط أي جزء جديد بنفس السطر القديم (حسب ترتيبه) بدل ما ننشئ سطر مكرر من الصفر.
+  const oldFlatSegments = [];
+  (it.roomSides||[]).forEach(s=>{ (s.segments||[]).forEach(g=> oldFlatSegments.push(g)); });
+  const hasDesigned = oldFlatSegments.some(g=>g.rowUid);
+  if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تحاول تربط نفس بنود عرض السعر القديمة بالأضلاع الجديدة (حسب ترتيبها) تلقائيًا - أي بند قديم ما انطبق عليه ضلع جديد رح يضل موجود بجدول عرض السعر بس بدون ربط. بدك تكمل؟')) return;
   pushHistory();
   const n = pts.length;
   const dirs = [];
@@ -10583,13 +10607,29 @@ function finishRoomFreehandDraw(){
     newSides.push({ id:'rs'+(roomSideIdCounter++), length: mmLen, angleDeg: interior,
       segments:[{ id:'rg'+(roomSegIdCounter++), length: mmLen, kind:'design', rowUid:null }] });
   }
+  // 🆕 2026-09-30: ربط بالترتيب (index مقابل index) بين أجزاء الشكل الجديد والأجزاء القديمة يلي كانت
+  // مربوطة بسطر بجدول الكمية - هيك إعادة رسم نفس الغرفة (حتى لو تغيّرت الأطوال شوي) بتحدّث نفس
+  // البنود الموجودة بدل ما تنشئ بنود جديدة مكررة فوقها.
+  const newFlatSegments = [];
+  newSides.forEach(s=> (s.segments||[]).forEach(g=> newFlatSegments.push(g)) );
+  newFlatSegments.forEach((seg, i)=>{
+    const oldSeg = oldFlatSegments[i];
+    if(oldSeg && oldSeg.rowUid && document.querySelector('#qty-rows tr[data-row-uid="'+oldSeg.rowUid+'"]')){
+      seg.rowUid = oldSeg.rowUid;
+    }
+  });
   it.roomSides = newSides;
   // 🆕 2026-09-29 (طلب حمدي: "بدي ياهم يكونوا موجودين كبنود في التصميم بعد تصميم المسقط... مافي داعي
   // لاضغط على زر للتصميم انا اصلا بدي صمم الكل فمن البديهي يكونوا جاهزين للتصميم") - فور ما ينخلص
   // الرسم وتتحول النقاط لأضلاع، منعمل تلقائيًا سطر مربوط بجدول الكمية لكل جزء/ضلع (نفس الشي يلي زر
   // "🎨 صمم" كان يعمله لجزء وحيد) - بس بدون ما نفتح أداة الرسم (#wdOverlay) لأي واحد منهم، لأنو هاد
-  // الجزء التفاعلي (تصميم كل ضلع فعليًا) لازم يضل يدوي وحدة وحدة.
+  // الجزء التفاعلي (تصميم كل ضلع فعليًا) لازم يضل يدوي وحدة وحدة. أي جزء انربط بسطر قديم (فوق) بس
+  // منحدّث طوله بالجدول، وأي جزء جديد فعليًا (ما إلو سطر قديم يقابله) بينضافلو سطر جديد كالمعتاد.
   autoCreateRoomSideRowsForAllSegments(it);
+  // 🆕 2026-09-30: autoCreateRoomSideRowsForAllSegments (فوق) بينادي WD.loadFromRows يلي ممكن يبدّل
+  // البند "المحدد" حاليًا (selectedId) لبند تاني (مثلاً أول بند بجدول الكمية) كأثر جانبي - فمنرجّع
+  // نأكد إنو الغرفة نفسها هي المحددة بعد ما نخلص، حتى لوحة التحكم تضل عارضة شغل الغرفة مش بند تاني بالغلط.
+  selectItem(it.id);
   cancelRoomFreehandDraw();
   renderRoomSidesUI(it);
   renderGallery();
@@ -10601,14 +10641,28 @@ window.finishRoomFreehandDraw = finishRoomFreehandDraw;
 // الرسم (#wdOverlay) ولا يحدد بند تلقائيًا (هاد الجزء التفاعلي يضل بزر "🎨 صمم" العادي لكل واحد لحاله).
 function autoCreateRoomSideRowsForAllSegments(it){
   const sides = it.roomSides || [];
-  let created = 0;
+  let created = 0, updated = 0;
   sides.forEach((side, sIdx)=>{
     const segs = ensureRoomSideSegments(side);
     segs.forEach((seg, gIdx)=>{
       if(seg.kind !== 'design') return; // حائط/جدار - ما منعمله سطر تلقائي
       if(seg.rowUid){
         const existing = document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]');
-        if(existing) return; // مربوط بسطر موجود فعليًا - ما منكرر
+        if(existing){
+          // 🆕 2026-09-30: سطر معاد استخدامه (مثلاً بعد إعادة رسم نفس الغرفة وربطه بالترتيب بالسطر
+          // القديم - شوف finishRoomFreehandDraw) - منحدّث بس الطول (العرض بجدول الكمية) حتى يطابق
+          // الطول الجديد بعد التعديل، بدون ما نلمس اسمه (ممكن يكون غيّره لاسم مخصص) ولا تصميمه المحفوظ.
+          const wInput = existing.querySelector('.w-input');
+          const newW = Math.round(seg.length);
+          if(wInput && String(wInput.value) !== String(newW)){
+            wInput.value = newW;
+            onDimensionInput(wInput);
+            updated++;
+          }
+          return; // مربوط بسطر موجود فعليًا - ما منكرر
+        }
+        // rowUid موجود بس السطر نفسه مش موجود فعليًا (انحذف يدويًا مثلاً) - منعتبره متل ما إلو سطر إطلاقًا
+        seg.rowUid = null;
       }
       const sideIdx = sIdx + 1;
       const segIdx = gIdx + 1;
