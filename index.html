@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.7';
+  var CURRENT_VERSION = '2026-09-30.8';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1675,7 +1675,11 @@
 
 <div id="import-status" style="display:none;" class="import-status"></div>
 
-<div id="items-manager" class="items-manager" style="display:none;">
+<!-- 🆕 2026-09-30 (طلب حمدي: "لازم بس ضيف البند واضغط خارج الاطار يتم اغلاقه" - كان لازم يمرر لفوق
+     لآخر الشاشة عالزر "✕ Close" كل مرة، بعد ما ينزل لتحت لإضافة بند جديد) - onclick على الخلفية
+     الغامقة نفسها (event.target===this يعني الكبسة صارت عالخلفية مباشرة، مش على أي شي جواها) بيسكر
+     اللوحة فورًا بدون ما يحتاج يدور عالزر. -->
+<div id="items-manager" class="items-manager" style="display:none;" onclick="if(event.target===this) toggleItemsManager()">
   <div class="items-manager-inner">
     <div class="items-manager-head">
       <h2>Manage Items / إدارة قائمة البنود</h2>
@@ -1687,7 +1691,7 @@
   </div>
 </div>
 
-<div id="version-history-panel" class="items-manager" style="display:none;">
+<div id="version-history-panel" class="items-manager" style="display:none;" onclick="if(event.target===this) closeVersionHistoryPanel()">
   <div class="items-manager-inner">
     <div class="items-manager-head">
       <h2>🕘 سجل النسخ السابقة</h2>
@@ -2211,10 +2215,18 @@ function toggleItemsManager(){
   if(opening) renderItemsManager();
 }
 
-function renderItemsManager(){
-  const c = document.getElementById('items-manager-rows');
+// 🛠️ إصلاح 2026-09-30 (بلاغ حمدي: "عم يعلق جداً وخصوصا عند اضافة مواد اضافية داخل Manage items") -
+// السبب الحقيقي: كل مرة يضاف/يتحذف بند واحد بس (addItemManagerRow/removeItemManagerRow)، كانت الدالتين
+// بتنادوا renderItemsManager() اللي بتعيد بناء الـHTML لكل بند بقائمة ITEMS كاملة من الصفر (مش بس البند
+// الجديد) - ولكل بند، كانت كمان بتعيد توليد قائمة الشيكات (checkboxes) لكل مادة بكتالوج المشتريات كاملة.
+// يعني الكلفة كانت تتضاعف: عدد البنود × عدد مواد الكتالوج، وكل مرة تضيفي بند واحد بس! لو تراكم عدد
+// كبير من البنود والمواد بمرور الوقت (متوقع لشركة بتستخدم الأداة كل يوم)، هيك عملية كانت تصير أبطأ
+// وأبطأ وبتعلّق المتصفح فعليًا لثواني بكل إضافة/حذف. الحل: فرّزنا قالب بناء صف واحد لدالة منفصلة
+// (buildItemMgrRowHtml) نقدر نستخدمها لبناء صف واحد بس بدل إعادة بناء كل شي، واستخدمناها بـ
+// addItemManagerRow تحت (إضافة سريعة - صف واحد فقط بدل القائمة كاملة).
+function buildItemMgrRowHtml(it, idx){
   const catalog = loadMaterialsCatalog();
-  c.innerHTML = ITEMS.map((it, idx) => `
+  return `
     <div class="item-mgr-row" data-idx="${idx}">
       <div><label>Item name (English)</label><input value="${escAttr(it.en)}" oninput="updateItemField(${idx},'en',this.value)"></div>
       <div><label>اسم البند (عربي)</label><input class="ar" value="${escAttr(it.ar)}" oninput="updateItemField(${idx},'ar',this.value)"></div>
@@ -2237,7 +2249,12 @@ function renderItemsManager(){
         </div>
       </div>
       <div class="item-mgr-row-controls"><button class="small danger" onclick="removeItemManagerRow(${idx})">Remove item</button></div>
-    </div>`).join('');
+    </div>`;
+}
+
+function renderItemsManager(){
+  const c = document.getElementById('items-manager-rows');
+  c.innerHTML = ITEMS.map((it, idx) => buildItemMgrRowHtml(it, idx)).join('');
 }
 
 function toggleItemTypeMaterial(idx, matId, checked){
@@ -2275,9 +2292,24 @@ function updateItemField(idx, field, value){
 }
 
 function addItemManagerRow(){
-  ITEMS.push({en:'', ar:'', specEn:'', glassEn:'', glassAr:'', materialIds:[]});
+  const newItem = {en:'', ar:'', specEn:'', glassEn:'', glassAr:'', materialIds:[]};
+  ITEMS.push(newItem);
+  const newIdx = ITEMS.length - 1;
   saveItemsToStorage();
-  renderItemsManager();
+  // 🛠️ 2026-09-30: منضيف صف واحد بس (بدل renderItemsManager() الكاملة - شوف الشرح فوق قرب
+  // buildItemMgrRowHtml) - هيك الإضافة بتضل سريعة بغض النظر عن عدد البنود المتراكمة بالكتالوج.
+  const c = document.getElementById('items-manager-rows');
+  if(c){
+    c.insertAdjacentHTML('beforeend', buildItemMgrRowHtml(newItem, newIdx));
+    // 🆕 2026-09-30 (طلب حمدي: "يفضل لو تنزل الشاشة لوحدها لاخر بند تمت اضافته للسرعة") - منمرر تلقائيًا
+    // لآخر صف مضاف ومنحط التركيز (focus) على أول خانة فيه، حتى يقدر يكتب فورًا بدون ما يحتاج يمرر يدويًا.
+    const newRowEl = c.lastElementChild;
+    if(newRowEl){
+      newRowEl.scrollIntoView({ behavior:'smooth', block:'center' });
+      const firstInput = newRowEl.querySelector('input');
+      if(firstInput) setTimeout(()=> firstInput.focus(), 300);
+    }
+  }
   populateItemsDatalist();
 }
 
@@ -6927,8 +6959,23 @@ window.wdApplyBack = function(results){
                تضطري تنزلي/تطلعي بالتمرير كل مرة. بالموبايل (شاشة ضيقة)، منعرض عمود المسقط أول
                (column-reverse) قبل قائمة الأضلاع الطويلة، حتى يضل المسقط بالمتناول فورًا من غير سحب.
                كل الـid الداخلية (roomSidesList/roomFloorPreview) ما تغيّرت إطلاقًا - فقط غلاف عرض جديد،
-               فكل كود renderRoomSidesUI/buildRoomSVG الموجود شغّال زي ما هو بدون أي تعديل. -->
-          <div class="room-split-wrap" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:8px;">
+               فكل كود renderRoomSidesUI/buildRoomSVG الموجود شغّال زي ما هو بدون أي تعديل.
+
+               🛠️ إصلاح 2026-09-30 (بلاغ حمدي: "لما بصمم غرفة وبصير المسقط على طرف والاضلاع على طرف
+               تاني - ما صارت ولا لقيتها"): السبب الحقيقي يلي لقيناه - عمود لوحة التحكم كلها (.panel.controls
+               يلي فيها هاد القسم) عرضها الفعلي بس ~340px (لأنو مقسومة مع منطقة المعرض/الرسم التاني
+               يلي ياخد باقي الشاشة)، بينما عمودين القسم (rs-side-col + rs-preview-col) مع بعض محتاجين
+               ~600px حتى يقعدوا جنب بعض (320+260+فراغ) - فبما إنو flex-wrap:wrap مفعّل، كانوا دايمًا
+               يلفّوا فوق بعض عموديًا (يعني يطلعوا فوق وتحت، مش جنب بعض إطلاقًا) على أي شاشة عادية -
+               الميزة كانت موجودة بالكود بس عمليًا كانت "مقسومة" لعمودين رح تضل مرصوصة فوق بعض دايمًا
+               بغض النظر عن عرض الشاشة. الحل: زر جديد "📐 شاشة كبيرة" بيفتح القسم هاد بنافذة كبيرة
+               (نفس فكرة roomFloorFullscreenOverlay) بعرض يكفي حقيقي لعمودين جنب بعض - عبر نقل نفس
+               عنصر room-split-wrap (بكل عناصره الداخلية وربطها الحي زي ما هي) مؤقتًا لجوا النافذة
+               الكبيرة، وإرجاعه لمكانه الأصلي بالضبط لما تسكّر. -->
+          <div class="add-row" style="margin-top:8px;justify-content:flex-end;">
+            <button type="button" class="small" onclick="openRoomSidesFullscreenForSelected()" title="بيفتح قسم الأضلاع والمسقط بنافذة كبيرة - عمود الأضلاع بجنب عمود المسقط بعرض مريح، بدل ما يترصّوا فوق بعض بالشريط الجانبي الضيق">📐 شاشة كبيرة (الأضلاع + المسقط جنب بعض)</button>
+          </div>
+          <div class="room-split-wrap" id="roomSplitWrap" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-top:8px;">
             <div class="rs-side-col" style="flex:1 1 320px;min-width:0;">
               <label style="margin-top:0;">أضلاع الأرضية (بالترتيب حول الغرفة)</label>
               <p class="hint">كل ضلع = طوله بالمم + الزاوية الداخلية بينه وبين الضلع يلي بعده (افتراضي 90° لغرفة مستطيلة عادية). دوس "🎨 صمم" لتحويل الضلع (أو جزء منو) لبند تصميم عادي (زجاج/باب/هاندريل) - بينضاف تلقائيًا كسطر جديد بجدول عرض السعر فوق. مو شرط الضلع كامل يكون تصميم أو حائط - دوس "➕ قسّم لجزء" لو بدك جزء منو بس (مثلاً متر ونص حائط اسمنتي وباقي الضلع زجاج)، وبعدين حوّل كل جزء لحاله بزر "🧱 حوّله حائط" / "🎨 رجّعه تصميم".</p>
@@ -13172,6 +13219,67 @@ function closeRoomFloorPreviewFullscreen(){
   roomFloorFullscreenItemId = null;
 }
 window.closeRoomFloorPreviewFullscreen = closeRoomFloorPreviewFullscreen;
+
+/* ================= 📐 شاشة كبيرة لقسم "الأضلاع + المسقط" (طلب حمدي الأصلي: "لازم تفتح صفحة كبيرة
+   يكون فيها المسقط على جهة والأضلاع كل ضلع على جهة محددة") - شوف الشرح الكامل جنب تعريف
+   room-split-wrap بالـHTML فوق: القسم هاد موجود أصلًا جوا الشريط الجانبي الضيق (~340px) فما بيقدر
+   يعرض عمودين جنب بعض إطلاقًا مهما كبرت شاشة حمدي (لازم ~600px). الحل: ننقل نفس عنصر room-split-wrap
+   الحقيقي (بكل عناصره الداخلية وربطها الحي - roomSidesList/roomFloorPreview وكل الأزرار) مؤقتًا لجوا
+   نافذة كبيرة (نفس أسلوب roomFloorFullscreenOverlay فوق بالضبط)، ونرجعه لمكانه الأصلي بالضبط لما تسكّر -
+   بدون ما نحتاج نكرر/نعيد بناء أي كود عرض موجود أصلًا. */
+let roomSidesFullscreenOriginalParent = null;
+let roomSidesFullscreenOriginalNextSibling = null;
+
+function openRoomSidesFullscreenForSelected(){
+  const it = getSelected(); if(!it || !isRoom(it)) return;
+  const wrap = document.getElementById('roomSplitWrap');
+  if(!wrap) return;
+  let overlay = document.getElementById('roomSidesFullscreenOverlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'roomSidesFullscreenOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(20,20,20,0.94);display:flex;flex-direction:column;align-items:center;padding:16px;overflow:auto;';
+    overlay.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;max-width:1400px;margin-bottom:10px;">
+        <span style="color:#fff;font-size:13px;font-weight:700;">📐 الأضلاع + المسقط - شاشة كبيرة</span>
+        <button class="small" onclick="closeRoomSidesFullscreen()" style="font-size:14px;padding:8px 18px;">✖️ إغلاق</button>
+      </div>
+      <div id="roomSidesFullscreenContent" style="background:#fff;border-radius:10px;padding:18px;width:100%;max-width:1400px;"></div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeRoomSidesFullscreen(); });
+    document.addEventListener('keydown', roomSidesFullscreenEscHandler);
+  }
+  // منتذكر مكان room-split-wrap الأصلي بالضبط (أبوه + الأخ يلي بعده) حتى نقدر نرجّعه لنفس المكان تمامًا لما تسكّر.
+  roomSidesFullscreenOriginalParent = wrap.parentElement;
+  roomSidesFullscreenOriginalNextSibling = wrap.nextSibling;
+  document.getElementById('roomSidesFullscreenContent').appendChild(wrap);
+  overlay.style.display = 'flex';
+  // بالنافذة الكبيرة نضمن عرض كافي لعمودين جنب بعض دايمًا (بعكس الشريط الجانبي الضيق) - نلغي flex-wrap.
+  wrap.style.flexWrap = 'nowrap';
+  renderRoomSidesUI(it); // إعادة رسم فورية حتى يتحدّث المسقط بنفس القياسات الجديدة (مساحة أوسع)
+}
+window.openRoomSidesFullscreenForSelected = openRoomSidesFullscreenForSelected;
+
+function roomSidesFullscreenEscHandler(e){ if(e.key === 'Escape') closeRoomSidesFullscreen(); }
+
+function closeRoomSidesFullscreen(){
+  const overlay = document.getElementById('roomSidesFullscreenOverlay');
+  const wrap = document.getElementById('roomSplitWrap');
+  if(wrap && roomSidesFullscreenOriginalParent){
+    wrap.style.flexWrap = 'wrap'; // نرجّعها لسلوكها الأصلي بالشريط الجانبي الضيق
+    if(roomSidesFullscreenOriginalNextSibling){
+      roomSidesFullscreenOriginalParent.insertBefore(wrap, roomSidesFullscreenOriginalNextSibling);
+    } else {
+      roomSidesFullscreenOriginalParent.appendChild(wrap);
+    }
+  }
+  roomSidesFullscreenOriginalParent = null;
+  roomSidesFullscreenOriginalNextSibling = null;
+  if(overlay) overlay.style.display = 'none';
+  const it = getSelected();
+  if(it && isRoom(it)) renderRoomSidesUI(it); // إعادة رسم حتى يتحدّث المسقط بالمقاس الصغير الأصلي من جديد
+}
+window.closeRoomSidesFullscreen = closeRoomSidesFullscreen;
 
 function renderCeilingSidesUI(it){
   const list = document.getElementById('ceilingSidesList');
