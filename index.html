@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.10';
+  var CURRENT_VERSION = '2026-09-30.12';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -4051,11 +4051,18 @@ let currentDesignName = null;
    درايف) وعن الحفظ الفعلي - هاي بس شبكة أمان محلية بهالمتصفح بالذات، وبتنمسح تلقائيًا لما تبدئي عرض
    سعر جديد فاضي (resetAllNoConfirm) حتى ما ترجع تقترح نفسها لعرض سعر خلص وانحفظ. */
 const DRAFT_STORAGE_KEY = 'merzona-quotation-draft-v1';
+// 🛠️ 2026-09-30.12 (بلاغ حمدي المباشر: "النظام صاير جداً جداً جداً بطيء كتير صاير صعب الشغل عليه") -
+// فحص شامل لقى السبب الرئيسي هون بالضبط: كل مرة توقف الكتابة/التعديل (كل ~700ms أثناء الشغل الفعلي)
+// كنا عم نعمل JSON.parse لنص لسا طالع تو من JSON.stringify (بالفنكشن يلي بينادي هاي - شوف
+// pushQuotationHistorySnapshotNow تحت) وبعدين JSON.stringify من جديد لنفس البيانات بالظبط - يعني
+// نفس شغلة التسلسل بتصير مرتين كاملتين بدل مرة وحدة، لكل عرض سعر، كل ثانية تقريبًا وقت الشغل - وكل
+// ما تعقّد المشروع (بنود/تقسيمات أكتر) صار الكلفة أكبر. الحل: بما إنو snapJson أصلاً نص JSON كائن
+// (يبلش بـ"{" دايمًا)، منلزق طابع الوقت مباشرة كنص بأول الكائن (استبدال أرخص بكتير من parse+stringify
+// كاملين) - نفس الشكل النهائي بالضبط، بس بعملية نصية تافهة الكلفة بدل تسلسل كامل ثاني.
 function saveDraftFromSnapshot(snapJson){
   try{
-    const obj = JSON.parse(snapJson);
-    obj.savedAt = Date.now();
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(obj));
+    const withTimestamp = '{"savedAt":' + Date.now() + ',' + snapJson.slice(1);
+    localStorage.setItem(DRAFT_STORAGE_KEY, withTimestamp);
   }catch(e){ console.warn('[مسودة محلية] تعذّر الحفظ:', e); }
 }
 function clearDraft(){
@@ -4090,8 +4097,19 @@ const QUOTATION_MAX_HISTORY = 30;
 let quotationHistoryDebounceTimer = null;
 let lastQuotationSnapshotJson = null;
 let quotationUndoInProgress = false;
+// 🛠️ 2026-09-30.12 (بلاغ حمدي المباشر: "النظام صاير جداً جداً جداً بطيء كتير صاير صعب الشغل عليه") -
+// السبب الرئيسي التاني (مع تكرار التسلسل المشروح فوق قرب saveDraftFromSnapshot): كل لقطة كاملة
+// (pushQuotationHistorySnapshotNow) بتعمل أشياء مكلفة فعليًا بمقياس حجم المشروع - قراءة/كتابة كل
+// input/textarea بجداول عرض السعر، قراءة innerHTML لعدة جداول، تسلسل JSON لكل بنود التصميم بكل
+// تفاصيلها (تقسيمات/طبقات كل شباك وباب وغرفة) - وكانت هاي كلها عم تتكرر كل ~700ms (فاصل الـdebounce
+// بس) طول فترة الشغل الفعلي، أي تقريبًا كل ثانية. كل ما تعقّد التصميم (بنود/تقسيمات/غرف أكتر) صارت
+// كل لقطة أبطأ، وبما إنها متكررة جدًا صار الجهاز كله يتجمّد أثناء الشغل. الحل: فاصل زمني حقيقي بين كل
+// لقطة كاملة والتانية (QUOTATION_MIN_SNAPSHOT_INTERVAL_MS) - ميزة التراجع/المسودة المحلية تضلوا شغالين
+// بالضبط متل ما هم (ولا تعديل واحد بيضيع)، بس أقصى تكرار للشغل الثقيل صار مرة كل ~2.5 ثانية بدل كل ثانية.
+const QUOTATION_MIN_SNAPSHOT_INTERVAL_MS = 2500;
+let lastQuotationSnapshotAt = 0;
 
-function pushQuotationHistorySnapshotNow(){
+function pushQuotationHistorySnapshotNow(force){
   if(quotationUndoInProgress) return;
   // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): التقاط PDF (وقت الحفظ لجوجل درايف) بيستبدل مؤقتًا
   // كل <select> بـ<span> نصي ويخفي الـ<select> الأصلي (swapSelectsForPdfCapture) - هاد تعديل DOM حقيقي
@@ -4102,8 +4120,19 @@ function pushQuotationHistorySnapshotNow(){
   // ريفريش كامل. هلق: منتجاهل أي لقطة وقت ما body.pdf-capturing مفعّل - وrestoreSelectsAfterPdfCapture
   // (تحت) بتجدول لقطة جديدة نظيفة فور ما تخلص عملية الالتقاط، حتى ما نخسر أي تعديل حقيقي صار بالفترة هاي.
   if(document.body.classList.contains('pdf-capturing')) return;
+  // 🛠️ 2026-09-30.12: لو انطلبت لقطة قبل ما يخلص الفاصل الأدنى - منأجلها لآخر الفاصل بدل ما نشتغل
+  // فورًا (force=true بس بحالة الإغلاق الفعلي/تبديل التبويب تحت - هناك لازم نلتقط فورًا مهما كان).
+  if(!force && lastQuotationSnapshotAt){
+    const remaining = QUOTATION_MIN_SNAPSHOT_INTERVAL_MS - (Date.now() - lastQuotationSnapshotAt);
+    if(remaining > 0){
+      clearTimeout(quotationHistoryDebounceTimer);
+      quotationHistoryDebounceTimer = setTimeout(pushQuotationHistorySnapshotNow, remaining);
+      return;
+    }
+  }
   try{
     const snap = JSON.stringify(captureFullQuotationData());
+    lastQuotationSnapshotAt = Date.now();
     if(snap === lastQuotationSnapshotJson) return; // ما تغيّر شي فعليًا (مثلاً focus/blur بدون تعديل)
     if(lastQuotationSnapshotJson !== null){
       quotationHistoryStack.push(lastQuotationSnapshotJson);
@@ -4159,8 +4188,10 @@ function updateQuotationUndoButton(){
   // حفظ فوري (بدون تأجيل الـ700ms) قبل ما تنسكر الصفحة/تتحدث أو لما تصير مخفية (تبديل تبويب، تصغير
   // المتصفح...) - نفس أسلوب __flushDesignSave__ الموجود أصلًا لبنود التصميم، حتى ما تضيع آخر تعديلات
   // صارت أقل من 700ms قبل الإغلاق المفاجئ.
-  window.addEventListener('beforeunload', pushQuotationHistorySnapshotNow);
-  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') pushQuotationHistorySnapshotNow(); });
+  // 🛠️ 2026-09-30.12: هون تحديدًا لازم نلتقط فورًا (force=true) بدون احترام الفاصل الأدنى الجديد -
+  // الصفحة عم تنسكر/تختفي فعليًا، ما في وقت نستنى فيه فاصل 2.5 ثانية.
+  window.addEventListener('beforeunload', function(){ pushQuotationHistorySnapshotNow(true); });
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') pushQuotationHistorySnapshotNow(true); });
 })();
 
 /* ================= حذف عرض سعر من جوجل درايف ================= */
@@ -13378,7 +13409,7 @@ function openRoomSidesFullscreenForSelected(){
         <span style="color:#fff;font-size:13px;font-weight:700;">📐 الأضلاع + المسقط - شاشة كبيرة</span>
         <button class="small" onclick="closeRoomSidesFullscreen()" style="font-size:14px;padding:8px 18px;">✖️ إغلاق</button>
       </div>
-      <div id="roomSidesFullscreenContent" style="background:#fff;border-radius:10px;padding:18px;width:100%;max-width:1400px;"></div>`;
+      <div id="roomSidesFullscreenContent" style="background:var(--wd-panel,#16304D);border:1px solid var(--wd-line,#35597F);border-radius:10px;padding:18px;width:100%;max-width:1400px;"></div>`;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeRoomSidesFullscreen(); });
     document.addEventListener('keydown', roomSidesFullscreenEscHandler);
