@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.23';
+  var CURRENT_VERSION = '2026-09-30.24';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -11473,6 +11473,29 @@ function roomDrawDedupePoints(pts){
   return out;
 }
 
+// 🆕 2026-09-30.3 (السبب الجذري المؤكد لبلاغ حمدي المتكرر بعرض السعر S-Q-260003 - "كل مرة بعمل هيك
+// بيرجع التصميم بيتخربط وبتنزل أضلاع أكتر من الافتراضي"): toggleRoomFreehandDraw/toggleCeilingFreehandDraw
+// بيحمّلوا نقاط الشكل الحالي تلقائيًا بكل مرة تفتح فيها أداة الرسم (existingPts) - هيك المستخدم يقدر
+// يعدّل عالشكل الموجود. المشكلة: لو فتحت الأداة على غرفة إلها شكل موجود (4 أضلاع مثلاً) وبلشت ترسم
+// نقاط جديدة بوضع القلم (ظانًا إنو الشاشة فاضية) بدون ما تدوس زر "ابدأ رسمة فاضية" أول، كل نقطة جديدة
+// بتنضاف (push/splice) فوق الـ4 نقاط القديمة المحمّلة أصلًا - مش تعوّضها. فبيطلع شكل نهائي فيه 4+كذا
+// ضلع بدل الشكل المقصود، وبيتراكم أكتر كل ما تكرر نفس السلوك (نفتح، ننسى نمسح، نضيف نقاط) - بالظبط
+// متل ما وصف حمدي المشكلة ("كل مرة"). الحل: قبل ما نثبّت أي شكل جديد فيه أضلاع أكتر بكتير من الشكل
+// القديم، منوقف ونسأل تأكيد صريح فيه العددين بالضبط، ونذكّر بزر "ابدأ رسمة فاضية" - شوف استخدامها
+// بـfinishRoomFreehandDraw تحت (فرعي الأرضية والسقف).
+function confirmRoomShapeGrowthIfSuspicious(oldCount, newCount, labelText){
+  if(oldCount >= 3 && newCount > oldCount + 1){
+    return confirm('⚠️ الشكل الجديد يلي رسمته فيه ' + newCount + ' ضلع، بينما ' + labelText + ' الحالي فيه بس ' + oldCount + ' ضلع - فرق كبير.\n\nلو قصدك تعدّل تعديل بسيط عالشكل الحالي هذا وارد، بس لو قصدك ترسم شكل جديد كامل من الصفر ونسيت تدوس زر "ابدأ رسمة فاضية" قبل ما تبلش، النقاط القديمة ضلت محمّلة وانضافت عليها نقاط جديدة بالغلط.\n\nدوس "إلغاء" هلق لو بدك ترجع وتدوس "ابدأ رسمة فاضية" وترسم من جديد صح، أو "موافق" لو متأكد إنك بدك تثبّت الشكل الجديد (' + newCount + ' ضلع) متل ما هو بالظبط.');
+  }
+  return true;
+}
+window.confirmRoomShapeGrowthIfSuspicious = confirmRoomShapeGrowthIfSuspicious;
+
+// 🧪 دبج/اختبار فقط: إضافة نقطة مباشرة لمصفوفة roomDraw.points بدون المرور بأحداث الماوس الحقيقية -
+// مفيد للاختبارات الآلية (Playwright) يلي بتتحقق من منطق الحماية فوق بدون تعقيد محاكاة إحداثيات
+// الماوس الحقيقية على الـSVG.
+window.__debugPushRoomDrawPoint__ = function(x, y){ roomDraw.points.push({x: x, y: y}); };
+
 // 🆕 2026-09-30: بيحوّل نقاط الرسم الخام (roomDraw.points بعد التنضيف/إصلاح ضلع الإغلاق) لمصفوفة
 // "أضلاع" بنفس شكل roomSides/ceilingSides ({id,length,angleDeg,segments:[{id,length,kind:'design',
 // rowUid:null}]}) - معمّم عن قصد (بدل تكراره مرتين) حتى يستخدمه فرعا الأرضية والسقف بـ
@@ -11532,6 +11555,8 @@ function finishRoomFreehandDraw(){
   // (مافي "أضلاع سقف" مربوطة ببنود جدول الكمية زي أضلاع الأرضية - هاي ميزة لمرحلة تانية لاحقًا خارج
   // نطاق هالتعديل)، فما في داعي/معنى لمنطق "ربط بنود جدول الكمية القديمة" تحت (خاص بأضلاع الأرضية بس).
   if(roomDraw.target === 'ceiling'){
+    const oldCeilingCount = (it.ceilingSides||[]).length;
+    if(!confirmRoomShapeGrowthIfSuspicious(oldCeilingCount, pts.length, 'شكل السقف')) return;
     pushHistory();
     it.ceilingSides = roomDrawSidesFromPoints(pts);
     selectItem(it.id);
@@ -11546,6 +11571,8 @@ function finishRoomFreehandDraw(){
   const oldFlatSegments = [];
   (it.roomSides||[]).forEach(s=>{ (s.segments||[]).forEach(g=> oldFlatSegments.push(g)); });
   const hasDesigned = oldFlatSegments.some(g=>g.rowUid);
+  const oldSideCount = (it.roomSides||[]).length;
+  if(!confirmRoomShapeGrowthIfSuspicious(oldSideCount, pts.length, 'شكل الأرضية')) return;
   if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تحاول تربط نفس بنود عرض السعر القديمة بالأضلاع الجديدة (حسب ترتيبها) تلقائيًا - أي بند قديم ما انطبق عليه ضلع جديد رح يضل موجود بجدول عرض السعر بس بدون ربط. بدك تكمل؟')) return;
   pushHistory();
   const newSides = roomDrawSidesFromPoints(pts);
