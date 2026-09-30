@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.21';
+  var CURRENT_VERSION = '2026-09-30.22';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1676,6 +1676,11 @@
     <button onclick="mergeInAnotherQuotation()" title="بيجيب بيانات عرض سعر تاني محفوظ بجوجل درايف (برقمه المرجعي) وبيضيف كل بنوده ومواصفاته فوق هاد العرض المفتوح حاليًا، ليصير مجموع واحد للاثنين سوا">🔗 دمج عرض سعر تاني بهاد العرض</button>
     <button onclick="openVersionHistoryPanel()" title="بيعرض كل النسخ القديمة المحفوظة تلقائيًا لهاد العرض (من كل مرة ضغطتي فيها ☁️ حفظ لجوجل درايف) - فيك تشوفي شو تغيّر بين نسخة ونسخة وترجعي لأي وحدة منهم">🕘 سجل النسخ السابقة</button>
     <button class="primary" onclick="window.openCameraOverlay()">📷 كاميرا</button>
+    <!-- 🆕 2026-09-30.21 (طلب حمدي المباشر: "بدي نعمل زر لما نضغط عليه يعمل reset لكل البنود حسب عرض
+         السعر وارجع اشتغل واحفظ") - زر طوارئ: لو حسيتي إنو تصاميم البنود (شبابيك/أبواب/منظور حيطان
+         الغرف) تخربطت أو تكررت، هاد بيصفّرها كلها ويبنيها فاضية من جديد حسب جدول عرض السعر الحالي
+         بالضبط، بدون ما يأثر إطلاقًا على شكل/مسقط الغرف نفسها (الأرضية والسقف). -->
+    <button class="danger" onclick="resetAllItemDesignsFromQuotationTable()" title="لو تصاميم البنود (شبابيك/أبواب/منظور حيطان الغرف) تخربطت أو تكررت - هاد بيصفّرها كلها ويرجعها فاضية حسب جدول عرض السعر الحالي بالضبط، بدون ما يأثر على شكل/مسقط الغرف نفسها">🔄 إعادة تعيين تصاميم البنود</button>
     <button class="danger" onclick="deleteQuotationFromDrive()" title="بيحذف مجلد عرض السعر هيدا (بكل ملفاته) من جوجل درايف - بينحط بسلة المهملات، فيك تسترجعه خلال 30 يوم لو غلطتي">🗑️ حذف عرض السعر</button>
   </div>
 </div>
@@ -14428,6 +14433,86 @@ WD.loadFromRows = function(rowData){
   historyStack = [];
   renderChips(); loadSelectedIntoControls(); renderGallery(); updateUndoButton();
 };
+
+// 🆕 2026-09-30.21 (طلب حمدي المباشر بعد استمرار مشكلة تخربط/تكرار بنود التصميم بنفس الرفرنس رغم
+// إصلاح 2026-09-30.21 الجذري - "بدي ما يكون فيه ولا اي مشكلة... بدي نعمل زر لما نضغط عليه يعمل reset
+// لكل البنود حسب عرض السعر وارجع اشتغل واحفظ"): زر تعيين واضح وصريح - يصفّر *تصاميم* كل بند مرتبط
+// بصف بجدول عرض السعر (شبابيك/أبواب/منظور حيطان الغرف) ويبنيهم من جديد فاضيين (بند واحد نظيف بس لكل
+// صف، بنفس العرض/الارتفاع الحاليين بالجدول)، حتى حمدي يصممهم من جديد يدويًا ويحفظ بثقة. هاد مختلف
+// عن loadFromRows فوق: loadFromRows بتحافظ على أي تصميم قديم موجود (وهاد بالضبط يلي كان بيخلي أي
+// تكرار/تخربط سابق يضل عالق) - resetAllFromRows هون بتضرب عرض الحائط وتبني فاضي من الصفر دايمًا، بغض
+// النظر شو كان موجود قبلها. مهم (حسب اختيار حمدي الصريح): ما بتلمس شكل/مسقط الغرف (roomSides/
+// ceilingSides) إطلاقًا - بس بند "منظور الحائط" (elevation) تبع كل ضلع غرفة بيرجع فاضي زي أي بند
+// تاني (نحافظله على علامة isRoomWallElevation حتى يضل معروف كمنظور حائط، مش بند مستقل عادي).
+WD.resetAllFromRows = function(rowData){
+  const oldElevationFlags = {};
+  // ملاحظة: لو صار فعليًا عندنا أكتر من بند بنفس sourceRowUid (نفس الضرر يلي هالزر أصلًا معمول
+  // لتصليحه) - منستخدم OR بدل ما ناخد آخر وحدة بالترتيب، حتى لو أي وحدة منهم كانت فعلًا "منظور حائط"
+  // (isRoomWallElevation)، الصف يضل معروف كهيك بعد التصفير - بدل ما البند الوهمي (بدون العلامة) يطغى
+  // ويخلينا ننسى إنو هاد الصف أصلًا لضلع غرفة حقيقي.
+  items.forEach(it=>{ if(it.sourceRowUid) oldElevationFlags[it.sourceRowUid] = oldElevationFlags[it.sourceRowUid] || !!it.isRoomWallElevation; });
+  const newItems = [];
+  rowData.forEach(rd => {
+    if(!((rd.itemName && rd.itemName.trim()) || rd.w || rd.h)) return; // صف فاضي بالكامل - تجاهليه
+    const guessType = guessShapeTypeFromName(rd.itemName);
+    const it = makeItem(guessType);
+    if(guessType === 'window'){
+      it.layout = leaf(); // نبلش بلوح واحد فاضي - حمدي بيقسم بنفسه من جديد
+    }
+    if(rd.w) it.width = rd.w;
+    if(rd.h) it.height = rd.h;
+    it.sourceRowUid = rd.uid;
+    it.label = rd.itemName || it.label;
+    it.refCode = rd.refCode || '';
+    if(oldElevationFlags[rd.uid]) it.isRoomWallElevation = true;
+    const hasLouver = /louver|لوفر/i.test(rd.itemName || '');
+    if(hasLouver && guessType === 'door' && it.layout.kind === 'leaf'){
+      it.layout.type = 'louver';
+    }
+    const typeMatch = ITEMS.find(t => normalizeForMatch(t.en) === normalizeForMatch(rd.itemName || ''));
+    if(typeMatch && typeMatch.materialIds && typeMatch.materialIds.length){
+      it.materialIds = typeMatch.materialIds.slice();
+    }
+    newItems.push(it);
+  });
+  // نفس منطق loadFromRows بالظبط: بنود الغرف (roomSides/ceilingSides) ما إلها sourceRowUid خاص فيها
+  // (هي حاوية، مش بند مرتبط بصف وحيد) فبتضل موجودة هون بدون أي لمس - هاد بالضبط يلي ضمن لحمدي إنو
+  // شكل/مسقط الغرف ما رح يتأثر.
+  const standaloneItems = items.filter(it => !it.sourceRowUid && !it.isInitialPlaceholder);
+  items = newItems.concat(standaloneItems);
+  selectedId = items.length ? items[0].id : null;
+  historyStack = [];
+  renderChips(); loadSelectedIntoControls(); renderGallery(); updateUndoButton();
+};
+
+function resetAllItemDesignsFromQuotationTable(){
+  const rows = Array.from(document.querySelectorAll('#qty-rows tr'));
+  if(!rows.length){ alert('ما في بنود بجدول عرض السعر بعد - ضيفي بند واحد عالأقل أول.'); return; }
+  if(!confirm('⚠️ هاد رح يصفّر تصميم كل بند (شبابيك/أبواب/منظور حيطان الغرف) ويرجعهم فاضيين حسب جدول عرض السعر الحالي بالضبط - رح تحتاجي تصممي كل واحد من جديد بزر "🎨 صمم".\n\nشكل ومسقط الغرف (الأرضية والسقف) ما رح يتأثروا إطلاقًا - رح يضلوا متل ما هنّي بالضبط.\n\nهاد الإجراء ما فيه "تراجع" سهل لو حفظتي بعده - بدك تكملي؟')) return;
+  renumber();
+  const rowData = rows.map(tr => {
+    const uid = ensureRowUid(tr);
+    const itemName = (tr.querySelector('.item-input')||{}).value || '';
+    const w = parseFloat((tr.querySelector('.w-input')||{}).value) || 0;
+    const h = parseFloat((tr.querySelector('.h-input')||{}).value) || 0;
+    const refCode = (tr.querySelector('.row-code')||{}).textContent || '';
+    return { uid, itemName, w, h, refCode };
+  });
+  WD.resetAllFromRows(rowData);
+  const overlay = document.getElementById('wdOverlay');
+  if(overlay) overlay.style.display = 'block';
+  if(document.body.classList.contains('mode-mobile')){
+    let pref = null;
+    try{ pref = localStorage.getItem('merzona-wd-header-collapsed'); }catch(e){}
+    const collapsed = pref === null ? true : pref === '1';
+    setWdHeaderCollapsed(collapsed);
+  } else {
+    setWdHeaderCollapsed(false);
+  }
+  window.scrollTo(0,0);
+  if(typeof scheduleDesignSave === 'function') scheduleDesignSave();
+}
+window.resetAllItemDesignsFromQuotationTable = resetAllItemDesignsFromQuotationTable;
 
 function wdSaveAndClose(){
   const results = items.map(it => {
