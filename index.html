@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-01.5';
+  var CURRENT_VERSION = '2026-10-01.6';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -11842,6 +11842,71 @@ function roomDrawSidesFromPoints(pts){
   return newSides;
 }
 
+// 🛠️ إصلاح 2026-10-01.6 (بلاغ حمدي العاجل جدًا: "عدلت بالمسقط لغيت الجزئين البارزين عالطرف اليمين
+// والشمال فتخربطت الدنية... بصير تكرار وبتتلغى الجدران وبدي ارجع ضيفها") - السبب الجذري: finishRoomFreehandDraw
+// تحت (من 2026-09-30) كانت بتربط كل "جزء جديد" بنفس rowUid تبع "الجزء القديم اللي بنفس الترتيب/index"
+// بس - يعني لو حمدي شال ضلعين بروز من النص أو من الطرف، كل الأضلاع اللي بعدهم بتتزاح index وحدة لورا،
+// فبيصير كل جزء جديد مربوط غلط بسطر جدول كمية تبع حيط تاني تمامًا (مش هوي فعليًا) - وهاد يفسر "التكرار"
+// (جزء جديد صح إله سطر، بس السطر القديم يلي فكّ عنه غلط لسا موجود/مربوط بمكان تاني غلط) و"الجدران
+// يلي بتتلغى" (removeOrphanedRoomWallElevationGhosts يلي ضفناها بـ2026-10-01.3 بتشيل أي بند تصميم
+// صار sourceRowUid تبعو مش مطابق لأي رو حي - وهالربط الغلط بالضبط كان عم يصنع هيك حالات يتيمة وهمية،
+// فبتمسح تصاميم حقيقية وهي بالأصل كانت لسا موجودة وصح، بس الربط الغلط فصلها). الحل الصحيح: نربط حسب
+// *الموقع الهندسي الفعلي* (أقرب جزء قديم لنفس مكان الجزء الجديد تقريبًا - نفس منتصف الضلع ونفس الاتجاه)
+// مش حسب ترتيب الفهرس - هيك أي ضلع ما تغيّر مكانه (الأغلبية الساحقة وقت حذف/إضافة بروز بسيط) بيضل
+// مربوط صح بنفس سطره القديم بالضبط، وبس الأضلاع يلي *فعليًا* انحذفت (البروزين) بتضل بدون ربط (صح -
+// نفس سلوك "حذف ضلع" العادي).
+function computeFlatRoomSegmentsWithMidpointsMM(sides){
+  const list = sides || [];
+  const pts = computeSidesPolygonMM(list);
+  const flat = [];
+  list.forEach((side, i)=>{
+    const segs = ensureRoomSideSegments(side);
+    const A = pts[i], B = pts[i+1];
+    const sideLenMM = Math.max(1, Math.hypot(B.x-A.x, B.y-A.y));
+    const ux = (B.x-A.x)/sideLenMM, uy = (B.y-A.y)/sideLenMM;
+    let cursor = 0;
+    segs.forEach(seg=>{
+      const segLenMM = Math.max(1, seg.length||1);
+      const startMM = { x: A.x + ux*cursor, y: A.y + uy*cursor };
+      cursor += segLenMM;
+      const endMM = { x: A.x + ux*cursor, y: A.y + uy*cursor };
+      flat.push({ seg, midX:(startMM.x+endMM.x)/2, midY:(startMM.y+endMM.y)/2, ux, uy });
+    });
+  });
+  return flat;
+}
+window.computeFlatRoomSegmentsWithMidpointsMM = computeFlatRoomSegmentsWithMidpointsMM;
+
+// بتربط أجزاء الشكل الجديد (newSides) بـrowUid أقرب جزء قديم (oldSides) هندسيًا - شوف الشرح المطوّل
+// فوق. التطابق لازم يكون قريب بالموقع (ROOM_SEG_MATCH_TOL_MM) *و* بنفس الاتجاه تقريبًا (مش بس قريب
+// بالمسافة - وإلا ممكن نلخبط ضلعين متعامدين عند نفس الزاوية). كل جزء قديم بينستخدم مرة وحدة بس
+// (أقرب جزء جديد إله ياخده) حتى ما يصير نفس السطر مربوط غلط بجزئين جديدين بنفس الوقت.
+const ROOM_SEG_MATCH_TOL_MM = 500;
+function linkNewRoomSegmentsToClosestOldByPosition(oldSides, newSides){
+  const oldFlat = computeFlatRoomSegmentsWithMidpointsMM(oldSides);
+  const newFlat = computeFlatRoomSegmentsWithMidpointsMM(newSides);
+  const candidates = [];
+  oldFlat.forEach((oldEntry, oldIdx)=>{
+    if(!oldEntry.seg.rowUid) return;
+    if(!document.querySelector('#qty-rows tr[data-row-uid="'+oldEntry.seg.rowUid+'"]')) return;
+    newFlat.forEach((newEntry, newIdx)=>{
+      const dist = Math.hypot(newEntry.midX-oldEntry.midX, newEntry.midY-oldEntry.midY);
+      if(dist > ROOM_SEG_MATCH_TOL_MM) return;
+      const dot = oldEntry.ux*newEntry.ux + oldEntry.uy*newEntry.uy; // 1=نفس الاتجاه، -1=معاكس تمامًا
+      if(Math.abs(dot) < 0.7) return; // فرق زاوية أكبر من ~45° تقريبًا - مش نفس الضلع فعليًا
+      candidates.push({ oldIdx, newIdx, dist });
+    });
+  });
+  candidates.sort((a,b)=>a.dist-b.dist); // الأقرب مسافة بيتثبّت ربطه أول - نفس مبدأ "أقرب تطابق أولًا"
+  const usedOld = new Set(), usedNew = new Set();
+  candidates.forEach(c=>{
+    if(usedOld.has(c.oldIdx) || usedNew.has(c.newIdx)) return;
+    newFlat[c.newIdx].seg.rowUid = oldFlat[c.oldIdx].seg.rowUid;
+    usedOld.add(c.oldIdx); usedNew.add(c.newIdx);
+  });
+}
+window.linkNewRoomSegmentsToClosestOldByPosition = linkNewRoomSegmentsToClosestOldByPosition;
+
 function finishRoomFreehandDraw(){
   if(!roomDraw.active) return;
   const it = items.find(i=>i.id===roomDraw.itemId);
@@ -11895,17 +11960,12 @@ function finishRoomFreehandDraw(){
   if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تحاول تربط نفس بنود عرض السعر القديمة بالأضلاع الجديدة (حسب ترتيبها) تلقائيًا - أي بند قديم ما انطبق عليه ضلع جديد رح يضل موجود بجدول عرض السعر بس بدون ربط. بدك تكمل؟')) return;
   pushHistory();
   const newSides = roomDrawSidesFromPoints(pts);
-  // 🆕 2026-09-30: ربط بالترتيب (index مقابل index) بين أجزاء الشكل الجديد والأجزاء القديمة يلي كانت
-  // مربوطة بسطر بجدول الكمية - هيك إعادة رسم نفس الغرفة (حتى لو تغيّرت الأطوال شوي) بتحدّث نفس
-  // البنود الموجودة بدل ما تنشئ بنود جديدة مكررة فوقها.
-  const newFlatSegments = [];
-  newSides.forEach(s=> (s.segments||[]).forEach(g=> newFlatSegments.push(g)) );
-  newFlatSegments.forEach((seg, i)=>{
-    const oldSeg = oldFlatSegments[i];
-    if(oldSeg && oldSeg.rowUid && document.querySelector('#qty-rows tr[data-row-uid="'+oldSeg.rowUid+'"]')){
-      seg.rowUid = oldSeg.rowUid;
-    }
-  });
+  // 🛠️ إصلاح 2026-10-01.6 (بلاغ حمدي العاجل: "تكرار وجدران بتتلغى" بعد ما شال ضلعين بروز) - كان هون
+  // ربط بالترتيب (index مقابل index) يلي بيتخربط تمامًا أول ما يتغيّر عدد الأضلاع (حذف/إضافة بروز) -
+  // شوف الشرح المطوّل قرب linkNewRoomSegmentsToClosestOldByPosition فوق. الربط هلق هندسي (أقرب جزء
+  // قديم لنفس موقع واتجاه الجزء الجديد تقريبًا)، فالأضلاع يلي ما تحركت بتضل مربوطة بسطرها الصح، وبس
+  // يلي فعليًا انحذف (البروزين) بيضل بدون ربط (صح - متل حذف ضلع عادي).
+  linkNewRoomSegmentsToClosestOldByPosition(it.roomSides, newSides);
   it.roomSides = newSides;
   // 🆕 2026-09-29 (طلب حمدي: "بدي ياهم يكونوا موجودين كبنود في التصميم بعد تصميم المسقط... مافي داعي
   // لاضغط على زر للتصميم انا اصلا بدي صمم الكل فمن البديهي يكونوا جاهزين للتصميم") - فور ما ينخلص
