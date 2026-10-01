@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-01.7';
+  var CURRENT_VERSION = '2026-10-01.9';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -6951,6 +6951,8 @@ window.wdApplyBack = function(results){
       <button class="printBtn" onclick="quickOpenRoom3DFromToolbar()" title="بدك تكوني حددتي بند غرفة/مجلس، أو منختارلك أول وحدة موجودة تلقائيًا">🏠 ثري دي الغرفة</button>
       <button class="printBtn" onclick="quickStartRoomFloorDrawFromToolbar()" title="بدك تكوني حددتي بند غرفة/مجلس، أو منختارلك أول وحدة موجودة تلقائيًا">✏️ ارسم المسقط</button>
       <button class="printBtn" onclick="quickStartCeilingDrawFromToolbar()" title="بدك تكوني حددتي بند غرفة/مجلس، أو منختارلك أول وحدة موجودة تلقائيًا">🔲 ارسم السقف</button>
+      <!-- 🆕 2026-10-01.9 (طلب حمدي) - رابع اختصار كان ناقص: عرض السقف الجملوني المتحرك بالثري دي -->
+      <button class="printBtn" onclick="quickOpenGableRoof3DFromToolbar()" title="بدك تكوني حددتي بند سقف جملون متحرك، أو منختارلك أول وحدة موجودة تلقائيًا">🏕️ ثري دي السقف الجملوني</button>
     </div>
     <div class="wd-header-toggle"><button id="wdHeaderToggleBtn" onclick="toggleWdHeader()" type="button">▼ إظهار الترويسة والأدوات</button></div>
   </header>
@@ -7309,11 +7311,26 @@ window.wdApplyBack = function(results){
             <select id="inGableLinkedRoom" onchange="onGableLinkedRoomChange(getSelected().id,this.value)" style="width:100%;">
               <option value="">بدون - سقف مستقل لحاله</option>
             </select>
-            <p class="hint" style="margin-top:4px;">لو اخترت غرفة، المشهد الثلاثي الأبعاد رح يبيّن الغرفة (حيطانها وشبابيكها/أبوابها الحقيقية) مع السقف الجملوني فوقها سوا بمشهد واحد - القوائم بتبلش فوق سقف الغرفة مباشرة. ولو الغرفة شكلها غير منتظم (فيها بروز/زاوية)، السقف بياخد مقاس الصندوق المستطيل المحيط بالأرضية كلها تلقائيًا - أي جزء بيطلع برّا هالصندوق المستطيل (البروز) لازم يتغطى لحاله بسقف جملون ثاني أو زجاج ثابت، زي ما ضبّطنا سوا.</p>
+            <p class="hint" style="margin-top:4px;">لو اخترت غرفة، المشهد الثلاثي الأبعاد رح يبيّن الغرفة (حيطانها وشبابيكها/أبوابها الحقيقية) مع السقف الجملوني فوقها سوا بمشهد واحد - القوائم بتبلش فوق سقف الغرفة مباشرة. ولو الغرفة شكلها غير منتظم (فيها بروز/زاوية)، السقف تلقائيًا بياخد مقاس الصندوق المستطيل المحيط بكامل أرضية الغرفة - وهاد ممكن "يطلع" عن حدود الجدران الحقيقية بأي جزء بارز/نوتش مش مستطيل بسيط. الحل: فعّلي "تعديل يدوي استثنائي للمقاس" تحت وحطي مقاس الجزء المستطيل الحقيقي بس، واستخدمي حقول "إزاحة الموقع" تحت لتحطيه بمكانه الصح - وضيفي سقف جملون ثاني (أو أكتر) مربوط بنفس الغرفة لتغطية أي جزء بارز إضافي (خليه "ثابت F بالكامل" لو بدك ياه سقف فكس مش متحرك).</p>
             <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-weight:normal;">
               <input type="checkbox" id="inGableManualSizeOverride" onchange="onGableManualSizeOverrideToggle(getSelected().id,this.checked)">
               📐 تعديل يدوي استثنائي للمقاس <span class="wd-ar">(حالات خاصة جدًا بس - غير هيك المقاس دايمًا تلقائي من الغرفة)</span>
             </label>
+            <!-- 🆕 2026-10-01.8 (طلب حمدي بعد بلاغ "السقف طالع عن حدود الأرض" بغرفة فيها بروز) - إزاحة
+                 يدوية (X/Z بالمليمتر) تضاف فوق موقع صندوق أرضية الغرفة الافتراضي. مفيدة خصوصًا لو عندك
+                 أكتر من سقف جملون مربوط بنفس الغرفة (مثلاً وحدة رئيسية للجزء المستطيل + وحدة إضافية
+                 "ثابتة F بالكامل" لتغطية جزء بارز/نوتش لحاله) وكل وحدة لازم تنحط بموقعها الصح. -->
+            <div class="row2" style="margin-top:10px;">
+              <div>
+                <label>إزاحة الموقع أفقيًا X <span class="wd-ar">(مم - نسبة لصندوق أرضية الغرفة)</span></label>
+                <input type="text" inputmode="decimal" id="inGableOffsetX" min="0" oninput="restrictMeasureChars(this);onGableOffsetField(getSelected().id,'x',this.value)" onblur="evalMeasureField(this);onGableOffsetField(getSelected().id,'x',this.value)" value="0">
+              </div>
+              <div>
+                <label>إزاحة الموقع بالعمق Z <span class="wd-ar">(مم - نسبة لصندوق أرضية الغرفة)</span></label>
+                <input type="text" inputmode="decimal" id="inGableOffsetZ" min="0" oninput="restrictMeasureChars(this);onGableOffsetField(getSelected().id,'z',this.value)" onblur="evalMeasureField(this);onGableOffsetField(getSelected().id,'z',this.value)" value="0">
+              </div>
+            </div>
+            <p class="hint" style="margin-top:4px;">لو شكل الغرفة فيه بروز/نوتش والسقف الجملوني الواحد مش رح يغطي كل شيء صح، ضيفي سقف جملون ثاني (أو أكتر) مربوط بنفس الغرفة، فعّلي "تعديل يدوي استثنائي للمقاس" وحطي مقاس الجزء يلي بدك تغطيه بالظبط، وبعدين استخدمي الإزاحة هون لتحطيه بموقعه الصح جوا صندوق الغرفة (بدل ما يضل كل سقف ملتصق بنفس زاوية صندوق الغرفة الكامل). خليه "كل وحداته ثابتة F" من قائمة الوحدات تحت لو بدك ياه يكون سقف ثابت (مش متحرك).</p>
           </div>
           <div style="margin-top:10px;">
             <label>🎥 سرعة فتح/سكر الوحدات بالثري دي <span class="wd-ar">(لتجربة أنسب سرعة وقت التصوير)</span></label>
@@ -10942,7 +10959,16 @@ function toggleCeilingFreehandDraw(){
   if(roomDraw.active){
     cancelRoomFreehandDraw();
   } else {
-    const existingPts = (it.ceilingSides && it.ceilingSides.length>=3) ? roomDrawPointsFromSides(it.ceilingSides) : [];
+    // 🛠️ إصلاح 2026-10-01.9 (بلاغ حمدي: "عم اختار الزر يللي بخلي السقف متل الارضية بالرسم عم تطلعلي
+    // رسمة فاضية - لازم تطلع رسمة عن الارضية فورا وانا اقدر ارسم مكان السقف") - أول مرة يفتح رسم شكل
+    // السقف (قبل ما يرسم أي شكل سقف مستقل)، كانت existingPts فاضية تمامًا (بداية من لا شي) - مع إنو
+    // المنطقي إنو يبلش من شكل الأرضية الحالي (roomSides) نفسه كنقطة انطلاق، حتى يقدر يشوفه كمرجع
+    // ويعدّل/يمسح منه (يسحب نقطة، يحذف ضلع، يرسم حدود جديدة) ليحدد بالظبط مكان السقف فوق الأرضية -
+    // بدل ما يرسم من الصفر بدون أي مرجع للجدران الحقيقية تحته. لو بدو يبلش فاضي تمامًا برضو فيه زر
+    // "🧹 رسمة فاضية جديدة" (startRoomDrawFresh) تحت يمسح كل شي أول ما يبلش.
+    const existingPts = (it.ceilingSides && it.ceilingSides.length>=3)
+      ? roomDrawPointsFromSides(it.ceilingSides)
+      : ((it.roomSides && it.roomSides.length>=3) ? roomDrawPointsFromSides(it.roomSides) : []);
     roomDraw = { active:true, itemId:it.id, target:'ceiling', points:existingPts, mouse:null, freeAngle:false, gesture:null,
       mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
@@ -13181,6 +13207,28 @@ function quickStartCeilingDrawFromToolbar(){
 }
 window.quickStartCeilingDrawFromToolbar = quickStartCeilingDrawFromToolbar;
 
+// 🆕 2026-10-01.9 (طلب حمدي: "كل الازرار المهمة متل ارسم بشكل يدوي او ارسم السقف او شوف السقف ثري دي
+// او شوف الغرفة ثري دي... بدي ياها فوق تكون موجودة بالترويسة") - نفس مبدأ ensureRoomSelectedForQuickAction
+// فوق بالضبط، بس لعنصر "سقف جملون متحرك" (gableRoof) بدل الغرفة - رابع اختصار كان ناقص بالترويسة
+// (التلاتة التانية - ثري دي الغرفة/رسم المسقط/رسم السقف - كانوا مضافين قبل هيك بطلب سابق، شوف فوق).
+function ensureGableRoofSelectedForQuickAction(){
+  let it = getSelected();
+  if(!it || !isGableRoof(it)){
+    it = items.find(isGableRoof);
+    if(!it){
+      alert('ما في سقف جملون متحرك بهاد التصميم بعد. ضيفي "🏕️ + سقف جملون متحرك جديد" من قسم العناصر أول، وبعدين جربي الزر هاد.');
+      return null;
+    }
+    selectItem(it.id);
+  }
+  return it;
+}
+function quickOpenGableRoof3DFromToolbar(){
+  if(!ensureGableRoofSelectedForQuickAction()) return;
+  openGableRoof3D();
+}
+window.quickOpenGableRoof3DFromToolbar = quickOpenGableRoof3DFromToolbar;
+
 // 🆕 2026-09-30.20 (طلب حمدي: "بدي بس انتهي من الثري دي وانا عم شوف الثري دي يصير السقف يفتح ويسكر") -
 // أنيميشن السقف السحّاب: زر "▶️ افتح السقف" بالمشهد ثلاثي الأبعاد (شوف HTML #room3DCeilingSlideBtn)
 // بينادي toggleCeilingSlideAnimation، يلي بيبلش تحريك حي (tween) لكل لوح سقف (room3D.ceilingPanels -
@@ -13600,6 +13648,13 @@ async function buildGableRoof3DScene(it, wrap){
     const roomBox = computeRoomFootprintBoundingBoxMM(linkedRoom);
     roomOffsetXM = (roomBox.minXMm||0) * MMTOM;
     roomOffsetZM = (roomBox.minYMm||0) * MMTOM;
+    // 🆕 2026-10-01.8 (بلاغ حمدي بالصور - "خطأ هندسي فادح": غرفة فيها بروز، السقف طالع عن حدود الأرض) -
+    // الإزاحة اليدوية (gableOffsetXMm/ZMm - شوف onGableOffsetField فوق) بتنضاف فوق موقع صندوق الغرفة
+    // الافتراضي هون. هيك ممكن تعملي أكتر من سقف جملون مربوط بنفس الغرفة، كل وحدة بموقعها الصح (مش
+    // كلهم ملتصقين بنفس زاوية صندوق الغرفة الكامل) - مثلاً وحدة رئيسية للجزء المستطيل الحقيقي + وحدة/
+    // وحدتين إضافية "ثابتة F بالكامل" (سقف فكس) بموقع ومقاس كل جزء بارز لحاله.
+    roomOffsetXM += (it.gableOffsetXMm||0) * MMTOM;
+    roomOffsetZM += (it.gableOffsetZMm||0) * MMTOM;
   }
 
   const scene = new THREE.Scene();
@@ -14550,6 +14605,10 @@ function renderGableRoofControlsUI(it){
   setVal('inGableRoofCols', it.gableRoofGlassCols||3);
   setVal('inGableLegRows', it.gableLegGlassRows||2);
   setVal('inGableBayCount', it.gableBayCount||4);
+  // 🆕 2026-10-01.8: إزاحة الموقع (X/Z بالمليمتر) نسبة لصندوق أرضية الغرفة المربوطة - شوف الشرح
+  // المطوّل قرب onGableOffsetField.
+  setVal('inGableOffsetX', Math.round(it.gableOffsetXMm||0));
+  setVal('inGableOffsetZ', Math.round(it.gableOffsetZMm||0));
   // 🆕 2026-10-01 (طلب حمدي: "دمج الغرفة مع السقف المتحرك بمشهد الثري دي") - قائمة اختيار الغرفة
   // المربوطة (لو موجودة) - منعيد بناءها كل مرة حتى تعكس أي غرفة انضافت/انحذفت/تغيّر اسمها.
   const roomSelect = document.getElementById('inGableLinkedRoom');
@@ -14575,6 +14634,12 @@ function renderGableRoofControlsUI(it){
     overrideCheckbox.checked = !!it.gableManualSizeOverride;
     overrideCheckbox.disabled = !hasLinkedRoom; // بدون غرفة مربوطة، المقاس يدوي دايمًا أصلًا - ما في داعي للخيار
   }
+  // 🆕 2026-10-01.8: حقول الإزاحة (X/Z) معناها بس لما في غرفة مربوطة (الإزاحة نسبة لصندوق أرضيتها) -
+  // بدون غرفة، السقف أصلًا مستقل وما في مرجعية نحسب الإزاحة نسبة لها.
+  ['inGableOffsetX','inGableOffsetZ'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.disabled = !hasLinkedRoom;
+  });
   // 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب يكون في 3 سرعات حتى اقدر شوف شو الافضل وقت
   // التصوير") - قائمة اختيار سرعة حركة الوحدات (بطيء/متوسط/سريع)، محفوظة بالبند نفسو حتى تتذكر آخر
   // سرعة اختارها حمدي حتى لو سكّر وفتح المشروع من جديد.
@@ -14601,6 +14666,28 @@ function onGableManualSizeOverrideToggle(itemId, checked){
   renderGableRoofControlsUI(it);
 }
 window.onGableManualSizeOverrideToggle = onGableManualSizeOverrideToggle;
+
+// 🆕 2026-10-01.8 (بلاغ حمدي بالصور - "خطأ هندسي فادح": غرفة فيها بروز/نوتش، السقف الجملوني المربوط
+// تلقائيًا كان دايمًا ياخد صندوق أرضية الغرفة *الكامل* (كل الزوايا)، فكان بيطلع "طايش" خارج حدود
+// الجدران الحقيقية بأي جزء من الغرفة بيرجع للخلف (نوتش/تدرّج) - بالضبط متل صورته (مربع أحمر = المكان
+// يلي لازم ياخد السقف شكلو الطبيعي المستطيل، ومربعين أخضر = أجزاء لازم تتغطى بسقف "فكس" (ثابت) منفصل
+// بدل ما تضل جزء من صندوق السقف الرئيسي). المشكلة الجذرية: roomOffsetXM/roomOffsetZM (شوف
+// buildGableRoof3DScene) كانت دايمًا ثابتة = أصغر X/Y لصندوق *كامل* الغرفة - ما في أي طريقة تحرّك/تزيح
+// سقف جملون مربوط لموقع مختلف (مثلاً ليغطي بس جزء مستطيل محدد من غرفة غير منتظمة). الحل: حقلين إزاحة
+// يدويين (X وZ بالمليمتر) بينضافوا فوق موقع صندوق الغرفة الافتراضي - هيك حمدي فيه يسوي 3 بنود سقف
+// جملون منفصلة لنفس الغرفة (الرئيسي بمقاس/موقع المستطيل الحقيقي + وحدتين إضافيتين كل وحداتها "ثابتة F"
+// بمقاس/موقع كل جزء بارز لحاله)، وكل وحدة فيهم تنحط بالظبط فوق مكانها الصح بدل ما تلتصق كلها بنفس زاوية
+// صندوق الغرفة الكامل.
+function onGableOffsetField(itemId, axis, value){
+  const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
+  pushHistory();
+  const n = parseFloat(value);
+  const mm = isFinite(n) ? n : 0;
+  if(axis === 'x') it.gableOffsetXMm = mm;
+  else if(axis === 'z') it.gableOffsetZMm = mm;
+  renderGallery();
+}
+window.onGableOffsetField = onGableOffsetField;
 
 function onGableSlideSpeedChange(itemId, value){
   const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
