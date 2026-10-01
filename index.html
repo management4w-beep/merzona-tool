@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-01.2';
+  var CURRENT_VERSION = '2026-10-01.4';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -7256,7 +7256,7 @@ window.wdApplyBack = function(results){
              لوحدات/بوابات قابلة للكليك (ثابتة F / متحركة يمين / متحركة شمال) - بنفس مبدأ سقف الغرفة
              السحّاب تمامًا، بس بشكل جملوني حقيقي وجوانب حاملة بدل لوح مسطّح. -->
         <div style="margin-top:10px; display:none;" id="gableRoofBlock">
-          <p class="hint" style="margin:0 0 10px;">عنصر مستقل (مش جزء من أي غرفة) - منفصل تمامًا بنفس الطريقة يلي الغرفة منفصلة فيها عن باقي البنود. لو بدك السقف يطابق أرضية غرفة معيّنة بالضبط، اكتب هون نفس الطول/العرض الإجمالي يلي عندها (شوف قائمة أضلاعها بلوحة الغرفة). أي بروز/بلكونة جانبية أو مكان فارغ غير منتظم خارج التقسيم الأساسي (قريب من الجدران) ممكن تعمليه كسقف جملون متحرك ثاني (أو أكتر) مستقل بمقاسه لحاله - ولو بديه يضل ثابت بالكامل (زجاج مع إطار حواليه بس، بدون أي فتح/سكر)، دوسي على كل وحدة فيه لحتى توصل لحالة "ثابتة F".</p>
+          <p class="hint" style="margin:0 0 10px;">عنصر مستقل (مش جزء من أي غرفة) - منفصل تمامًا بنفس الطريقة يلي الغرفة منفصلة فيها عن باقي البنود. أي بروز/بلكونة جانبية أو مكان فارغ غير منتظم خارج الصندوق المستطيل الأساسي (قريب من الجدران) منيح تعمليه كسقف جملون ثاني مستقل بمقاسه لحاله (كل وحداته "ثابتة F")، أو حتى بزجاج ثابت مسطّح عادي برّا أداة السقف الجملوني بالكامل - زي ما تفضّلي.</p>
           <div class="row2">
             <div>
               <label>الطول الإجمالي (مم) <span class="wd-ar">محور الوحدات/الانزلاق</span></label>
@@ -7267,6 +7267,7 @@ window.wdApplyBack = function(results){
               <input type="text" inputmode="decimal" id="inGableWidth" min="200" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableWidthMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableWidthMm',this.value)" value="3000">
             </div>
           </div>
+          <p class="hint" id="gableSizeAutoHint" style="margin-top:6px; display:none;">📐 المقاس فوق مربوط تلقائيًا بمقاس صندوق أرضية الغرفة المختارة تحت (بيتحدث لحاله أول ما شكل الغرفة يتغيّر) - ما بتحتاجي تكتبيه يدويًا. فعّلي "تعديل يدوي استثنائي" تحت لو بدك تكتبي مقاس مختلف بحالة خاصة جدًا.</p>
           <div class="row2" style="margin-top:10px;">
             <div>
               <label>ارتفاع القوائم الجانبية الحاملة (مم)</label>
@@ -7292,7 +7293,11 @@ window.wdApplyBack = function(results){
             <select id="inGableLinkedRoom" onchange="onGableLinkedRoomChange(getSelected().id,this.value)" style="width:100%;">
               <option value="">بدون - سقف مستقل لحاله</option>
             </select>
-            <p class="hint" style="margin-top:4px;">لو اخترت غرفة، المشهد الثلاثي الأبعاد رح يبيّن الغرفة (حيطانها وشبابيكها/أبوابها الحقيقية) مع السقف الجملوني فوقها سوا بمشهد واحد - القوائم بتبلش فوق سقف الغرفة مباشرة.</p>
+            <p class="hint" style="margin-top:4px;">لو اخترت غرفة، المشهد الثلاثي الأبعاد رح يبيّن الغرفة (حيطانها وشبابيكها/أبوابها الحقيقية) مع السقف الجملوني فوقها سوا بمشهد واحد - القوائم بتبلش فوق سقف الغرفة مباشرة. ولو الغرفة شكلها غير منتظم (فيها بروز/زاوية)، السقف بياخد مقاس الصندوق المستطيل المحيط بالأرضية كلها تلقائيًا - أي جزء بيطلع برّا هالصندوق المستطيل (البروز) لازم يتغطى لحاله بسقف جملون ثاني أو زجاج ثابت، زي ما ضبّطنا سوا.</p>
+            <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-weight:normal;">
+              <input type="checkbox" id="inGableManualSizeOverride" onchange="onGableManualSizeOverrideToggle(getSelected().id,this.checked)">
+              📐 تعديل يدوي استثنائي للمقاس <span class="wd-ar">(حالات خاصة جدًا بس - غير هيك المقاس دايمًا تلقائي من الغرفة)</span>
+            </label>
           </div>
           <div style="margin-top:10px;">
             <label>🎥 سرعة فتح/سكر الوحدات بالثري دي <span class="wd-ar">(لتجربة أنسب سرعة وقت التصوير)</span></label>
@@ -8053,6 +8058,28 @@ function dedupeDuplicateSourceRowItems(){
   return removedCount;
 }
 window.dedupeDuplicateSourceRowItems = dedupeDuplicateSourceRowItems;
+
+// 🛠️ إصلاح جذري 2026-10-01 (بلاغ حمدي: "البند يلي عرضو 9881 عم يتكرر كل ما بفوت عالتصميم، ومو بس
+// هيك - ما عم يظهر الزجاج هوي وكم بند كمان بالثري دي" - رفرنس S-Q-260003): لقينا ثغرة مختلفة عن
+// تصادم معرّفات الصفوف (الإصلاح 2026-09-30.21 فوق) - هاي بالتحديد بتصيب بنود "منظور الحائط"
+// (isRoomWallElevation: بند تصميم تلقائي لضلع/جزء غرفة حقيقي، مش بند مستقل صممه المستخدم يدويًا).
+// هيك بند، حسب تعريفه، ما إلو أي معنى أو استخدام لحاله بدون صف حقيقي بجدول عرض السعر وراه - ما في
+// واجهة "تربطيه من جديد" لصف تاني. لقينا أكتر من مسار (أبرزها toggleRoomSegKind لما يحوّل جزء من
+// "تصميم" لـ"حائط" ويحذف سطر الجدول - شوف الإصلاح جنبها) كانت تسيب هيك بند "يتيم" (sourceRowUid
+// فاضي، أو حتى أسوأ - لسا مشير لصف اتحذف خلص) عالق بالذاكرة للأبد، لأنو منطق "حافظ على البنود
+// المستقلة" بـWD.loadFromRows/resetAllFromRows (تحت) كان يحسبه بالغلط "بند أضافه المستخدم يدويًا"
+// فيحافظ عليه - وهيك كان يترسب كتكرار بالمعرض كل ما تنفتح أداة التصميم من جديد، حتى لو حمدي حذفه
+// يدويًا (الحذف ما كان يلغي السبب الجذري يلي عم يرجّعه). الحل: أي بند "منظور حائط" ما عاد مرتبط
+// بصف حقيقي *موجود فعليًا الآن* بجدول عرض السعر (سواء sourceRowUid فاضي أو مشير لصف محذوف) منشيله
+// نهائيًا - آمن 100% لأنو هيك بند أصلًا ما فيه أي استخدام ممكن بدون صفه. بنفرّق هون بوضوح عن أي بند
+// مستقل عادي (شباك/باب صممه حمدي يدويًا برّا سياق غرفة) - هداك أبدًا ما منلمسه حتى لو انفك ربطه بصف.
+function removeOrphanedRoomWallElevationGhosts(liveRowUids){
+  const before = items.length;
+  items = items.filter(it => !(it.isRoomWallElevation && (!it.sourceRowUid || !liveRowUids.has(it.sourceRowUid))));
+  return before - items.length;
+}
+window.removeOrphanedRoomWallElevationGhosts = removeOrphanedRoomWallElevationGhosts;
+
 window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
   try{
     if(Array.isArray(importedItems)){
@@ -8063,6 +8090,15 @@ window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
       const removedDupes = dedupeDuplicateSourceRowItems();
       if(removedDupes > 0){
         console.warn('[تنظيف تلقائي] لقينا وحذفنا ' + removedDupes + ' بند مكرر (نفس السطر بجدول الكمية) - كانوا ناتجين عن باغ تصادم معرّفات صفوف تصحّح بتاريخ 2026-09-30.21.');
+      }
+      // 🆕 2026-10-01: شوف الشرح الكامل قرب removeOrphanedRoomWallElevationGhosts فوق - بنبني مجموعة
+      // كل أرقام الصفوف (rowUid) الحقيقية الموجودة فعليًا بجدول عرض السعر حاليًا (بعد ما خلص
+      // qtyRowsHtml ينحمّل بـapplyFullQuotationData قبل ما توصل لهون)، ومنشيل أي بند "منظور حائط" ما
+      // عاد مرتبط بأي وحدة منها.
+      const liveRowUidsForGhosts = new Set(Array.from(document.querySelectorAll('#qty-rows tr[data-row-uid]')).map(tr=>tr.dataset.rowUid));
+      const removedGhosts = removeOrphanedRoomWallElevationGhosts(liveRowUidsForGhosts);
+      if(removedGhosts > 0){
+        console.warn('[تنظيف تلقائي] لقينا وحذفنا ' + removedGhosts + ' بند "منظور حائط" يتيم (ما عاد مرتبط بأي صف حقيقي بجدول عرض السعر) - هاد بالضبط سبب تكرار بنود منظور الحيطان بمرجع S-Q-260003.');
       }
     }
     if(typeof renderChips === 'function') renderChips();
@@ -8173,7 +8209,30 @@ window.mergeInAnotherQuotation = mergeInAnotherQuotation;
 let historyStack = [];
 const MAX_HISTORY = 50;
 
+// 🛠️ إصلاح جذري 2026-10-01 (بلاغ حمدي: "عم واجه تعليق كتير بتحريك التصميم الثري دي... وحتى بكتابة
+// المقاسات بالمصمم") - نفس السبب الجذري يلي انصلح سابقًا بمستوى عرض السعر كامل بالضبط (شوف
+// pushQuotationHistorySnapshotNow/QUOTATION_MIN_SNAPSHOT_INTERVAL_MS فوق، إصلاح 2026-09-30.12 -
+// "النظام صاير جداً جداً جداً بطيء"): كل خانة مقاس بأداة التصميم (طول/عرض/ارتفاع غرفة/سقف جملوني/
+// هاندريل/إلخ) بتنادي pushHistory() مع كل ضغطة حرف وحدة (oninput) قبل ما تحدّث القيمة - وpushHistory
+// كانت تسوي JSON.stringify لكل بنود التصميم بكل تفاصيلها (تقسيمات/طبقات كل شباك وباب وغرفة وسقف
+// جملوني) حرفيًا بكل ضغطة. كل ما تعقّد التصميم أكتر (غرف فيها أضلاع/أقسام كتير، متل S-Q-260003، أو
+// مشروع فيه كمان سقف جملون متحرك جديد) كل ما صار الكتابة أبطأ وأتقل - بالظبط نفس الباغ، بس بمكان
+// تاني بالملف ما كان انصلح فيه قبل.
+// الحل: فاصل زمني أدنى حقيقي (600ms - أقصر من الـ2500ms تبع عرض السعر لأنو حساسية التراجع هون أعلى)
+// بين كل لقطة JSON فعلية والتانية. أول نداء بكل "دفعة كتابة" بيسجّل اللقطة فورًا (صح 100% - بتمثّل
+// الحالة *قبل* هالتعديل بالضبط، لسا ما تغيّر شي)، وأي نداء إضافي قبل ما يخلص الفاصل (يعني لسا بنفس
+// دفعة الكتابة السريعة) بننقاهد عنه بالكامل - القيمة نفسها (it.field) بتضل تتحدّث فورًا بكل ضغطة بمكان
+// تاني بالكود (مش هون)، بس اللقطة الثقيلة ما تتكرر لحد ما يوقف المستخدم عن الكتابة فعليًا. هيك التراجع
+// بيرجع لنقطة *قبل* الدفعة كاملة (مش قبل كل حرف لحاله) - نفس بالضبط مبدأ التراجع المتبع أصلًا بعرض
+// السعر، وفرق محسوس بالأداء بدون ما نخسر أي قدرة تراجع حقيقية عملية.
+const PUSH_HISTORY_MIN_INTERVAL_MS = 600;
+let lastPushHistoryAt = 0;
 function pushHistory(){
+  const now = Date.now();
+  if(lastPushHistoryAt && (now - lastPushHistoryAt) < PUSH_HISTORY_MIN_INTERVAL_MS){
+    return; // لسا بنفس دفعة التعديل السريعة - اللقطة يلي انسجّلت أول هالدفعة كافية كنقطة تراجع
+  }
+  lastPushHistoryAt = now;
   try{
     historyStack.push(JSON.stringify({ items, selectedId, nextId }));
     if(historyStack.length > MAX_HISTORY) historyStack.shift();
@@ -8357,13 +8416,27 @@ function cycleGableBayState(itemId, bayIndex){
 window.cycleGableBayState = cycleGableBayState;
 
 // تعديل حقل أبعاد رقمي (الطول/العرض/ارتفاع القوائم/ارتفاع الجملون/تقسيمات الزجاج) من لوحة التحكم.
+// 🛠️ إصلاح أداء 2026-10-01 (بلاغ حمدي: "تعليق كتير... وحتى بكتابة المقاسات بالمصمم") - إعادة بناء
+// لوحة تحكم السقف الجملوني (renderGableRoofControlsUI، فيها معاينة SVG) + المعرض كامل (renderGallery)
+// مع كل ضغطة حرف وحدة كانت تزيد التعليق - هلق مؤجّلة (debounce قصير) بدل ما تتكرر لكل حرف.
+let _gableControlsRerenderTimer = null;
+function scheduleGableControlsRerender(itemId){
+  if(_gableControlsRerenderTimer) clearTimeout(_gableControlsRerenderTimer);
+  _gableControlsRerenderTimer = setTimeout(function(){
+    _gableControlsRerenderTimer = null;
+    const it = items.find(i=>i.id===itemId);
+    if(it) renderGableRoofControlsUI(it);
+    renderGallery();
+  }, 120);
+}
+window.scheduleGableControlsRerender = scheduleGableControlsRerender;
+
 function onGableDimsField(itemId, field, value){
   const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
   pushHistory();
   const v = Math.max(1, parseFloat(value) || 0);
   it[field] = v;
-  renderGableRoofControlsUI(it);
-  renderGallery();
+  scheduleGableControlsRerender(itemId);
 }
 window.onGableDimsField = onGableDimsField;
 
@@ -8678,6 +8751,13 @@ function makeItem(type){
     it.gableLegGlassRows = 2;     // تقسيمات زجاج القوائم الجانبية (أفقيًا بالارتفاع)
     it.gableLinkedRoomId = null;  // 🆕 2026-10-01: id غرفة/مجلس مربوطة (لدمجها بمشهد الثري دي سوا)
     it.gableSlideSpeed = 'medium'; // 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب 3 سرعات حتى اشوف شو الافضل وقت التصوير") - slow/medium/fast
+    // 🆕 2026-10-01 (طلب حمدي صراحة بعد ما شاف السقف طالع عالق/منفصل عن الغرفة: "لازم السقف ما حط انا
+    // مقاساته لازم هوي ياخد لوحدو مقاسات الأرضية... ولازم دائما السقف يلحق الأرضية") - لما يكون مربوط
+    // بغرفة (gableLinkedRoomId)، الطول/العرض (gableLengthMm/gableWidthMm) يصيروا محسوبين تلقائيًا من
+    // صندوق أرضية الغرفة المحيط (شوف computeRoomFootprintBoundingBoxMM/syncGableSizeFromLinkedRoom
+    // تحت) - false يعني "تلقائي دايمًا" (الافتراضي)، true تعني المستخدم فعّل تعديل يدوي استثنائي
+    // (حالة خاصة جدًا) فما منلمس القيم المكتوبة يدويًا بعدها.
+    it.gableManualSizeOverride = false;
   }
   return it;
 }
@@ -8878,7 +8958,7 @@ function onHandrailLengthChange(){
   const v = parseFloat(document.getElementById('inHrLength').value) || 0;
   if(it.hrDimMode === 'total') it.hrTotalLength = v; else it.hrPanelWidth = v;
   syncHandrailDims(it);
-  renderGallery();
+  scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 function onHandrailCountChange(){
   const it = getSelected(); if(!it) return;
@@ -8890,7 +8970,7 @@ function onHandrailHeightChange(){
   const it = getSelected(); if(!it) return;
   it.hrGlassHeight = parseFloat(document.getElementById('inHrHeight').value) || 1200;
   syncHandrailDims(it);
-  renderGallery();
+  scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 
 function onShowerSidePanelToggle(side){
@@ -8912,7 +8992,7 @@ function onShowerSideWidthChange(side){
   } else {
     it.showerRightWidth = parseFloat(document.getElementById('inShowerRightWidth').value) || 600;
   }
-  renderGallery();
+  scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 function editShowerSideWidth(id, side){
   const it = items.find(i=>i.id===id); if(!it) return;
@@ -8970,7 +9050,7 @@ function onFrostZoneChange(){
   const it = getSelected(); if(!it) return;
   it.frostTopClearH = parseFloat(document.getElementById('inFrostTopH').value) || 0;
   it.frostBottomClearH = parseFloat(document.getElementById('inFrostBottomH').value) || 0;
-  renderGallery();
+  scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 window.onFrostPatternChange = onFrostPatternChange;
 window.onFrostZoneChange = onFrostZoneChange;
@@ -8982,7 +9062,7 @@ function onDimsChange(){
   it.width = parseFloat(document.getElementById('inWidth').value) || 0;
   it.height = parseFloat(document.getElementById('inHeight').value) || 0;
   it.archHeight = parseFloat(document.getElementById('inArchHeight').value) || 0;
-  renderGallery();
+  scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 
 function onProfileThicknessChange(){
@@ -8999,7 +9079,7 @@ function onSlidingThicknessChange(){
   if(isNaN(it.frameThickness)) it.frameThickness = DEFAULT_FRAME_THICKNESS;
   it.leafThickness = parseFloat(document.getElementById('inLeafThickness').value);
   if(isNaN(it.leafThickness)) it.leafThickness = DEFAULT_LEAF_THICKNESS;
-  renderGallery();
+  scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 
 function onArchToggle(){
@@ -10300,16 +10380,31 @@ window.editHandrailTotal = editHandrailTotal;
 // بالضبط متل ما بيصير مع أي بند عادي اليوم. السقف والديكورات فوق البنود والمشهد 3D الحقيقي القابل
 // للتدوير وتصدير الفيديو التلقائي 360° مراحل جاية (اتفقنا عليها كخطوات لاحقة بعد هالأساس).
 
+// 🛠️ إصلاح أداء 2026-10-01 (بلاغ حمدي: "تعليق كتير... وحتى بكتابة المقاسات بالمصمم") - أثقل جزء
+// بهالدالة (المزامنة مع كل قسم متصمَّم + إعادة بناء لوحة أضلاع الغرفة + المعرض كامل) كان يتكرر مع كل
+// ضغطة حرف - لغرفة فيها أضلاع/أقسام كتير (متل S-Q-260003) هاد وحده كافي يحسّس الكتابة بطيئة. هلق
+// ارتفاع الغرفة نفسه (it.roomHeight) بيتحدّث فورًا بكل ضغطة زي ما هو (صح دايمًا)، بس المزامنة/الرسم
+// الثقيلة مؤجّلة (debounce قصير) بدل ما تتكرر لكل حرف.
+let _roomHeightSyncTimer = null;
+function scheduleRoomHeightSync(itemId){
+  if(_roomHeightSyncTimer) clearTimeout(_roomHeightSyncTimer);
+  _roomHeightSyncTimer = setTimeout(function(){
+    _roomHeightSyncTimer = null;
+    const it = items.find(i=>i.id===itemId); if(!it || !isRoom(it)) return;
+    (it.roomSides||[]).forEach(side=>{
+      (side.segments||[]).forEach(seg=>{ syncRoomSegmentRowDims(it, seg); });
+    });
+    renderRoomSidesUI(it);
+    renderGallery();
+  }, 120);
+}
+window.scheduleRoomHeightSync = scheduleRoomHeightSync;
+
 function onRoomHeightChange(){
   const it = getSelected(); if(!it || !isRoom(it)) return;
   pushHistory();
   it.roomHeight = Math.max(1000, parseFloat(document.getElementById('inRoomHeight').value)||2500);
-  // 🆕 لما يتغيّر ارتفاع الغرفة، لازم ينعكس فورًا على كل قسم متصمَّم مسبقًا (بند بجدول السعر + عنصر التصميم المرتبط)
-  (it.roomSides||[]).forEach(side=>{
-    (side.segments||[]).forEach(seg=>{ syncRoomSegmentRowDims(it, seg); });
-  });
-  renderRoomSidesUI(it);
-  renderGallery();
+  scheduleRoomHeightSync(it.id);
 }
 window.onRoomHeightChange = onRoomHeightChange;
 
@@ -10680,7 +10775,7 @@ function toggleRoomSegKind(itemId, sideId, segId){
   const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
   const goingToWall = seg.kind !== 'wall';
   if(goingToWall && seg.rowUid){
-    if(!confirm('هاد الجزء حاليًا مصمم ومربوط بسطر بجدول عرض السعر. تحويله لحائط/جدار رح يحذف هاد السطر نهائيًا من جدول عرض السعر (الحائط مش بند بيتسعّر) - بس الجزء نفسه رح يضل موجود بمخطط الغرفة كحائط زي ما هو. بدك تكمل؟')) return;
+    if(!confirm('هاد الجزء حاليًا مصمم ومربوط بسطر بجدول عرض السعر. تحويله لحائط/جدار رح يحذف هاد السطر نهائيًا من جدول عرض السعر (الحائط مش بند بيتسعّر) وتصميمه (تقسيمات الزجاج إلخ) - بس الجزء نفسه رح يضل موجود بمخطط الغرفة كحائط زي ما هو. بدك تكمل؟')) return;
   }
   pushHistory();
   // 🆕 2026-09-30.3 (طلب حمدي: "بختار ايا ضلع هو الجدار وفعليا لازم ينحذف من البنود بس يكون في جدار
@@ -10688,6 +10783,15 @@ function toggleRoomSegKind(itemId, sideId, segId){
   // "يتيم" موجود بدون حذف، فكان لازم يدوّر عليه يدويًا ويحذفه بنفسه من الجدول. هلق: لو الجزء كان
   // مربوط فعليًا بسطر، منحذف السطر نفسه من جدول عرض السعر مباشرة لما نحوّله لحائط - بس الجزء بمخطط
   // الغرفة (الرسمة) نفسه بيضل موجود تمامًا كحائط، ما منمسح ولا شي منها.
+  // 🛠️ إصلاح جذري 2026-10-01 (بلاغ حمدي: "البند يلي عرضو 9881 عم يتكرر كل ما بفوت عالتصميم" -
+  // رفرنس S-Q-260003): لقينا هون بالضبط ثغرة كانت تولّد هيك "أشباح" - كنا نحذف السطر (tr.remove())
+  // ونصفّر seg.rowUid، بس كنا ننسى نصفّر sourceRowUid تبع *بند التصميم نفسه* (خلافًا لـremoveQtyRow
+  // فوق يلي بيصفرها صح بنفس اللحظة) - فبند التصميم (منظور الحائط) كان يضل بالذاكرة لحالو مشير لسطر
+  // محذوف خلص، وبعدين لو حوّلت نفس الضلع رجوع لـ"تصميم"، بينولّد سطر/بند جديد تمامًا للضلع نفسو، بينما
+  // القديم (اليتيم) يضل عالق - فيصير عندك بندين لنفس الضلع. هلق منصفّر sourceRowUid تبع البند مباشرة
+  // هون كمان (شوف كمان removeOrphanedRoomWallElevationGhosts تحت - شبكة أمان ثانية بتشيل أي بند
+  // "منظور حائط" يتيم تلقائيًا أول ما تنفتح أداة التصميم من جديد، حتى لو صار تسرّب مشابه من مكان تاني
+  // ما لقيناه بعد).
   if(goingToWall && seg.rowUid){
     const tr = document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]');
     if(tr){
@@ -10697,6 +10801,8 @@ function toggleRoomSegKind(itemId, sideId, segId){
       recalc();
       removeLinkedSpecsIfUnused(itemName);
     }
+    const linkedItem = items.find(i => i.sourceRowUid === seg.rowUid);
+    if(linkedItem) linkedItem.sourceRowUid = null;
   }
   seg.kind = goingToWall ? 'wall' : 'design';
   if(goingToWall) seg.rowUid = null;
@@ -13347,6 +13453,9 @@ window.addRoomStructureToScene = addRoomStructureToScene;
 
 async function buildGableRoof3DScene(it, wrap){
   const MMTOM = 1/1000;
+  // 🆕 2026-10-01: نزامن المقاس من الغرفة المربوطة (لو فيه) *قبل* ما نبني المشهد - حتى لو تغيّر شكل
+  // الغرفة من آخر مرة انفتحت فيها لوحة التحكم، الثري دي دايمًا بياخد أحدث مقاس فعلي.
+  syncGableSizeFromLinkedRoom(it);
   const lengthM = Math.max(0.2,(it.gableLengthMm||6000)*MMTOM);
   const widthM = Math.max(0.2,(it.gableWidthMm||3000)*MMTOM);
   const legHM = Math.max(0.2,(it.gableLegHeightMm||1000)*MMTOM);
@@ -13423,6 +13532,16 @@ async function buildGableRoof3DScene(it, wrap){
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
   renderer.shadowMap.enabled = true;
   if(typeof THREE.PCFSoftShadowMap !== 'undefined') renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // 🛠️ 2026-10-01 (بلاغ حمدي العاجل: "عم واجه تعليق كتير بتحريك التصميم الثري دي") - نفس الباغ بالضبط
+  // يلي انصلح بـbuildRoom3DScene يوم 2026-09-30 (شوف الشرح المطوّل فوق قرب renderer.shadowMap.autoUpdate
+  // تبع room3D) كان لسا موجود هون بالمشهد المدمج (سقف جملون + غرفة) - Three.js افتراضيًا بيعيد حساب
+  // خريطة الظل بالكامل (1024×1024 PCFSoftShadowMap) كل فريم أثناء السحب بالماوس، حتى لو ولا شي
+  // بالمشهد متحرك فعليًا غير الكاميرا. وبما إنو المشهد صار اليوم يحتوي الغرفة كاملة (حيطان/شبابيك/أثاث)
+  // كمان فوق قوائم السقف، صارت هالإعادة الحساب المكررة أثقل بكتير من قبل - وهاد أغلب الظن هو سبب
+  // التعليق الجديد يلي حمدي لاحظو بعد ميزة دمج الغرفة. الحل: نعطّل autoUpdate ونحسب خريطة الظل مرة
+  // وحدة بس بعد اكتمال بناء المشهد (تحت)، وبنعيد تفعيلها مؤقتًا فقط أثناء حركة فتح/سكر الوحدات الفعلية
+  // (animate() تحت) حتى الظل يتحرك صح مع الوحدات وقتها، وبعدين نرجع نعطّلها.
+  renderer.shadowMap.autoUpdate = false;
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
   renderer.setSize(w,h);
   wrap.innerHTML = '';
@@ -13454,7 +13573,12 @@ async function buildGableRoof3DScene(it, wrap){
 
   function animate(){
     gableRoof3D.animId = requestAnimationFrame(animate);
-    if(gableRoof3D.slideAnim) updateGableBaySlideAnimationFrame();
+    if(gableRoof3D.slideAnim){
+      updateGableBaySlideAnimationFrame();
+      // الوحدات فعليًا عم تتحرك هلق - لازم الظل يتحدث كل فريم طول مدة الحركة بس (دقة بصرية صح وقت
+      // التصوير)، وبعدين منرجع نعطّله فور ما تخلص الحركة (شوف updateGableBaySlideAnimationFrame).
+      renderer.shadowMap.needsUpdate = true;
+    }
     if(controls.enabled) controls.update();
     renderer.render(scene, camera);
   }
@@ -14230,9 +14354,44 @@ function buildGableRoofSVG(it){
 }
 window.buildGableRoofSVG = buildGableRoofSVG;
 
+// 🆕 2026-10-01 (طلب حمدي صراحة بعد ما شاف السقف طالع عالق/منفصل عن الغرفة بصور المشهد المدموج:
+// "لازم السقف ما حط انا مقاساته لازم هوي ياخد لوحدو مقاسات الأرضية... ولازم دائما السقف يلحق
+// الأرضية") - صندوق مستطيل بسيط يحيط بكامل أرضية الغرفة (أصغر/أكبر X وY من كل زوايا المضلع الحقيقي) -
+// مش شكل الغرفة الحقيقي لو كانت غير منتظمة (فيها بروز/زاوية)، لأنو السقف الجملوني نفسه دايمًا مستطيل
+// بسيط بطبيعته. أي جزء من الغرفة بيطلع برّا هالصندوق (بروز/زاوية) حمدي وضّح إنو بدو يغطيه لحاله بسقف
+// جملون ثاني مستقل أو بزجاج ثابت مسطّح - مش مسؤولية هالمزامنة التلقائية.
+function computeRoomFootprintBoundingBoxMM(room){
+  const pts = computeRoomPolygonMM(room);
+  const n = room.roomSides.length;
+  const xs = pts.slice(0,n).map(p=>p.x), ys = pts.slice(0,n).map(p=>p.y);
+  return {
+    lengthMm: Math.max(200, Math.max(...xs) - Math.min(...xs)),
+    widthMm: Math.max(200, Math.max(...ys) - Math.min(...ys)),
+  };
+}
+window.computeRoomFootprintBoundingBoxMM = computeRoomFootprintBoundingBoxMM;
+
+// بتحدّث طول/عرض السقف الجملوني تلقائيًا من صندوق أرضية الغرفة المربوطة - إلا إذا المستخدم فعّل
+// "تعديل يدوي استثنائي" (gableManualSizeOverride)، أو ما في غرفة مربوطة أصلًا (سقف مستقل - مقاسه
+// يدوي دايمًا زي ما كان). بترجع true لو فعليًا حدّثت شي (مفيدة للمتصل).
+function syncGableSizeFromLinkedRoom(it){
+  if(!it || !isGableRoof(it)) return false;
+  if(it.gableManualSizeOverride) return false;
+  const room = it.gableLinkedRoomId ? items.find(i=>i.id===it.gableLinkedRoomId && isRoom(i)) : null;
+  if(!room || !Array.isArray(room.roomSides) || !room.roomSides.length) return false;
+  const box = computeRoomFootprintBoundingBoxMM(room);
+  it.gableLengthMm = Math.round(box.lengthMm);
+  it.gableWidthMm = Math.round(box.widthMm);
+  return true;
+}
+window.syncGableSizeFromLinkedRoom = syncGableSizeFromLinkedRoom;
+
 // بيعبّي حقول لوحة تحكم "سقف جملون متحرك" (gableRoofBlock) من بيانات البند، ويعيد رسم مسقط الوحدات
 // القابل للكليك (gableBaysPreview) - نفس مبدأ renderCeilingSidesUI/renderRoomSidesUI بالضبط.
 function renderGableRoofControlsUI(it){
+  // 🆕 2026-10-01: نزامن المقاس *قبل* ما نعبّي الحقول/نرسم المعاينة تحت - هيك المعروض دايمًا مطابق
+  // فعليًا لأرضية الغرفة المربوطة (لو فيه)، بدون ما حمدي يحتاج يكتب أي رقم بنفسه.
+  syncGableSizeFromLinkedRoom(it);
   ensureGableBays(it);
   const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
   setVal('inGableLength', Math.round(it.gableLengthMm||6000));
@@ -14252,6 +14411,21 @@ function renderGableRoofControlsUI(it){
     roomSelect.value = (it.gableLinkedRoomId && rooms.some(r=>r.id===it.gableLinkedRoomId)) ? String(it.gableLinkedRoomId) : '';
     if(!rooms.some(r=>r.id===it.gableLinkedRoomId)) it.gableLinkedRoomId = null;
   }
+  // 🆕 2026-10-01: قفل حقول الطول/العرض للعرض بس (readonly) لما يكون في غرفة مربوطة وما في تجاوز يدوي
+  // مفعّل - قيمتها تلقائية من أرضية الغرفة. تفعيل "تعديل يدوي استثنائي" بيفتحها للكتابة من جديد.
+  const hasLinkedRoom = !!(it.gableLinkedRoomId && items.some(i=>i.id===it.gableLinkedRoomId && isRoom(i)));
+  const isAutoSized = hasLinkedRoom && !it.gableManualSizeOverride;
+  ['inGableLength','inGableWidth'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.readOnly = isAutoSized;
+  });
+  const autoHint = document.getElementById('gableSizeAutoHint');
+  if(autoHint) autoHint.style.display = isAutoSized ? 'block' : 'none';
+  const overrideCheckbox = document.getElementById('inGableManualSizeOverride');
+  if(overrideCheckbox){
+    overrideCheckbox.checked = !!it.gableManualSizeOverride;
+    overrideCheckbox.disabled = !hasLinkedRoom; // بدون غرفة مربوطة، المقاس يدوي دايمًا أصلًا - ما في داعي للخيار
+  }
   // 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب يكون في 3 سرعات حتى اقدر شوف شو الافضل وقت
   // التصوير") - قائمة اختيار سرعة حركة الوحدات (بطيء/متوسط/سريع)، محفوظة بالبند نفسو حتى تتذكر آخر
   // سرعة اختارها حمدي حتى لو سكّر وفتح المشروع من جديد.
@@ -14265,9 +14439,19 @@ function onGableLinkedRoomChange(itemId, value){
   const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
   pushHistory();
   it.gableLinkedRoomId = value ? parseInt(value,10) : null;
+  syncGableSizeFromLinkedRoom(it); // 🆕 2026-10-01: أول ما تربط غرفة، ناخد مقاس أرضيتها فورًا
   renderGableRoofControlsUI(it);
 }
 window.onGableLinkedRoomChange = onGableLinkedRoomChange;
+
+function onGableManualSizeOverrideToggle(itemId, checked){
+  const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
+  pushHistory();
+  it.gableManualSizeOverride = !!checked;
+  if(!it.gableManualSizeOverride) syncGableSizeFromLinkedRoom(it); // رجوع لتلقائي - ناخد مقاس الغرفة الحالي فورًا
+  renderGableRoofControlsUI(it);
+}
+window.onGableManualSizeOverrideToggle = onGableManualSizeOverrideToggle;
 
 function onGableSlideSpeedChange(itemId, value){
   const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
@@ -15206,6 +15390,23 @@ window.addEventListener('afterprint', ()=>{
 
 /* ---------- GALLERY ---------- */
 
+// 🛠️ إصلاح جذري 2026-10-01 (بلاغ حمدي: "تعليق كتير... وحتى بكتابة المقاسات بالمصمم") - renderGallery
+// بتعيد بناء DOM/SVG كل بند موجود بأداة التصميم من الصفر (مش بس البند المتغيّر) - وبعض خانات المقاس
+// كانت تناديها مباشرة مع كل ضغطة حرف (oninput)، فكل ما كتر عدد البنود/تعقيدها (غرف فيها أضلاع كتير،
+// سقف جملون متحرك، إلخ) كل ما صار إعادة البناء هاي أبطأ وأتقل أثناء الكتابة. هلق منستخدم نسخة مؤجّلة
+// (debounce قصير 120ms) بهالخانات تحديدًا - القيمة نفسها (it.field) بتضل تتحدّث فورًا بكل ضغطة بمكان
+// تاني بنفس الدالة، بس إعادة الرسم المرئي الثقيلة بتصير مرة وحدة بس بعد ما يوقف المستخدم عن الكتابة
+// (أو فورًا تقريبًا عند onblur) بدل ما تتكرر لكل حرف.
+let _galleryRerenderTimer = null;
+function scheduleGalleryRerender(){
+  if(_galleryRerenderTimer) clearTimeout(_galleryRerenderTimer);
+  _galleryRerenderTimer = setTimeout(function(){
+    _galleryRerenderTimer = null;
+    renderGallery();
+  }, 120);
+}
+window.scheduleGalleryRerender = scheduleGalleryRerender;
+
 function renderGallery(){
   if(camItem){
     renderCameraDesign();
@@ -15360,6 +15561,10 @@ WD.loadFromRows = function(rowData){
     // ملاحظة: سطر فاضي بالكامل (بدون اسم بند ولا مقاس) ما بيتولّد له بند بالمصمم إطلاقًا - يضل المصمم نظيف لحد ما يصير في محتوى فعلي بالجدول
     if(it) newItems.push(it);
   });
+  // 🆕 2026-10-01 (شوف الشرح الكامل قرب removeOrphanedRoomWallElevationGhosts): قبل ما نحافظ على
+  // "البنود المستقلة"، نشيل أي بند "منظور حائط" يتيم (ما عاد مرتبط بأي صف من rowData الحالي) - وإلا
+  // بيترسب كـ"بند مستقل" بالغلط ويضل يتكرر بالمعرض كل ما تفتحي أداة التصميم من جديد.
+  removeOrphanedRoomWallElevationGhosts(new Set(rowData.map(rd => rd.uid)));
   // نحافظ على أي عنصر أضافه المستخدم يدويًا جوا الرسّام (مش مرتبط بأي سطر بالجدول) - قبل هيك كان يضيع كل ما تفتح الأداة من جديد
   const standaloneItems = items.filter(it => !it.sourceRowUid && !it.isInitialPlaceholder);
   items = newItems.concat(standaloneItems);
@@ -15412,6 +15617,8 @@ WD.resetAllFromRows = function(rowData){
   // نفس منطق loadFromRows بالظبط: بنود الغرف (roomSides/ceilingSides) ما إلها sourceRowUid خاص فيها
   // (هي حاوية، مش بند مرتبط بصف وحيد) فبتضل موجودة هون بدون أي لمس - هاد بالضبط يلي ضمن لحمدي إنو
   // شكل/مسقط الغرف ما رح يتأثر.
+  // 🆕 2026-10-01: نفس تنظيف الأشباح يلي بـloadFromRows فوق - شوف الشرح قرب removeOrphanedRoomWallElevationGhosts.
+  removeOrphanedRoomWallElevationGhosts(new Set(rowData.map(rd => rd.uid)));
   const standaloneItems = items.filter(it => !it.sourceRowUid && !it.isInitialPlaceholder);
   items = newItems.concat(standaloneItems);
   selectedId = items.length ? items[0].id : null;
