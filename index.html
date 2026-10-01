@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.24';
+  var CURRENT_VERSION = '2026-10-01.1';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1459,6 +1459,15 @@
   #room3DCanvasWrap{ width:100%; height:calc(100vh - 60px); touch-action:none; }
   #room3DCanvasWrap canvas{ display:block; width:100% !important; height:100% !important; }
   #room3DRecordBtn.recording{ background:#c62828; border-color:#c62828; }
+  /* 🆕 2026-10-01: مشهد ثري دي مستقل لعنصر "سقف جملون متحرك" - نفس بالضبط أسلوب #room3DOverlay */
+  #gableRoof3DOverlay{
+    display:none;
+    position:fixed; inset:0; z-index:10700;
+    background:#0b1620;
+  }
+  #gableRoof3DOverlay .threeD-topbar{ position:relative; }
+  #gableRoof3DCanvasWrap{ width:100%; height:calc(100vh - 60px); touch-action:none; }
+  #gableRoof3DCanvasWrap canvas{ display:block; width:100% !important; height:100% !important; }
   #purchasingOverlay{
     display:none;
     position:fixed; inset:0; z-index:10600;
@@ -6954,6 +6963,7 @@ window.wdApplyBack = function(results){
         </div>
         <div class="add-row" style="margin-top:6px;">
           <button onclick="addItem('room')" style="flex:1;">🏛️ + غرفة/مجلس جديد</button>
+          <button onclick="addItem('gableRoof')" style="flex:1;">🏕️ + سقف جملون متحرك جديد</button>
         </div>
       </div>
 
@@ -7241,6 +7251,55 @@ window.wdApplyBack = function(results){
           <div id="ceilingPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;position:relative;"></div>
         </div>
 
+        <!-- 🆕 2026-10-01: "سقف جملون متحرك" - عنصر مستقل كليًا عن الغرفة (شوف الشرح المطوّل قرب
+             isGableRoof/makeItem فوق): جوانب زجاجية بفريم مرتفعة عن الأرض تحمل سقف جملون، مقسّم
+             لوحدات/بوابات قابلة للكليك (ثابتة F / متحركة يمين / متحركة شمال) - بنفس مبدأ سقف الغرفة
+             السحّاب تمامًا، بس بشكل جملوني حقيقي وجوانب حاملة بدل لوح مسطّح. -->
+        <div style="margin-top:10px; display:none;" id="gableRoofBlock">
+          <p class="hint" style="margin:0 0 10px;">عنصر مستقل (مش جزء من أي غرفة) - منفصل تمامًا بنفس الطريقة يلي الغرفة منفصلة فيها عن باقي البنود. لو بدك السقف يطابق أرضية غرفة معيّنة بالضبط، اكتب هون نفس الطول/العرض الإجمالي يلي عندها (شوف قائمة أضلاعها بلوحة الغرفة). أي بروز/بلكونة جانبية خارج التقسيم الأساسي ممكن تعمليها كسقف جملون متحرك ثاني مستقل بمقاس البروز لحاله.</p>
+          <div class="row2">
+            <div>
+              <label>الطول الإجمالي (مم) <span class="wd-ar">محور الوحدات/الانزلاق</span></label>
+              <input type="text" inputmode="decimal" id="inGableLength" min="200" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableLengthMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableLengthMm',this.value)" value="6000">
+            </div>
+            <div>
+              <label>العرض/العمق الإجمالي (مم)</label>
+              <input type="text" inputmode="decimal" id="inGableWidth" min="200" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableWidthMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableWidthMm',this.value)" value="3000">
+            </div>
+          </div>
+          <div class="row2" style="margin-top:10px;">
+            <div>
+              <label>ارتفاع القوائم الجانبية الحاملة (مم)</label>
+              <input type="text" inputmode="decimal" id="inGableLegHeight" min="300" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableLegHeightMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableLegHeightMm',this.value)" value="1000">
+            </div>
+            <div>
+              <label>ارتفاع قمة الجملون فوق القوائم (مم)</label>
+              <input type="text" inputmode="decimal" id="inGableRidgeHeight" min="100" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableRidgeHeightMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableRidgeHeightMm',this.value)" value="800">
+            </div>
+          </div>
+          <div class="row2" style="margin-top:10px;">
+            <div>
+              <label>تقسيمات زجاج السقف بالعرض <span class="wd-ar">لكل ميل (من الحافة للقمة)</span></label>
+              <input type="number" min="1" max="8" step="1" id="inGableRoofCols" onchange="onGableDimsField(getSelected().id,'gableRoofGlassCols',this.value)" value="3">
+            </div>
+            <div>
+              <label>تقسيمات زجاج القوائم الجانبية <span class="wd-ar">أفقيًا بالارتفاع</span></label>
+              <input type="number" min="1" max="6" step="1" id="inGableLegRows" onchange="onGableDimsField(getSelected().id,'gableLegGlassRows',this.value)" value="2">
+            </div>
+          </div>
+          <label style="margin-top:14px;">🎬 الوحدات/البوابات (ثابتة أو متحركة)</label>
+          <p class="hint">دوس على أي وحدة بالمسقط تحت لتدوير حالتها: متحركة شمال ⟵ ← متحركة يمين ⟶ ← ثابتة F (ما بتتحرك إطلاقًا) - وهيك دواليك. الوحدة المتحركة بتتحرك بالثري دي (الجانب + الجملون فوقه سوا كوحدة واحدة) باتجاهها لما تدوس زر فتح السقف.</p>
+          <div class="add-row" style="margin-top:6px;">
+            <span style="font-size:12px;">عدد الوحدات/البوابات:</span>
+            <input type="number" min="1" max="12" step="1" id="inGableBayCount" style="width:70px;" onchange="onGableBayCountField(getSelected().id,this.value)" title="عدد وحدات/بوابات السقف الجملوني (من 1 لـ12)">
+          </div>
+          <label style="margin-top:10px;">مسقط السقف الجملوني Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
+          <div id="gableBaysPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
+          <div class="add-row" style="margin-top:8px;">
+            <button type="button" onclick="openGableRoof3D()" class="small" style="flex:1;">🏕️ مشهد ثري دي حقيقي (جملون + قوائم + فتح/سكر حي)</button>
+          </div>
+        </div>
+
         <div class="row2" id="normalDimsRow" style="display: grid;">
           <div>
             <label>العرض الكلي (مم)</label>
@@ -7440,6 +7499,22 @@ window.wdApplyBack = function(results){
   </div>
   <div id="room3DCanvasWrap"></div>
   <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف الغرفة من كل زاوية، أو دوس "🎥 سجّل وحمّل فيديو 360°" لتسجيل دورة كاملة تلقائية حوالين الغرفة وتنزيلها كملف فيديو (mp4، أو webm لو متصفحك قديم) جاهز ترسلو للزبون. دوسي "▶️ افتح السقف" لتشوفي ألواح السقف السحّاب تنزلق وتنفتح حيًا قدامك (ونفس الزر بيسكّرها من جديد).</p>
+</div>
+
+<!-- 🆕 2026-10-01: مشهد ثري دي مستقل كليًا لعنصر "سقف جملون متحرك" (منفصل عن room3DOverlay/room3D
+     حتى ما نخاطر نكسر مشهد الغرفة الموجود وشغال - شوف buildGableRoof3DScene/toggleGableBaySlideAnimation
+     تحت). نفس مبدأ زر "▶️ افتح السقف" الموجود بالضبط، بس هون بيحرك الوحدة المتحركة كاملة (الجانب +
+     الجملون فوقه سوا كوحدة واحدة) مش لوح مسطّح بس. -->
+<div id="gableRoof3DOverlay">
+  <div class="threeD-topbar">
+    <span>🏕️ مشهد ثري دي حقيقي - سقف جملون متحرك</span>
+    <div style="display:flex; gap:8px;">
+      <button class="camera-close-btn" id="gableRoof3DSlideBtn" onclick="toggleGableBaySlideAnimation()" title="افتح/سكّر الوحدات المتحركة بحركة حية - حدد حالة كل وحدة (شمال/يمين/ثابتة) من لوحة التحكم قبل ما تفتح الثري دي">▶️ افتح الوحدات</button>
+      <button class="camera-close-btn" onclick="closeGableRoof3D()">✕ إغلاق</button>
+    </div>
+  </div>
+  <div id="gableRoof3DCanvasWrap"></div>
+  <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف السقف الجملوني من كل زاوية. دوس "▶️ افتح الوحدات" لتشوف الوحدات المتحركة (الجانب + الجملون فوقه سوا) تنزلق وتنفتح حيًا قدامك - الوحدات المعلّمة ثابتة (F) ما بتتحرك إطلاقًا.</p>
 </div>
 
 <div id="purchasingOverlay">
@@ -8154,7 +8229,7 @@ function getPrintAvailPx(pageItemCount, forceFullFill){
   return { availW: Math.max(150, cellW), availH: Math.max(120, cellH) };
 }
 
-const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل', room:'غرفة/مجلس' };
+const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل', room:'غرفة/مجلس', gableRoof:'سقف جملون متحرك' };
 const HANDRAIL_GAP_MM = 5;
 // مواقع أزواج مسامير Stand Off أفقيًا داخل عرض اللوح - كل زوج بيصير عنده مسمارين (فوق وتحت) - قابل للتوسيع لأكتر من زوجين للألواح الكبيرة
 function getStandoffPairPositions(pairs){
@@ -8198,6 +8273,94 @@ const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340; // مقاس الكانفس ا�
 
 function isHandrail(it){ return it.shapeType === 'handrail'; }
 function isRoom(it){ return it.shapeType === 'room'; }
+// 🆕 2026-10-01: "سقف جملون متحرك" - عنصر مستقل كليًا عن الغرفة (طلب حمدي صراحة: نظام فعلي بجوانب
+// زجاجية بفريم مرتفعة عن سطح الأرض (~متر) حاملة لسقف جملون (قطعتين مائلتين ملتقيتين بقمة)، مقسّم
+// طوليًا لوحدات/بوابات - كل وحدة إما ثابتة (F) أو متحركة باتجاه معيّن وبتتحرك مع جانبها سوا كوحدة
+// واحدة، بنفس مبدأ كليك اختيار جهة انزلاق باب السحاب/سقف الغرفة الموجود مسبقًا. شوف الدالة
+// isGableRoof تحت وmakeItem (فرع type==='gableRoof') للحقول، وensureGableBays/getGableBaysMM/
+// cycleGableBayState لمنطق الوحدات، وbuildGableRoofSVG للمسقط 2D القابل للكليك، وbuildGableRoof3DScene
+// للعرض الثلاثي الأبعاد والحركة.
+function isGableRoof(it){ return it.shapeType === 'gableRoof'; }
+
+// بيتأكد إنو it.gableBayCount وit.gableBayStates (حالة كل وحدة: 'fixed'|'left'|'right') موجودين
+// ومتناسقين (طول المصفوفة = العدد) - نفس مبدأ ensureCeilingSlidePanels بالضبط. الافتراضي لكل وحدة
+// جديدة: نص الوحدات الأقرب لبداية المحور -> 'left'، والنص التاني -> 'right' (يفتح من النص للبرا
+// تلقائيًا)، قبل ما يعدّل المستخدم أي وحدة يدويًا بالكليك (cycleGableBayState تحت).
+function ensureGableBays(it){
+  let count = parseInt(it.gableBayCount, 10);
+  if(!count || count < 1) count = 1;
+  if(count > 12) count = 12;
+  it.gableBayCount = count;
+  if(!Array.isArray(it.gableBayStates) || it.gableBayStates.length !== count){
+    const states = [];
+    for(let i=0;i<count;i++) states.push(i < count/2 ? 'left' : 'right');
+    it.gableBayStates = states;
+  }
+  return { count, states: it.gableBayStates };
+}
+window.ensureGableBays = ensureGableBays;
+
+// مصفوفة أوصاف الوحدات/البوابات بالمم (مستوى مسقط 2D): لكل وحدة {index, state, x0,x1,y0,y1,cx,cy,
+// sizeAlong,sizeAcross} - تقسيم بالتساوي لطول السقف الإجمالي (gableLengthMm) على عدد الوحدات، وكل
+// وحدة عمقها الكامل (gableWidthMm) - نفس مبدأ getCeilingSlidePanelsMM بالضبط بس لمحور واحد ثابت دايمًا
+// (الطول) بدل ما يتحدد تلقائيًا حسب أطول بعد، لأنو هون الطول والعرض حقول مستقلة يدخلها المستخدم مباشرة.
+function getGableBaysMM(it){
+  const { count, states } = ensureGableBays(it);
+  const lengthMm = Math.max(200, it.gableLengthMm || 6000);
+  const widthMm = Math.max(200, it.gableWidthMm || 3000);
+  const step = lengthMm / count;
+  const bays = [];
+  for(let i=0;i<count;i++){
+    const x0 = step*i, x1 = step*(i+1);
+    bays.push({ index:i, state: states[i]||'fixed', x0, x1, y0:0, y1:widthMm, cx:(x0+x1)/2, cy:widthMm/2, sizeAlong: step, sizeAcross: widthMm });
+  }
+  return bays;
+}
+window.getGableBaysMM = getGableBaysMM;
+
+// بالكليك على أي وحدة بمسقط السقف (buildGableRoofSVG تحت) - بالضبط متل الكليك على لوح سقف الغرفة
+// السحّاب (toggleCeilingSlidePanelDir) أو بند باب سحّاب لتحديد جهة فتحه: بس هون 3 حالات تلف دايرة
+// (مش حالتين) - 'left' -> 'right' -> 'fixed' (ثابتة F، ما بتتحرك إطلاقًا) -> ترجع 'left'.
+function cycleGableBayState(itemId, bayIndex){
+  const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
+  pushHistory();
+  ensureGableBays(it);
+  const states = it.gableBayStates;
+  if(!states || bayIndex < 0 || bayIndex >= states.length) return;
+  const order = ['left','right','fixed'];
+  const curIdx = order.indexOf(states[bayIndex]);
+  states[bayIndex] = order[(curIdx+1+order.length) % order.length];
+  renderGableRoofControlsUI(it);
+  renderGallery();
+}
+window.cycleGableBayState = cycleGableBayState;
+
+// تعديل حقل أبعاد رقمي (الطول/العرض/ارتفاع القوائم/ارتفاع الجملون/تقسيمات الزجاج) من لوحة التحكم.
+function onGableDimsField(itemId, field, value){
+  const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
+  pushHistory();
+  const v = Math.max(1, parseFloat(value) || 0);
+  it[field] = v;
+  renderGableRoofControlsUI(it);
+  renderGallery();
+}
+window.onGableDimsField = onGableDimsField;
+
+// تغيير عدد الوحدات/البوابات من خانة الرقم - بيعيد توليد الحالات الافتراضية بالعدد الجديد (تفاديًا
+// لمصفوفة حالات بطول غلط)، نفس مبدأ onCeilingSlidePanelCountField بالضبط.
+function onGableBayCountField(itemId, value){
+  const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
+  pushHistory();
+  let count = parseInt(value, 10);
+  if(!count || count < 1) count = 1;
+  if(count > 12) count = 12;
+  it.gableBayCount = count;
+  it.gableBayStates = null;
+  ensureGableBays(it);
+  renderGableRoofControlsUI(it);
+  renderGallery();
+}
+window.onGableBayCountField = onGableBayCountField;
 
 // 🆕 2026-09-30.22 (بلاغ حمدي المستمر رغم إصلاحات 2026-09-30.21: "الأخطار ما زالت نفسها... أضلاع
 // بالغرفة (الثري دي) بالذاتها") - بما إنو الإصلاحات السابقة (تصادم معرّفات الصفوف + تنظيف البنود
@@ -8478,6 +8641,20 @@ function makeItem(type){
       id:'rs'+(roomSideIdCounter++), length:3000, angleDeg:90,
       segments:[{ id:'rg'+(roomSegIdCounter++), length:3000, kind:'design', rowUid:null }]
     }));
+  }
+  // 🆕 2026-10-01: "سقف جملون متحرك" - عنصر تنظيمي مستقل (متل الغرفة، بدون عرض/ارتفاع/سعر لحاله وما
+  // بيدخل جدول عرض السعر) بحقوله الخاصة: أبعاد الظل الكلي (طول = محور الوحدات/الانزلاق، عرض = عمق
+  // الجملون)، ارتفاع القوائم الجانبية الحاملة، ارتفاع قمة الجملون فوقها، وعدد/حالة الوحدات (بوابات) -
+  // شوف ensureGableBays تحت لتفاصيل حالة كل وحدة (ثابتة F / متحركة يمين / متحركة شمال).
+  if(type === 'gableRoof'){
+    it.gableLengthMm = 6000;      // الطول الإجمالي (محور تعدد الوحدات والانزلاق)
+    it.gableWidthMm = 3000;       // العرض/العمق الإجمالي (عمق الجملون من جانب للتاني)
+    it.gableLegHeightMm = 1000;   // ارتفاع القوائم الجانبية الزجاجية الحاملة للسقف
+    it.gableRidgeHeightMm = 800;  // ارتفاع قمة الجملون فوق القوائم
+    it.gableBayCount = 4;         // عدد الوحدات/البوابات بالطول
+    it.gableBayStates = null;     // بتتعبى تلقائيًا بـensureGableBays (نص شمال/نص يمين افتراضيًا)
+    it.gableRoofGlassCols = 3;    // تقسيمات زجاج كل ميل من السقف (من الحافة للقمة)
+    it.gableLegGlassRows = 2;     // تقسيمات زجاج القوائم الجانبية (أفقيًا بالارتفاع)
   }
   return it;
 }
@@ -8877,6 +9054,18 @@ function loadSelectedIntoControls(){
     const wallColorEl = document.getElementById('inRoomWallColor');
     if(wallColorEl) wallColorEl.value = it.wallColorHex || '#e4dcc9';
     renderRoomSidesUI(it);
+    return;
+  }
+
+  // 🆕 2026-10-01: "سقف جملون متحرك" - لوحة تحكم مستقلة كليًا (أبعاد + وحدات/بوابات)، نفس أسلوب عزل
+  // لوحة الغرفة فوق بالضبط.
+  const gable = isGableRoof(it);
+  document.getElementById('gableRoofBlock').style.display = gable ? 'block' : 'none';
+  if(gable){
+    document.getElementById('handrailBlock').style.display = 'none';
+    document.getElementById('normalDimsRow').style.display = 'none';
+    document.getElementById('inArch').closest('.check-row').style.display = 'none';
+    renderGableRoofControlsUI(it);
     return;
   }
 
@@ -9726,6 +9915,7 @@ function classifyItem(it){
   // (بعد ما ينصمم زي بند عادي) اسمو "منظور Elevation" - بدل التصنيف العام (كرتن وول...) يلي كان
   // مربك (ظاهر متلو متل رسمة تانية مالها معنى).
   if(it.shapeType === 'room') return { en:'Plan', ar:'مسقط' };
+  if(it.shapeType === 'gableRoof') return { en:'Gable Roof Plan', ar:'مسقط سقف جملون' };
   if(it.isRoomWallElevation) return { en:'Elevation', ar:'منظور' };
   if(it.shapeType === 'foldingDoor') return { en:'Folding Door', ar:'باب فولدينغ' };
   if(it.shapeType === 'slidingDoor') return { en:'Sliding Door', ar:'باب سحّاب' };
@@ -11688,6 +11878,11 @@ let room3D = { renderer:null, scene:null, camera:null, controls:null, animId:nul
   center:null, radius:0, cameraHeight:0, lookHeight:0, recording:false, itemId:null,
   onResize:null, onClick:null };
 
+// 🆕 2026-10-01: حالة مشهد ثري دي مستقل كليًا لعنصر "سقف جملون متحرك" - منفصلة تمامًا عن room3D
+// (شوف buildGableRoof3DScene/computeGableBayPlacements/toggleGableBaySlideAnimation تحت).
+let gableRoof3D = { renderer:null, scene:null, camera:null, controls:null, animId:null,
+  itemId:null, bayGroups:null, slideAnim:null, open:false, onResize:null };
+
 // نفس منطق المشي حول الأضلاع يلي بـbuildRoomSVG بالضبط (نسخة منفصلة بدل ما نعدّل الأصلية، حتى ما
 // نخاطر نكسر معاينة الأرضية 2D يلي شغالة ومجربة) - بيرجع نقاط المضلع بالمم.
 // نفس منطق المشي حول الأضلاع (طول+زاوية داخلية لكل ضلع) - معمّمة لأي قائمة أضلاع (أرضية أو سقف)
@@ -12845,6 +13040,294 @@ function renderer_dispose_safe(renderer){
   if(renderer.domElement && renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
 }
 
+// ============================================================================
+// 🆕 2026-10-01: مشهد ثري دي حقيقي مستقل كليًا لعنصر "سقف جملون متحرك" (طلب حمدي المفصّل: جوانب
+// زجاجية بفريم مرتفعة عن الأرض ~متر تحمل سقف جملون وتتحرك معه، مقسّم لوحدات/بوابات - كل وحدة إما
+// ثابتة F أو متحركة باتجاه معيّن، وفريمات واضحة بكل حافة وكل تقطيعة). منفصل بالكامل عن room3D/
+// buildRoom3DScene حتى ما نخاطر نكسر مشهد الغرفة الموجود وشغال - نفس الأنماط المستخدمة هناك
+// (renderer/camera/OrbitControls/حلقة render وحيدة/disposeThreeSceneDeep عند الإغلاق) بس لعنصر مختلف.
+// ============================================================================
+
+// بيبني وحدة/بوابة واحدة (جانب بارتفاع legHM + جملون فوقه) كـTHREE.Group بإحداثيات محلية: x من 0
+// لـbayLenM (محور الانزلاق)، z من 0 لـwidthM (العمق)، y ارتفاع (0 = الأرض). منحطها بـgroup.position.x
+// = موقعها الفعلي بالمشهد (بالمتر) - هيك تحريك الأنيميشن لاحقًا (startGableBaySlideAnimation) بيصير
+// بس بتحريك group.position.x لكل وحدة، بدون أي إعادة بناء.
+function buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows){
+  const group = new THREE.Group();
+  const frameColor = 0x2b2f33;
+  const roofGlassMat = new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.45, roughness:0.15, side:THREE.DoubleSide });
+  const legGlassMat = new THREE.MeshStandardMaterial({ color:0xcfe6f2, transparent:true, opacity:0.5, roughness:0.2, side:THREE.DoubleSide });
+  const glassThicknessM = 0.02;
+
+  // 🆕 كل قطعة زجاج (جانب أو سقف) بتترسم كصندوق رفيع + خطوط حواف (EdgesGeometry) غامقة فوقها - هاي
+  // فعليًا هي "الفريمات" الواضحة بكل حافة وكل تقطيعة يلي طلبها حمدي صراحة (مش زجاج بدون فريم إطلاقًا).
+  function addFramedPanel(mat, w, h, d, px, py, pz, rotX){
+    const geo = new THREE.BoxGeometry(Math.max(0.01,w), Math.max(0.01,h), Math.max(0.01,d));
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(px,py,pz);
+    if(rotX) mesh.rotation.x = rotX;
+    group.add(mesh);
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:frameColor }));
+    edges.position.copy(mesh.position);
+    edges.rotation.copy(mesh.rotation);
+    group.add(edges);
+    return mesh;
+  }
+
+  // الجوانب الأربعة (القوائم الزجاجية الحاملة، ارتفاعها legHM) - كل جانب مقسوم أفقيًا legRows
+  // تقسيمات (فريم عند كل تقسيمة، نفس "فيه تقسيمات متل التصميم" يلي طلبها حمدي).
+  const rowH = legHM/legRows;
+  [0, widthM].forEach(zPos=>{ // الجانب الأمامي والخلفي (طولهم bayLenM)
+    for(let r=0;r<legRows;r++){
+      const py = rowH*r + rowH/2;
+      addFramedPanel(legGlassMat, bayLenM, rowH*0.96, glassThicknessM, bayLenM/2, py, zPos);
+    }
+  });
+  [0, bayLenM].forEach(xPos=>{ // الجانبين الطرفيين (عرضهم widthM)
+    for(let r=0;r<legRows;r++){
+      const py = rowH*r + rowH/2;
+      addFramedPanel(legGlassMat, glassThicknessM, rowH*0.96, widthM, xPos, py, widthM/2);
+    }
+  });
+
+  // سقف الجملون: ميلين (من حافة كل جانب للقمة بالنص)، كل ميل مقسوم roofCols تقسيمات بالعرض (من
+  // الحافة للقمة) - "الزجاج يللي فوق مقسم لأكثر من قطعة بالعرض" بالضبط متل ما طلب حمدي.
+  const halfW = widthM/2;
+  [ { z0:0 }, { z0:widthM } ].forEach(({z0})=>{
+    for(let c=0;c<roofCols;c++){
+      const t0 = c/roofCols, t1 = (c+1)/roofCols;
+      const zA = z0 + (halfW - z0)*t0, zB = z0 + (halfW - z0)*t1;
+      const yA = legHM + ridgeHM*t0, yB = legHM + ridgeHM*t1;
+      const dz = zB-zA, dy = yB-yA;
+      const slantLen = Math.max(0.01, Math.hypot(dz,dy));
+      // دوران حول محور X حتى يميل القطعة بنفس اتجاه الميل الحقيقي (من الحافة للقمة) - شوف اشتقاق
+      // الصيغة بالتعليق المرافق لها بتاريخ هالإصلاح بملاحظات الجلسة (atan2(-dy,dz) بيعطي الزاوية
+      // الصحيحة لمحور Z المحلي حتى يوازي متجه (dz,dy) الحقيقي بعد الدوران حول X).
+      const angle = Math.atan2(-dy, dz);
+      const geo = new THREE.BoxGeometry(bayLenM, glassThicknessM, slantLen);
+      const mesh = new THREE.Mesh(geo, roofGlassMat);
+      mesh.rotation.x = angle;
+      mesh.position.set(bayLenM/2, (yA+yB)/2, (zA+zB)/2);
+      group.add(mesh);
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:frameColor }));
+      edges.position.copy(mesh.position);
+      edges.rotation.copy(mesh.rotation);
+      group.add(edges);
+    }
+  });
+
+  return group;
+}
+
+// بيحسب موقع كل وحدة (مقفولة بمكانها الأصلي بالصف، ومفتوحة مرصوصة قرب حافة مجموعة جهتها) بالمتر -
+// نفس مبدأ getCeilingSlidePanelsMM/room3D.ceilingPanels بالضبط: الوحدات الثابتة (fixed) ما بتتحرك
+// إطلاقًا، والمتحركة بترتّب حسب قربها من حافة مجموعتها (الأقرب بيوصل أول وياخد أصغر رصّة، الأبعد
+// "بيسحب" الباقي معه ويوصل أبعد شي - نفس وصف حمدي "اللي بالوسط بيقرب على اللي قبلو وبيسحبه معه").
+function computeGableBayPlacements(it){
+  const MMTOM = 1/1000;
+  const bays = getGableBaysMM(it);
+  const lengthM = Math.max(0.2, (it.gableLengthMm||6000)*MMTOM);
+  const bayLenM = lengthM / bays.length;
+  const minX = 0, maxX = lengthM;
+  const stackGapM = Math.max(0.08, bayLenM*0.03);
+  const groups = { left: [], right: [] };
+  bays.forEach(b=>{ if(b.state==='left') groups.left.push(b); else if(b.state==='right') groups.right.push(b); });
+  const placements = bays.map(b => ({ index:b.index, state:b.state, closedX: b.x0*MMTOM, openX: b.x0*MMTOM, delayMs:0 }));
+  const byIndex = {}; placements.forEach(p => byIndex[p.index] = p);
+  ['left','right'].forEach(dir=>{
+    const arr = groups[dir];
+    const edgeX = dir==='left' ? minX : maxX;
+    arr.sort((a,b)=> Math.abs(a.cx*MMTOM-edgeX) - Math.abs(b.cx*MMTOM-edgeX));
+    arr.forEach((b, stackSlot)=>{
+      const p = byIndex[b.index];
+      p.openX = dir==='left' ? (minX - bayLenM - stackGapM*(stackSlot+1)) : (maxX + stackGapM*(stackSlot+1));
+      p.delayMs = (arr.length-1-stackSlot)*130;
+    });
+  });
+  return placements;
+}
+window.computeGableBayPlacements = computeGableBayPlacements;
+
+async function buildGableRoof3DScene(it, wrap){
+  const MMTOM = 1/1000;
+  const lengthM = Math.max(0.2,(it.gableLengthMm||6000)*MMTOM);
+  const widthM = Math.max(0.2,(it.gableWidthMm||3000)*MMTOM);
+  const legHM = Math.max(0.2,(it.gableLegHeightMm||1000)*MMTOM);
+  const ridgeHM = Math.max(0.05,(it.gableRidgeHeightMm||800)*MMTOM);
+  const roofCols = Math.max(1, Math.min(8, it.gableRoofGlassCols||3));
+  const legRows = Math.max(1, Math.min(6, it.gableLegGlassRows||2));
+  ensureGableBays(it);
+  const bays = getGableBaysMM(it);
+  const bayLenM = lengthM / bays.length;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xbfe0f2);
+  scene.fog = new THREE.Fog(0xbfe0f2, 18, 70);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+  sun.position.set(8, 14, 10);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
+  sun.shadow.camera.left = -15; sun.shadow.camera.right = 15;
+  sun.shadow.camera.top = 15; sun.shadow.camera.bottom = -15;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 60;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+  fill.position.set(-6, 6, -6);
+  scene.add(fill);
+
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({ color:0x8fae6e, roughness:1 }));
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -0.02;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(lengthM, 0.03, widthM), new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.9 }));
+  floorMesh.position.set(lengthM/2, -0.015, widthM/2);
+  floorMesh.receiveShadow = true;
+  scene.add(floorMesh);
+
+  const placements = computeGableBayPlacements(it);
+  gableRoof3D.bayGroups = [];
+  bays.forEach(b=>{
+    const group = buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows);
+    const placement = placements.find(p => p.index === b.index);
+    group.position.set(placement.closedX, 0, 0);
+    group.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+    scene.add(group);
+    gableRoof3D.bayGroups.push({
+      group, state: b.state,
+      closed: { x: placement.closedX }, open: { x: placement.openX },
+      delayMs: placement.delayMs, durationMs: 900,
+    });
+  });
+
+  const w = wrap.clientWidth || window.innerWidth;
+  const h = wrap.clientHeight || (window.innerHeight - 60);
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.shadowMap.enabled = true;
+  if(typeof THREE.PCFSoftShadowMap !== 'undefined') renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+  renderer.setSize(w,h);
+  wrap.innerHTML = '';
+  wrap.appendChild(renderer.domElement);
+
+  const totalHeightM = legHM + ridgeHM;
+  const centerX = lengthM/2, centerZ = widthM/2;
+  const radius = Math.max(3, Math.hypot(lengthM,widthM)/2 * 1.9 + totalHeightM);
+  const lookHeight = totalHeightM*0.5;
+  const cameraHeight = totalHeightM*1.15;
+  const camera = new THREE.PerspectiveCamera(50, w/h, 0.1, 1000);
+  camera.position.set(centerX + radius, cameraHeight, centerZ + radius);
+  camera.lookAt(centerX, lookHeight, centerZ);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(centerX, lookHeight, centerZ);
+  controls.minDistance = Math.max(1, radius*0.3);
+  controls.maxDistance = radius*3;
+  controls.maxPolarAngle = Math.PI*0.49;
+  controls.update();
+
+  gableRoof3D.renderer = renderer;
+  gableRoof3D.scene = scene;
+  gableRoof3D.camera = camera;
+  gableRoof3D.controls = controls;
+  renderer.shadowMap.needsUpdate = true;
+
+  function animate(){
+    gableRoof3D.animId = requestAnimationFrame(animate);
+    if(gableRoof3D.slideAnim) updateGableBaySlideAnimationFrame();
+    if(controls.enabled) controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  gableRoof3D.onResize = function(){
+    if(!gableRoof3D.renderer || document.getElementById('gableRoof3DOverlay').style.display === 'none') return;
+    const ww = wrap.clientWidth || window.innerWidth, hh = wrap.clientHeight || (window.innerHeight-60);
+    camera.aspect = ww/hh; camera.updateProjectionMatrix();
+    renderer.setSize(ww,hh);
+  };
+  window.addEventListener('resize', gableRoof3D.onResize);
+}
+
+async function openGableRoof3D(){
+  const it = getSelected(); if(!it || !isGableRoof(it)) return;
+  closeGableRoof3D();
+  document.getElementById('gableRoof3DOverlay').style.display = 'block';
+  gableRoof3D.itemId = it.id;
+  const wrap = document.getElementById('gableRoof3DCanvasWrap');
+  wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:var(--wd-font-ui);">⏳ عم يجهّز المشهد ثلاثي الأبعاد...</p>';
+  if(typeof THREE === 'undefined' || typeof THREE.OrbitControls === 'undefined'){
+    wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:var(--wd-font-ui);">⚠️ تعذّر تحميل مكتبة الرسم ثلاثي الأبعاد - تأكد من اتصالك بالإنترنت (المكتبة بتتحمّل من الإنترنت أول ما تفتح الأداة) وحاول من جديد.</p>';
+    return;
+  }
+  try{
+    await buildGableRoof3DScene(it, wrap);
+  } catch(e){
+    wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:var(--wd-font-ui);">⚠️ صار خطأ أثناء بناء المشهد: ' + escAttr(String(e && e.message || e)) + '</p>';
+  }
+}
+window.openGableRoof3D = openGableRoof3D;
+
+function closeGableRoof3D(){
+  if(gableRoof3D.animId){ cancelAnimationFrame(gableRoof3D.animId); gableRoof3D.animId = null; }
+  if(gableRoof3D.onResize){ window.removeEventListener('resize', gableRoof3D.onResize); gableRoof3D.onResize = null; }
+  if(gableRoof3D.controls){ try{ gableRoof3D.controls.dispose(); }catch(e){} }
+  if(gableRoof3D.scene){ try{ disposeThreeSceneDeep(gableRoof3D.scene); }catch(e){} }
+  if(gableRoof3D.renderer){ try{ renderer_dispose_safe(gableRoof3D.renderer); }catch(e){} }
+  gableRoof3D.renderer = null; gableRoof3D.scene = null; gableRoof3D.camera = null; gableRoof3D.controls = null;
+  gableRoof3D.bayGroups = null;
+  gableRoof3D.slideAnim = null;
+  gableRoof3D.open = false;
+  const overlay = document.getElementById('gableRoof3DOverlay');
+  if(overlay) overlay.style.display = 'none';
+  const slideBtn = document.getElementById('gableRoof3DSlideBtn');
+  if(slideBtn){ slideBtn.disabled = false; slideBtn.textContent = '▶️ افتح الوحدات'; }
+}
+window.closeGableRoof3D = closeGableRoof3D;
+
+// أنيميشن فتح/سكر الوحدات المتحركة - نفس مبدأ startCeilingSlideAnimation/updateCeilingSlideAnimationFrame
+// بالضبط، بس هون بيحرك مجموعة (جانب+جملون) كاملة (group.position.x) مش لوح مسطّح بس. الوحدات الثابتة
+// (state==='fixed') مستبعدة بالكامل من الحركة - ما بتتحرك إطلاقًا بأي اتجاه.
+function easeInOutCubicGableSlide(t){ return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2; }
+function startGableBaySlideAnimation(toOpen){
+  if(!gableRoof3D.bayGroups) return;
+  const movable = gableRoof3D.bayGroups.filter(bg => bg.state !== 'fixed');
+  if(!movable.length) return;
+  gableRoof3D.slideAnim = {
+    startTime: performance.now(), toOpen,
+    entries: movable.map(bg => ({ bg, from: toOpen ? bg.closed : bg.open, to: toOpen ? bg.open : bg.closed })),
+  };
+  const btn = document.getElementById('gableRoof3DSlideBtn');
+  if(btn){ btn.disabled = true; btn.textContent = toOpen ? '⏳ عم تفتح الوحدات...' : '⏳ عم تسكّر الوحدات...'; }
+}
+function updateGableBaySlideAnimationFrame(){
+  const anim = gableRoof3D.slideAnim; if(!anim) return;
+  const now = performance.now();
+  let allDone = true;
+  anim.entries.forEach(entry=>{
+    const elapsed = now - anim.startTime - entry.bg.delayMs;
+    let t;
+    if(elapsed <= 0){ t = 0; allDone = false; }
+    else { t = Math.min(1, elapsed/entry.bg.durationMs); if(t < 1) allDone = false; }
+    const e = easeInOutCubicGableSlide(t);
+    entry.bg.group.position.x = entry.from.x + (entry.to.x - entry.from.x)*e;
+  });
+  if(allDone){
+    gableRoof3D.open = anim.toOpen;
+    gableRoof3D.slideAnim = null;
+    const btn = document.getElementById('gableRoof3DSlideBtn');
+    if(btn){ btn.disabled = false; btn.textContent = gableRoof3D.open ? '⏹ سكّر الوحدات' : '▶️ افتح الوحدات'; }
+  }
+}
+function toggleGableBaySlideAnimation(){
+  if(!gableRoof3D.renderer || gableRoof3D.slideAnim) return;
+  if(!gableRoof3D.bayGroups || !gableRoof3D.bayGroups.some(bg => bg.state !== 'fixed')) return;
+  startGableBaySlideAnimation(!gableRoof3D.open);
+}
+window.toggleGableBaySlideAnimation = toggleGableBaySlideAnimation;
+
 // 🛠️ 2026-09-30.19: refreshRoom3DIfOpenForItem انحذفت - كانت بس لريفريش حي للمشهد الثلاثي الأبعاد
 // بعد تعديل جزء سقف (zone)، ونظام الأجزاء انحذف بالكامل بطلب حمدي.
 
@@ -13459,9 +13942,62 @@ function buildRoomSVG(it, sizePx){
   </svg>`;
 }
 
+// 🆕 2026-10-01: مسقط 2D (من فوق) لعنصر "سقف جملون متحرك" - مستطيل الظل الكلي (الطول × العرض) مقسّم
+// لوحدات/بوابات قابلة للكليك (نفس مبدأ buildCeilingSVG/toggleCeilingSlidePanelDir بالضبط): كل وحدة
+// ملوّنة حسب حالتها الحالية (أزرق = متحركة شمال ⟵، برتقالي = متحركة يمين ⟶، رمادي = ثابتة F) والكليك
+// عليها بيلف حالتها للحالة الجاية (cycleGableBayState).
+function buildGableRoofSVG(it){
+  const lengthMm = Math.max(200, it.gableLengthMm || 6000);
+  const widthMm = Math.max(200, it.gableWidthMm || 3000);
+  const bays = getGableBaysMM(it);
+  const boxPx = 260, pad = 36;
+  const scale = Math.min(boxPx/lengthMm, boxPx/widthMm);
+  const totalW = lengthMm*scale + pad*2, totalH = widthMm*scale + pad*2;
+  const toPx = (x,y) => ({ x: pad + x*scale, y: pad + y*scale });
+  const stateColor = { left:'rgba(15,136,205,0.38)', right:'rgba(214,113,17,0.38)', fixed:'rgba(120,120,120,0.35)' };
+  const stateArrow = { left:'⟵', right:'⟶', fixed:'F' };
+  const stateLabel = { left:'متحركة شمال', right:'متحركة يمين', fixed:'ثابتة (F)' };
+  let baysSvg = '';
+  bays.forEach(b=>{
+    const c0 = toPx(b.x0,b.y0), c1 = toPx(b.x1,b.y1);
+    const rx = Math.min(c0.x,c1.x), ry = Math.min(c0.y,c1.y);
+    const rw = Math.max(1,Math.abs(c1.x-c0.x)), rh = Math.max(1,Math.abs(c1.y-c0.y));
+    const midx = rx+rw/2, midy = ry+rh/2;
+    baysSvg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${stateColor[b.state]||stateColor.fixed}" stroke="var(--wd-ink)" stroke-width="1" style="cursor:pointer;" onclick="cycleGableBayState(${it.id},${b.index})"><title>وحدة ${b.index+1} - الحالة الحالية: ${stateLabel[b.state]||''} (دوس لتبديلها: شمال ⟶ يمين ⟶ ثابتة F)</title></rect>`;
+    baysSvg += `<text x="${midx}" y="${midy-4}" font-size="16" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" style="pointer-events:none;">${stateArrow[b.state]||'F'}</text>`;
+    baysSvg += `<text x="${midx}" y="${midy+14}" font-size="9" fill="var(--wd-ink)" text-anchor="middle" style="pointer-events:none;">${b.index+1}</text>`;
+  });
+  const outer0 = toPx(0,0), outer1 = toPx(lengthMm,widthMm);
+  return `<svg width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" style="max-width:100%;">
+    <rect x="${outer0.x}" y="${outer0.y}" width="${outer1.x-outer0.x}" height="${outer1.y-outer0.y}" fill="none" stroke="var(--wd-ink)" stroke-width="2" stroke-dasharray="4,3"/>
+    ${baysSvg}
+    <text x="${totalW/2}" y="${totalH-10}" font-size="10" fill="var(--wd-ink-dim)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(lengthMm)} mm</text>
+    <text x="12" y="${totalH/2}" font-size="10" fill="var(--wd-ink-dim)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" transform="rotate(-90,12,${totalH/2})">${Math.round(widthMm)} mm</text>
+  </svg>`;
+}
+window.buildGableRoofSVG = buildGableRoofSVG;
+
+// بيعبّي حقول لوحة تحكم "سقف جملون متحرك" (gableRoofBlock) من بيانات البند، ويعيد رسم مسقط الوحدات
+// القابل للكليك (gableBaysPreview) - نفس مبدأ renderCeilingSidesUI/renderRoomSidesUI بالضبط.
+function renderGableRoofControlsUI(it){
+  ensureGableBays(it);
+  const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+  setVal('inGableLength', Math.round(it.gableLengthMm||6000));
+  setVal('inGableWidth', Math.round(it.gableWidthMm||3000));
+  setVal('inGableLegHeight', Math.round(it.gableLegHeightMm||1000));
+  setVal('inGableRidgeHeight', Math.round(it.gableRidgeHeightMm||800));
+  setVal('inGableRoofCols', it.gableRoofGlassCols||3);
+  setVal('inGableLegRows', it.gableLegGlassRows||2);
+  setVal('inGableBayCount', it.gableBayCount||4);
+  const preview = document.getElementById('gableBaysPreview');
+  if(preview) preview.innerHTML = buildGableRoofSVG(it);
+}
+window.renderGableRoofControlsUI = renderGableRoofControlsUI;
+
 function buildItemSVG(it){
   if(isHandrail(it)) return buildHandrailSVG(it);
   if(isRoom(it)) return buildRoomSVG(it);
+  if(isGableRoof(it)) return buildGableRoofSVG(it);
   const W = it.width, H = it.height;
   if(!W || !H || W<=0 || H<=0) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">أدخل أبعاد صحيحة</div>';
 
@@ -14221,7 +14757,7 @@ function buildPrintSheetHTML(opts){
   </div>`;
   // بند مستبعد (mfgExcluded) بيُطبع عادي بالطباعة العادية (useMfgSizes=false) - بس بيُشال كليًا من
   // طباعة "مقاسات التصنيع" (useMfgSizes=true)، لأنو حمدي طلب صراحة إمكانية استبعاد بند ما بدو ياه فيها.
-  const rawPrintItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && (!useMfgSizes || !it.mfgExcluded));
+  const rawPrintItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it) && (!useMfgSizes || !it.mfgExcluded));
   const printItems = !useMfgSizes ? rawPrintItems : rawPrintItems.map(it=>{
     if(isHandrail(it)) return it;
     const mfg = getMfgSizeMm(it);
@@ -14248,7 +14784,7 @@ function buildPrintSheetHTML(opts){
     html += `<div class="print-page" style="grid-template-columns:repeat(${cols},1fr); grid-template-rows:repeat(${rows},1fr);${breakStyle}">`;
     pageItems.forEach(it=>{
       const cls = classifyItem(it);
-      const typeWord = isHandrail(it) ? 'الهاندريل' : (isDoorLike(it) ? 'الباب' : 'الشباك');
+      const typeWord = isHandrail(it) ? 'الهاندريل' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
       const typeLabel = SHAPE_LABELS[it.shapeType] || 'شباك';
       const refLine = it.refCode ? `<div class="print-item-ref">مرجع الجدول / Reference: <b>${it.refCode}</b></div>` : '';
       // بوضعية طباعة مقاسات التصنيع، الرسمة نفسها أصلاً مرسومة على المقاس المعدّل (باين برقمها فوق
@@ -14275,7 +14811,7 @@ function buildPrintSheetHTML(opts){
 // تلقائياً بنفس القياسات المضبوطة - بدون ما تعيد إدخالها يدوياً.
 function exportProcurementJSON(){
   try{
-    const printItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
+    const printItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
     if(!printItems.length) return;
     const refInput = document.getElementById('m-ref');
     const ref = (refInput && refInput.value || '').trim();
@@ -14420,7 +14956,7 @@ function renderGallery(){
     }
     const caption = document.createElement('div');
     caption.className = 'card-caption';
-    const typeWord = isHandrail(it) ? 'الهاندريل' : (isDoorLike(it) ? 'الباب' : 'الشباك');
+    const typeWord = isHandrail(it) ? 'الهاندريل' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
     const cls = classifyItem(it);
     caption.innerHTML = `الرؤية لهذا ${typeWord} من الخارج<br>Outside View
       <div class="card-classify">${cls.en} <span class="wd-ar">(${cls.ar})</span></div>`;
@@ -15485,7 +16021,7 @@ function build3DRenderSVG(it){
 function open3DPreview(){
   const grid = document.getElementById('threeDGrid');
   grid.innerHTML = '';
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
   if(!visibleItems.length){
     grid.innerHTML = '<p style="color:#666;font-family:var(--wd-font-ui);padding:20px;">ما في تصاميم بعد لعرضها.</p>';
   } else {
@@ -15552,7 +16088,7 @@ function onPurchTubePresetChange(){
 }
 
 function renderPurchasingAluminum(){
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
   const tableEl = document.getElementById('purchAluminumTable');
   const totalsEl = document.getElementById('purchAluminumTotals');
   if(!visibleItems.length){
@@ -15613,7 +16149,7 @@ function handleRemoveCatalogMaterial(matId){
 
 function renderPurchasingMaterialsCatalog(){
   const catalog = loadMaterialsCatalog();
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
   const el = document.getElementById('purchMaterialsCatalog');
   if(!catalog.length){
     el.innerHTML = '<p style="color:#666;padding:6px 0;">ما في مواد بالكتالوج بعد — ضيف أول مادة فوق.</p>';
@@ -15642,7 +16178,7 @@ function renderPurchasingMaterialsCatalog(){
 
 function renderPurchasingMaterialsTable(){
   const catalog = loadMaterialsCatalog();
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it));
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
   const el = document.getElementById('purchMaterialsTable');
   if(!catalog.length){
     el.innerHTML = '<p style="color:#666;padding:6px 0;">ضيف مواد للكتالوج فوق لتظهر هون.</p>';
