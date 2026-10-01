@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-01.9';
+  var CURRENT_VERSION = '2026-10-02.1';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1647,6 +1647,10 @@
 <!-- 🆕 2026-09-24: طلب حمدي - مكتبة ثري دي حقيقية (THREE.js) للمشهد القابل للتدوير + تصدير فيديو 360° -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<!-- 🆕 2026-10-02 (طلب حمدي: "بدي صيغة الفيديو تكون MP4" دايمًا مهما كان المتصفح) - مكتبة ffmpeg.wasm
+     (محرك ffmpeg حقيقي بـWebAssembly) لتحويل فيديو 360° لصيغة mp4 حقيقية داخل المتصفح لو المتصفح نفسه
+     ما بيدعم تسجيل mp4 مباشرة (شوف convertVideoBlobToMp4 بالأسفل). بتتحمّل مرة وحدة بس وقت أول تسجيل. -->
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <style id="googleidentityservice_button_styles">.qJTHM{-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;color:#202124;direction:ltr;-webkit-touch-callout:none;font-family:Roboto-Regular,arial,sans-serif;-webkit-font-smoothing:antialiased;font-weight:400;margin:0;overflow:hidden;-webkit-text-size-adjust:100%}.ynRLnc{left:-9999px;position:absolute;top:-9999px}.L6cTce{display:none}.bltWBb{overflow-wrap:break-word;word-break:break-word}.hSRGPd{color:#1a73e8;cursor:pointer;font-weight:500;text-decoration:none}.Bz112c-W3lGp{height:16px;width:16px}.Bz112c-E3DyYd{height:20px;width:20px}.Bz112c-r9oPif{height:24px;width:24px}.Bz112c-u2z5K{height:36px;width:36px}.Bz112c-uaxL4e{border-radius:10px}.LgbsSe-Bz112c{display:block}.S9gUrf-YoZ4jf{border:none;margin:0;padding:0}.S9gUrf-YoZ4jf *{border:none;margin:0;padding:0}.fFW7wc-ibnC6b>.aZ2wEe>div{border-color:#4285f4}.P1ekSe-ZMv3u{-webkit-transition:height .2s linear;transition:height .2s linear}.P1ekSe-ZMv3u>div:first-child{background-color:#1a73e8!important;-webkit-transition:width .3s linear;transition:width .3s linear}.P1ekSe-ZMv3u>div:nth-child(2){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.P1ekSe-ZMv3u>div:nth-child(3){background-image:-webkit-gradient(linear,left top,right top,from(rgba(255,255,255,.7)),to(rgba(255,255,255,.7))),-webkit-gradient(linear,left top,right top,from(#1a73e8),to(#1a73e8))!important;background-image:-webkit-linear-gradient(left,rgba(255,255,255,.7),rgba(255,255,255,.7)),-webkit-linear-gradient(left,#1a73e8,#1a73e8)!important;background-image:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.7)),linear-gradient(90deg,#1a73e8,#1a73e8)!important}.haAclf{display:inline-block}.nsm7Bb-HzV7m-LgbsSe{border-radius:4px;box-sizing:border-box;-webkit-transition:background-color .218s,border-color .218s;transition:background-color .218s,border-color .218s;-moz-user-select:none;-webkit-user-select:none;-ms-user-select:none;-webkit-appearance:none;background-color:#fff;background-image:none;border:1px solid #dadce0;color:#3c4043;cursor:pointer;font-family:Google Sans,arial,sans-serif;font-size:.875rem;height:40px;letter-spacing:.25px;outline:none;overflow:hidden;padding:0 12px;position:relative;text-align:center;vertical-align:middle;white-space:nowrap;width:auto}@media screen and (-ms-high-contrast:active){.nsm7Bb-HzV7m-LgbsSe{border:2px solid windowText;color:windowText}}@media screen and (preferes-contrast:more){.nsm7Bb-HzV7m-LgbsSe{color:#000}}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe{font-size:.875rem;height:32px;letter-spacing:.25px;padding:0 10px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe{font-size:.6875rem;height:20px;letter-spacing:.3px;padding:0 8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe{padding:0;width:40px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe{width:32px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe{width:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK{border-radius:20px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.pSzOP-SxQuSe{border-radius:16px}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK.purZT-SxQuSe{border-radius:10px}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc{border:1px solid #8e918f;background-color:#131314;color:#e3e3e3}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc{border:none;color:#fff}.nsm7Bb-HzV7m-LgbsSe.MFS4be-v3pZbf-Ia7Qfc{background-color:#1a73e8}.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{background-color:#202124;color:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.MFS4be-JaPV2b-Ia7Qfc{color:#fff}}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:18px;margin-right:8px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:14px;min-width:14px;width:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{height:10px;min-width:10px;width:10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin-left:8px;margin-right:-4px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:10px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:8px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c{padding:4px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:3px;border-bottom-left-radius:3px;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center;-webkit-box-align:center;-webkit-align-items:center;align-items:center;background-color:#fff;height:36px;margin-left:-10px;margin-right:12px;min-width:36px;width:36px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c,.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf .nsm7Bb-HzV7m-LgbsSe-Bz112c{margin:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:28px;margin-left:-8px;margin-right:10px;min-width:28px;width:28px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{height:16px;margin-left:-6px;margin-right:8px;min-width:16px;width:16px}.nsm7Bb-HzV7m-LgbsSe.Bz112c-LgbsSe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:3px;margin-left:2px;margin-right:0;padding:0}.nsm7Bb-HzV7m-LgbsSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.nsm7Bb-HzV7m-LgbsSe.pSzOP-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:14px}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:8px}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-bN97Pc-sM5MNb{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;-webkit-flex-direction:row;-webkit-box-orient:horizontal;-webkit-box-direction:normal;flex-direction:row;-webkit-box-pack:justify;-webkit-justify-content:space-between;justify-content:space-between;-webkit-flex-wrap:nowrap;flex-wrap:nowrap;height:100%;position:relative;width:100%}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX{-webkit-box-pack:center;-webkit-justify-content:center;justify-content:center}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:1;-webkit-box-flex:1;flex-grow:1;font-family:Google Sans,arial,sans-serif;font-weight:500;overflow:hidden;text-overflow:ellipsis;vertical-align:top}.nsm7Bb-HzV7m-LgbsSe.purZT-SxQuSe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-weight:300}.nsm7Bb-HzV7m-LgbsSe .oXtfBe-l4eHX .nsm7Bb-HzV7m-LgbsSe-BPrWId{-webkit-flex-grow:0;-webkit-box-flex:0;flex-grow:0}.nsm7Bb-HzV7m-LgbsSe .nsm7Bb-HzV7m-LgbsSe-MJoBVe{-webkit-transition:background-color .218s;transition:background-color .218s;bottom:0;left:0;position:absolute;right:0;top:0}.nsm7Bb-HzV7m-LgbsSe:focus,.nsm7Bb-HzV7m-LgbsSe:hover{box-shadow:none;border-color:rgb(210,227,252);outline:none}.nsm7Bb-HzV7m-LgbsSe:focus-within{outline:2px solid #00639b;border-color:transparent}.nsm7Bb-HzV7m-LgbsSe:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.08)}.nsm7Bb-HzV7m-LgbsSe:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(66,133,244,.1)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.08)}.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.i5vt6e-to915-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.12)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:hover .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.24)}.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:active .nsm7Bb-HzV7m-LgbsSe-MJoBVe,.nsm7Bb-HzV7m-LgbsSe.MFS4be-Ia7Qfc:focus .nsm7Bb-HzV7m-LgbsSe-MJoBVe{background:rgba(255,255,255,.32)}.nsm7Bb-HzV7m-LgbsSe .n1UuX-DkfjY{border-radius:50%;display:-webkit-box;display:-webkit-flex;display:flex;height:20px;margin-left:-4px;margin-right:8px;min-width:20px;width:20px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId{font-family:Roboto;font-size:12px;text-align:left}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .fmcmS,.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .ssJRIf{overflow:hidden;text-overflow:ellipsis}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;-webkit-box-align:center;align-items:center;color:#5f6368;fill:#5f6368;font-size:11px;font-weight:400}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.i5vt6e-to915-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#c4c7c5;fill:#c4c7c5}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#e8eaed;fill:#e8eaed}@media screen and (prefers-contrast:more){.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff,.nsm7Bb-HzV7m-LgbsSe.jVeSEe.MFS4be-Ia7Qfc .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff{color:#000;fill:#000}}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-BPrWId .K4efff .Bz112c{height:18px;margin:-3px -3px -3px 2px;min-width:18px;width:18px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-top-left-radius:0;border-bottom-left-radius:0;border-top-right-radius:3px;border-bottom-right-radius:3px;margin-left:12px;margin-right:-10px}.nsm7Bb-HzV7m-LgbsSe.jVeSEe.JGcpL-RbRzK .nsm7Bb-HzV7m-LgbsSe-Bz112c-haAclf{border-radius:18px}.L5Fo6c-sM5MNb{border:0;display:block;left:0;position:relative;top:0}.L5Fo6c-bF1uUb{border-radius:4px;bottom:0;cursor:pointer;left:0;position:absolute;right:0;top:0}.L5Fo6c-bF1uUb:focus{border:none;outline:none}sentinel{}</style><style id="dynamicPageStyle">@page{ size: 210mm 297mm; margin: 12mm; }</style></head>
 <body data-prefilled="1" class="">
 
@@ -7569,11 +7573,14 @@ window.wdApplyBack = function(results){
         <button class="camera-close-btn" id="gableRoof3DSpeedFast" onclick="setGableRoofLiveSlideSpeed('fast')" title="سرعة سريعة">🐇</button>
       </div>
       <button class="camera-close-btn" id="gableRoof3DSlideBtn" onclick="toggleGableBaySlideAnimation()" title="افتح/سكّر الوحدات المتحركة بحركة حية - حدد حالة كل وحدة (شمال/يمين/ثابتة) من لوحة التحكم قبل ما تفتح الثري دي">▶️ افتح الوحدات</button>
+      <!-- 🆕 2026-10-01.10 (بلاغ حمدي: "زر تسجيل الفيديو مو موجود بالثري دي تبع السقف") - نفس زر
+           room3DRecordBtn بالضبط (recordGableRoof3DVideo). -->
+      <button class="camera-close-btn" id="gableRoof3DRecordBtn" onclick="recordGableRoof3DVideo()">🎥 سجّل وحمّل فيديو 360°</button>
       <button class="camera-close-btn" onclick="closeGableRoof3D()">✕ إغلاق</button>
     </div>
   </div>
   <div id="gableRoof3DCanvasWrap"></div>
-  <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف السقف الجملوني من كل زاوية. دوس "▶️ افتح الوحدات" لتشوف الوحدات المتحركة (الجانب + الجملون فوقه سوا) تنزلق وتنفتح حيًا قدامك - الوحدات المعلّمة ثابتة (F) ما بتتحرك إطلاقًا. اختاري سرعة الحركة (🐢 بطيء / 🚶 متوسط / 🐇 سريع) من فوق لتجربي شو الأنسب وقت التصوير.</p>
+  <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف السقف الجملوني من كل زاوية، أو دوس "🎥 سجّل وحمّل فيديو 360°" لتسجيل دورة كاملة تلقائية حوالين السقف وتنزيلها كملف فيديو جاهز ترسلو للزبون. دوس "▶️ افتح الوحدات" لتشوف الوحدات المتحركة (الجانب + الجملون فوقه سوا) تنزلق وتنفتح حيًا قدامك - الوحدات المعلّمة ثابتة (F) ما بتتحرك إطلاقًا. اختاري سرعة الحركة (🐢 بطيء / 🚶 متوسط / 🐇 سريع) من فوق لتجربي شو الأنسب وقت التصوير.</p>
 </div>
 
 <div id="purchasingOverlay">
@@ -12151,8 +12158,12 @@ let room3D = { renderer:null, scene:null, camera:null, controls:null, animId:nul
 
 // 🆕 2026-10-01: حالة مشهد ثري دي مستقل كليًا لعنصر "سقف جملون متحرك" - منفصلة تمامًا عن room3D
 // (شوف buildGableRoof3DScene/computeGableBayPlacements/toggleGableBaySlideAnimation تحت).
+// 🆕 2026-10-01.10 (بلاغ حمدي: "زر تسجيل الفيديو مو موجود بالثري دي تبع السقف") - ضفنا حقول التسجيل
+// (مطابقة room3D تمامًا: center/radius/cameraHeight/lookHeight لحركة الكاميرا الدائرية التلقائية
+// وقت التسجيل، recording/activeRecorder لحالة التسجيل الفعلية) - شوف recordGableRoof3DVideo تحت.
 let gableRoof3D = { renderer:null, scene:null, camera:null, controls:null, animId:null,
-  itemId:null, bayGroups:null, slideAnim:null, open:false, onResize:null, speedFactor:1 };
+  itemId:null, bayGroups:null, slideAnim:null, open:false, onResize:null, speedFactor:1,
+  center:null, radius:0, cameraHeight:0, lookHeight:0, recording:false, activeRecorder:null };
 
 // 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب يكون في مثلا 3 سرعات حتى اقدر شوف شو الافضل
 // وقت التصوير") - مضاعف سرعة حركة فتح/سكر الوحدات: 1 = السرعة الأصلية (900مم أساس)، أكبر من 1 = أبطأ
@@ -13758,17 +13769,39 @@ async function buildGableRoof3DScene(it, wrap){
   gableRoof3D.scene = scene;
   gableRoof3D.camera = camera;
   gableRoof3D.controls = controls;
+  // 🆕 2026-10-01.10 (بلاغ حمدي: "زر تسجيل الفيديو مو موجود بالثري دي تبع السقف") - نخزّن مركز/نصف
+  // قطر/ارتفاعات الكاميرا (نفس مبدأ room3D بالضبط) حتى recordGableRoof3DVideo تحت تقدر تدوّر الكاميرا
+  // تلقائيًا دورة كاملة 360° حوالين السقف وقت التسجيل.
+  gableRoof3D.center = { x: centerX, z: centerZ };
+  gableRoof3D.radius = radius;
+  gableRoof3D.cameraHeight = cameraHeight;
+  gableRoof3D.lookHeight = lookHeight;
   renderer.shadowMap.needsUpdate = true;
 
   function animate(){
     gableRoof3D.animId = requestAnimationFrame(animate);
+    // 🆕 2026-10-01.10: نفس مبدأ حلقة render الوحيدة المستخدمة بـbuildRoom3DScene لتسجيل الفيديو
+    // (roomAnimate فوق) - أثناء التسجيل، نفس هالحلقة هي يلي بتحرّك الكاميرا دورة كاملة 360° (مش حلقة
+    // requestAnimationFrame موازية ثانية، تفاديًا لتضارب فريمات كان ممكن يخلي الفيديو يطلع فاضي/ثابت).
+    if(gableRoof3D.recording){
+      const t = Math.min(1, (performance.now() - gableRoof3D.recordStartTime) / gableRoof3D.recordDurationMs);
+      const angle = gableRoof3D.recordStartAngle + t*Math.PI*2;
+      camera.position.x = gableRoof3D.center.x + gableRoof3D.radius*Math.cos(angle);
+      camera.position.z = gableRoof3D.center.z + gableRoof3D.radius*Math.sin(angle);
+      camera.position.y = gableRoof3D.cameraHeight;
+      camera.lookAt(gableRoof3D.center.x, gableRoof3D.lookHeight, gableRoof3D.center.z);
+      if(t >= 1) gableRoof3D._recordReachedEnd = true;
+    } else if(controls.enabled){
+      controls.update();
+    }
+    // فتح/سكر الوحدات بيتحدث بنفس الوقت بغض النظر عن التسجيل (حتى لو حمدي بدو يسجّل فيديو وقت ما
+    // الوحدات عم تتحرك سوا - الكاميرا بتدور والوحدات بتتحرك بنفس اللحظة بدون تعارض).
     if(gableRoof3D.slideAnim){
       updateGableBaySlideAnimationFrame();
       // الوحدات فعليًا عم تتحرك هلق - لازم الظل يتحدث كل فريم طول مدة الحركة بس (دقة بصرية صح وقت
       // التصوير)، وبعدين منرجع نعطّله فور ما تخلص الحركة (شوف updateGableBaySlideAnimationFrame).
       renderer.shadowMap.needsUpdate = true;
     }
-    if(controls.enabled) controls.update();
     renderer.render(scene, camera);
   }
   animate();
@@ -13806,6 +13839,13 @@ async function openGableRoof3D(){
 window.openGableRoof3D = openGableRoof3D;
 
 function closeGableRoof3D(){
+  // 🆕 2026-10-01.10 (بلاغ حمدي: "زر تسجيل الفيديو مو موجود بالثري دي تبع السقف") - نفس منطق
+  // closeRoom3D بالضبط: لو كان في تسجيل شغال وقت ما انسكّرت النافذة، نوقفه فورًا (ما نخليه يضل
+  // يسجّل بالخلفية على مشهد انمسح).
+  if(gableRoof3D.activeRecorder){
+    try{ if(gableRoof3D.activeRecorder.state !== 'inactive') gableRoof3D.activeRecorder.stop(); }catch(e){}
+    gableRoof3D.activeRecorder = null;
+  }
   if(gableRoof3D.animId){ cancelAnimationFrame(gableRoof3D.animId); gableRoof3D.animId = null; }
   if(gableRoof3D.onResize){ window.removeEventListener('resize', gableRoof3D.onResize); gableRoof3D.onResize = null; }
   if(gableRoof3D.controls){ try{ gableRoof3D.controls.dispose(); }catch(e){} }
@@ -13816,10 +13856,14 @@ function closeGableRoof3D(){
   gableRoof3D.slideAnim = null;
   gableRoof3D.open = false;
   gableRoof3D.speedFactor = 1;
+  gableRoof3D.recording = false;
+  gableRoof3D.center = null; gableRoof3D.radius = 0; gableRoof3D.cameraHeight = 0; gableRoof3D.lookHeight = 0;
   const overlay = document.getElementById('gableRoof3DOverlay');
   if(overlay) overlay.style.display = 'none';
   const slideBtn = document.getElementById('gableRoof3DSlideBtn');
   if(slideBtn){ slideBtn.disabled = false; slideBtn.textContent = '▶️ افتح الوحدات'; }
+  const recordBtn = document.getElementById('gableRoof3DRecordBtn');
+  if(recordBtn){ recordBtn.classList.remove('recording'); recordBtn.textContent = '🎥 سجّل وحمّل فيديو 360°'; recordBtn.disabled = false; }
 }
 window.closeGableRoof3D = closeGableRoof3D;
 
@@ -13921,6 +13965,61 @@ function disposeThreeMaterialDeep(material){
 }
 
 
+// 🆕 2026-10-02 (طلب حمدي: "بدي صيغة الفيديو تكون MP4" - دايمًا، مهما كان نوع المتصفح/الجهاز) - الكود
+// فوق (recordRoom3DVideo/recordGableRoof3DVideo) أصلًا كان بيجرّب يسجّل بصيغة mp4 مباشرة أول شي، بس
+// بعض المتصفحات (خصوصًا أندرويد/فايرفوكس/بعض نسخ كروم) ما بتدعم تسجيل MediaRecorder بصيغة mp4
+// إطلاقًا، فكانت ترجع تلقائيًا لصيغة webm بدالها. حمدي اختار صراحة الحل المضمون 100%: تحويل الفيديو
+// فعليًا لـmp4 حقيقي داخل المتصفح نفسه (بدون أي سيرفر) عبر ffmpeg.wasm (محرك ffmpeg حقيقي مبني
+// WebAssembly) بعد ما ينخلص التسجيل مباشرة، قبل التحميل/الرفع - هيك الفيديو النهائي دايمًا mp4 مهما
+// كان المتصفح. المكتبة (~25 ميجا) بتتحمّل مرة وحدة بس (أول تسجيل) وبتضل بذاكرة الصفحة لباقي الجلسة.
+// لو فشل التحويل لأي سبب (مثلًا تعذّر تحميل المكتبة لعدم وجود إنترنت)، منرجع آمن للفيديو الأصلي
+// (webm) بدل ما نكسر كامل عملية التسجيل - أهم شي الفيديو ينحفظ بنجاح ولو بصيغة أقل مثالية استثنائيًا.
+let __mzFFmpegInstance = null;
+let __mzFFmpegLoadPromise = null;
+async function getSharedFFmpegInstanceForVideoConvert(onStatus){
+  if(__mzFFmpegInstance && __mzFFmpegInstance.isLoaded && __mzFFmpegInstance.isLoaded()) return __mzFFmpegInstance;
+  if(!__mzFFmpegLoadPromise){
+    __mzFFmpegLoadPromise = (async function(){
+      if(typeof FFmpeg === 'undefined' || !FFmpeg.createFFmpeg){
+        throw new Error('مكتبة تحويل الفيديو لصيغة mp4 (ffmpeg.wasm) ما انحمّلت - تأكد من اتصالك بالإنترنت.');
+      }
+      const instance = FFmpeg.createFFmpeg({
+        log: false,
+        corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+      });
+      if(onStatus) onStatus('⏳ جاري تحميل مكتبة تحويل الفيديو لصيغة mp4 لأول مرة (~25 ميجا)...');
+      await instance.load();
+      __mzFFmpegInstance = instance;
+      return instance;
+    })();
+  }
+  return __mzFFmpegLoadPromise;
+}
+
+// بيرجع الـblob نفسه فورًا بدون أي تحويل لو كان أصلًا mp4 (المتصفح دعم تسجيله مباشرة) - التحويل فقط
+// لما يكون التسجيل الأصلي طلع webm (المتصفح ما بيدعم تسجيل mp4 مباشرة).
+async function convertVideoBlobToMp4(blob, onStatus){
+  if((blob.type || '').indexOf('mp4') !== -1) return blob;
+  try{
+    const ffmpeg = await getSharedFFmpegInstanceForVideoConvert(onStatus);
+    if(onStatus) onStatus('🎬 جاري تحويل الفيديو لصيغة mp4...');
+    const stamp = Date.now();
+    const inputName = 'mz_in_' + stamp + '.webm';
+    const outputName = 'mz_out_' + stamp + '.mp4';
+    ffmpeg.FS('writeFile', inputName, await FFmpeg.fetchFile(blob));
+    await ffmpeg.run('-i', inputName, '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', outputName);
+    const data = ffmpeg.FS('readFile', outputName);
+    try{ ffmpeg.FS('unlink', inputName); }catch(e){}
+    try{ ffmpeg.FS('unlink', outputName); }catch(e){}
+    const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+    if(!mp4Blob.size) throw new Error('نتيجة تحويل الفيديو لـmp4 طلعت فاضية');
+    return mp4Blob;
+  }catch(e){
+    console.warn('تعذّر تحويل الفيديو لصيغة mp4 (اتحفظ بصيغة webm بدالها استثنائيًا هالمرة):', e);
+    return blob;
+  }
+}
+
 // 🆕 2026-09-26 (طلب حمدي: "لازم بعد تسجيل مقطع الثري دي ينحفظ بملف الرفرنس بجوجل درايف") - بيرفع
 // نفس الفيديو المسجَّل تلقائيًا لنفس مجلد الرقم المرجعي بجوجل درايف (نفس المجلد بالضبط يلي فيه ملف
 // HTML/PDF/-data.json تبع عرض السعر)، بنفس منطق تحديد المجلد (فرع → سنة → رقم مرجعي) المستخدم بـ
@@ -14003,16 +14102,21 @@ function recordRoom3DVideo(){
     } else {
       const it = items.find(i=>i.id===room3D.itemId);
       const labelForFile = (it && it.label) || 'غرفة';
-      const url = URL.createObjectURL(blob);
+      // 🆕 2026-10-02 (طلب حمدي: "بدي صيغة الفيديو تكون MP4" دايمًا) - لو المتصفح ما سجّل مباشرة بصيغة
+      // mp4 (isMp4Recording=false)، منحوّل الـblob فعليًا لـmp4 حقيقي هون قبل التحميل/الرفع (شوف
+      // convertVideoBlobToMp4 فوق). لو كان أصلًا mp4، بترجع نفس الـblob فورًا بدون أي تحويل/انتظار.
+      const finalBlob = await convertVideoBlobToMp4(blob, function(msg){ if(btn) btn.textContent = msg; });
+      const finalExt = (finalBlob.type || '').indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+      const url = URL.createObjectURL(finalBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = labelForFile.replace(/[^\w؀-ۿ-]+/g,'_') + '-3d-360.' + videoFileExt;
+      a.download = labelForFile.replace(/[^\w؀-ۿ-]+/g,'_') + '-3d-360.' + finalExt;
       document.body.appendChild(a);
       a.click();
       a.remove();
       setTimeout(()=>URL.revokeObjectURL(url), 5000);
-      if(!isMp4Recording){
-        try{ console.warn('[Room3D] متصفحك ما بيدعم تسجيل mp4 مباشرة - اتحفظ الفيديو بصيغة webm بدالها.'); }catch(e){}
+      if(finalExt !== 'mp4'){
+        try{ console.warn('[Room3D] تعذّر الحصول على فيديو mp4 (حتى بعد محاولة التحويل) - اتحفظ الفيديو بصيغة webm بدالها استثنائيًا.'); }catch(e){}
       }
 
       // 🆕 2026-09-26 (طلب حمدي: "لازم بعد تسجيل مقطع الثري دي ينحفظ بملف الرفرنس بجوجل درايف") -
@@ -14021,7 +14125,7 @@ function recordRoom3DVideo(){
       try{
         const token = await driveTokenPromise;
         if(!token) throw new Error('تعذّر تسجيل الدخول لجوجل درايف.');
-        await uploadRoom3DVideoToDrive(blob, labelForFile, token);
+        await uploadRoom3DVideoToDrive(finalBlob, labelForFile, token);
       }catch(e){
         console.warn('تعذّر رفع فيديو الثري دي ٣٦٠° لجوجل درايف (الفيديو اتحمّل على جهازك بنجاح رغم هيك):', e);
         alert('تم تحميل الفيديو على جهازك بنجاح، بس صار خطأ أثناء رفعه لملف المرجع بجوجل درايف:\n' + (e && e.message ? e.message : e) + '\n\nتأكد إنك مسجّل دخول لحساب جوجل درايف (جرب زر الحفظ العادي مرة)، وبعدين أعد تسجيل الفيديو.');
@@ -14044,6 +14148,98 @@ function recordRoom3DVideo(){
   })();
 }
 window.recordRoom3DVideo = recordRoom3DVideo;
+// ============================================================================
+
+// 🆕 2026-10-01.10 (بلاغ حمدي: "زر تسجيل الفيديو مو موجود بالثري دي تبع السقف") - نفس بالضبط منطق
+// recordRoom3DVideo فوق (حركة كاميرا دائرية تلقائية 10 ثواني + تسجيل MediaRecorder + تحميل محلي +
+// رفع لجوجل درايف)، بس لمشهد السقف الجملوني المستقل (gableRoof3D بدل room3D، gableRoof3DRecordBtn
+// بدل room3DRecordBtn). uploadRoom3DVideoToDrive فوق عامة أصلًا (بتاخد blob/label/token بس، ما
+// بتعتمد على room3D إطلاقًا) - فمنعيد استخدامها هون متل ما هي بدون أي تعديل.
+function recordGableRoof3DVideo(){
+  if(!gableRoof3D.renderer || gableRoof3D.recording) return;
+  const canvas = gableRoof3D.renderer.domElement;
+  if(!canvas.captureStream || typeof MediaRecorder === 'undefined'){
+    alert('متصفحك الحالي ما بيدعم تسجيل فيديو من الرسمة مباشرة. جرب Chrome أو Edge بآخر إصدار.');
+    return;
+  }
+  const btn = document.getElementById('gableRoof3DRecordBtn');
+  const camera = gableRoof3D.camera, center = gableRoof3D.center;
+  if(gableRoof3D.controls) gableRoof3D.controls.enabled = false;
+  const driveTokenPromise = getGoogleAccessToken().catch(function(e){
+    console.warn('تعذّر تجهيز صلاحية جوجل درايف مسبقًا (الفيديو رح ينحمّل محليًا برضو، بس رفعه لجوجل درايف ممكن يفشل):', e);
+    return null;
+  });
+  gableRoof3D.recordStartAngle = Math.atan2(camera.position.z - center.z, camera.position.x - center.x);
+  gableRoof3D.recordDurationMs = 10000;
+  gableRoof3D.recordStartTime = performance.now();
+  gableRoof3D._recordReachedEnd = false;
+  gableRoof3D.recording = true;
+  if(btn){ btn.classList.add('recording'); btn.textContent = '🔴 عم يسجّل... (10 ثواني)'; btn.disabled = true; }
+
+  const stream = canvas.captureStream(30);
+  let mimeType = 'video/mp4;codecs=avc1.42E01E';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4;codecs=h264';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp9';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp8';
+  if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+  let recorder;
+  try{ recorder = new MediaRecorder(stream, { mimeType }); }
+  catch(e){ recorder = new MediaRecorder(stream); }
+  const actualMimeType = (recorder.mimeType || mimeType || 'video/webm').split(';')[0];
+  const isMp4Recording = actualMimeType.indexOf('mp4') !== -1;
+  const videoFileExt = isMp4Recording ? 'mp4' : 'webm';
+  gableRoof3D.activeRecorder = recorder;
+  const chunks = [];
+  recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = async ()=>{
+    gableRoof3D.activeRecorder = null;
+    const blob = new Blob(chunks, { type: actualMimeType });
+    if(!blob.size){
+      alert('للأسف ما انسجل أي فيديو (طلع فاضي). جرب من جديد - ولو تكرر معك، جرب من متصفح Chrome أو Edge بآخر إصدار (بعض المتصفحات القديمة ما بتدعم تسجيل الفيديو من الرسمة مباشرة).');
+    } else {
+      const it = items.find(i=>i.id===gableRoof3D.itemId);
+      const labelForFile = (it && it.label) || 'سقف جملون';
+      // 🆕 2026-10-02 (طلب حمدي: "بدي صيغة الفيديو تكون MP4" دايمًا) - نفس منطق recordRoom3DVideo فوق
+      // بالضبط: تحويل فعلي لـmp4 عبر ffmpeg.wasm لو المتصفح ما سجّل مباشرة بصيغة mp4.
+      const finalBlob = await convertVideoBlobToMp4(blob, function(msg){ if(btn) btn.textContent = msg; });
+      const finalExt = (finalBlob.type || '').indexOf('mp4') !== -1 ? 'mp4' : 'webm';
+      const url = URL.createObjectURL(finalBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = labelForFile.replace(/[^\w؀-ۿ-]+/g,'_') + '-3d-360.' + finalExt;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      if(finalExt !== 'mp4'){
+        try{ console.warn('[GableRoof3D] تعذّر الحصول على فيديو mp4 (حتى بعد محاولة التحويل) - اتحفظ الفيديو بصيغة webm بدالها استثنائيًا.'); }catch(e){}
+      }
+      if(btn){ btn.textContent = '☁️ جاري رفع الفيديو لجوجل درايف...'; }
+      try{
+        const token = await driveTokenPromise;
+        if(!token) throw new Error('تعذّر تسجيل الدخول لجوجل درايف.');
+        await uploadRoom3DVideoToDrive(finalBlob, labelForFile, token);
+      }catch(e){
+        console.warn('تعذّر رفع فيديو الثري دي ٣٦٠° لجوجل درايف (الفيديو اتحمّل على جهازك بنجاح رغم هيك):', e);
+        alert('تم تحميل الفيديو على جهازك بنجاح، بس صار خطأ أثناء رفعه لملف المرجع بجوجل درايف:\n' + (e && e.message ? e.message : e) + '\n\nتأكد إنك مسجّل دخول لحساب جوجل درايف (جرب زر الحفظ العادي مرة)، وبعدين أعد تسجيل الفيديو.');
+      }
+    }
+    gableRoof3D.recording = false;
+    if(gableRoof3D.controls) gableRoof3D.controls.enabled = true;
+    if(btn){ btn.classList.remove('recording'); btn.textContent = '🎥 سجّل وحمّل فيديو 360°'; btn.disabled = false; }
+  };
+  recorder.start(200);
+  (function watchRecordDone(){
+    if(!gableRoof3D.recording) return; // انسكّرت النافذة يدويًا أثناء التسجيل (closeGableRoof3D بتتكفل بالإيقاف)
+    if(gableRoof3D._recordReachedEnd){
+      if(recorder.state !== 'inactive') recorder.stop();
+      return;
+    }
+    requestAnimationFrame(watchRecordDone);
+  })();
+}
+window.recordGableRoof3DVideo = recordGableRoof3DVideo;
 // ============================================================================
 
 // 🎨 "صمم" - بيحوّل هاد الجزء (segment) من الضلع لبند تصميم عادي متكامل بجدول عرض السعر (نفس آلية
