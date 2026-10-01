@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-01.6';
+  var CURRENT_VERSION = '2026-10-01.7';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -2452,6 +2452,22 @@ function removeQtyRow(btn){
   renumber();
   recalc();
   removeLinkedSpecsIfUnused(itemName);
+}
+
+// 🆕 2026-10-01.7 (بلاغ حمدي: "عدلت المسقط... عالاقل تنحذف الاضلاع يللي حذفتها وما يصير تكرار") -
+// نفس تنظيف removeQtyRow فوق بالضبط، بس بالـrowUid مباشرة (مش زر DOM) - تستخدمها finishRoomFreehandDraw
+// (جوا الـIIFE، أداة التصميم) لحذف سطر جدول عرض السعر تبع أي ضلع غرفة انحذف فعليًا من المسقط بعد
+// إعادة الرسم، بدل ما يضل عالق كتكرار بدون أي ضلع حقيقي وراه. ما في داعي هون نفك ربط أي seg/linkedItem
+// (متل removeQtyRow) - الضلع القديم نفسو أصلًا انشال من it.roomSides قبل ما ننده هالفنكشن.
+function removeQtyRowByUid(rowUid){
+  const tr = document.querySelector('#qty-rows tr[data-row-uid="'+rowUid+'"]');
+  if(!tr) return false;
+  const itemName = tr.dataset.itemName || '';
+  tr.remove();
+  renumber();
+  recalc();
+  removeLinkedSpecsIfUnused(itemName);
+  return true;
 }
 
 // 🆕 2026-09-22: طلب حمدي - إمكانية تحريك أي سطر بجدول الكميات لفوق/تحت يدويًا (مثلاً حتى يحط بندين
@@ -7142,9 +7158,9 @@ window.wdApplyBack = function(results){
                 </div>
                 <p class="hint" id="roomDrawModeHint" style="margin-top:-4px;"></p>
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
-                  <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (استثناء نادر - بدون قفل ٩٠°)
+                  <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (ترسم بأي زاوية بدك ياها - ولو قريبة من 90° بتثبت لحالها تلقائيًا)
                 </label>
-                <p class="hint">فتح الرسم بيعرضلك تلقائيًا شكل الغرفة الحالي (مربع 3×3م افتراضيًا لغرفة جديدة) - هاد مش شرط تبلش منّو. دوس الزر الأحمر فوق أي وقت بدك تمسح كل شي وتبلش من الصفر: أول كليك بعدها بيصير هو نقطة البداية بالظبط وين ما حطيت الماوس. بوضع القلم: دوس عالفراغ لتضيف نقطة (خط جديد قفل تلقائيًا أفقي أو عمودي دايمًا - 90° بالظبط - إلا لو فعّلت "زاوية حرة" فوق). أثناء الرسم بتقدر كمان تكتب طول الضلع الجاي بالأرقام بصندوق الكتابة العائم قرب المؤشر وتدوس Enter بدل ما تسحب بالماوس - أدق وأسرع. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص، أو double-click عالنقطة لحذفها. اسحب أي نقطة بوضع المؤشر لتحريكها (قفل 90° شغال بالسحب كمان). كبّر/صغّر بدولاب الفأرة، ودوّر الشكل كامل من الأزرار تحت لو احتجت.</p>
+                <p class="hint">فتح الرسم بيعرضلك تلقائيًا شكل الغرفة الحالي (مربع 3×3م افتراضيًا لغرفة جديدة) - هاد مش شرط تبلش منّو. دوس الزر الأحمر فوق أي وقت بدك تمسح كل شي وتبلش من الصفر: أول كليك بعدها بيصير هو نقطة البداية بالظبط وين ما حطيت الماوس. بوضع القلم: دوس عالفراغ لتضيف نقطة (خط جديد قفل تلقائيًا أفقي أو عمودي دايمًا - 90° بالظبط - إلا لو فعّلت "زاوية حرة" فوق - وقتها بترسم بأي زاوية بدك ياها حرفيًا، وبس لو قريبة كتير من أفقي/عمودي بتثبت 90° لحالها تلقائيًا، أي زاوية تانية واضحة بتضل متل ما رسمتها بالظبط). أثناء الرسم بتقدر كمان تكتب طول الضلع الجاي بالأرقام بصندوق الكتابة العائم قرب المؤشر وتدوس Enter بدل ما تسحب بالماوس - أدق وأسرع. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص، أو double-click عالنقطة لحذفها. اسحب أي نقطة بوضع المؤشر لتحريكها (قفل 90° شغال بالسحب كمان). كبّر/صغّر بدولاب الفأرة، ودوّر الشكل كامل من الأزرار تحت لو احتجت.</p>
               </div>
               <div class="rd-stage">
                 <div id="roomDrawCanvasWrap"></div>
@@ -8350,6 +8366,10 @@ let roomSegIdCounter = 1;
 let roomDraw = { active:false, itemId:null, target:'floor', points:[], mouse:null, freeAngle:false, view:null, gesture:null,
   mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
 const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340; // مقاس الكانفس الثابت بالبكسل (نسبة العرض للارتفاع محفوظة بحساب mmPerPx واحد لكل من x/y)
+// 🆕 2026-10-01.7 (طلب حمدي: "زاوية حرة بس لو قريب من 90° يثبته تلقائيًا") - عتبة "الالتصاق الناعم"
+// بالدرجات لوضع "زاوية حرة" (شوف roomDrawNextPointCandidate) - أي خط ضمن هالفرق عن أفقي/عمودي تمامًا
+// بيتثبت 90° تلقائيًا، وأي شي أبعد من هيك بيضل حر 100% بدون تدخل.
+const ROOM_DRAW_SOFT_SNAP_DEG = 6;
 
 function isHandrail(it){ return it.shapeType === 'handrail'; }
 function isRoom(it){ return it.shapeType === 'room'; }
@@ -11126,9 +11146,25 @@ function roomDrawNextPointCandidate(rawMm, anchorIdx){
     const last = pts[aIdx];
     candidate = roomDrawAxisSnap(last, candidate);
     lockedAxis = (candidate.y === last.y) ? 'y' : 'x';
+  } else if(pts.length > 0 && roomDraw.freeAngle){
+    // 🆕 2026-10-01.7 (طلب حمدي: "بدي ارسم بزاوية حرة بس بنفس الوقت بدي ارسم النقطة تكون مستقيمة
+    // تمامًا 90 درجة وتلتقي مع النقطة اللي حددتها") - "زاوية حرة" قبل هيك كانت تلغي قفل الـ90° بالكامل
+    // حتى لو الخط يلي رسمه قريب جدًا من أفقي/عمودي أصلًا (رعشة ماوس بسيطة بس قاصد خط مستقيم). الحل:
+    // زاوية حرة حقيقية (أي زاوية واضحة بتضل متل ما رسمها بالظبط، بدون أي تدخل) - بس لو الاتجاه قريب
+    // جدًا (أقل من ROOM_DRAW_SOFT_SNAP_DEG درجة) من أفقي أو عمودي تمامًا، منثبّته 90° بالظبط تلقائيًا
+    // (نفس إحساس أي برنامج CAD - "angle snap" بس بزاوية حرة أساسًا).
+    const last = pts[aIdx];
+    const dx = candidate.x-last.x, dy = candidate.y-last.y;
+    if(Math.hypot(dx,dy) > 0.01){
+      const angDeg = Math.atan2(dy,dx) * 180/Math.PI; // -180..180
+      const distFromHoriz = Math.min(Math.abs(angDeg), Math.abs(Math.abs(angDeg)-180));
+      const distFromVert = Math.abs(Math.abs(angDeg)-90);
+      if(distFromHoriz <= ROOM_DRAW_SOFT_SNAP_DEG){ candidate = { x:candidate.x, y:last.y }; lockedAxis = 'y'; }
+      else if(distFromVert <= ROOM_DRAW_SOFT_SNAP_DEG){ candidate = { x:last.x, y:candidate.y }; lockedAxis = 'x'; }
+    }
   }
   candidate = roomDrawSnapToGeometry(candidate, -1);
-  if(pts.length > 0){
+  if(pts.length > 0 && lockedAxis){
     const last = pts[aIdx];
     if(lockedAxis === 'y') candidate.y = last.y;
     else if(lockedAxis === 'x') candidate.x = last.x;
@@ -11882,6 +11918,10 @@ window.computeFlatRoomSegmentsWithMidpointsMM = computeFlatRoomSegmentsWithMidpo
 // بالمسافة - وإلا ممكن نلخبط ضلعين متعامدين عند نفس الزاوية). كل جزء قديم بينستخدم مرة وحدة بس
 // (أقرب جزء جديد إله ياخده) حتى ما يصير نفس السطر مربوط غلط بجزئين جديدين بنفس الوقت.
 const ROOM_SEG_MATCH_TOL_MM = 500;
+// 🆕 2026-10-01.7 (بلاغ حمدي بعد التجربة الفعلية: "صار في بنود اضافية كتير وما تم حذف البنود
+// القديمة... عالاقل تنحذف الاضلاع يللي حذفتها وما يصير تكرار") - بترجع كمان قائمة rowUid تبع أي
+// جزء قديم كان مربوط بسطر حي بس ما انطابق مع ولا جزء جديد (يعني فعليًا انحذف من الشكل) - المتصل
+// (finishRoomFreehandDraw تحت) بيستخدمها ليحذف سطورها فعليًا من جدول عرض السعر بدل ما تضل عالقة.
 function linkNewRoomSegmentsToClosestOldByPosition(oldSides, newSides){
   const oldFlat = computeFlatRoomSegmentsWithMidpointsMM(oldSides);
   const newFlat = computeFlatRoomSegmentsWithMidpointsMM(newSides);
@@ -11904,6 +11944,13 @@ function linkNewRoomSegmentsToClosestOldByPosition(oldSides, newSides){
     newFlat[c.newIdx].seg.rowUid = oldFlat[c.oldIdx].seg.rowUid;
     usedOld.add(c.oldIdx); usedNew.add(c.newIdx);
   });
+  const droppedRowUids = [];
+  oldFlat.forEach((oldEntry, oldIdx)=>{
+    if(oldEntry.seg.rowUid && !usedOld.has(oldIdx) && document.querySelector('#qty-rows tr[data-row-uid="'+oldEntry.seg.rowUid+'"]')){
+      droppedRowUids.push(oldEntry.seg.rowUid);
+    }
+  });
+  return { droppedRowUids };
 }
 window.linkNewRoomSegmentsToClosestOldByPosition = linkNewRoomSegmentsToClosestOldByPosition;
 
@@ -11957,7 +12004,7 @@ function finishRoomFreehandDraw(){
   const hasDesigned = oldFlatSegments.some(g=>g.rowUid);
   const oldSideCount = (it.roomSides||[]).length;
   if(!confirmRoomShapeGrowthIfSuspicious(oldSideCount, pts.length, 'شكل الأرضية')) return;
-  if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تحاول تربط نفس بنود عرض السعر القديمة بالأضلاع الجديدة (حسب ترتيبها) تلقائيًا - أي بند قديم ما انطبق عليه ضلع جديد رح يضل موجود بجدول عرض السعر بس بدون ربط. بدك تكمل؟')) return;
+  if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تحاول تربط نفس بنود عرض السعر القديمة بالأضلاع الجديدة (حسب موقعها الهندسي) تلقائيًا - أي بند قديم ما انطبق عليه ضلع جديد (يعني الضلع تبعو انحذف فعليًا من المسقط) رح ينحذف من جدول عرض السعر. بدك تكمل؟')) return;
   pushHistory();
   const newSides = roomDrawSidesFromPoints(pts);
   // 🛠️ إصلاح 2026-10-01.6 (بلاغ حمدي العاجل: "تكرار وجدران بتتلغى" بعد ما شال ضلعين بروز) - كان هون
@@ -11965,7 +12012,11 @@ function finishRoomFreehandDraw(){
   // شوف الشرح المطوّل قرب linkNewRoomSegmentsToClosestOldByPosition فوق. الربط هلق هندسي (أقرب جزء
   // قديم لنفس موقع واتجاه الجزء الجديد تقريبًا)، فالأضلاع يلي ما تحركت بتضل مربوطة بسطرها الصح، وبس
   // يلي فعليًا انحذف (البروزين) بيضل بدون ربط (صح - متل حذف ضلع عادي).
-  linkNewRoomSegmentsToClosestOldByPosition(it.roomSides, newSides);
+  // 🆕 2026-10-01.7 (بلاغ حمدي: "عدلت المسقط بس تفاجأت انه صار في بنود اضافية كتير وما تم حذف البنود
+  // القديمة... عالاقل تنحذف الاضلاع يللي حذفتها وما يصير تكرار") - هلق منلتقط droppedRowUids (أي سطر
+  // قديم كان مربوط بضلع حقيقي وما انطبق على أي ضلع جديد - يعني الضلع تبعو انحذف فعليًا من المسقط) حتى
+  // نحذفهم تحت بعد ما نخلص الربط/إعادة البناء، بدل ما يضلوا عالقين كبنود يتيمة بدون أي ضلع وراها.
+  const { droppedRowUids } = linkNewRoomSegmentsToClosestOldByPosition(it.roomSides, newSides);
   it.roomSides = newSides;
   // 🆕 2026-09-29 (طلب حمدي: "بدي ياهم يكونوا موجودين كبنود في التصميم بعد تصميم المسقط... مافي داعي
   // لاضغط على زر للتصميم انا اصلا بدي صمم الكل فمن البديهي يكونوا جاهزين للتصميم") - فور ما ينخلص
@@ -11974,6 +12025,11 @@ function finishRoomFreehandDraw(){
   // الجزء التفاعلي (تصميم كل ضلع فعليًا) لازم يضل يدوي وحدة وحدة. أي جزء انربط بسطر قديم (فوق) بس
   // منحدّث طوله بالجدول، وأي جزء جديد فعليًا (ما إلو سطر قديم يقابله) بينضافلو سطر جديد كالمعتاد.
   autoCreateRoomSideRowsForAllSegments(it);
+  // 🆕 2026-10-01.7: هلق - وبعد ما خلصت autoCreateRoomSideRowsForAllSegments (فوق) شغلها على الجدول
+  // (حتى ما نتدخل بمنطقها الخاص) - منحذف فعليًا أي سطر قديم انحط بـdroppedRowUids (ضلع انحذف فعليًا
+  // من المسقط ولا ضلع جديد انطبق عليه هندسيًا)، بدل ما يضل عالق كتكرار منطقي بدون أي ضلع حقيقي وراه -
+  // بالضبط متل ما طلب حمدي بالنص.
+  (droppedRowUids||[]).forEach(uid=> removeQtyRowByUid(uid));
   // 🆕 2026-09-30: autoCreateRoomSideRowsForAllSegments (فوق) بينادي WD.loadFromRows يلي ممكن يبدّل
   // البند "المحدد" حاليًا (selectedId) لبند تاني (مثلاً أول بند بجدول الكمية) كأثر جانبي - فمنرجّع
   // نأكد إنو الغرفة نفسها هي المحددة بعد ما نخلص، حتى لوحة التحكم تضل عارضة شغل الغرفة مش بند تاني بالغلط.
