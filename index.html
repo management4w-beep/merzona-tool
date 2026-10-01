@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-01.4';
+  var CURRENT_VERSION = '2026-10-01.5';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -13473,6 +13473,18 @@ async function buildGableRoof3DScene(it, wrap){
   // قبل (عنصر مستقل لحاله، بأرضيته التخطيطية الخاصة فوق الأرض مباشرة).
   const linkedRoom = it.gableLinkedRoomId ? items.find(i => i.id === it.gableLinkedRoomId && isRoom(i)) : null;
   let roomOriginYM = 0;
+  // 🛠️ إصلاح 2026-10-01.5 (بلاغ حمدي العاجل بالصور: "السقف طالع جنب الغرفة مش فوقها، وقطع الفتح شمال/
+  // يمين طالعة معكوسة") - شوف الشرح المطوّل قرب computeRoomFootprintBoundingBoxMM فوق: قوائم السقف
+  // الجملوني كانت دايمًا بتترسم بادئة من X=0,Z=0 بافتراض غلط إنو هاي نقطة بداية صندوق أرضية الغرفة -
+  // صح بس لغرفة مستطيلة بسيطة، غلط لأي غرفة فيها بروز/نوتش (متل غرفة حمدي). الحل: نحسب الإزاحة الحقيقية
+  // (minXMm/minYMm لصندوق أرضية الغرفة) ومنزيح فيها كل قوائم السقف + مركز الكاميرا تحت، حتى يتطابق
+  // صندوق السقف تمامًا مع موقع صندوق الغرفة الحقيقي (مش بس نفس القياس).
+  let roomOffsetXM = 0, roomOffsetZM = 0;
+  if(linkedRoom && Array.isArray(linkedRoom.roomSides) && linkedRoom.roomSides.length){
+    const roomBox = computeRoomFootprintBoundingBoxMM(linkedRoom);
+    roomOffsetXM = (roomBox.minXMm||0) * MMTOM;
+    roomOffsetZM = (roomBox.minYMm||0) * MMTOM;
+  }
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfe0f2);
@@ -13517,12 +13529,15 @@ async function buildGableRoof3DScene(it, wrap){
     const needsEndCap = b.index === bays.length - 1;
     const group = buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows, needsStartCap, needsEndCap);
     const placement = placements.find(p => p.index === b.index);
-    group.position.set(placement.closedX, roomOriginYM, 0);
+    group.position.set(placement.closedX + roomOffsetXM, roomOriginYM, roomOffsetZM);
     group.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     scene.add(group);
     gableRoof3D.bayGroups.push({
       group, state: b.state,
-      closed: { x: placement.closedX }, open: { x: placement.openX },
+      // ⚠️ لازم roomOffsetXM ينضاف هون كمان (مش بس بـgroup.position.set فوق) - حركة فتح/سكر الوحدات
+      // (updateGableBaySlideAnimationFrame) بتحط group.position.x مباشرة من closed.x/open.x هاي، فلو
+      // نسينا الإزاحة هون كانت رح ترجع تمسح تصحيح الموقع أول ما تبلش أي حركة فتح/سكر.
+      closed: { x: placement.closedX + roomOffsetXM }, open: { x: placement.openX + roomOffsetXM },
       baseDelayMs: placement.delayMs, baseDurationMs: 900,
     });
   });
@@ -13550,7 +13565,10 @@ async function buildGableRoof3DScene(it, wrap){
   // 🆕 2026-10-01: لما في غرفة مربوطة، لازم تأطير الكاميرا يحسب الارتفاع الكلي (ارتفاع الغرفة + القوائم
   // + الجملون) مش بس ارتفاع السقف الجملوني لحاله - وإلا الغرفة تطلع جزئيًا برّا كادر الكاميرا الأولي.
   const totalHeightM = roomOriginYM + legHM + ridgeHM;
-  const centerX = lengthM/2, centerZ = widthM/2;
+  // ⚠️ لازم مركز الكاميرا يتزاح بنفس roomOffsetXM/roomOffsetZM كمان - وإلا الكاميرا بتضل تتمركز حسب
+  // الموقع الافتراضي الغلط (0,0) بينما السقف فعليًا صار بموقعه الصحيح فوق، فيطلع المشهد كله خارج الكادر
+  // أو غير متمركز صح حول الغرفة الحقيقية.
+  const centerX = roomOffsetXM + lengthM/2, centerZ = roomOffsetZM + widthM/2;
   const radius = Math.max(3, Math.hypot(lengthM,widthM)/2 * 1.9 + totalHeightM);
   const lookHeight = totalHeightM*0.5;
   const cameraHeight = totalHeightM*1.15;
@@ -14364,9 +14382,24 @@ function computeRoomFootprintBoundingBoxMM(room){
   const pts = computeRoomPolygonMM(room);
   const n = room.roomSides.length;
   const xs = pts.slice(0,n).map(p=>p.x), ys = pts.slice(0,n).map(p=>p.y);
+  // 🛠️ إصلاح 2026-10-01.5 (بلاغ حمدي العاجل بعد الصور: "السقف طالع منفصل/جنب الغرفة مش فوقها، وكمان
+  // قطع الفتح طالعة شمال ويمين معكوسة") - السبب الجذري الحقيقي لقيناه هون: هاد الصندوق كان راجع بس
+  // *القياس* (الطول والعرض = أكبر ناقص أصغر)، وما كان راجع *موقع* الصندوق الفعلي (أصغر X وY). بما إنو
+  // كل ضلع بالغرفة بيترسم بالمشي خطوة خطوة ابتداءً من نقطة محلية (0,0) (شوف computeSidesPolygonMM) -
+  // لغرفة بسيطة (مستطيل عادي) أول زاوية بتصادف تكون هي أصغر X/Y فعليًا (صفر)، بس لغرفة غير منتظمة فيها
+  // بروز/نوتش (بالضبط زي غرفة حمدي يلي فيها المربعات الخضراء المستثناة) ممكن المضلع "يرجع للخلف" بنقطة
+  // ما، فتصير أصغر X أو Y فعليًا *سالبة* أو بعيدة عن نقطة البداية (0,0). buildGableRoof3DScene (تحت)
+  // كان عم يحط قوائم السقف الجملوني دايمًا بادئة من X=0,Z=0 بافتراض إنو هاي نقطة بداية صندوق الغرفة -
+  // افتراض غلط لأي غرفة غير منتظمة. النتيجة: السقف بيترسم بموقع عالمي مختلف كليًا عن الغرفة الحقيقية
+  // (مزاح بمقدار الفرق)، وبما إنو الكاميرا نفسها كانت عم تتمركز حسب نفس الافتراض الغلط، كان المشهد كله
+  // يطلع مشوّش لدرجة إنو حتى اتجاه فتح الوحدات (شمال/يمين) كان عم يبين معكوس بالنسبة لحمدي. الحل: نرجّع
+  // minXMm/minYMm كمان هون، وbuildGableRoof3DScene تحت صار يزيح كل قوائم السقف بمقدارهم بالضبط حتى
+  // يتطابق صندوق السقف تمامًا مع صندوق أرضية الغرفة الحقيقي (مش بس نفس القياس - نفس الموقع كمان).
   return {
     lengthMm: Math.max(200, Math.max(...xs) - Math.min(...xs)),
     widthMm: Math.max(200, Math.max(...ys) - Math.min(...ys)),
+    minXMm: Math.min(...xs),
+    minYMm: Math.min(...ys),
   };
 }
 window.computeRoomFootprintBoundingBoxMM = computeRoomFootprintBoundingBoxMM;
