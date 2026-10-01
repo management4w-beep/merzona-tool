@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-01.1';
+  var CURRENT_VERSION = '2026-10-01.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -7256,7 +7256,7 @@ window.wdApplyBack = function(results){
              لوحدات/بوابات قابلة للكليك (ثابتة F / متحركة يمين / متحركة شمال) - بنفس مبدأ سقف الغرفة
              السحّاب تمامًا، بس بشكل جملوني حقيقي وجوانب حاملة بدل لوح مسطّح. -->
         <div style="margin-top:10px; display:none;" id="gableRoofBlock">
-          <p class="hint" style="margin:0 0 10px;">عنصر مستقل (مش جزء من أي غرفة) - منفصل تمامًا بنفس الطريقة يلي الغرفة منفصلة فيها عن باقي البنود. لو بدك السقف يطابق أرضية غرفة معيّنة بالضبط، اكتب هون نفس الطول/العرض الإجمالي يلي عندها (شوف قائمة أضلاعها بلوحة الغرفة). أي بروز/بلكونة جانبية خارج التقسيم الأساسي ممكن تعمليها كسقف جملون متحرك ثاني مستقل بمقاس البروز لحاله.</p>
+          <p class="hint" style="margin:0 0 10px;">عنصر مستقل (مش جزء من أي غرفة) - منفصل تمامًا بنفس الطريقة يلي الغرفة منفصلة فيها عن باقي البنود. لو بدك السقف يطابق أرضية غرفة معيّنة بالضبط، اكتب هون نفس الطول/العرض الإجمالي يلي عندها (شوف قائمة أضلاعها بلوحة الغرفة). أي بروز/بلكونة جانبية أو مكان فارغ غير منتظم خارج التقسيم الأساسي (قريب من الجدران) ممكن تعمليه كسقف جملون متحرك ثاني (أو أكتر) مستقل بمقاسه لحاله - ولو بديه يضل ثابت بالكامل (زجاج مع إطار حواليه بس، بدون أي فتح/سكر)، دوسي على كل وحدة فيه لحتى توصل لحالة "ثابتة F".</p>
           <div class="row2">
             <div>
               <label>الطول الإجمالي (مم) <span class="wd-ar">محور الوحدات/الانزلاق</span></label>
@@ -7286,6 +7286,22 @@ window.wdApplyBack = function(results){
               <label>تقسيمات زجاج القوائم الجانبية <span class="wd-ar">أفقيًا بالارتفاع</span></label>
               <input type="number" min="1" max="6" step="1" id="inGableLegRows" onchange="onGableDimsField(getSelected().id,'gableLegGlassRows',this.value)" value="2">
             </div>
+          </div>
+          <div style="margin-top:10px;">
+            <label>🔗 دمج مع غرفة/مجلس بالثري دي <span class="wd-ar">(اختياري)</span></label>
+            <select id="inGableLinkedRoom" onchange="onGableLinkedRoomChange(getSelected().id,this.value)" style="width:100%;">
+              <option value="">بدون - سقف مستقل لحاله</option>
+            </select>
+            <p class="hint" style="margin-top:4px;">لو اخترت غرفة، المشهد الثلاثي الأبعاد رح يبيّن الغرفة (حيطانها وشبابيكها/أبوابها الحقيقية) مع السقف الجملوني فوقها سوا بمشهد واحد - القوائم بتبلش فوق سقف الغرفة مباشرة.</p>
+          </div>
+          <div style="margin-top:10px;">
+            <label>🎥 سرعة فتح/سكر الوحدات بالثري دي <span class="wd-ar">(لتجربة أنسب سرعة وقت التصوير)</span></label>
+            <select id="inGableSlideSpeed" onchange="onGableSlideSpeedChange(getSelected().id,this.value)" style="width:100%;">
+              <option value="slow">🐢 بطيء</option>
+              <option value="medium" selected>🚶 متوسط</option>
+              <option value="fast">🐇 سريع</option>
+            </select>
+            <p class="hint" style="margin-top:4px;">ممكن كمان تغيّري السرعة مباشرة وانتي فاتحة المشهد الثلاثي الأبعاد (أزرار 🐢/🚶/🐇 بشريط الأدوات فوق) بدون ما تسكّري وتفتحي من جديد.</p>
           </div>
           <label style="margin-top:14px;">🎬 الوحدات/البوابات (ثابتة أو متحركة)</label>
           <p class="hint">دوس على أي وحدة بالمسقط تحت لتدوير حالتها: متحركة شمال ⟵ ← متحركة يمين ⟶ ← ثابتة F (ما بتتحرك إطلاقًا) - وهيك دواليك. الوحدة المتحركة بتتحرك بالثري دي (الجانب + الجملون فوقه سوا كوحدة واحدة) باتجاهها لما تدوس زر فتح السقف.</p>
@@ -7508,13 +7524,18 @@ window.wdApplyBack = function(results){
 <div id="gableRoof3DOverlay">
   <div class="threeD-topbar">
     <span>🏕️ مشهد ثري دي حقيقي - سقف جملون متحرك</span>
-    <div style="display:flex; gap:8px;">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div id="gableRoof3DSpeedGroup" style="display:flex; gap:4px;" title="سرعة فتح/سكر الوحدات - لتجربة أنسب سرعة وقت التصوير">
+        <button class="camera-close-btn" id="gableRoof3DSpeedSlow" onclick="setGableRoofLiveSlideSpeed('slow')" title="سرعة بطيئة">🐢</button>
+        <button class="camera-close-btn" id="gableRoof3DSpeedMedium" onclick="setGableRoofLiveSlideSpeed('medium')" title="سرعة متوسطة">🚶</button>
+        <button class="camera-close-btn" id="gableRoof3DSpeedFast" onclick="setGableRoofLiveSlideSpeed('fast')" title="سرعة سريعة">🐇</button>
+      </div>
       <button class="camera-close-btn" id="gableRoof3DSlideBtn" onclick="toggleGableBaySlideAnimation()" title="افتح/سكّر الوحدات المتحركة بحركة حية - حدد حالة كل وحدة (شمال/يمين/ثابتة) من لوحة التحكم قبل ما تفتح الثري دي">▶️ افتح الوحدات</button>
       <button class="camera-close-btn" onclick="closeGableRoof3D()">✕ إغلاق</button>
     </div>
   </div>
   <div id="gableRoof3DCanvasWrap"></div>
-  <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف السقف الجملوني من كل زاوية. دوس "▶️ افتح الوحدات" لتشوف الوحدات المتحركة (الجانب + الجملون فوقه سوا) تنزلق وتنفتح حيًا قدامك - الوحدات المعلّمة ثابتة (F) ما بتتحرك إطلاقًا.</p>
+  <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف السقف الجملوني من كل زاوية. دوس "▶️ افتح الوحدات" لتشوف الوحدات المتحركة (الجانب + الجملون فوقه سوا) تنزلق وتنفتح حيًا قدامك - الوحدات المعلّمة ثابتة (F) ما بتتحرك إطلاقًا. اختاري سرعة الحركة (🐢 بطيء / 🚶 متوسط / 🐇 سريع) من فوق لتجربي شو الأنسب وقت التصوير.</p>
 </div>
 
 <div id="purchasingOverlay">
@@ -8655,6 +8676,8 @@ function makeItem(type){
     it.gableBayStates = null;     // بتتعبى تلقائيًا بـensureGableBays (نص شمال/نص يمين افتراضيًا)
     it.gableRoofGlassCols = 3;    // تقسيمات زجاج كل ميل من السقف (من الحافة للقمة)
     it.gableLegGlassRows = 2;     // تقسيمات زجاج القوائم الجانبية (أفقيًا بالارتفاع)
+    it.gableLinkedRoomId = null;  // 🆕 2026-10-01: id غرفة/مجلس مربوطة (لدمجها بمشهد الثري دي سوا)
+    it.gableSlideSpeed = 'medium'; // 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب 3 سرعات حتى اشوف شو الافضل وقت التصوير") - slow/medium/fast
   }
   return it;
 }
@@ -11881,7 +11904,14 @@ let room3D = { renderer:null, scene:null, camera:null, controls:null, animId:nul
 // 🆕 2026-10-01: حالة مشهد ثري دي مستقل كليًا لعنصر "سقف جملون متحرك" - منفصلة تمامًا عن room3D
 // (شوف buildGableRoof3DScene/computeGableBayPlacements/toggleGableBaySlideAnimation تحت).
 let gableRoof3D = { renderer:null, scene:null, camera:null, controls:null, animId:null,
-  itemId:null, bayGroups:null, slideAnim:null, open:false, onResize:null };
+  itemId:null, bayGroups:null, slideAnim:null, open:false, onResize:null, speedFactor:1 };
+
+// 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب يكون في مثلا 3 سرعات حتى اقدر شوف شو الافضل
+// وقت التصوير") - مضاعف سرعة حركة فتح/سكر الوحدات: 1 = السرعة الأصلية (900مم أساس)، أكبر من 1 = أبطأ
+// (مدة أطول)، أصغر من 1 = أسرع (مدة أقصر). بيطبّق على duration+delay الأساسيين وقت ما تبلش الحركة
+// فعليًا (شوف startGableBaySlideAnimation تحت) - مش وقت بناء المشهد - حتى تغيير السرعة وانت فاتح
+// المشهد ما يحتاج إعادة بناء كامل.
+const GABLE_SPEED_FACTORS = { slow: 2.4, medium: 1, fast: 0.42 };
 
 // نفس منطق المشي حول الأضلاع يلي بـbuildRoomSVG بالضبط (نسخة منفصلة بدل ما نعدّل الأصلية، حتى ما
 // نخاطر نكسر معاينة الأرضية 2D يلي شغالة ومجربة) - بيرجع نقاط المضلع بالمم.
@@ -13052,7 +13082,7 @@ function renderer_dispose_safe(renderer){
 // لـbayLenM (محور الانزلاق)، z من 0 لـwidthM (العمق)، y ارتفاع (0 = الأرض). منحطها بـgroup.position.x
 // = موقعها الفعلي بالمشهد (بالمتر) - هيك تحريك الأنيميشن لاحقًا (startGableBaySlideAnimation) بيصير
 // بس بتحريك group.position.x لكل وحدة، بدون أي إعادة بناء.
-function buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows){
+function buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows, needsStartCap, needsEndCap){
   const group = new THREE.Group();
   const frameColor = 0x2b2f33;
   const roofGlassMat = new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.45, roughness:0.15, side:THREE.DoubleSide });
@@ -13083,12 +13113,25 @@ function buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows){
       addFramedPanel(legGlassMat, bayLenM, rowH*0.96, glassThicknessM, bayLenM/2, py, zPos);
     }
   });
-  [0, bayLenM].forEach(xPos=>{ // الجانبين الطرفيين (عرضهم widthM)
-    for(let r=0;r<legRows;r++){
-      const py = rowH*r + rowH/2;
-      addFramedPanel(legGlassMat, glassThicknessM, rowH*0.96, widthM, xPos, py, widthM/2);
-    }
-  });
+  // 🛠️ إصلاح 2026-10-01 (بلاغ حمدي: "عدم ظهور النوافذ الجانبية بالثري دي") - السبب الحقيقي: كل وحدة
+  // كانت ترسم جانبين طرفيين كاملين (عند x=0 وx=bayLenM) بغض النظر عن موقعها بالصف. بما إنو الوحدات
+  // متراصة جنب بعضها (group.position.x لكل وحدة = نهاية الوحدة يلي قبلها بالضبط)، جانب "نهاية" وحدة
+  // ما وجانب "بداية" الوحدة يلي بعدها كانوا يترسموا بنفس الإحداثي العالمي بالضبط - تصادم زجاجين شفافين
+  // متراكبين تمامًا (z-fighting) بيخلي أحدهما يختفي/يرفرف بدل ما يبين بشكل طبيعي. الحل: نرسم الجانب
+  // الطرفي بس عند طرفي الهيكل الكاملين (أول وحدة بالصف تاخد الطرف الأول، وآخر وحدة بالصف تاخد الطرف
+  // الأخير) - بين الوحدات الداخلية ما في داعي لجانب طرفي مكرر أصلًا (المظهر الصحيح لنظام حقيقي: واجهة
+  // زجاجية متواصلة بين الوحدات، مش قواطع صلدة بين كل وحدة وتانية).
+  if(needsStartCap || needsEndCap){
+    const capXs = [];
+    if(needsStartCap) capXs.push(0);
+    if(needsEndCap) capXs.push(bayLenM);
+    capXs.forEach(xPos=>{
+      for(let r=0;r<legRows;r++){
+        const py = rowH*r + rowH/2;
+        addFramedPanel(legGlassMat, glassThicknessM, rowH*0.96, widthM, xPos, py, widthM/2);
+      }
+    });
+  }
 
   // سقف الجملون: ميلين (من حافة كل جانب للقمة بالنص)، كل ميل مقسوم roofCols تقسيمات بالعرض (من
   // الحافة للقمة) - "الزجاج يللي فوق مقسم لأكثر من قطعة بالعرض" بالضبط متل ما طلب حمدي.
@@ -13134,19 +13177,173 @@ function computeGableBayPlacements(it){
   bays.forEach(b=>{ if(b.state==='left') groups.left.push(b); else if(b.state==='right') groups.right.push(b); });
   const placements = bays.map(b => ({ index:b.index, state:b.state, closedX: b.x0*MMTOM, openX: b.x0*MMTOM, delayMs:0 }));
   const byIndex = {}; placements.forEach(p => byIndex[p.index] = p);
+  // 🛠️ إصلاح 2026-10-01 (بلاغ حمدي: "بصير انه اخر قطعة بتطلع عن الحد تبع الجدران للخارج - لازم كل
+  // الالمنيوم يتطبق تحت بعضه لانو اخر قطعة اللي قريبة من الجدار دائما حتكون فكس والمتحركين بيتطبقوا
+  // فوقها وحدة وحدة"): قبل هيك كانت الوحدات المفتوحة بترصّ برّا حدود الهيكل كامل (minX-bayLenM-...
+  // لشمال، maxX+... ليمين) - يعني توصل أبعد من حافة الجدار الحقيقية. الصح: الرصّة لازم تضل *جوا* حدود
+  // الهيكل بالضبط، متراصة فوق بعضها قرب الحافة (مكان الوحدة الثابتة F يلي عادة بتكون هي آخر وحدة قرب
+  // الجدار) - مش تتجاوزها للخارج. فمنثبّت نقطة الحافة بالظبط (minX لجهة الشمال، maxX-bayLenM لجهة
+  // اليمين) ومنزيح كل وحدة تالية بمقدار إنسيت بسيط *للداخل* (نحو المنتصف) بدل ما نطلعها للخارج.
   ['left','right'].forEach(dir=>{
     const arr = groups[dir];
     const edgeX = dir==='left' ? minX : maxX;
     arr.sort((a,b)=> Math.abs(a.cx*MMTOM-edgeX) - Math.abs(b.cx*MMTOM-edgeX));
     arr.forEach((b, stackSlot)=>{
       const p = byIndex[b.index];
-      p.openX = dir==='left' ? (minX - bayLenM - stackGapM*(stackSlot+1)) : (maxX + stackGapM*(stackSlot+1));
+      const inset = stackGapM*stackSlot; // أول وحدة (الأقرب أصلًا للحافة) إنسيت=0 - بتضل بالظبط عند الحافة
+      p.openX = dir === 'left' ? (minX + inset) : (maxX - bayLenM - inset);
       p.delayMs = (arr.length-1-stackSlot)*130;
     });
   });
   return placements;
 }
 window.computeGableBayPlacements = computeGableBayPlacements;
+
+// 🆕 2026-10-01 (طلب حمدي: "والطلب الأخير هوي دمج الغرفة مع السقف المتحرك بمشهد الثري دي") - بتبني
+// حيطان/أرضية/شبابيك وأبواب غرفة حقيقية جوا THREE.Group واحدة منفصلة (roomGroup)، منسوخة بنفس منطق
+// buildRoom3DScene بالضبط (حرفيًا نفس الحسابات/التسلسل) بس بدون تعديل أي شي بـbuildRoom3DScene نفسها -
+// حتى ما نخاطر نكسر مشهد الغرفة المستقل الموجود وشغال. لا منبني سقف ولا ألواح سقف متحركة هون إطلاقًا
+// (هاد كله مقصود - السقف المتحرك تبع الجملون هو يلي رح يغطي الغرفة من فوق، مش سقف الغرفة العادي).
+// منرجّع ارتفاع الغرفة بالمتر (heightM) حتى المستدعي (buildGableRoof3DScene تحت) يقدر يرفع كل قوائم
+// السقف الجملوني بمقدارها بالضبط، فتبلش فوق سقف الغرفة مباشرة.
+async function addRoomStructureToScene(scene, room, originYM){
+  const MMTOM = 1/1000;
+  const pts = computeRoomPolygonMM(room);
+  const n = room.roomSides.length;
+  const heightM = Math.max(0.5, (room.roomHeight||2500) * MMTOM);
+  const wallThicknessM = 0.12, glassThicknessM = 0.06;
+  let wallColorNum = 0xe4dcc9;
+  if(room.wallColorHex){
+    const parsed = parseInt(String(room.wallColorHex).replace('#',''), 16);
+    if(!isNaN(parsed)) wallColorNum = parsed;
+  }
+
+  const roomGroup = new THREE.Group();
+  roomGroup.position.y = originYM || 0;
+
+  const shape = new THREE.Shape();
+  pts.slice(0,n).forEach((p,i)=>{
+    const X = p.x*MMTOM, Y = -p.y*MMTOM;
+    if(i===0) shape.moveTo(X,Y); else shape.lineTo(X,Y);
+  });
+  shape.closePath();
+  const floorMesh = new THREE.Mesh(
+    new THREE.ShapeGeometry(shape),
+    new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.9, side:THREE.DoubleSide })
+  );
+  floorMesh.rotation.x = -Math.PI/2;
+  floorMesh.receiveShadow = true;
+  roomGroup.add(floorMesh);
+
+  for(let i=0;i<n;i++){
+    const side = room.roomSides[i];
+    const segs = ensureRoomSideSegments(side);
+    const A = pts[i], B = pts[i+1];
+    const sideLenMM = Math.max(1, Math.hypot(B.x-A.x, B.y-A.y));
+    const ux = (B.x-A.x)/sideLenMM, uy = (B.y-A.y)/sideLenMM;
+    const rad = Math.atan2(-uy, ux);
+    let cursor = 0;
+    for(const seg of segs){
+      const segLenMM = Math.max(1, seg.length||1);
+      const startMM = { x: A.x + ux*cursor, y: A.y + uy*cursor };
+      cursor += segLenMM;
+      const endMM = { x: A.x + ux*cursor, y: A.y + uy*cursor };
+      const midX = (startMM.x + endMM.x)/2, midY = (startMM.y + endMM.y)/2;
+      const lengthM = segLenMM * MMTOM;
+      const isWall = seg.kind === 'wall';
+      const linkedItem = room3DResolveSegmentItem(seg);
+      const thicknessM = isWall ? wallThicknessM : glassThicknessM;
+      const geo = new THREE.BoxGeometry(Math.max(0.02,lengthM), heightM, thicknessM);
+      let mesh;
+      let meshCenterYM = heightM/2;
+      if(isWall){
+        mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color:wallColorNum, roughness:0.95 }));
+      } else if(linkedItem && linkedItem.layout){
+        const roomHeightMM = room.roomHeight || 2500;
+        let itemHMM = (linkedItem.height && linkedItem.height > 0) ? linkedItem.height : roomHeightMM;
+        itemHMM = Math.max(300, Math.min(itemHMM, roomHeightMM));
+        const isDoorType = isDoorLike(linkedItem);
+        let bottomMM;
+        const customSillMM = (typeof seg.sillHeightMm === 'number' && seg.sillHeightMm >= 0) ? seg.sillHeightMm : null;
+        if(customSillMM !== null){
+          bottomMM = Math.max(0, Math.min(customSillMM, Math.max(0, roomHeightMM - 100)));
+        } else if(isDoorType){
+          bottomMM = 0;
+        } else {
+          const preferredSillMM = 900;
+          bottomMM = (preferredSillMM + itemHMM <= roomHeightMM) ? preferredSillMM : Math.max(0, roomHeightMM - itemHMM - 150);
+        }
+        if(bottomMM + itemHMM > roomHeightMM){
+          itemHMM = Math.max(50, roomHeightMM - bottomMM);
+        }
+        const topMM = bottomMM + itemHMM;
+
+        const itemForWall3D = seg.flip3D ? mirrorItemLayoutForFlip3D(linkedItem) : linkedItem;
+        mesh = buildRealWindowGroup3D(itemForWall3D, segLenMM, itemHMM, thicknessM, seg.doorOpen3D);
+        meshCenterYM = (bottomMM + itemHMM/2) * MMTOM;
+
+        const infillMat = new THREE.MeshStandardMaterial({ color:wallColorNum, roughness:0.95 });
+        if(roomHeightMM - topMM > 1){
+          const headerHM = (roomHeightMM - topMM) * MMTOM;
+          const headerMesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,lengthM), headerHM, wallThicknessM), infillMat);
+          headerMesh.position.set(midX*MMTOM, topMM*MMTOM + headerHM/2, midY*MMTOM);
+          headerMesh.rotation.y = rad;
+          headerMesh.castShadow = true;
+          headerMesh.receiveShadow = true;
+          roomGroup.add(headerMesh);
+        }
+        if(bottomMM > 1){
+          const kneeHM = bottomMM * MMTOM;
+          const kneeMesh = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.02,lengthM), kneeHM, wallThicknessM), infillMat);
+          kneeMesh.position.set(midX*MMTOM, kneeHM/2, midY*MMTOM);
+          kneeMesh.rotation.y = rad;
+          kneeMesh.castShadow = true;
+          kneeMesh.receiveShadow = true;
+          roomGroup.add(kneeMesh);
+        }
+      } else if(linkedItem){
+        mesh = new THREE.Mesh(geo, await buildWallSegmentMaterials(linkedItem, segLenMM, room.roomHeight||2500));
+      } else {
+        const roomHeightMM2 = room.roomHeight || 2500;
+        const placeholderSillMM = (typeof seg.sillHeightMm === 'number' && seg.sillHeightMm > 0)
+          ? Math.min(seg.sillHeightMm, Math.max(0, roomHeightMM2 - 100)) : 0;
+        if(placeholderSillMM > 1){
+          const kneeHM2 = placeholderSillMM * MMTOM;
+          const kneeMesh2 = new THREE.Mesh(
+            new THREE.BoxGeometry(Math.max(0.02,lengthM), kneeHM2, wallThicknessM),
+            new THREE.MeshStandardMaterial({ color: wallColorNum, roughness:0.95 })
+          );
+          kneeMesh2.position.set(midX*MMTOM, kneeHM2/2, midY*MMTOM);
+          kneeMesh2.rotation.y = rad;
+          kneeMesh2.castShadow = true;
+          kneeMesh2.receiveShadow = true;
+          roomGroup.add(kneeMesh2);
+        }
+        const glassHM = heightM - (placeholderSillMM*MMTOM);
+        mesh = new THREE.Mesh(
+          new THREE.BoxGeometry(Math.max(0.02,lengthM), Math.max(0.05,glassHM), thicknessM),
+          new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.5, roughness:0.2 })
+        );
+        meshCenterYM = (placeholderSillMM*MMTOM) + Math.max(0.05,glassHM)/2;
+      }
+      mesh.position.set(midX*MMTOM, meshCenterYM, midY*MMTOM);
+      mesh.rotation.y = rad;
+      mesh.traverse(function(o){
+        if(o.isMesh){
+          o.receiveShadow = true;
+          o.castShadow = !(o.material && o.material.transparent);
+        }
+      });
+      roomGroup.add(mesh);
+    }
+  }
+
+  buildRoomFurniture3D(roomGroup, pts, n, MMTOM);
+
+  scene.add(roomGroup);
+  return { heightM, group: roomGroup, polyPts: pts, polyN: n };
+}
+window.addRoomStructureToScene = addRoomStructureToScene;
 
 async function buildGableRoof3DScene(it, wrap){
   const MMTOM = 1/1000;
@@ -13159,6 +13356,14 @@ async function buildGableRoof3DScene(it, wrap){
   ensureGableBays(it);
   const bays = getGableBaysMM(it);
   const bayLenM = lengthM / bays.length;
+
+  // 🆕 2026-10-01 (طلب حمدي: "والطلب الأخير هوي دمج الغرفة مع السقف المتحرك بمشهد الثري دي") - لو
+  // حمدي ربط غرفة/مجلس من لوحة التحكم (inGableLinkedRoom)، منبنيها بنفس المشهد (addRoomStructureToScene
+  // فوق) ومنرفع كل قوائم السقف الجملوني بمقدار ارتفاعها بالضبط (roomOriginYM) - فتبلش فوق سقف الغرفة
+  // مباشرة بدل ما تطلع طايفة بالهوا من ارتفاع صفر. لو ما في غرفة مربوطة، السقف بيضل يتصرف تمامًا متل
+  // قبل (عنصر مستقل لحاله، بأرضيته التخطيطية الخاصة فوق الأرض مباشرة).
+  const linkedRoom = it.gableLinkedRoomId ? items.find(i => i.id === it.gableLinkedRoomId && isRoom(i)) : null;
+  let roomOriginYM = 0;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0xbfe0f2);
@@ -13182,23 +13387,34 @@ async function buildGableRoof3DScene(it, wrap){
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(lengthM, 0.03, widthM), new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.9 }));
-  floorMesh.position.set(lengthM/2, -0.015, widthM/2);
-  floorMesh.receiveShadow = true;
-  scene.add(floorMesh);
+  if(linkedRoom){
+    // الغرفة المربوطة منبنيها بالأرض (originYM=0) - حيطانها/شبابيكها/أرضيتها الحقيقية، وبنرجع ارتفاعها
+    // بالمتر حتى نرفع قوائم السقف الجملوني فوقها بالضبط بالسطر تحت.
+    const roomResult = await addRoomStructureToScene(scene, linkedRoom, 0);
+    roomOriginYM = roomResult.heightM;
+  } else {
+    // ما في غرفة مربوطة - السقف عنصر مستقل لحاله، فمنرسملو أرضية/قاعدة تخطيطية بسيطة بلون بيج تحته
+    // مباشرة فوق الأرض (متل ما كان الحال قبل ميزة الدمج).
+    const floorMesh = new THREE.Mesh(new THREE.BoxGeometry(lengthM, 0.03, widthM), new THREE.MeshStandardMaterial({ color:0xd9d2c4, roughness:0.9 }));
+    floorMesh.position.set(lengthM/2, -0.015, widthM/2);
+    floorMesh.receiveShadow = true;
+    scene.add(floorMesh);
+  }
 
   const placements = computeGableBayPlacements(it);
   gableRoof3D.bayGroups = [];
   bays.forEach(b=>{
-    const group = buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows);
+    const needsStartCap = b.index === 0;
+    const needsEndCap = b.index === bays.length - 1;
+    const group = buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows, needsStartCap, needsEndCap);
     const placement = placements.find(p => p.index === b.index);
-    group.position.set(placement.closedX, 0, 0);
+    group.position.set(placement.closedX, roomOriginYM, 0);
     group.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
     scene.add(group);
     gableRoof3D.bayGroups.push({
       group, state: b.state,
       closed: { x: placement.closedX }, open: { x: placement.openX },
-      delayMs: placement.delayMs, durationMs: 900,
+      baseDelayMs: placement.delayMs, baseDurationMs: 900,
     });
   });
 
@@ -13212,7 +13428,9 @@ async function buildGableRoof3DScene(it, wrap){
   wrap.innerHTML = '';
   wrap.appendChild(renderer.domElement);
 
-  const totalHeightM = legHM + ridgeHM;
+  // 🆕 2026-10-01: لما في غرفة مربوطة، لازم تأطير الكاميرا يحسب الارتفاع الكلي (ارتفاع الغرفة + القوائم
+  // + الجملون) مش بس ارتفاع السقف الجملوني لحاله - وإلا الغرفة تطلع جزئيًا برّا كادر الكاميرا الأولي.
+  const totalHeightM = roomOriginYM + legHM + ridgeHM;
   const centerX = lengthM/2, centerZ = widthM/2;
   const radius = Math.max(3, Math.hypot(lengthM,widthM)/2 * 1.9 + totalHeightM);
   const lookHeight = totalHeightM*0.5;
@@ -13264,6 +13482,10 @@ async function openGableRoof3D(){
   }
   try{
     await buildGableRoof3DScene(it, wrap);
+    // 🆕 2026-10-01: نبدأ المشهد بنفس سرعة الحركة المحفوظة بالبند (أو متوسط افتراضيًا)، ومنفعّل تمييز
+    // الزر الفعّال بشريط الأدوات.
+    gableRoof3D.speedFactor = GABLE_SPEED_FACTORS[(it.gableSlideSpeed==='slow'||it.gableSlideSpeed==='fast') ? it.gableSlideSpeed : 'medium'];
+    updateGableRoof3DSpeedButtonsUI();
   } catch(e){
     wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:var(--wd-font-ui);">⚠️ صار خطأ أثناء بناء المشهد: ' + escAttr(String(e && e.message || e)) + '</p>';
   }
@@ -13280,6 +13502,7 @@ function closeGableRoof3D(){
   gableRoof3D.bayGroups = null;
   gableRoof3D.slideAnim = null;
   gableRoof3D.open = false;
+  gableRoof3D.speedFactor = 1;
   const overlay = document.getElementById('gableRoof3DOverlay');
   if(overlay) overlay.style.display = 'none';
   const slideBtn = document.getElementById('gableRoof3DSlideBtn');
@@ -13295,9 +13518,16 @@ function startGableBaySlideAnimation(toOpen){
   if(!gableRoof3D.bayGroups) return;
   const movable = gableRoof3D.bayGroups.filter(bg => bg.state !== 'fixed');
   if(!movable.length) return;
+  // 🆕 2026-10-01: مضاعف السرعة الحالي (يُقرأ وقت بداية الحركة بالضبط، مش وقت بناء المشهد - هيك لو
+  // حمدي غيّر السرعة بالمنتصف بين فتحة وفتحة، الحركة الجاية بتاخد السرعة الجديدة فورًا).
+  const speedFactor = gableRoof3D.speedFactor || 1;
   gableRoof3D.slideAnim = {
     startTime: performance.now(), toOpen,
-    entries: movable.map(bg => ({ bg, from: toOpen ? bg.closed : bg.open, to: toOpen ? bg.open : bg.closed })),
+    entries: movable.map(bg => ({
+      bg, from: toOpen ? bg.closed : bg.open, to: toOpen ? bg.open : bg.closed,
+      delayMs: (bg.baseDelayMs||0) * speedFactor,
+      durationMs: (bg.baseDurationMs||900) * speedFactor,
+    })),
   };
   const btn = document.getElementById('gableRoof3DSlideBtn');
   if(btn){ btn.disabled = true; btn.textContent = toOpen ? '⏳ عم تفتح الوحدات...' : '⏳ عم تسكّر الوحدات...'; }
@@ -13307,10 +13537,10 @@ function updateGableBaySlideAnimationFrame(){
   const now = performance.now();
   let allDone = true;
   anim.entries.forEach(entry=>{
-    const elapsed = now - anim.startTime - entry.bg.delayMs;
+    const elapsed = now - anim.startTime - entry.delayMs;
     let t;
     if(elapsed <= 0){ t = 0; allDone = false; }
-    else { t = Math.min(1, elapsed/entry.bg.durationMs); if(t < 1) allDone = false; }
+    else { t = Math.min(1, elapsed/entry.durationMs); if(t < 1) allDone = false; }
     const e = easeInOutCubicGableSlide(t);
     entry.bg.group.position.x = entry.from.x + (entry.to.x - entry.from.x)*e;
   });
@@ -13327,6 +13557,29 @@ function toggleGableBaySlideAnimation(){
   startGableBaySlideAnimation(!gableRoof3D.open);
 }
 window.toggleGableBaySlideAnimation = toggleGableBaySlideAnimation;
+
+// 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب يكون في مثلا 3 سرعات حتى اقدر شوف شو الافضل
+// وقت التصوير") - بتغيّر سرعة الحركة وانت لسا فاتح المشهد الثلاثي الأبعاد (أزرار 🐢/🚶/🐇 بشريط الأدوات)
+// بدون ما تحتاج تسكّر وتفتح من جديد - وبتحفظ اختيارك بالبند نفسو حتى يتذكره المشروع.
+function setGableRoofLiveSlideSpeed(speed){
+  if(!(speed==='slow'||speed==='medium'||speed==='fast')) return;
+  const it = items.find(i=>i.id===gableRoof3D.itemId);
+  if(it){ it.gableSlideSpeed = speed; const sel = document.getElementById('inGableSlideSpeed'); if(sel) sel.value = speed; }
+  gableRoof3D.speedFactor = GABLE_SPEED_FACTORS[speed] || 1;
+  updateGableRoof3DSpeedButtonsUI();
+}
+window.setGableRoofLiveSlideSpeed = setGableRoofLiveSlideSpeed;
+
+function updateGableRoof3DSpeedButtonsUI(){
+  const it = items.find(i=>i.id===gableRoof3D.itemId);
+  const speed = (it && (it.gableSlideSpeed==='slow'||it.gableSlideSpeed==='fast')) ? it.gableSlideSpeed : 'medium';
+  const map = { slow:'gableRoof3DSpeedSlow', medium:'gableRoof3DSpeedMedium', fast:'gableRoof3DSpeedFast' };
+  Object.keys(map).forEach(s=>{
+    const btn = document.getElementById(map[s]);
+    if(btn) btn.style.outline = (s === speed) ? '2px solid #fff' : 'none';
+  });
+}
+window.updateGableRoof3DSpeedButtonsUI = updateGableRoof3DSpeedButtonsUI;
 
 // 🛠️ 2026-09-30.19: refreshRoom3DIfOpenForItem انحذفت - كانت بس لريفريش حي للمشهد الثلاثي الأبعاد
 // بعد تعديل جزء سقف (zone)، ونظام الأجزاء انحذف بالكامل بطلب حمدي.
@@ -13989,10 +14242,45 @@ function renderGableRoofControlsUI(it){
   setVal('inGableRoofCols', it.gableRoofGlassCols||3);
   setVal('inGableLegRows', it.gableLegGlassRows||2);
   setVal('inGableBayCount', it.gableBayCount||4);
+  // 🆕 2026-10-01 (طلب حمدي: "دمج الغرفة مع السقف المتحرك بمشهد الثري دي") - قائمة اختيار الغرفة
+  // المربوطة (لو موجودة) - منعيد بناءها كل مرة حتى تعكس أي غرفة انضافت/انحذفت/تغيّر اسمها.
+  const roomSelect = document.getElementById('inGableLinkedRoom');
+  if(roomSelect){
+    const rooms = items.filter(isRoom);
+    roomSelect.innerHTML = '<option value="">بدون - سقف مستقل لحاله</option>' +
+      rooms.map(r => `<option value="${r.id}">${(r.label||'غرفة/مجلس').replace(/</g,'&lt;')}</option>`).join('');
+    roomSelect.value = (it.gableLinkedRoomId && rooms.some(r=>r.id===it.gableLinkedRoomId)) ? String(it.gableLinkedRoomId) : '';
+    if(!rooms.some(r=>r.id===it.gableLinkedRoomId)) it.gableLinkedRoomId = null;
+  }
+  // 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب يكون في 3 سرعات حتى اقدر شوف شو الافضل وقت
+  // التصوير") - قائمة اختيار سرعة حركة الوحدات (بطيء/متوسط/سريع)، محفوظة بالبند نفسو حتى تتذكر آخر
+  // سرعة اختارها حمدي حتى لو سكّر وفتح المشروع من جديد.
+  setVal('inGableSlideSpeed', (it.gableSlideSpeed==='slow'||it.gableSlideSpeed==='fast') ? it.gableSlideSpeed : 'medium');
   const preview = document.getElementById('gableBaysPreview');
   if(preview) preview.innerHTML = buildGableRoofSVG(it);
 }
 window.renderGableRoofControlsUI = renderGableRoofControlsUI;
+
+function onGableLinkedRoomChange(itemId, value){
+  const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
+  pushHistory();
+  it.gableLinkedRoomId = value ? parseInt(value,10) : null;
+  renderGableRoofControlsUI(it);
+}
+window.onGableLinkedRoomChange = onGableLinkedRoomChange;
+
+function onGableSlideSpeedChange(itemId, value){
+  const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
+  pushHistory();
+  it.gableSlideSpeed = (value==='slow'||value==='fast') ? value : 'medium';
+  // لو المشهد الثلاثي الأبعاد لهاد البند بالذات مفتوح حاليًا، منحدّث سرعته حيًا بدون ما نسكّره ونفتحه
+  // من جديد - حتى تصير تجربة السرعات المختلفة سلسة وقت التصوير.
+  if(gableRoof3D.itemId === itemId){
+    gableRoof3D.speedFactor = GABLE_SPEED_FACTORS[it.gableSlideSpeed] || 1;
+    updateGableRoof3DSpeedButtonsUI();
+  }
+}
+window.onGableSlideSpeedChange = onGableSlideSpeedChange;
 
 function buildItemSVG(it){
   if(isHandrail(it)) return buildHandrailSVG(it);
