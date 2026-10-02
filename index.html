@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-02.1';
+  var CURRENT_VERSION = '2026-10-02.3';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -4415,6 +4415,29 @@ async function deleteQuotationFromDrive(){
 }
 window.deleteQuotationFromDrive = deleteQuotationFromDrive;
 
+// 🛠️ إصلاح جذري 2026-10-02 (بلاغ حمدي: "لنفس الرفرنس S-Q-260003 - كل ما بعدّل وبعمل حفظ ما بينحفظ
+// التصميم" - فتح المسقط وعدّل كل النوافذ وضاف جملون وجرب الثري دي، وبعد يوم رجع ما لقى شي): السبب
+// الجذري الحقيقي - بيانات "التصميم" (الغرف/السقوف الجملونية/بنود النوافذ المرسومة بأداة التصميم)
+// كانت تتحفظ تلقائيًا كل 400ms (scheduleDesignSave/saveDesignItemsToStorage تحت) بمفتاح localStorage
+// عالمي واحد وبس ('merzona-design-items') **غير مربوط بأي رقم مرجعي عرض سعر** - نفس الثغرة المعمارية
+// يلي كان فيها تنبيه جزئي قرب resetAllNoConfirm (إصلاح 2026-09-30.14) بس ما كان انعالج كليًا هون.
+// النتيجة: لو حمدي فتح/لمس أي عرض سعر تاني (حتى لمجرد نظرة) بنفس المتصفح بعد ما صمم على S-Q-260003
+// وقبل ما يحفظه نهائيًا، كان العرض التاني يبلش يسجّل فوق نفس المفتاح العالمي خلال ثوانٍ - وبعدين لما
+// يرجع يفتح/يحفظ S-Q-260003، كود التحميل الأولي (قرب "let items = ..." بكتلة الـ<script> التالتة)
+// كان يفرض محتوى هالمفتاح العالمي (يلي صار يخص عرض سعر تاني هلق، أو فاضي) فوق تصميم S-Q-260003
+// الحقيقي المحفوظ بالملف نفسه - فتصميمه كان يختفي/يتبدّل بصمت تمامًا، بدون أي رسالة خطأ (ليه كان حمدي
+// شايف باقي العرض بيتحفظ عادي، بس "التصميم" تحديدًا هو يلي بيضيع - بالضبط متل ما وصف). الحل: المفتاح
+// هلق مبني على الرقم المرجعي الحالي نفسه (قيمة #m-ref لحظة الحفظ/التحميل) - هيك كل عرض سعر إله خزنة
+// تلقائية محلية مستقلة بالكامل بالمتصفح، ومستحيل عرضين مختلفين يتصادموا/يبلعوا بعض فيما بعد.
+function getDesignAutosaveStorageKey(){
+  try{
+    const refEl = document.getElementById('m-ref');
+    const ref = refEl ? (refEl.value || '').trim() : '';
+    return 'merzona-design-items::' + (ref || '__no_ref__');
+  }catch(e){ return 'merzona-design-items::__no_ref__'; }
+}
+window.getDesignAutosaveStorageKey = getDesignAutosaveStorageKey;
+
 function buildBakedHtmlSnapshot(){
   // Bake current values into the HTML attributes/content so a reopened file shows them.
   document.querySelectorAll('input').forEach(el=>{
@@ -4430,12 +4453,21 @@ function buildBakedHtmlSnapshot(){
   html = html.replace(/const ALUM_SPEC_AR_DEFAULT = \{.*\};/, 'const ALUM_SPEC_AR_DEFAULT = ' + JSON.stringify(ALUM_SPEC_AR) + ';');
   try{
     if(window.__flushDesignSave__) window.__flushDesignSave__(); // نتأكد آخر تعديل ع الرسمة انحفظ قبل ما ناخد النسخة
-    const savedDesignRaw = localStorage.getItem('merzona-design-items');
+    // 🛠️ إصلاح جذري 2026-10-02 (بلاغ حمدي: "كل ما بعدّل وبعمل حفظ ما بينحفظ التصميم" - S-Q-260003):
+    // ثغرة ثانية (أخطر من ثغرة المفتاح العالمي فوق) لقيناها هون بالذات - هالـregex كان بيدوّر حصرًا عن
+    // المصفوفة الفاضية الحرفية "[]" (ونفس الشي لـDESIGN_NEXT_ID_DEFAULT = 1 الحرفية)، بعكس
+    // ITEMS_DEFAULT/ALUM_SPEC_AR_DEFAULT فوق يلي بيستخدموا \[.*\] (تطابق أي محتوى). يعني: أول حفظة
+    // لعرض سعر فيه تصميم كانت تنجح (تبدّل [] الفاضية بالتصميم الفعلي) - بس أي حفظة بعدها كانت تفشل
+    // بصمت تمامًا (الـregex ما عاد يلاقي "[]" الحرفية لأنو المصفوفة صارت مليانة من الحفظة الأولى)!
+    // فالملف المحفوظ كان يتجمّد عند حالة التصميم الأولى للأبد - أي تعديل/إضافة لاحقة (زي ما وصف حمدي:
+    // عدّل المسقط، عدّل النوافذ، ضاف جملون) ما كانت تنحفظ إطلاقًا بالملف رغم إنو زر "حفظ" كان ينجح
+    // بدون أي رسالة خطأ. هلق صار نفس أسلوب ITEMS_DEFAULT بالضبط - بيتحدث دايمًا مهما كان محتواه الحالي.
+    const savedDesignRaw = localStorage.getItem(getDesignAutosaveStorageKey());
     if(savedDesignRaw){
       const savedDesign = JSON.parse(savedDesignRaw);
       const visibleDesignItems = (savedDesign.items || []).filter(it => !it.isCameraTemp);
-      html = html.replace(/const DESIGN_ITEMS_DEFAULT = \[\];/, 'const DESIGN_ITEMS_DEFAULT = ' + JSON.stringify(visibleDesignItems) + ';');
-      html = html.replace(/const DESIGN_NEXT_ID_DEFAULT = 1;/, 'const DESIGN_NEXT_ID_DEFAULT = ' + JSON.stringify(savedDesign.nextId || 1) + ';');
+      html = html.replace(/const DESIGN_ITEMS_DEFAULT = \[.*\];/, 'const DESIGN_ITEMS_DEFAULT = ' + JSON.stringify(visibleDesignItems) + ';');
+      html = html.replace(/const DESIGN_NEXT_ID_DEFAULT = \d+;/, 'const DESIGN_NEXT_ID_DEFAULT = ' + JSON.stringify(savedDesign.nextId || 1) + ';');
     }
   }catch(e){}
   return html;
@@ -6957,6 +6989,10 @@ window.wdApplyBack = function(results){
       <button class="printBtn" onclick="quickStartCeilingDrawFromToolbar()" title="بدك تكوني حددتي بند غرفة/مجلس، أو منختارلك أول وحدة موجودة تلقائيًا">🔲 ارسم السقف</button>
       <!-- 🆕 2026-10-01.9 (طلب حمدي) - رابع اختصار كان ناقص: عرض السقف الجملوني المتحرك بالثري دي -->
       <button class="printBtn" onclick="quickOpenGableRoof3DFromToolbar()" title="بدك تكوني حددتي بند سقف جملون متحرك، أو منختارلك أول وحدة موجودة تلقائيًا">🏕️ ثري دي السقف الجملوني</button>
+      <!-- 🆕 2026-10-02 (طلب حمدي: "لازم السقف يعتبر كأنه بند من البنود بالنسبة للرسم... بختار رسم
+           السقف فبيفتحلي بند بالمصمم وببدأ فيه") - خامس اختصار: يبدأ رسم مسقط سقف جملون موحّد مباشرة،
+           وينشئ سقف جملون جديد تلقائيًا لو ما في ولا وحدة بالتصميم بعد (نفس مبدأ إضافة شباك جديد). -->
+      <button class="printBtn" onclick="quickDrawRoofFromToolbar()" title="بينشئلك سقف جملون جديد تلقائيًا لو ما في ولا وحدة بعد، وبيفتحلك رسم مسقط السقف فورًا">🏗️ ارسم السقف</button>
     </div>
     <div class="wd-header-toggle"><button id="wdHeaderToggleBtn" onclick="toggleWdHeader()" type="button">▼ إظهار الترويسة والأدوات</button></div>
   </header>
@@ -7320,10 +7356,26 @@ window.wdApplyBack = function(results){
               <input type="checkbox" id="inGableManualSizeOverride" onchange="onGableManualSizeOverrideToggle(getSelected().id,this.checked)">
               📐 تعديل يدوي استثنائي للمقاس <span class="wd-ar">(حالات خاصة جدًا بس - غير هيك المقاس دايمًا تلقائي من الغرفة)</span>
             </label>
+            <!-- 🆕 2026-10-02 (طلب حمدي: "لازم السقف يعتبر كأنه بند من البنود بالنسبة للرسم... بختار
+                 رسم السقف فبيفتحلي بند بالمصمم وببدأ فيه... بالنسبة للجملون بختار المنطقة يللي فيها
+                 جملون وباقي المناطق فيني اختارها انها تكون ثابتة") - الطريقة الموحّدة الجديدة المفضّلة:
+                 رسم مسقط خارجي كامل للسقف (مثل رسم الأرضية) - مستطيل الجملون فوق يتموضع جواه بالإزاحة
+                 تحت، وأي مساحة إضافية جوا المسقط وبرّا مستطيل الجملون بتصير تلقائيًا زجاج ثابت حقيقي
+                 بالثري دي (بدل ما تحتاجي تضيفي أكتر من سقف جملون منفصل لتغطية باقي المناطق). -->
+            <div style="margin-top:14px; padding-top:10px; border-top:1px dashed var(--wd-line,#333);">
+              <label>🖊️ ارسم مسقط السقف الكامل <span class="wd-ar">(الجملون + الزجاج الثابت سوا - الطريقة المفضّلة)</span></label>
+              <p class="hint" style="margin-top:4px;">ارسمي حدود السقف كاملة كمسقط (نفس أداة رسم الأرضية بالضبط) - أي منطقة جوا هالمسقط برّا مستطيل الجملون تحت رح تظهر بالثري دي تلقائيًا كزجاج ثابت حقيقي مسطّح، بدون ما تحتاجي تضيفي سقف جملون ثاني منفصل.</p>
+              <div class="add-row" style="margin-top:6px;">
+                <button type="button" onclick="toggleRoofFootprintFreehandDraw()" class="small" style="flex:1;">✏️ ارسم/عدّل مسقط السقف</button>
+              </div>
+              <p class="hint" id="gableFootprintInfo" style="margin-top:4px; display:none;"></p>
+            </div>
             <!-- 🆕 2026-10-01.8 (طلب حمدي بعد بلاغ "السقف طالع عن حدود الأرض" بغرفة فيها بروز) - إزاحة
-                 يدوية (X/Z بالمليمتر) تضاف فوق موقع صندوق أرضية الغرفة الافتراضي. مفيدة خصوصًا لو عندك
-                 أكتر من سقف جملون مربوط بنفس الغرفة (مثلاً وحدة رئيسية للجزء المستطيل + وحدة إضافية
-                 "ثابتة F بالكامل" لتغطية جزء بارز/نوتش لحاله) وكل وحدة لازم تنحط بموقعها الصح. -->
+                 يدوية (X/Z بالمليمتر) تضاف فوق موقع صندوق أرضية الغرفة أو مسقط السقف المرسوم - هاي
+                 هلق هي طريقة تحديد *مكان مستطيل الجملون جوا المسقط* يلي رسمتيه فوق (أو جوا صندوق
+                 الغرفة المربوطة لو ما في مسقط مرسوم بعد). مفيدة كمان لو عندك أكتر من سقف جملون مربوط
+                 بنفس الغرفة (مثلاً وحدة رئيسية للجزء المستطيل + وحدة إضافية "ثابتة F بالكامل" لتغطية
+                 جزء بارز/نوتش لحاله) وكل وحدة لازم تنحط بموقعها الصح. -->
             <div class="row2" style="margin-top:10px;">
               <div>
                 <label>إزاحة الموقع أفقيًا X <span class="wd-ar">(مم - نسبة لصندوق أرضية الغرفة)</span></label>
@@ -7989,13 +8041,42 @@ const companyLogo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAYAA
 let selectedId = null;
 let nextId = DESIGN_NEXT_ID_DEFAULT;
 try{
-  const savedDesign = localStorage.getItem('merzona-design-items');
+  // 🛠️ إصلاح جذري 2026-10-02 (بلاغ حمدي - S-Q-260003: "كل ما بعدّل وبعمل حفظ ما بينحفظ التصميم") -
+  // مفتاح التخزين المحلي هلق مربوط بالرقم المرجعي الحالي (window.getDesignAutosaveStorageKey معرّفة
+  // بكتلة <script> الكلاسيكية فوق) بدل مفتاح عالمي واحد لكل عروض الأسعار - شوف الشرح الكامل قرب
+  // تعريفها. بدون هالإصلاح، فتح/لمس أي عرض سعر تاني بنفس المتصفح كان ممكن يستبدل تصميم عرض سعر لسا
+  // مفتوح بدون حفظ، أو يفرض بيانات غلط فوق عرض سعر بيتفتح من جديد.
+  const savedDesign = localStorage.getItem(window.getDesignAutosaveStorageKey ? window.getDesignAutosaveStorageKey() : 'merzona-design-items');
   if(savedDesign){
     const parsedDesign = JSON.parse(savedDesign);
     if(parsedDesign && Array.isArray(parsedDesign.items) && parsedDesign.items.length){
       items = parsedDesign.items;
       nextId = parsedDesign.nextId || (items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
       selectedId = (parsedDesign.selectedId != null && items.find(i=>i.id===parsedDesign.selectedId)) ? parsedDesign.selectedId : items[0].id;
+    }
+  }
+  // 🩹 استرجاع لمرة وحدة بس 2026-10-02: لو هالعرض سعر مفتوح الآن ما إله أي تصميم محفوظ (لا بالملف
+  // نفسه ولا بمفتاحه الجديد) - ممكن يكون عنده تصميم ضايع بالمفتاح العالمي القديم (قبل هالإصلاح) من
+  // جلسة سابقة. منعرضه كخيار استرجاع واضح (مش فرض تلقائي) مرة وحدة بس بكل جلسة متصفح، حتى ما نزعج
+  // حمدي بنفس السؤال كل مرة يفتح فيها عرض سعر فاضي عمدًا (عرض سعر جديد فعلًا بدون أي تصميم).
+  if(!items.length){
+    const legacyRaw = localStorage.getItem('merzona-design-items');
+    const recoveryOfferedKey = 'merzona-design-legacy-recovery-offered';
+    if(legacyRaw && !sessionStorage.getItem(recoveryOfferedKey)){
+      const legacyParsed = JSON.parse(legacyRaw);
+      if(legacyParsed && Array.isArray(legacyParsed.items) && legacyParsed.items.length){
+        sessionStorage.setItem(recoveryOfferedKey, '1');
+        const refNow = (document.getElementById('m-ref') && document.getElementById('m-ref').value) || '(بدون رقم مرجعي)';
+        const wantsRecover = confirm(
+          'لقينا تصميم محفوظ مؤقتًا بهالمتصفح من قبل إصلاح 2026-10-02 (' + legacyParsed.items.length + ' بند) - ممكن يخص عرض السعر هذا (' + refNow + ') أو عرض سعر تاني كنت شغال عليه سابقًا.\n\n' +
+          'بدك تسترجعه لعرض السعر الحالي؟ (اضغط "إلغاء" إذا مش متأكد إنو يخص هذا العرض بالذات)'
+        );
+        if(wantsRecover){
+          items = legacyParsed.items;
+          nextId = legacyParsed.nextId || (items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
+          selectedId = (legacyParsed.selectedId != null && items.find(i=>i.id===legacyParsed.selectedId)) ? legacyParsed.selectedId : items[0].id;
+        }
+      }
     }
   }
 }catch(e){}
@@ -8019,7 +8100,10 @@ setTimeout(function(){
 
 function saveDesignItemsToStorage(){
   try{
-    localStorage.setItem('merzona-design-items', JSON.stringify({ items: items, nextId: nextId, selectedId: selectedId, savedAt: new Date().toISOString() }));
+    // 🛠️ إصلاح جذري 2026-10-02 (S-Q-260003) - نفس مبدأ قراءة الاسترجاع فوق بالضبط: الحفظ التلقائي
+    // المحلي هلق مربوط بالرقم المرجعي الحالي، مش مفتاح عالمي مشترك بين كل عروض الأسعار.
+    const key = window.getDesignAutosaveStorageKey ? window.getDesignAutosaveStorageKey() : 'merzona-design-items';
+    localStorage.setItem(key, JSON.stringify({ items: items, nextId: nextId, selectedId: selectedId, savedAt: new Date().toISOString() }));
   }catch(e){}
 }
 var _designSaveTimer = null;
@@ -8802,6 +8886,14 @@ function makeItem(type){
     // تحت) - false يعني "تلقائي دايمًا" (الافتراضي)، true تعني المستخدم فعّل تعديل يدوي استثنائي
     // (حالة خاصة جدًا) فما منلمس القيم المكتوبة يدويًا بعدها.
     it.gableManualSizeOverride = false;
+    // 🆕 2026-10-02 (طلب حمدي: "لازم السقف يعتبر كأنه بند من البنود بالنسبة للرسم... بختار رسم السقف
+    // فبيفتحلي بند بالمصمم وببدأ فيه... بالنسبة للجملون بختار المنطقة يللي فيها جملون وباقي المناطق
+    // فيني اختارها انها تكون ثابتة") - مسقط خارجي كامل لشكل السقف (يُرسم بنفس أداة رسم الأرضية بالضبط،
+    // شوف toggleRoofFootprintFreehandDraw تحت) - مستطيل الجملون (gableLengthMm/WidthMm + الإزاحة)
+    // يتموضع *جواه*، وأي مساحة من هالمسقط برّا مستطيل الجملون بتترسم تلقائيًا بالثري دي كزجاج ثابت
+    // مسطّح حقيقي (شوف computeFixedGlassPanelsMM/buildFlatFixedGlassPanel). null = ما انرسم بعد (نفس
+    // السلوك القديم تمامًا - سقف جملون مستطيل بس بدون أي زجاج ثابت محيط).
+    it.roofFootprintSides = null;
   }
   return it;
 }
@@ -10920,6 +11012,8 @@ let roomDrawWrapHome = null;
 function updateRoomDrawTargetLabel(target){
   const el = document.getElementById('roomDrawTargetLabel');
   if(!el) return;
+  // 🆕 2026-10-02: نص ثالث لرسم مسقط السقف الجملوني الموحّد (شوف toggleRoofFootprintFreehandDraw).
+  if(target === 'roofFootprint'){ el.textContent = '✏️ عم ترسم مسقط السقف (الجملون + الزجاج الثابت)'; return; }
   el.textContent = target === 'ceiling' ? '✏️ عم ترسم شكل السقف (مستقل عن الأرضية)' : '✏️ عم ترسم شكل الأرضية';
 }
 
@@ -10996,6 +11090,42 @@ function toggleCeilingFreehandDraw(){
   }
 }
 window.toggleCeilingFreehandDraw = toggleCeilingFreehandDraw;
+
+// 🆕 2026-10-02 (طلب حمدي: "لازم السقف يعتبر كأنه بند من البنود بالنسبة للرسم... بختار رسم السقف
+// فبيفتحلي بند بالمصمم وببدأ فيه") - نفس مبدأ toggleCeilingFreehandDraw فوق بالضبط (نفس أداة
+// roomDraw)، بس لمسقط "سقف جملون متحرك" (gableRoof) بدل غرفة - roomDraw.target='roofFootprint'،
+// والنتيجة تتخزن بـit.roofFootprintSides. أول مرة تنفتح (قبل ما يترسم أي مسقط مستقل)، منبلّش من شكل
+// الغرفة المربوطة (gableLinkedRoomId) لو موجودة كمرجع انطلاق - نفس منطق "ابدأ من الأرضية" تمامًا.
+function toggleRoofFootprintFreehandDraw(){
+  const it = getSelected(); if(!it || !isGableRoof(it)) return;
+  const wrap = document.getElementById('roomDrawWrap');
+  if(roomDraw.active){
+    cancelRoomFreehandDraw();
+  } else {
+    const linkedRoom = it.gableLinkedRoomId ? items.find(i=>i.id===it.gableLinkedRoomId && isRoom(i)) : null;
+    const existingPts = (it.roofFootprintSides && it.roofFootprintSides.length>=3)
+      ? roomDrawPointsFromSides(it.roofFootprintSides)
+      : ((linkedRoom && linkedRoom.roomSides && linkedRoom.roomSides.length>=3) ? roomDrawPointsFromSides(linkedRoom.roomSides) : []);
+    roomDraw = { active:true, itemId:it.id, target:'roofFootprint', points:existingPts, mouse:null, freeAngle:false, gesture:null,
+      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
+      closedLoop: existingPts.length >= 3,
+      view: roomDrawComputeFitView(existingPts, 500) };
+    updateRoomDrawTargetLabel('roofFootprint');
+    const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
+    updateRoomDrawModeButtons();
+    if(wrap && wrap.parentElement !== document.body){
+      roomDrawWrapHome = { parent: wrap.parentElement, nextSibling: wrap.nextSibling };
+      document.body.appendChild(wrap);
+    }
+    if(wrap) wrap.style.display = 'flex';
+    if(!roomDrawResizeHandler){
+      roomDrawResizeHandler = () => { if(roomDraw.active) renderRoomDrawCanvas(); };
+      window.addEventListener('resize', roomDrawResizeHandler);
+    }
+    renderRoomDrawCanvas();
+  }
+}
+window.toggleRoofFootprintFreehandDraw = toggleRoofFootprintFreehandDraw;
 
 // 🆕 2026-09-25: طلب حمدي - "ما بقدر حدد من أي نقطة رح ابلش الرسم، عم ياخدها تلقائي بشكل غريب".
 // السبب: فتح الرسم دايمًا بيحمّل شكل الغرفة الحالي (مربع 3×3م افتراضي لغرفة جديدة، أو آخر شكل
@@ -12026,6 +12156,20 @@ function finishRoomFreehandDraw(){
     selectItem(it.id);
     cancelRoomFreehandDraw();
     renderCeilingSidesUI(it);
+    renderGallery();
+    return;
+  }
+  // 🆕 2026-10-02 (طلب حمدي - ميزة "السقف كبند موحّد") - مسقط السقف الجملوني الخارجي الكامل، مستقل
+  // تمامًا عن منطق ربط صفوف جدول الكمية تحت (خاص بأضلاع أرضية الغرفة بس) - نفس تفرّع target==='ceiling'
+  // فوق بالضبط بنيويًا، بس بيكتب it.roofFootprintSides ويعيد رسم لوحة تحكم السقف الجملوني.
+  if(roomDraw.target === 'roofFootprint'){
+    const oldFootprintCount = (it.roofFootprintSides||[]).length;
+    if(!confirmRoomShapeGrowthIfSuspicious(oldFootprintCount, pts.length, 'مسقط السقف')) return;
+    pushHistory();
+    it.roofFootprintSides = roomDrawSidesFromPoints(pts);
+    selectItem(it.id);
+    cancelRoomFreehandDraw();
+    renderGableRoofControlsUI(it);
     renderGallery();
     return;
   }
@@ -13240,6 +13384,30 @@ function quickOpenGableRoof3DFromToolbar(){
 }
 window.quickOpenGableRoof3DFromToolbar = quickOpenGableRoof3DFromToolbar;
 
+// 🆕 2026-10-02 (طلب حمدي: "لازم السقف يعتبر كأنه بند من البنود بالنسبة للرسم... بختار رسم السقف
+// فبيفتحلي بند بالمصمم وببدأ فيه" - نفس مبدأ إضافة شباك جديد بالضبط: ما في "صندوق فاضي" منفصل، البند
+// نفسه بيبلش جاهز للرسم فورًا) - بعكس ensureGableRoofSelectedForQuickAction فوق (يلي بينبّه لو ما
+// في سقف جملون أصلًا لأنو متعلقة بأزرار "اعرض ثري دي" مش "ابدأ رسم")، هاي بتنشئ سقف جملون جديد
+// تلقائيًا لو ما كان موجود أصلًا - زر "ارسم السقف" الجديد بالترويسة هو يلي بيستخدمها.
+function ensureGableRoofForDrawing(){
+  let it = getSelected();
+  if(it && isGableRoof(it)) return it;
+  it = items.find(isGableRoof);
+  if(it){ selectItem(it.id); return it; }
+  addItem('gableRoof');
+  return getSelected();
+}
+window.ensureGableRoofForDrawing = ensureGableRoofForDrawing;
+function quickDrawRoofFromToolbar(){
+  openDesignerFromToolbar();
+  const it = ensureGableRoofForDrawing();
+  if(!it) return;
+  toggleRoofFootprintFreehandDraw();
+  const wrap = document.getElementById('roomDrawWrap');
+  if(wrap) wrap.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+window.quickDrawRoofFromToolbar = quickDrawRoofFromToolbar;
+
 // 🆕 2026-09-30.20 (طلب حمدي: "بدي بس انتهي من الثري دي وانا عم شوف الثري دي يصير السقف يفتح ويسكر") -
 // أنيميشن السقف السحّاب: زر "▶️ افتح السقف" بالمشهد ثلاثي الأبعاد (شوف HTML #room3DCeilingSlideBtn)
 // بينادي toggleCeilingSlideAnimation، يلي بيبلش تحريك حي (tween) لكل لوح سقف (room3D.ceilingPanels -
@@ -13442,6 +13610,91 @@ function buildGableBayGroup(bayLenM, widthM, legHM, ridgeHM, roofCols, legRows, 
 
   return group;
 }
+
+// 🆕 2026-10-02 (طلب حمدي: "باقي المناطق بالسقف فيني اختارها انها تكون ثابتة" - زجاج حقيقي مسطّح
+// بالثري دي، مش مجرد مسقط ثنائي الأبعاد) - لوح زجاج مسطّح واحد بإطار غامق حوله، نفس أسلوب
+// addFramedPanel جوا buildGableBayGroup فوق بالضبط (نفس الألوان/السماكة) بس مستقل لحاله حتى يُستخدم
+// مباشرة من buildGableRoof3DScene لكل منطقة "زجاج ثابت" ناتجة عن computeFixedGlassPanelsMM تحت -
+// لوح مسطّح بدون أي ميل (فيه فرق جذري عن سقف الجملون المائل: هاد ثابت تمامًا، مش جزء من هيكل متحرك).
+function buildFlatFixedGlassPanel(wM, dM, cxM, yM, czM){
+  const frameColor = 0x2b2f33;
+  const glassMat = new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.45, roughness:0.15, side:THREE.DoubleSide });
+  const thicknessM = 0.02;
+  const geo = new THREE.BoxGeometry(Math.max(0.01,wM), thicknessM, Math.max(0.01,dM));
+  const mesh = new THREE.Mesh(geo, glassMat);
+  mesh.position.set(cxM, yM, czM);
+  const group = new THREE.Group();
+  group.add(mesh);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:frameColor }));
+  edges.position.copy(mesh.position);
+  group.add(edges);
+  return group;
+}
+
+// 🆕 2026-10-02: اختبار "نقطة جوا مضلع" كلاسيكي (ray casting) بالمليمتر - مستخدم من
+// computeFixedGlassPanelsMM تحت لتحديد أي خلايا الشبكة فعليًا جوا مسقط السقف المرسوم.
+function pointInPolygonMM(x, y, poly){
+  let inside = false;
+  for(let i=0, j=poly.length-1; i<poly.length; j=i++){
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    const intersect = ((yi>y) !== (yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi||1e-9) + xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// 🆕 2026-10-02 (طلب حمدي: "بختار المنطقة يللي فيها جملون... وباقي المناطق فيني اختارها انها تكون
+// ثابتة... هاد أفضل طريقة لحتى اقدر صمم الأماكن يللي الجمالون ما بكون مغطيها") - بيحسب مستطيلات
+// "الزجاج الثابت" (كل مساحة جوا مسقط السقف المرسوم it.roofFootprintSides وبرّا مستطيل الجملون
+// gableLengthMm/WidthMm+الإزاحة) - بإحداثيات محلية بالمليمتر (نفس إطار computeSidesPolygonMM/
+// computeRoomFootprintBoundingBoxMM، يعني ممكن تكون سالبة لمسقط غير منتظم - شوف buildGableRoof3DScene
+// لشرح ليه هالإطار بالذات بيطابق مباشرة إحداثيات العالم الحقيقية للسقف الجملوني بدون أي إزاحة إضافية).
+// الخوارزمية: شبكة بسيطة (كل إحداثيات X/Y المميزة من زوايا المسقط + حواف مستطيل الجملون)، كل خلية
+// فيها فحص "جوا المسقط وبرّا الجملون" عبر نقطة مركزها - هاي كافية 100% لأي شكل مستطيل الأضلاع (زوايا
+// 90°، نفس كل أشكال الغرف/الأسقف المرسومة بهالأداة) حتى لو فيه بروز/نوتش. منلزق الخلايا المتجاورة
+// بنفس الصف أفقيًا (شرائط) لتقليل عدد الألواح الناتجة بدل لوح صغير لكل خلية شبكة.
+function computeFixedGlassPanelsMM(it){
+  const footSides = it.roofFootprintSides;
+  if(!footSides || footSides.length < 3) return [];
+  const polyFull = computeSidesPolygonMM(footSides);
+  const poly = polyFull.slice(0, footSides.length);
+  const box = computeRoomFootprintBoundingBoxMM({ roomSides: footSides });
+  const gx0 = box.minXMm + (it.gableOffsetXMm||0);
+  const gz0 = box.minYMm + (it.gableOffsetZMm||0);
+  const gx1 = gx0 + (it.gableLengthMm||0);
+  const gz1 = gz0 + (it.gableWidthMm||0);
+
+  const xsSet = new Set([box.minXMm, box.minXMm+box.lengthMm, gx0, gx1]);
+  const ysSet = new Set([box.minYMm, box.minYMm+box.widthMm, gz0, gz1]);
+  poly.forEach(p => { xsSet.add(p.x); ysSet.add(p.y); });
+  const EPS = 1; // مم - عتبة تجاهل خلايا/فروق تافهة (دقة الرسم بالفأرة)
+  const minX = box.minXMm, maxX = box.minXMm+box.lengthMm, minY = box.minYMm, maxY = box.minYMm+box.widthMm;
+  const xs = Array.from(xsSet).filter(v => v >= minX-EPS && v <= maxX+EPS).sort((a,b)=>a-b);
+  const ys = Array.from(ysSet).filter(v => v >= minY-EPS && v <= maxY+EPS).sort((a,b)=>a-b);
+
+  const rects = [];
+  for(let yi=0; yi<ys.length-1; yi++){
+    const y0 = ys[yi], y1 = ys[yi+1];
+    if(y1-y0 < EPS) continue;
+    const cy = (y0+y1)/2;
+    let run = null;
+    for(let xi=0; xi<xs.length-1; xi++){
+      const x0 = xs[xi], x1 = xs[xi+1];
+      if(x1-x0 < EPS) continue;
+      const cx = (x0+x1)/2;
+      const insideFootprint = pointInPolygonMM(cx, cy, poly);
+      const insideGable = (cx > gx0+EPS && cx < gx1-EPS && cy > gz0+EPS && cy < gz1-EPS);
+      const isFixed = insideFootprint && !insideGable;
+      if(isFixed){
+        if(run && Math.abs(run.x1 - x0) < EPS){ run.x1 = x1; }
+        else { if(run) rects.push(run); run = { x0, x1, y0, y1 }; }
+      } else if(run){ rects.push(run); run = null; }
+    }
+    if(run) rects.push(run);
+  }
+  return rects.map(r => ({ xMm:r.x0, yMm:r.y0, wMm:r.x1-r.x0, dMm:r.y1-r.y0 }));
+}
+window.computeFixedGlassPanelsMM = computeFixedGlassPanelsMM;
 
 // بيحسب موقع كل وحدة (مقفولة بمكانها الأصلي بالصف، ومفتوحة مرصوصة قرب حافة مجموعة جهتها) بالمتر -
 // نفس مبدأ getCeilingSlidePanelsMM/room3D.ceilingPanels بالضبط: الوحدات الثابتة (fixed) ما بتتحرك
@@ -13655,15 +13908,22 @@ async function buildGableRoof3DScene(it, wrap){
   // (minXMm/minYMm لصندوق أرضية الغرفة) ومنزيح فيها كل قوائم السقف + مركز الكاميرا تحت، حتى يتطابق
   // صندوق السقف تمامًا مع موقع صندوق الغرفة الحقيقي (مش بس نفس القياس).
   let roomOffsetXM = 0, roomOffsetZM = 0;
-  if(linkedRoom && Array.isArray(linkedRoom.roomSides) && linkedRoom.roomSides.length){
-    const roomBox = computeRoomFootprintBoundingBoxMM(linkedRoom);
-    roomOffsetXM = (roomBox.minXMm||0) * MMTOM;
-    roomOffsetZM = (roomBox.minYMm||0) * MMTOM;
+  // 🆕 2026-10-02 (ميزة "السقف كبند موحّد" - بلاغ/طلب حمدي): لو فيه مسقط سقف مرسوم (roofFootprintSides)،
+  // هو هلق "القماشة" المرجعية لموقع مستطيل الجملون (بدل صندوق أرضية الغرفة المربوطة) - لأنو ممكن يكون
+  // مختلف كليًا بالشكل/الحجم عن أي غرفة (سقف مستقل برسمة حرة). لو ما في مسقط مرسوم، نفس السلوك القديم
+  // تمامًا (صندوق أرضية الغرفة المربوطة لو موجودة) - صفر تغيير لأي سقف جملوني قديم بدون مسقط.
+  const anchorBox = (it.roofFootprintSides && it.roofFootprintSides.length >= 3)
+    ? computeRoomFootprintBoundingBoxMM({ roomSides: it.roofFootprintSides })
+    : ((linkedRoom && Array.isArray(linkedRoom.roomSides) && linkedRoom.roomSides.length) ? computeRoomFootprintBoundingBoxMM(linkedRoom) : null);
+  if(anchorBox){
+    roomOffsetXM = (anchorBox.minXMm||0) * MMTOM;
+    roomOffsetZM = (anchorBox.minYMm||0) * MMTOM;
     // 🆕 2026-10-01.8 (بلاغ حمدي بالصور - "خطأ هندسي فادح": غرفة فيها بروز، السقف طالع عن حدود الأرض) -
-    // الإزاحة اليدوية (gableOffsetXMm/ZMm - شوف onGableOffsetField فوق) بتنضاف فوق موقع صندوق الغرفة
-    // الافتراضي هون. هيك ممكن تعملي أكتر من سقف جملون مربوط بنفس الغرفة، كل وحدة بموقعها الصح (مش
+    // الإزاحة اليدوية (gableOffsetXMm/ZMm - شوف onGableOffsetField فوق) بتنضاف فوق موقع صندوق الغرفة/
+    // المسقط الافتراضي هون. هيك ممكن تعملي أكتر من سقف جملون مربوط بنفس الغرفة، كل وحدة بموقعها الصح (مش
     // كلهم ملتصقين بنفس زاوية صندوق الغرفة الكامل) - مثلاً وحدة رئيسية للجزء المستطيل الحقيقي + وحدة/
-    // وحدتين إضافية "ثابتة F بالكامل" (سقف فكس) بموقع ومقاس كل جزء بارز لحاله.
+    // وحدتين إضافية "ثابتة F بالكامل" (سقف فكس) بموقع ومقاس كل جزء بارز لحاله. ولو فيه مسقط مرسوم،
+    // نفس الإزاحة هاي هي يلي بتحدد مكان مستطيل الجملون *جوا* المسقط (gx0/gz0 بـcomputeFixedGlassPanelsMM).
     roomOffsetXM += (it.gableOffsetXMm||0) * MMTOM;
     roomOffsetZM += (it.gableOffsetZMm||0) * MMTOM;
   }
@@ -13724,6 +13984,27 @@ async function buildGableRoof3DScene(it, wrap){
     });
   });
 
+  // 🆕 2026-10-02 (طلب حمدي: "باقي المناطق بالسقف فيني اختارها انها تكون ثابتة" - زجاج حقيقي بالثري
+  // دي) - لو فيه مسقط سقف مرسوم، أي مساحة جواه وبرّا مستطيل الجملون فوق بتترسم هون كألواح زجاج ثابتة
+  // مسطّحة حقيقية (computeFixedGlassPanelsMM بيرجعها بإحداثيات محلية بالمليمتر تطابق مباشرة إحداثيات
+  // العالم الحقيقية - *MMTOM بس بدون أي إزاحة إضافية، شوف شرح الأمر بتعليق computeFixedGlassPanelsMM
+  // نفسها)، بنفس ارتفاع حافة القوائم الجانبية (legHM) فوق أصل الغرفة المربوطة (roomOriginYM) - حتى
+  // يتطابق خط السقف بين الجملون المتحرك والزجاج الثابت المحيط فيه.
+  if(it.roofFootprintSides && it.roofFootprintSides.length >= 3){
+    const fixedPanelsMM = computeFixedGlassPanelsMM(it);
+    fixedPanelsMM.forEach(p=>{
+      const panelGroup = buildFlatFixedGlassPanel(
+        p.wMm*MMTOM, p.dMm*MMTOM,
+        (p.xMm + p.wMm/2)*MMTOM, roomOriginYM + legHM, (p.yMm + p.dMm/2)*MMTOM
+      );
+      panelGroup.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+      scene.add(panelGroup);
+    });
+    gableRoof3D.fixedGlassPanelCount = fixedPanelsMM.length;
+  } else {
+    gableRoof3D.fixedGlassPanelCount = 0;
+  }
+
   const w = wrap.clientWidth || window.innerWidth;
   const h = wrap.clientHeight || (window.innerHeight - 60);
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
@@ -13750,8 +14031,15 @@ async function buildGableRoof3DScene(it, wrap){
   // ⚠️ لازم مركز الكاميرا يتزاح بنفس roomOffsetXM/roomOffsetZM كمان - وإلا الكاميرا بتضل تتمركز حسب
   // الموقع الافتراضي الغلط (0,0) بينما السقف فعليًا صار بموقعه الصحيح فوق، فيطلع المشهد كله خارج الكادر
   // أو غير متمركز صح حول الغرفة الحقيقية.
-  const centerX = roomOffsetXM + lengthM/2, centerZ = roomOffsetZM + widthM/2;
-  const radius = Math.max(3, Math.hypot(lengthM,widthM)/2 * 1.9 + totalHeightM);
+  // 🆕 2026-10-02: لو فيه مسقط سقف مرسوم أوسع من مستطيل الجملون (فيه زجاج ثابت محيط)، لازم الكاميرا
+  // تؤطر حسب المسقط الكامل (anchorBox) مش بس مستطيل الجملون - وإلا الزجاج الثابت المحيط يطلع خارج
+  // كادر الكاميرا الأولي. بدون مسقط مرسوم، نفس السلوك القديم تمامًا (تأطير حسب مستطيل الجملون بس).
+  const hasDrawnFootprint = !!(it.roofFootprintSides && it.roofFootprintSides.length >= 3 && anchorBox);
+  const frameWidthM = hasDrawnFootprint ? anchorBox.lengthMm*MMTOM : lengthM;
+  const frameDepthM = hasDrawnFootprint ? anchorBox.widthMm*MMTOM : widthM;
+  const centerX = hasDrawnFootprint ? (anchorBox.minXMm*MMTOM + frameWidthM/2) : (roomOffsetXM + lengthM/2);
+  const centerZ = hasDrawnFootprint ? (anchorBox.minYMm*MMTOM + frameDepthM/2) : (roomOffsetZM + widthM/2);
+  const radius = Math.max(3, Math.hypot(frameWidthM,frameDepthM)/2 * 1.9 + totalHeightM);
   const lookHeight = totalHeightM*0.5;
   const cameraHeight = totalHeightM*1.15;
   const camera = new THREE.PerspectiveCamera(50, w/h, 0.1, 1000);
@@ -13837,6 +14125,13 @@ async function openGableRoof3D(){
   }
 }
 window.openGableRoof3D = openGableRoof3D;
+// 🆕 2026-10-02: جسر اختبار بسيط (نفس روح __getDesignItemsForExport__ فوق) - بيرجّع حالة مشهد السقف
+// الجملوني الثلاثي الأبعاد الحالية (بعدد ألواح الزجاج الثابت ومجموعات الجملون) حتى تقدر اختبارات
+// Playwright تتحقق إنو ميزة "السقف كبند موحّد" فعليًا بتضيف العدد الصحيح من الألواح للمشهد، بدون
+// الحاجة لتخمين تفاصيل موقع/بنية المشهد الداخلية.
+window.__getGableRoof3DDebugState__ = function(){
+  return { fixedGlassPanelCount: gableRoof3D.fixedGlassPanelCount||0, bayGroupCount: (gableRoof3D.bayGroups||[]).length };
+};
 
 function closeGableRoof3D(){
   // 🆕 2026-10-01.10 (بلاغ حمدي: "زر تسجيل الفيديو مو موجود بالثري دي تبع السقف") - نفس منطق
@@ -14830,11 +15125,14 @@ function renderGableRoofControlsUI(it){
     overrideCheckbox.checked = !!it.gableManualSizeOverride;
     overrideCheckbox.disabled = !hasLinkedRoom; // بدون غرفة مربوطة، المقاس يدوي دايمًا أصلًا - ما في داعي للخيار
   }
-  // 🆕 2026-10-01.8: حقول الإزاحة (X/Z) معناها بس لما في غرفة مربوطة (الإزاحة نسبة لصندوق أرضيتها) -
-  // بدون غرفة، السقف أصلًا مستقل وما في مرجعية نحسب الإزاحة نسبة لها.
+  // 🆕 2026-10-01.8: حقول الإزاحة (X/Z) معناها بس لما في غرفة مربوطة أو مسقط سقف مرسوم (الإزاحة نسبة
+  // لصندوق حدودها) - بدون أي مرجعية، السقف مستقل تمامًا وما في معنى لحساب إزاحة نسبة لشي.
+  // 🛠️ 2026-10-02: ضفنا hasFootprint هون - قبل هيك كانت الحقول تنقفل كليًا بدون غرفة مربوطة، رغم إنو
+  // هلق ممكن تكون الإزاحة نسبة لمسقط سقف مرسوم مستقل (بدون أي غرفة إطلاقًا).
+  const hasFootprint = !!(it.roofFootprintSides && it.roofFootprintSides.length >= 3);
   ['inGableOffsetX','inGableOffsetZ'].forEach(id=>{
     const el = document.getElementById(id);
-    if(el) el.disabled = !hasLinkedRoom;
+    if(el) el.disabled = !hasLinkedRoom && !hasFootprint;
   });
   // 🆕 2026-10-01 (طلب حمدي: "بدي اتحكم بسرعة فتح الابواب يكون في 3 سرعات حتى اقدر شوف شو الافضل وقت
   // التصوير") - قائمة اختيار سرعة حركة الوحدات (بطيء/متوسط/سريع)، محفوظة بالبند نفسو حتى تتذكر آخر
@@ -14842,6 +15140,21 @@ function renderGableRoofControlsUI(it){
   setVal('inGableSlideSpeed', (it.gableSlideSpeed==='slow'||it.gableSlideSpeed==='fast') ? it.gableSlideSpeed : 'medium');
   const preview = document.getElementById('gableBaysPreview');
   if(preview) preview.innerHTML = buildGableRoofSVG(it);
+  // 🆕 2026-10-02 (ميزة "السقف كبند موحّد") - نص معلوماتي بسيط يوضّح هل فيه مسقط سقف مرسوم لهالبند
+  // أصلًا، وكم لوح زجاج ثابت رح يظهر حوالين الجملون بالثري دي حسب آخر مسقط محفوظ.
+  const footprintInfo = document.getElementById('gableFootprintInfo');
+  if(footprintInfo){
+    if(hasFootprint){
+      const panelsCount = computeFixedGlassPanelsMM(it).length;
+      footprintInfo.style.display = 'block';
+      footprintInfo.textContent = panelsCount > 0
+        ? ('✅ مسقط السقف مرسوم - رح يظهر ' + panelsCount + ' لوح زجاج ثابت حوالين الجملون بالثري دي.')
+        : '✅ مسقط السقف مرسوم ومطابق لمستطيل الجملون بالكامل (ما في مساحة زجاج ثابت إضافية حاليًا).';
+    } else {
+      footprintInfo.style.display = 'block';
+      footprintInfo.textContent = '⚠️ لسا ما رسمتي مسقط السقف - مستطيل الجملون تحت رح يبقى لحاله بدون أي زجاج ثابت محيط فيه.';
+    }
+  }
 }
 window.renderGableRoofControlsUI = renderGableRoofControlsUI;
 
