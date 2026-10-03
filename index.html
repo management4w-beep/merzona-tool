@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-03.1';
+  var CURRENT_VERSION = '2026-10-03.3';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -7222,7 +7222,8 @@ window.wdApplyBack = function(results){
                   <button type="button" class="small" onclick="roomDrawZoomOut()">🔍− تصغير</button>
                   <button type="button" class="small" onclick="roomDrawZoomIn()">🔍+ تكبير</button>
                   <button type="button" class="small" onclick="roomDrawZoomFit()">↔️ ملائمة العرض</button>
-                  <button type="button" class="small" onclick="undoRoomDrawPoint()">↩️ تراجع عن آخر نقطة</button>
+                  <button type="button" class="small" onclick="undoRoomDrawPoint()" title="Ctrl+Z - بيرجّع آخر عملية عملتها (إضافة أو حذف أو سحب)">↩️ تراجع (Ctrl+Z)</button>
+                  <button type="button" class="small" onclick="redoRoomDrawPoint()" title="Ctrl+Y">↪️ إعادة</button>
                   <button type="button" class="small danger" onclick="clearRoomDrawAll()">🗑️ امسح كل النقاط</button>
                   <button type="button" class="small" onclick="finishRoomFreehandDraw()">✅ إنهاء وتحويل لأضلاع</button>
                   <button type="button" class="small danger" onclick="cancelRoomFreehandDraw()">✖️ إلغاء الرسم</button>
@@ -8357,9 +8358,11 @@ const MAX_HISTORY = 50;
 // السعر، وفرق محسوس بالأداء بدون ما نخسر أي قدرة تراجع حقيقية عملية.
 const PUSH_HISTORY_MIN_INTERVAL_MS = 600;
 let lastPushHistoryAt = 0;
-function pushHistory(){
+// 🛠️ 2026-10-03: force=true للعمليات المنفصلة (حذف/إضافة ضلع أو بند، تقسيم، دمج...) - هاي لازم
+// تنسجّل دايمًا بدون ما الفاصل الزمني يبلعها، وإلا التراجع بعدها بيرجع بخطوة زيادة (شكوى حمدي).
+function pushHistory(force){
   const now = Date.now();
-  if(lastPushHistoryAt && (now - lastPushHistoryAt) < PUSH_HISTORY_MIN_INTERVAL_MS){
+  if(!force && lastPushHistoryAt && (now - lastPushHistoryAt) < PUSH_HISTORY_MIN_INTERVAL_MS){
     return; // لسا بنفس دفعة التعديل السريعة - اللقطة يلي انسجّلت أول هالدفعة كافية كنقطة تراجع
   }
   lastPushHistoryAt = now;
@@ -8710,7 +8713,7 @@ function getHandrailTotalLength(it){
 
 function addHandrailSegment(type){
   const it = getSelected(); if(!it) return;
-  pushHistory();
+  pushHistory(true);
   ensureHandrailSegments(it).push({ id:'s'+(hrSegIdCounter++), type, panelCount: type==='landing'?1:4, totalLength: type==='landing'?1200:4800, mergedWithNext:false, riseCm:0, inclined:false });
   syncHandrailDims(it);
   renderHandrailSegmentsUI(it);
@@ -8747,7 +8750,7 @@ function removeHandrailSegment(itemId, segId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const segs = ensureHandrailSegments(it);
   if(segs.length<=1) return;
-  pushHistory();
+  pushHistory(true);
   it.hrSegments = segs.filter(s=>s.id!==segId);
   syncHandrailDims(it);
   renderHandrailSegmentsUI(it);
@@ -8915,7 +8918,7 @@ function makeItem(type){
 }
 
 function addItem(type){
-  pushHistory();
+  pushHistory(true);
   const item = makeItem(type);
   items.push(item);
   selectedId = item.id;
@@ -8941,7 +8944,7 @@ function deleteItem(id, evt){
       if(!confirm('هاد البند مربوط بصف حقيقي بجدول عرض السعر. حذفه من هون رح يحذف صف الجدول المرتبط فيه كمان - بدك تكمل الحذف؟')) return;
     }
   }
-  pushHistory();
+  pushHistory(true);
   items = items.filter(i => i.id !== id);
   if(linkedTr){
     const itemName = linkedTr.dataset.itemName || '';
@@ -9384,7 +9387,7 @@ function splitLeaf(itemId, nodeId, direction){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const node = findNode(it.layout, nodeId);
   if(!node || node.kind !== 'leaf') return;
-  pushHistory();
+  pushHistory(true);
   const path = findLeafPath(it.layout, nodeId);
   const parentInfo = (path && path.length) ? path[path.length-1] : null;
   // قانون: تقسيم جنب بعض (row) بباب فولدينغ = درفة فولدينغ جديدة. تقسيم فوق/تحت (col) = طاقة/ترانسوم جديدة لازم تتولد ثابتة مباشرة.
@@ -9483,7 +9486,7 @@ function mergeSplitChildren(itemId, splitNodeId, idx){
   if(!node || node.kind !== 'split') return;
   const a = node.children[idx], b = node.children[idx+1];
   if(!a || !b || a.node.kind !== 'leaf' || b.node.kind !== 'leaf') return;
-  pushHistory();
+  pushHistory(true);
   const mergedLeaf = leaf(a.node.type);
   node.children.splice(idx, 2, { frac:0, node: mergedLeaf });
   // 🛠️ إصلاح 2026-09-30.16 (بلاغ حمدي: "لما بدي قلل التقسيمات ما بتتقسم الباقية بنفس المقاسات
@@ -9520,7 +9523,7 @@ function crossMergeLeaves(itemId, leafAId, leafBId){
   }
   const childLo = lca.children[lo], childHi = lca.children[hi];
   const idxInLo = innerToA[0].idx, idxInHi = innerToB[0].idx;
-  pushHistory();
+  pushHistory(true);
   const leafType = childLo.node.children[idxInLo].node.type;
   const origInnerFrac = childLo.node.children[idxInLo].frac;
   const wasFirst = idxInLo === 0;
@@ -9735,7 +9738,7 @@ function splitArchLeaf(itemId, nodeId){
   const it = items.find(i=>i.id===itemId); if(!it || !it.archLayout) return;
   const node = findNode(it.archLayout, nodeId);
   if(!node || node.kind !== 'leaf') return;
-  pushHistory();
+  pushHistory(true);
   const path = findArchLeafPath(it.archLayout, nodeId);
   const parentInfo = (path && path.length) ? path[path.length-1] : null;
   if(parentInfo && parentInfo.node.direction === 'row'){
@@ -9756,7 +9759,7 @@ function mergeArchSplitChildren(itemId, splitNodeId, idx){
   if(!node || node.kind !== 'split') return;
   const a = node.children[idx], b = node.children[idx+1];
   if(!a || !b || a.node.kind !== 'leaf' || b.node.kind !== 'leaf') return;
-  pushHistory();
+  pushHistory(true);
   const mergedFrac = a.frac + b.frac;
   node.children.splice(idx, 2, { frac: mergedFrac, node: leaf('plain') });
   it.archLayout = simplifyTree(it.archLayout);
@@ -10633,7 +10636,7 @@ function ensureCeilingOverhangs(it){
 }
 function resetCeilingToFloor(){
   const it = getSelected(); if(!it || !isRoom(it)) return;
-  pushHistory();
+  pushHistory(true);
   (it.roomSides||[]).forEach(s => { s.ceilingOverhangMm = 0; });
   // 🆕 2026-09-30: طلب حمدي - هالزر غرضه "رجّع السقف يشتق من شكل الأرضية" بشكل كامل، فلازم كمان
   // يمسح أي شكل سقف مستقل رسمه المستخدم بالفأرة (it.ceilingSides - شوف toggleCeilingFreehandDraw/
@@ -10809,7 +10812,7 @@ window.toggleCeilingSlidePanelDir = toggleCeilingSlidePanelDir;
 
 function addRoomSide(itemId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
-  pushHistory();
+  pushHistory(true);
   if(!it.roomSides) it.roomSides = [];
   const length = 3000;
   it.roomSides.push({ id:'rs'+(roomSideIdCounter++), length, angleDeg:90,
@@ -10835,7 +10838,7 @@ function removeRoomSide(itemId, sideId){
   if(hasDesignedSegs){
     if(!confirm('هاد الضلع فيه جزء أو أكتر مصمم ومربوط بسطر بجدول عرض السعر. حذف الضلع رح يفك الربط (السطر بجدول العرض رح يضل موجود لحاله بدون ما ينحذف، بس ما رح يضل مربوط فيه). بدك تكمل؟')) return;
   }
-  pushHistory();
+  pushHistory(true);
   it.roomSides = it.roomSides.filter(s=>s.id!==sideId);
   renderRoomSidesUI(it);
   renderGallery();
@@ -10859,7 +10862,7 @@ function addRoomSideSegment(itemId, sideId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
   ensureRoomSideSegments(side);
-  pushHistory();
+  pushHistory(true);
   const last = side.segments[side.segments.length-1];
   let newLen;
   if(last.length >= 100){
@@ -10885,7 +10888,7 @@ function removeRoomSideSegment(itemId, sideId, segId){
   if(side.segments[idx].rowUid){
     if(!confirm('هاد الجزء مصمم ومربوط بسطر بجدول عرض السعر. حذفه رح يفك الربط (السطر بجدول العرض رح يضل موجود لحاله بدون ما ينحذف، بس ما رح يضل مربوط فيه). بدك تكمل؟')) return;
   }
-  pushHistory();
+  pushHistory(true);
   const removed = side.segments[idx];
   if(idx > 0){ side.segments[idx-1].length += removed.length; }
   else { side.segments[1].length += removed.length; }
@@ -10929,7 +10932,7 @@ function toggleRoomSegKind(itemId, sideId, segId){
   if(goingToWall && seg.rowUid){
     if(!confirm('هاد الجزء حاليًا مصمم ومربوط بسطر بجدول عرض السعر. تحويله لحائط/جدار رح يحذف هاد السطر نهائيًا من جدول عرض السعر (الحائط مش بند بيتسعّر) وتصميمه (تقسيمات الزجاج إلخ) - بس الجزء نفسه رح يضل موجود بمخطط الغرفة كحائط زي ما هو. بدك تكمل؟')) return;
   }
-  pushHistory();
+  pushHistory(true);
   // 🆕 2026-09-30.3 (طلب حمدي: "بختار ايا ضلع هو الجدار وفعليا لازم ينحذف من البنود بس يكون في جدار
   // ولكن ما بنحذف من الرسم") - قبل هيك كنا نفك الربط بس (seg.rowUid = null) ونسيب سطر جدول عرض السعر
   // "يتيم" موجود بدون حذف، فكان لازم يدوّر عليه يدويًا ويحذفه بنفسه من الجدول. هلق: لو الجزء كان
@@ -11045,7 +11048,7 @@ function toggleRoomFreehandDraw(){
     // شكل فاضي (غرفة جديدة قبل ما ترسم، أو بعد "ابدأ رسمة فاضية") لسا خط مفتوح، ما في ضلع إغلاق
     // حقيقي بعد - شوف startRoomDrawFresh() وroomDrawPointerMove() تحت.
     roomDraw = { active:true, itemId:it.id, target:'floor', points:existingPts, mouse:null, freeAngle:roomDrawPrefs.freeAngle, gesture:null,
-      mode:(existingPts.length>=3 ? 'cursor' : 'pen'), selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
+      mode:'pen', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
     updateRoomDrawTargetLabel('floor');
@@ -11087,7 +11090,7 @@ function toggleCeilingFreehandDraw(){
       ? roomDrawPointsFromSides(it.ceilingSides)
       : ((it.roomSides && it.roomSides.length>=3) ? roomDrawPointsFromSides(it.roomSides) : []);
     roomDraw = { active:true, itemId:it.id, target:'ceiling', points:existingPts, mouse:null, freeAngle:roomDrawPrefs.freeAngle, gesture:null,
-      mode:(existingPts.length>=3 ? 'cursor' : 'pen'), selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
+      mode:'pen', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
     updateRoomDrawTargetLabel('ceiling');
@@ -11123,7 +11126,7 @@ function toggleRoofFootprintFreehandDraw(){
       ? roomDrawPointsFromSides(it.roofFootprintSides)
       : ((linkedRoom && linkedRoom.roomSides && linkedRoom.roomSides.length>=3) ? roomDrawPointsFromSides(linkedRoom.roomSides) : []);
     roomDraw = { active:true, itemId:it.id, target:'roofFootprint', points:existingPts, mouse:null, freeAngle:roomDrawPrefs.freeAngle, gesture:null,
-      mode:(existingPts.length>=3 ? 'cursor' : 'pen'), selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
+      mode:'pen', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
     updateRoomDrawTargetLabel('roofFootprint');
@@ -11152,6 +11155,7 @@ window.toggleRoofFootprintFreehandDraw = toggleRoofFootprintFreehandDraw;
 function startRoomDrawFresh(){
   if(!roomDraw.active) return;
   if(roomDraw.points.length && !confirm('رح يمسح الشكل الحالي كامل وتبلش رسمة فاضية تمامًا - أول كليك جاي رح يصير نقطة البداية بالظبط وين ما تحطها. متأكد؟')) return;
+  roomDrawSaveUndo();
   roomDraw.points = [];
   roomDraw.selectedPointIdx = -1;
   roomDraw.selectedSegIdx = -1;
@@ -11235,7 +11239,7 @@ function updateRoomDrawModeButtons(){
   });
   const hints = {
     cursor: '🖱️ وضع المؤشر: دوس على أي نقطة أو ضلع لتحدده، واسحب أي نقطة (طرف البداية أو النهاية تبع الضلع) لتحركها/تصغّرها/تكبّرها. كليك بالفراغ ما بيضيف ولا نقطة. حدّد نقطة ودوس زر "➕ تابع/عدّل من هاي النقطة" فوق لتكمل الرسم منها بالذات.',
-    pen: '✏️ وضع القلم: دوس بالفراغ لتضيف نقطة جديدة (خط جديد بيوصل آخر نقطة فيه، أو نقطة الاستمرار المحددة بالبنفسجي لو في وحدة). اسحب أي نقطة موجودة لتحريكها. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص الرسم، أو دوس على أي نقطة تانية موجودة لتوصلها بخط جديد.',
+    pen: '✏️ وضع القلم: دوس على أي مكان بأي ضلع (حتى بالمنتصف) وبتنشأ نقطة جديدة هناك بالظبط وبتكمل الرسم منها. دوس بالفراغ لتضيف نقطة جديدة (خط جديد بيوصل آخر نقطة فيه، أو نقطة الاستمرار المحددة بالبنفسجي لو في وحدة). اسحب أي نقطة موجودة لتحريكها. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص الرسم، أو دوس على أي نقطة تانية موجودة لتوصلها بخط جديد.',
     eraser: '🧹 وضع الممحاة: دوس على أي نقطة لحذفها فورًا (بيلتحم الخطين المتصلين فيها ببعض). لازم يضل عالأقل 3 نقاط.',
   };
   const hintEl = document.getElementById('roomDrawModeHint');
@@ -11391,6 +11395,33 @@ function roomDrawFindSegmentNear(pt, radiusMm){
   return best;
 }
 
+// 🆕 2026-10-03 (طلب حمدي: "بدي ارسم رسم حر - فيه ضلع طويل وحبيت ارسم من المنتصف، خلص بتنشئ نقطة
+// جديدة وبقدر ارسم خط وتقسيمات على كيفي") - بوضع القلم، كليك على أي ضلع موجود (مو على نقطة) بيرجّع
+// الضلع + نقطة الإسقاط الدقيقة عليه، حتى ننشئ نقطة جديدة بالمكان بالظبط ونكمل الرسم منها.
+// الشكل المفتوح (لسا ما انسكّر) ما إله ضلع إغلاق حقيقي فما بنعتبره.
+function roomDrawFindEdgeForInsert(raw){
+  const pts = roomDraw.points, n = pts.length;
+  if(n < 2) return null;
+  const radiusMm = roomDrawPxRadiusToMm(11);
+  const edgeCount = roomDraw.closedLoop && n >= 3 ? n : n-1;
+  let best = null, bestD = radiusMm;
+  for(let i=0; i<edgeCount; i++){
+    const a = pts[i], b = pts[(i+1)%n];
+    const abx = b.x-a.x, aby = b.y-a.y;
+    const lenSq = abx*abx + aby*aby;
+    if(lenSq < 1) continue;
+    let t = ((raw.x-a.x)*abx + (raw.y-a.y)*aby) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const x = a.x + abx*t, y = a.y + aby*t;
+    const d = Math.hypot(x-raw.x, y-raw.y);
+    if(d > bestD) continue;
+    // لا نخلق نقطة فوق زاوية موجودة (قريبة جدًا من أحد الطرفين) - هديك بتتعامل معها الدوسة عالنقطة نفسها
+    if(Math.hypot(x-a.x,y-a.y) < radiusMm*0.6 || Math.hypot(x-b.x,y-b.y) < radiusMm*0.6) continue;
+    bestD = d; best = { edgeIdx:i, point:{ x, y } };
+  }
+  return best;
+}
+
 function roomDrawEventPoint(evt){
   const svg = evt.currentTarget;
   const rect = svg.getBoundingClientRect();
@@ -11419,6 +11450,7 @@ function roomDrawPointerDown(evt){
       if(roomDraw.points.length <= 3){
         alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
       } else {
+        roomDrawSaveUndo();
         roomDraw.points.splice(idx, 1);
         roomDraw.selectedPointIdx = -1;
         roomDraw.selectedSegIdx = -1;
@@ -11447,7 +11479,7 @@ function roomDrawPointerMove(evt){
   const g = roomDraw.gesture;
   if(g && g.pointIndex > -1){
     const movedPx = Math.hypot(evt.clientX-g.startClientX, evt.clientY-g.startClientY);
-    if(movedPx > 4) g.dragging = true;
+    if(movedPx > 4 && !g.dragging){ g.dragging = true; roomDrawSaveUndo(g.dragOrigPoints); }
     if(g.dragging){
       // 🆕 2026-09-25: طلب حمدي (بعد ما شاف نتيجة فعلية فيها ضلع مايل) - "لازم كل شي 90 درجة
       // بالستاندارد حتى لو بدو يزيد المقاس، بس الشكل يطلع صح". قفل محور واحد بس (بالنسبة للنقطة
@@ -11574,6 +11606,7 @@ function roomDrawPointerUp(evt){
         if(roomDraw.points.length <= 3){
           alert('لازم عالأقل 3 نقاط تضل بالرسمة (كل نقطة = زاوية بالأرضية).');
         } else {
+          roomDrawSaveUndo();
           roomDraw.points.splice(g.pointIndex, 1);
         }
         roomDraw.lastClick = null;
@@ -11602,6 +11635,7 @@ function roomDrawPointerUp(evt){
             // خط أنابيب القفل يلي بيستخدمه أي نقطة جديدة عادي (roomDrawNextPointCandidate) - هيك
             // الضلع الجديد بيضل قائم 90° بالضبط دايمًا، حتى لو هيك ما بيوصل بالظبط لنفس مكان النقطة
             // المستهدفة (وهاد بالضبط يلي طلبه حمدي: "المقاس ممكن يزيد شوي بس المهم الشكل يطلع صح").
+            roomDrawSaveUndo();
             roomDraw.points.push(roomDrawNextPointCandidate(roomDraw.points[g.pointIndex]));
             roomDraw.lastClick = null;
           }
@@ -11613,9 +11647,21 @@ function roomDrawPointerUp(evt){
       // 🆕 2026-09-29: لو في نقطة استمرار محددة (continueFromIdx - عن طريق زر "تابع من هاي النقطة")
       // منضيف النقطة الجديدة "بعدها" مباشرة (splice) مش إجباريًا آخر نقطة بالمصفوفة، وبعدين منحرّك
       // نقطة الاستمرار للنقطة الجديدة (حتى لو كبس كذا مرة متتالية يضل يتابع بنفس الاتجاه بشكل متسلسل).
+      const edgeHit = roomDrawFindEdgeForInsert(raw);
+      if(edgeHit){
+        // كليك عالضلع نفسه = نقطة جديدة بنفس المكان بالظبط، وبتصير نقطة الاستمرار (الرسم بيكمل منها)
+        roomDrawSaveUndo();
+        roomDraw.points.splice(edgeHit.edgeIdx + 1, 0, edgeHit.point);
+        roomDraw.continueFromIdx = edgeHit.edgeIdx + 1;
+        roomDraw.lastClick = null;
+        roomDraw.gesture = null;
+        renderRoomDrawCanvas();
+        return;
+      }
       const hasAnchor = roomDraw.continueFromIdx!=null && roomDraw.continueFromIdx > -1 && roomDraw.continueFromIdx < roomDraw.points.length;
       const anchorIdx = hasAnchor ? roomDraw.continueFromIdx : roomDraw.points.length - 1;
       const newPt = roomDrawNextPointCandidate(raw, anchorIdx);
+      roomDrawSaveUndo();
       if(anchorIdx === roomDraw.points.length - 1){
         roomDraw.points.push(newPt);
         if(hasAnchor) roomDraw.continueFromIdx = roomDraw.points.length - 1;
@@ -11648,12 +11694,49 @@ function roomDrawPointerLeave(){
 }
 window.roomDrawPointerLeave = roomDrawPointerLeave;
 
-function undoRoomDrawPoint(){
+// 🛠️ 2026-10-03 (شكوى حمدي: "إذا حذفت ضلع وحبيت أتراجع بينحذف ضلع إضافي"): زر التراجع كان بيعمل
+// points.pop() يعني بيحذف *آخر نقطة بالرسمة* دايمًا، مو آخر عملية انعملت - فبعد حذف نقطة/ضلع من النص،
+// التراجع كان بيحذف نقطة تانية بدل ما يرجّع المحذوفة. كمان Ctrl+Z كان بيروح للتراجع العام تبع المصمم
+// (undo) حتى والرسم مفتوح. هلق: كل عملية بالرسم (إضافة/حذف/سحب/مسح/تدوير/طول مكتوب) بتحفظ لقطة قبلها،
+// والتراجع بيرجّع آخر لقطة بالظبط، وفي "إعادة" كمان، وCtrl+Z/Ctrl+Y بيشتغلوا على الرسم لما يكون مفتوح.
+const ROOM_DRAW_MAX_UNDO = 200;
+function roomDrawSnapshot(pts){
+  return { points: (pts||roomDraw.points).map(p=>({x:p.x,y:p.y})), continueFromIdx: roomDraw.continueFromIdx, closedLoop: roomDraw.closedLoop };
+}
+function roomDrawSaveUndo(ptsOverride){
   if(!roomDraw.active) return;
-  roomDraw.points.pop();
+  if(!roomDraw.undoStack) roomDraw.undoStack = [];
+  roomDraw.undoStack.push(roomDrawSnapshot(ptsOverride));
+  if(roomDraw.undoStack.length > ROOM_DRAW_MAX_UNDO) roomDraw.undoStack.shift();
+  roomDraw.redoStack = [];
+}
+function roomDrawRestoreSnapshot(snap){
+  roomDraw.points = snap.points.map(p=>({x:p.x,y:p.y}));
+  roomDraw.continueFromIdx = (snap.continueFromIdx!=null && snap.continueFromIdx < roomDraw.points.length) ? snap.continueFromIdx : -1;
+  roomDraw.closedLoop = snap.closedLoop;
+  roomDraw.selectedPointIdx = -1; roomDraw.selectedSegIdx = -1;
+  roomDraw.gesture = null; roomDraw.lastClick = null;
   renderRoomDrawCanvas();
 }
+function undoRoomDrawPoint(){
+  if(!roomDraw.active) return;
+  const st = roomDraw.undoStack;
+  if(!st || !st.length) return;
+  if(!roomDraw.redoStack) roomDraw.redoStack = [];
+  roomDraw.redoStack.push(roomDrawSnapshot());
+  roomDrawRestoreSnapshot(st.pop());
+}
 window.undoRoomDrawPoint = undoRoomDrawPoint;
+function redoRoomDrawPoint(){
+  if(!roomDraw.active) return;
+  const st = roomDraw.redoStack;
+  if(!st || !st.length) return;
+  if(!roomDraw.undoStack) roomDraw.undoStack = [];
+  roomDraw.undoStack.push(roomDrawSnapshot());
+  roomDrawRestoreSnapshot(st.pop());
+}
+window.redoRoomDrawPoint = redoRoomDrawPoint;
+window.__roomDrawIsActive__ = function(){ return !!roomDraw.active; };
 
 // anchorMm (اختياري): نقطة بالمم لازم تضل ثابتة بمكانها بالنسبة للشاشة أثناء التكبير/التصغير -
 // افتراضيًا مركز الشاشة الحالي (نفس السلوك القديم)، وبحالة الزوم بدولاب الفأرة منمرر موقع
@@ -11695,6 +11778,7 @@ window.roomDrawCanvasWheel = roomDrawCanvasWheel;
 // الزاوية (شكل مستطيل طويل ممكن ينطلع برّا حدود الشاشة الحالية إذا ما أعدنا الملائمة).
 function roomDrawRotate(deg){
   if(!roomDraw.active || roomDraw.points.length < 2) return;
+  roomDrawSaveUndo();
   const rad = deg * Math.PI/180;
   const cos = Math.cos(rad), sin = Math.sin(rad);
   const pts = roomDraw.points;
@@ -11722,6 +11806,7 @@ window.commitRoomDrawRotate = commitRoomDrawRotate;
 function clearRoomDrawAll(){
   if(!roomDraw.active) return;
   if(roomDraw.points.length && !confirm('متأكد بدك تمسح كل نقاط الرسم الحالي وتبلش من جديد؟')) return;
+  roomDrawSaveUndo();
   roomDraw.points = [];
   roomDraw.gesture = null;
   roomDraw.view = roomDrawComputeFitView([], 1500);
@@ -11930,6 +12015,7 @@ function roomDrawCommitTypedLength(){
     } else { dirX = 1; dirY = 0; }
   }
   const next = { x: last.x + dirX*len, y: last.y + dirY*len };
+  roomDrawSaveUndo();
   if(anchorIdx === pts.length - 1){
     pts.push(next);
     if(hasAnchor) roomDraw.continueFromIdx = pts.length - 1;
@@ -12176,7 +12262,7 @@ function finishRoomFreehandDraw(){
   if(roomDraw.target === 'ceiling'){
     const oldCeilingCount = (it.ceilingSides||[]).length;
     if(!confirmRoomShapeGrowthIfSuspicious(oldCeilingCount, pts.length, 'شكل السقف')) return;
-    pushHistory();
+    pushHistory(true);
     it.ceilingSides = roomDrawSidesFromPoints(pts);
     selectItem(it.id);
     cancelRoomFreehandDraw();
@@ -12190,7 +12276,7 @@ function finishRoomFreehandDraw(){
   if(roomDraw.target === 'roofFootprint'){
     const oldFootprintCount = (it.roofFootprintSides||[]).length;
     if(!confirmRoomShapeGrowthIfSuspicious(oldFootprintCount, pts.length, 'مسقط السقف')) return;
-    pushHistory();
+    pushHistory(true);
     it.roofFootprintSides = roomDrawSidesFromPoints(pts);
     selectItem(it.id);
     cancelRoomFreehandDraw();
@@ -12207,7 +12293,7 @@ function finishRoomFreehandDraw(){
   const oldSideCount = (it.roomSides||[]).length;
   if(!confirmRoomShapeGrowthIfSuspicious(oldSideCount, pts.length, 'شكل الأرضية')) return;
   if(hasDesigned && !confirm('في أضلاع/أقسام متصممة حاليًا لهاي الغرفة. المتابعة رح تحاول تربط نفس بنود عرض السعر القديمة بالأضلاع الجديدة (حسب موقعها الهندسي) تلقائيًا - أي بند قديم ما انطبق عليه ضلع جديد (يعني الضلع تبعو انحذف فعليًا من المسقط) رح ينحذف من جدول عرض السعر. بدك تكمل؟')) return;
-  pushHistory();
+  pushHistory(true);
   const newSides = roomDrawSidesFromPoints(pts);
   // 🛠️ إصلاح 2026-10-01.6 (بلاغ حمدي العاجل: "تكرار وجدران بتتلغى" بعد ما شال ضلعين بروز) - كان هون
   // ربط بالترتيب (index مقابل index) يلي بيتخربط تمامًا أول ما يتغيّر عدد الأضلاع (حذف/إضافة بروز) -
@@ -14572,7 +14658,7 @@ function designRoomSideSegment(itemId, sideId, segId){
   ensureRoomSideSegments(side);
   const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
   if(seg.kind === 'wall'){ alert('هاد الجزء محدد حاليًا كـ"حائط/جدار" - حوّله لتصميم أول (زر 🎨) لو بدك تصممه.'); return; }
-  pushHistory();
+  pushHistory(true);
   let tr = seg.rowUid ? document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]') : null;
   if(!tr){
     const sideIdx = it.roomSides.indexOf(side) + 1;
@@ -16228,7 +16314,14 @@ function renderGallery(){
 
 /* ---------- INIT ---------- */
 document.addEventListener('keydown', (e)=>{
-  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){
+  const k = (e.key||'').toLowerCase();
+  if((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y') && window.__roomDrawIsActive__ && window.__roomDrawIsActive__()){
+    // الرسم مفتوح: Ctrl+Z/Ctrl+Y بيشتغلوا على الرسم نفسه، مش على تراجع المصمم العام
+    e.preventDefault();
+    if(k === 'y' || e.shiftKey) window.redoRoomDrawPoint(); else window.undoRoomDrawPoint();
+    return;
+  }
+  if((e.ctrlKey || e.metaKey) && k === 'z'){
     e.preventDefault();
     undo();
   }
