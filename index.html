@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-02.4';
+  var CURRENT_VERSION = '2026-10-03.1';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -7205,6 +7205,9 @@ window.wdApplyBack = function(results){
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;">
                   <input type="checkbox" id="inRoomDrawFreeAngle" onchange="onRoomDrawFreeAngleToggle()"> زاوية حرة لهاد الخط (ترسم بأي زاوية بدك ياها - ولو قريبة من 90° بتثبت لحالها تلقائيًا)
                 </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;margin-top:4px;">
+                  <input type="checkbox" id="inRoomDrawSnap" onchange="onRoomDrawSnapToggle()"> 🧲 التصاق تلقائي بالنقاط والخطوط الموجودة (مطفي افتراضيًا - النقطة بتنحط بالضبط وين دسّيت)
+                </label>
                 <p class="hint">فتح الرسم بيعرضلك تلقائيًا شكل الغرفة الحالي (مربع 3×3م افتراضيًا لغرفة جديدة) - هاد مش شرط تبلش منّو. دوس الزر الأحمر فوق أي وقت بدك تمسح كل شي وتبلش من الصفر: أول كليك بعدها بيصير هو نقطة البداية بالظبط وين ما حطيت الماوس. بوضع القلم: دوس عالفراغ لتضيف نقطة (خط جديد قفل تلقائيًا أفقي أو عمودي دايمًا - 90° بالظبط - إلا لو فعّلت "زاوية حرة" فوق - وقتها بترسم بأي زاوية بدك ياها حرفيًا، وبس لو قريبة كتير من أفقي/عمودي بتثبت 90° لحالها تلقائيًا، أي زاوية تانية واضحة بتضل متل ما رسمتها بالظبط). أثناء الرسم بتقدر كمان تكتب طول الضلع الجاي بالأرقام بصندوق الكتابة العائم قرب المؤشر وتدوس Enter بدل ما تسحب بالماوس - أدق وأسرع. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص، أو double-click عالنقطة لحذفها. اسحب أي نقطة بوضع المؤشر لتحريكها (قفل 90° شغال بالسحب كمان). كبّر/صغّر بدولاب الفأرة، ودوّر الشكل كامل من الأزرار تحت لو احتجت.</p>
               </div>
               <div class="rd-stage">
@@ -8476,6 +8479,16 @@ let roomSegIdCounter = 1;
 // والالتزام (كتابة roomSides أو ceilingSides - شوف finishRoomFreehandDraw تحت).
 let roomDraw = { active:false, itemId:null, target:'floor', points:[], mouse:null, freeAngle:false, view:null, gesture:null,
   mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, closedLoop:true };
+// 🛠️ 2026-10-03 (شكوى حمدي المتكررة: "السيستم بيجبرني ارسم الخطوط من أماكن بيختارها هو، سواء فعلت الرسم
+// الحر أو لا") - السبب الحقيقي: التصاق تلقائي (vertex/edge snap بنصف قطر 12 بكسل) كان دايمًا شغال بلا أي
+// مفتاح لإيقافه، حتى مع "زاوية حرة"، فأي كليك قرب نقطة/خط موجود كان ينجذب إلها بالقوة. هلق الالتصاق
+// مفتاح مستقل (افتراضيًا مطفي = النقطة بتنحط بالضبط وين دسّت)، وتفضيلاته (التصاق/زاوية حرة) بتنحفظ بين
+// فتحة وفتحة بدل ما ترجع تتصفّر كل مرة.
+const roomDrawPrefs = { snap:false, freeAngle:false };
+function syncRoomDrawPrefCheckboxes(){
+  const f = document.getElementById('inRoomDrawFreeAngle'); if(f) f.checked = !!roomDrawPrefs.freeAngle;
+  const sn = document.getElementById('inRoomDrawSnap'); if(sn) sn.checked = !!roomDrawPrefs.snap;
+}
 const ROOM_DRAW_PX_W = 460, ROOM_DRAW_PX_H = 340; // مقاس الكانفس الثابت بالبكسل (نسبة العرض للارتفاع محفوظة بحساب mmPerPx واحد لكل من x/y)
 // 🆕 2026-10-01.7 (طلب حمدي: "زاوية حرة بس لو قريب من 90° يثبته تلقائيًا") - عتبة "الالتصاق الناعم"
 // بالدرجات لوضع "زاوية حرة" (شوف roomDrawNextPointCandidate) - أي خط ضمن هالفرق عن أفقي/عمودي تمامًا
@@ -11031,12 +11044,12 @@ function toggleRoomFreehandDraw(){
     // إغلاق حقيقي بين آخر نقطة وأول نقطة) - فمنقفل الزاوية 90° بالسحب باعتبار أول/آخر نقطة جيران.
     // شكل فاضي (غرفة جديدة قبل ما ترسم، أو بعد "ابدأ رسمة فاضية") لسا خط مفتوح، ما في ضلع إغلاق
     // حقيقي بعد - شوف startRoomDrawFresh() وroomDrawPointerMove() تحت.
-    roomDraw = { active:true, itemId:it.id, target:'floor', points:existingPts, mouse:null, freeAngle:false, gesture:null,
-      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
+    roomDraw = { active:true, itemId:it.id, target:'floor', points:existingPts, mouse:null, freeAngle:roomDrawPrefs.freeAngle, gesture:null,
+      mode:(existingPts.length>=3 ? 'cursor' : 'pen'), selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
     updateRoomDrawTargetLabel('floor');
-    const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
+    syncRoomDrawPrefCheckboxes();
     updateRoomDrawModeButtons();
     if(wrap && wrap.parentElement !== document.body){
       roomDrawWrapHome = { parent: wrap.parentElement, nextSibling: wrap.nextSibling };
@@ -11073,12 +11086,12 @@ function toggleCeilingFreehandDraw(){
     const existingPts = (it.ceilingSides && it.ceilingSides.length>=3)
       ? roomDrawPointsFromSides(it.ceilingSides)
       : ((it.roomSides && it.roomSides.length>=3) ? roomDrawPointsFromSides(it.roomSides) : []);
-    roomDraw = { active:true, itemId:it.id, target:'ceiling', points:existingPts, mouse:null, freeAngle:false, gesture:null,
-      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
+    roomDraw = { active:true, itemId:it.id, target:'ceiling', points:existingPts, mouse:null, freeAngle:roomDrawPrefs.freeAngle, gesture:null,
+      mode:(existingPts.length>=3 ? 'cursor' : 'pen'), selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
     updateRoomDrawTargetLabel('ceiling');
-    const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
+    syncRoomDrawPrefCheckboxes();
     updateRoomDrawModeButtons();
     if(wrap && wrap.parentElement !== document.body){
       roomDrawWrapHome = { parent: wrap.parentElement, nextSibling: wrap.nextSibling };
@@ -11109,12 +11122,12 @@ function toggleRoofFootprintFreehandDraw(){
     const existingPts = (it.roofFootprintSides && it.roofFootprintSides.length>=3)
       ? roomDrawPointsFromSides(it.roofFootprintSides)
       : ((linkedRoom && linkedRoom.roomSides && linkedRoom.roomSides.length>=3) ? roomDrawPointsFromSides(linkedRoom.roomSides) : []);
-    roomDraw = { active:true, itemId:it.id, target:'roofFootprint', points:existingPts, mouse:null, freeAngle:false, gesture:null,
-      mode:'cursor', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
+    roomDraw = { active:true, itemId:it.id, target:'roofFootprint', points:existingPts, mouse:null, freeAngle:roomDrawPrefs.freeAngle, gesture:null,
+      mode:(existingPts.length>=3 ? 'cursor' : 'pen'), selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
       closedLoop: existingPts.length >= 3,
       view: roomDrawComputeFitView(existingPts, 500) };
     updateRoomDrawTargetLabel('roofFootprint');
-    const chk = document.getElementById('inRoomDrawFreeAngle'); if(chk) chk.checked = false;
+    syncRoomDrawPrefCheckboxes();
     updateRoomDrawModeButtons();
     if(wrap && wrap.parentElement !== document.body){
       roomDrawWrapHome = { parent: wrap.parentElement, nextSibling: wrap.nextSibling };
@@ -11233,9 +11246,17 @@ window.updateRoomDrawModeButtons = updateRoomDrawModeButtons;
 function onRoomDrawFreeAngleToggle(){
   const chk = document.getElementById('inRoomDrawFreeAngle');
   roomDraw.freeAngle = !!(chk && chk.checked);
+  roomDrawPrefs.freeAngle = roomDraw.freeAngle;
   renderRoomDrawCanvas();
 }
 window.onRoomDrawFreeAngleToggle = onRoomDrawFreeAngleToggle;
+function onRoomDrawSnapToggle(){
+  const chk = document.getElementById('inRoomDrawSnap');
+  roomDrawPrefs.snap = !!(chk && chk.checked);
+  renderRoomDrawCanvas();
+}
+window.onRoomDrawSnapToggle = onRoomDrawSnapToggle;
+window.__setRoomDrawPrefsForTest__ = function(p){ Object.assign(roomDrawPrefs, p||{}); if(roomDraw.active) roomDraw.freeAngle = roomDrawPrefs.freeAngle; syncRoomDrawPrefCheckboxes(); };
 
 // قفل الاتجاه لأفقي/عمودي بالنسبة لآخر نقطة معتمدة (إلا إذا "زاوية حرة" مفعّلة).
 function roomDrawAxisSnap(last, raw){
@@ -11254,6 +11275,7 @@ function roomDrawPxRadiusToMm(px){
 // (edge snap - clamped لطول الخط نفسه) - هاد يلي بيخلي خط جديد وصل لخط قديم يندمج فيه/يلمسه
 // تمامًا بدل ما تضل فجوة صغيرة، وبيخلي إقفال الشكل (رجوع آخر نقطة لأول نقطة) دقيق.
 function roomDrawSnapToGeometry(candidate, excludeIndex){
+  if(!roomDrawPrefs.snap) return candidate; // الالتصاق مطفي (الافتراضي) = النقطة بالضبط وين دسّ المستخدم
   const radiusMm = roomDrawPxRadiusToMm(12);
   const pts = roomDraw.points;
   let best = null, bestD = radiusMm;
