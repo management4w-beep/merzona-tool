@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-04.2';
+  var CURRENT_VERSION = '2026-10-04.3';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -11405,6 +11405,25 @@ function roomDrawFindSegmentNear(pt, radiusMm){
 // جديدة وبقدر ارسم خط وتقسيمات على كيفي") - بوضع القلم، كليك على أي ضلع موجود (مو على نقطة) بيرجّع
 // الضلع + نقطة الإسقاط الدقيقة عليه، حتى ننشئ نقطة جديدة بالمكان بالظبط ونكمل الرسم منها.
 // الشكل المفتوح (لسا ما انسكّر) ما إله ضلع إغلاق حقيقي فما بنعتبره.
+// 🛠️ 2026-10-04 (شكوى حمدي بالصور: "اخترت نقطة ورسمت منها ضلع، صار عندي مثلث"): الرسم من نقطة
+// محددة كان دايمًا بيدخل النقطة الجديدة *بين* هاي النقطة والنقطة اللي بعدها، فلو النقطة هي بداية خط لسا
+// مفتوح (ما اتسكّر)، كان بيكسر الضلع الأول ويوصّل النقطة الجديدة فيه (مثلث). هلق: لو النقطة المحددة هي
+// أول نقطة بخط مفتوح، الضلع الجديد بيمتد من أولها (النقطة الجديدة بتصير بداية الخط) وما بينكسر أي ضلع.
+// وبأي حالة تانية (شكل مقفول أو نقطة بالنص) بيضل الإدخال بعد النقطة المحددة لأنه الشكل حلقة وحدة.
+function roomDrawAddPointFromAnchor(newPt, anchorIdx, hasAnchor){
+  const pts = roomDraw.points;
+  if(anchorIdx === pts.length - 1){
+    pts.push(newPt);
+    if(hasAnchor) roomDraw.continueFromIdx = pts.length - 1;
+  } else if(anchorIdx === 0 && !roomDraw.closedLoop){
+    pts.unshift(newPt);
+    roomDraw.continueFromIdx = 0;
+  } else {
+    pts.splice(anchorIdx + 1, 0, newPt);
+    roomDraw.continueFromIdx = anchorIdx + 1;
+  }
+}
+
 function roomDrawFindEdgeForInsert(raw){
   const pts = roomDraw.points, n = pts.length;
   if(n < 2) return null;
@@ -11687,13 +11706,7 @@ function roomDrawPointerUp(evt){
       const anchorIdx = hasAnchor ? roomDraw.continueFromIdx : roomDraw.points.length - 1;
       const newPt = roomDrawNextPointCandidate(raw, anchorIdx);
       roomDrawSaveUndo();
-      if(anchorIdx === roomDraw.points.length - 1){
-        roomDraw.points.push(newPt);
-        if(hasAnchor) roomDraw.continueFromIdx = roomDraw.points.length - 1;
-      } else {
-        roomDraw.points.splice(anchorIdx + 1, 0, newPt);
-        roomDraw.continueFromIdx = anchorIdx + 1;
-      }
+      roomDrawAddPointFromAnchor(newPt, anchorIdx, hasAnchor);
       roomDraw.lastClick = null;
     }
   }
@@ -12125,13 +12138,7 @@ function roomDrawCommitTypedLength(){
   }
   const next = { x: last.x + dirX*len, y: last.y + dirY*len };
   roomDrawSaveUndo();
-  if(anchorIdx === pts.length - 1){
-    pts.push(next);
-    if(hasAnchor) roomDraw.continueFromIdx = pts.length - 1;
-  } else {
-    pts.splice(anchorIdx + 1, 0, next);
-    roomDraw.continueFromIdx = anchorIdx + 1;
-  }
+  roomDrawAddPointFromAnchor(next, anchorIdx, hasAnchor);
   roomDraw.lastClick = null;
   if(inp) inp.value = '';
   renderRoomDrawCanvas();
