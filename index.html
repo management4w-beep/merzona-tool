@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-03.3';
+  var CURRENT_VERSION = '2026-10-04.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1371,6 +1371,7 @@
   /* صندوق كتابة طول الخط الجاي بالكيبورد - عائم فوق الرسمة قرب المؤشر، وما بينمسح/بيفقد التركيز
      لما تعاد الرسمة (مش جوا #roomDrawCanvasWrap يلي بينستبدل innerHTML تبعو كل مرة). */
   #roomDrawLenBoxWrap{ position:absolute; z-index:5; display:none; pointer-events:auto; }
+  #roomDrawEdgeLenBoxWrap{ position:absolute; z-index:6; display:none; pointer-events:auto; }
   #roomDrawLenInput{
     width:112px; padding:5px 8px; border:2px solid #e0862a; border-radius:6px;
     font-size:13px; font-family:var(--wd-font-mono,monospace); background:#fff; color:#111;
@@ -7208,10 +7209,15 @@ window.wdApplyBack = function(results){
                 <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;margin-top:4px;">
                   <input type="checkbox" id="inRoomDrawSnap" onchange="onRoomDrawSnapToggle()"> 🧲 التصاق تلقائي بالنقاط والخطوط الموجودة (مطفي افتراضيًا - النقطة بتنحط بالضبط وين دسّيت)
                 </label>
-                <p class="hint">فتح الرسم بيعرضلك تلقائيًا شكل الغرفة الحالي (مربع 3×3م افتراضيًا لغرفة جديدة) - هاد مش شرط تبلش منّو. دوس الزر الأحمر فوق أي وقت بدك تمسح كل شي وتبلش من الصفر: أول كليك بعدها بيصير هو نقطة البداية بالظبط وين ما حطيت الماوس. بوضع القلم: دوس عالفراغ لتضيف نقطة (خط جديد قفل تلقائيًا أفقي أو عمودي دايمًا - 90° بالظبط - إلا لو فعّلت "زاوية حرة" فوق - وقتها بترسم بأي زاوية بدك ياها حرفيًا، وبس لو قريبة كتير من أفقي/عمودي بتثبت 90° لحالها تلقائيًا، أي زاوية تانية واضحة بتضل متل ما رسمتها بالظبط). أثناء الرسم بتقدر كمان تكتب طول الضلع الجاي بالأرقام بصندوق الكتابة العائم قرب المؤشر وتدوس Enter بدل ما تسحب بالماوس - أدق وأسرع. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص، أو double-click عالنقطة لحذفها. اسحب أي نقطة بوضع المؤشر لتحريكها (قفل 90° شغال بالسحب كمان). كبّر/صغّر بدولاب الفأرة، ودوّر الشكل كامل من الأزرار تحت لو احتجت.</p>
+                <p class="hint">فتح الرسم بيعرضلك تلقائيًا شكل الغرفة الحالي (مربع 3×3م افتراضيًا لغرفة جديدة) - هاد مش شرط تبلش منّو. دوس الزر الأحمر فوق أي وقت بدك تمسح كل شي وتبلش من الصفر: أول كليك بعدها بيصير هو نقطة البداية بالظبط وين ما حطيت الماوس. بوضع القلم: دوس عالفراغ لتضيف نقطة (خط جديد قفل تلقائيًا أفقي أو عمودي دايمًا - 90° بالظبط - إلا لو فعّلت "زاوية حرة" فوق - وقتها بترسم بأي زاوية بدك ياها حرفيًا، وبس لو قريبة كتير من أفقي/عمودي بتثبت 90° لحالها تلقائيًا، أي زاوية تانية واضحة بتضل متل ما رسمتها بالظبط). أثناء الرسم بتقدر كمان تكتب طول الضلع الجاي بالأرقام بصندوق الكتابة العائم قرب المؤشر وتدوس Enter بدل ما تسحب بالماوس - أدق وأسرع. دوس على أي نقطة موجودة لتصير هي بداية الخط الجاي (بنفسجي) - الإنهاء بس بزر ✅ إنهاء وتحويل لأضلاع، مش بالدوس. double-click عالنقطة لحذفها. اسحب أي نقطة بوضع المؤشر لتحريكها (قفل 90° شغال بالسحب كمان). كبّر/صغّر بدولاب الفأرة، ودوّر الشكل كامل من الأزرار تحت لو احتجت.</p>
               </div>
               <div class="rd-stage">
                 <div id="roomDrawCanvasWrap"></div>
+                <div id="roomDrawEdgeLenBoxWrap">
+                  <input type="text" inputmode="decimal" id="roomDrawEdgeLenInput" placeholder="مقاس الضلع (مم)..." autocomplete="off" title="اكتب المقاس الجديد للضلع المحدد واضغط Enter"
+                    style="width:150px;padding:6px 8px;border:2px solid #e0862a;border-radius:6px;font-weight:700;"
+                    onkeydown="if(event.key==='Enter'){event.preventDefault();roomDrawCommitEdgeLength();}">
+                </div>
                 <div id="roomDrawLenBoxWrap">
                   <input type="text" inputmode="decimal" id="roomDrawLenInput" placeholder="طول الضلع..." autocomplete="off"
                     onkeydown="if(event.key==='Enter'){event.preventDefault();roomDrawCommitTypedLength();}">
@@ -11238,7 +11244,7 @@ function updateRoomDrawModeButtons(){
     if(btn) btn.classList.toggle('active', roomDraw.mode === m);
   });
   const hints = {
-    cursor: '🖱️ وضع المؤشر: دوس على أي نقطة أو ضلع لتحدده، واسحب أي نقطة (طرف البداية أو النهاية تبع الضلع) لتحركها/تصغّرها/تكبّرها. كليك بالفراغ ما بيضيف ولا نقطة. حدّد نقطة ودوس زر "➕ تابع/عدّل من هاي النقطة" فوق لتكمل الرسم منها بالذات.',
+    cursor: '🖱️ وضع المؤشر: دوس (أو دوسين) على أي ضلع لتحدده كامل - بتطلع خانة مقاسه تقدر تغيّره منها، واسحب الضلع المحدد لتحركه كله. أو اسحب أي نقطة لتحركها لحالها. كليك بالفراغ ما بيضيف ولا نقطة. حدّد نقطة ودوس زر "➕ تابع/عدّل من هاي النقطة" فوق لتكمل الرسم منها بالذات.',
     pen: '✏️ وضع القلم: دوس على أي مكان بأي ضلع (حتى بالمنتصف) وبتنشأ نقطة جديدة هناك بالظبط وبتكمل الرسم منها. دوس بالفراغ لتضيف نقطة جديدة (خط جديد بيوصل آخر نقطة فيه، أو نقطة الاستمرار المحددة بالبنفسجي لو في وحدة). اسحب أي نقطة موجودة لتحريكها. دوس عالنقطة الأولى لتسكّر الشكل وتخلّص الرسم، أو دوس على أي نقطة تانية موجودة لتوصلها بخط جديد.',
     eraser: '🧹 وضع الممحاة: دوس على أي نقطة لحذفها فورًا (بيلتحم الخطين المتصلين فيها ببعض). لازم يضل عالأقل 3 نقاط.',
   };
@@ -11467,7 +11473,15 @@ function roomDrawPointerDown(evt){
   // بتقارن دايمًا مع الشكل الأصلي الثابت، مش مع نسخة ربما اتغيّرت جزئيًا بحركة ماوس سابقة بنفس السحبة
   // (بيمنع تراكم أخطاء تقريب صغيرة مع كل حركة ماوس).
   const dragOrigPoints = (idx > -1) ? roomDraw.points.map(p=>({x:p.x,y:p.y})) : null;
-  roomDraw.gesture = { startClientX: evt.clientX, startClientY: evt.clientY, pointIndex: idx, dragging:false, dragOrigPoints };
+  // 🆕 2026-10-04 (طلب حمدي: "بدي أقدر أحرك ضلع كامل مو بس نقطة"): بوضع المؤشر، لو الضغطة على ضلع محدد
+  // أصلًا (دوسة أو دوسين عليه) بنبلّش سحب للضلع كامل (نقطتيه مع بعض).
+  let edgeIndex = null;
+  if(idx === -1 && roomDraw.mode === 'cursor' && roomDraw.selectedSegIdx > -1){
+    const near = roomDrawFindSegmentNear(raw, roomDrawPxRadiusToMm(11));
+    if(near === roomDraw.selectedSegIdx) edgeIndex = near;
+  }
+  roomDraw.gesture = { startClientX: evt.clientX, startClientY: evt.clientY, pointIndex: idx, dragging:false, dragOrigPoints,
+    edgeIndex, edgeOrig: edgeIndex!==null ? roomDraw.points.map(p=>({x:p.x,y:p.y})) : null, edgeStartRaw: raw };
   roomDraw.mouse = raw;
 }
 window.roomDrawPointerDown = roomDrawPointerDown;
@@ -11477,6 +11491,25 @@ function roomDrawPointerMove(evt){
   const raw = roomDrawEventPoint(evt);
   roomDraw.mouse = raw;
   const g = roomDraw.gesture;
+  if(g && g.edgeIndex != null && g.pointIndex === -1){
+    const movedPx = Math.hypot(evt.clientX-g.startClientX, evt.clientY-g.startClientY);
+    if(movedPx > 4 && !g.dragging){ g.dragging = true; roomDrawSaveUndo(g.edgeOrig); }
+    if(g.dragging){
+      const n = g.edgeOrig.length, i = g.edgeIndex, j = (i+1)%n;
+      const A = g.edgeOrig[i], B = g.edgeOrig[j];
+      let dx = raw.x - g.edgeStartRaw.x, dy = raw.y - g.edgeStartRaw.y;
+      if(!roomDraw.freeAngle){
+        // بدون "زاوية حرة": الضلع بيتحرّك عموديًا على اتجاهه بس، حتى الأضلاع المجاورة تضل 90°
+        const L = Math.hypot(B.x-A.x, B.y-A.y) || 1;
+        const nx = -(B.y-A.y)/L, ny = (B.x-A.x)/L;
+        const d = dx*nx + dy*ny; dx = d*nx; dy = d*ny;
+      }
+      roomDraw.points[i] = { x: A.x+dx, y: A.y+dy };
+      roomDraw.points[j] = { x: B.x+dx, y: B.y+dy };
+    }
+    renderRoomDrawCanvas();
+    return;
+  }
   if(g && g.pointIndex > -1){
     const movedPx = Math.hypot(evt.clientX-g.startClientX, evt.clientY-g.startClientY);
     if(movedPx > 4 && !g.dragging){ g.dragging = true; roomDrawSaveUndo(g.dragOrigPoints); }
@@ -11569,7 +11602,9 @@ function roomDrawPointerUp(evt){
   }
   if(roomDraw.mode === 'cursor'){
     // وضع المؤشر: ما منضيف ولا نحذف نقاط هون إطلاقًا - بس تحديد/تحريك.
-    if(g.dragging){
+    if(g.edgeIndex != null && g.pointIndex === -1 && g.dragging){
+      roomDraw.selectedSegIdx = g.edgeIndex; roomDraw.selectedPointIdx = -1; roomDraw.edgeBoxKey = null;
+    } else if(g.dragging){
       // خلص السحب (تصغير/تكبير/تحريك الضلع) - النقطة تحدثت مباشرة أثناء roomDrawPointerMove.
       // منخليها "محددة" بصريًا بعد ما تحركت حتى يشوف حمدي أي نقطة عدّل عليها.
       roomDraw.selectedPointIdx = g.pointIndex;
@@ -11622,24 +11657,14 @@ function roomDrawPointerUp(evt){
         // ما في داعي نضيف شي (نفس مكانها بالضبط). كليك عادي عالنقطة أي نقطة تانية موجودة (نص الشكل
         // مثلاً) = منضيف نقطة جديدة بنفس مكان هاي النقطة بالضبط - هيك بيترسم خط حقيقي من آخر نقطة
         // لهون، بدون ما نلمس/نحرّك النقطة الأصلية إطلاقًا.
+        // 🛠️ 2026-10-04 (شكوى حمدي بالصور: "لما ارسم آخر نقطة فورًا بيطلب الرسالة وبتتسكر الشاشة"،
+        // و"المؤشر عم ياخد بشكل تلقائي النقطة البعيدة"): (1) الدوس على النقطة الأولى كان بينهي الرسم
+        // ويفتح رسالة الربط فورًا بدون ما يدوس زر "إنهاء" - هلق الإنهاء بس بالزر الصريح. (2) الدوس على أي
+        // نقطة موجودة كان يوصّل *آخر نقطة* فيها، والخط المنقّط كان دايمًا يطلع من آخر نقطة - هلق الدوسة
+        // على أي نقطة بتخليها هي نقطة بداية الخط الجاي (بنفسجي)، والدوس عالنقطة الأخيرة بيرجّع للوضع العادي.
         const isLastPointItself = (g.pointIndex === roomDraw.points.length - 1);
-        if(!isLastPointItself){
-          if(g.pointIndex === 0 && roomDraw.points.length >= 3){
-            finishRoomFreehandDraw();
-            return;
-          } else {
-            // 🆕 2026-09-25: باغ لقيناه بطلب حمدي - كان هون منضيف نقطة جديدة بنفس إحداثيات النقطة
-            // المستهدفة **مباشرة** (نسخ خام)، بدون ما يمر بقفل الـ90° إطلاقًا - فلو هاي النقطة
-            // المستهدفة ما كانت أصلًا عالمحور الأفقي/العمودي تبع آخر نقطة (مثلاً كانت نقطة قديمة من
-            // شكل مختلف)، كان بيتولّد ضلع مايل حقيقي بالشكل النهائي. الحل: منمرر هدف النقطة عبر نفس
-            // خط أنابيب القفل يلي بيستخدمه أي نقطة جديدة عادي (roomDrawNextPointCandidate) - هيك
-            // الضلع الجديد بيضل قائم 90° بالضبط دايمًا، حتى لو هيك ما بيوصل بالظبط لنفس مكان النقطة
-            // المستهدفة (وهاد بالضبط يلي طلبه حمدي: "المقاس ممكن يزيد شوي بس المهم الشكل يطلع صح").
-            roomDrawSaveUndo();
-            roomDraw.points.push(roomDrawNextPointCandidate(roomDraw.points[g.pointIndex]));
-            roomDraw.lastClick = null;
-          }
-        }
+        roomDraw.lastClick = { pointIndex: g.pointIndex, time: now };
+        roomDraw.continueFromIdx = isLastPointItself ? -1 : g.pointIndex;
       }
     } else {
       // g موجود وgesture.pointIndex === -1: يعني كان في mousedown حقيقي بلش من فوق فراغ فاضي بنفس
@@ -11900,6 +11925,31 @@ function renderRoomDrawCanvas(){
       <text x="${(boxX+8).toFixed(1)}" y="${(boxY+25).toFixed(1)}" font-size="10.5" fill="#ffe08a" font-family="monospace">Y: ${yLabel} mm</text>
     `;
   }
+  // 🆕 2026-10-04 (طلب حمدي: "لازم كل ضلع يكون مكتوب عليه كم المقاس تبعه حتى لو بمرحلة الرسم"):
+  // مقاس كل ضلع بالمم على منتصفه (بما فيها ضلع الإغلاق المنقّط ومعاينة الخط الجاي).
+  let lenLabelsSvg = '';
+  const labelAt = (a, b, mmLen, color) => {
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    const txt = String(Math.round(mmLen));
+    const bw = txt.length*6.6 + 8;
+    return `<rect x="${(mx-bw/2).toFixed(1)}" y="${(my-8).toFixed(1)}" width="${bw.toFixed(1)}" height="14" rx="3" fill="rgba(255,255,255,0.92)" stroke="${color}" stroke-width="0.8"/>`
+         + `<text x="${mx.toFixed(1)}" y="${(my+3).toFixed(1)}" font-size="10.5" font-weight="700" text-anchor="middle" fill="${color}" font-family="monospace">${txt}</text>`;
+  };
+  if(n > 1){
+    const edgeTotal = n >= 3 ? n : n-1;
+    for(let i=0; i<edgeTotal; i++){
+      const ia = i, ib = (i+1)%n;
+      const mmA = roomDraw.points[ia], mmB = roomDraw.points[ib];
+      const L = Math.hypot(mmB.x-mmA.x, mmB.y-mmA.y);
+      const sel = (roomDraw.selectedSegIdx === i);
+      lenLabelsSvg += labelAt(pts[ia], pts[ib], L, sel ? '#e0862a' : '#0b5f8f');
+    }
+  }
+  if(roomDraw.mode === 'pen' && roomDraw.points.length && roomDraw.mouse && !draggingNow){
+    const rIdx2 = (anchorPtIdx > -1) ? anchorPtIdx : roomDraw.points.length-1;
+    const aMm = roomDraw.points[rIdx2], tMm = roomDrawNextPointCandidate(roomDraw.mouse, rIdx2);
+    lenLabelsSvg += labelAt(mmToPx(aMm), mmToPx(tMm), Math.hypot(tMm.x-aMm.x, tMm.y-aMm.y), '#e0862a');
+  }
   const cursorStyle = roomDraw.mode === 'pen' ? 'crosshair' : (roomDraw.mode === 'eraser' ? 'cell' : 'default');
   // 🆕 2026-09-25: طلب حمدي - مساحة رسم كبيرة بملء الشاشة بدون أي تشويه/ميلان بصري. قبل هيك كنا
   // بنعتمد على CSS (aspect-ratio/width:100%) لضبط مقاس الـSVG المعروض - بس بوضع "ملء الشاشة" (كان
@@ -11917,15 +11967,74 @@ function renderRoomDrawCanvas(){
   if(renderH > availH){ renderH = availH; renderW = renderH * (W/H); }
   renderW = Math.round(renderW); renderH = Math.round(renderH);
   wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="display:block;width:${renderW}px;height:${renderH}px;cursor:${cursorStyle};touch-action:none;user-select:none;background:#fff;border:1px solid var(--wd-line,#333);border-radius:8px;" onmousedown="roomDrawPointerDown(event)" onmousemove="roomDrawPointerMove(event)" onmouseup="roomDrawPointerUp(event)" onmouseleave="roomDrawPointerLeave()" onwheel="roomDrawCanvasWheel(event)">
-    ${gridLines}${closeSvg}${segHighlightSvg}${pathSvg}${rubberSvg}${crosshairSvg}
+    ${gridLines}${closeSvg}${segHighlightSvg}${pathSvg}${lenLabelsSvg}${rubberSvg}${crosshairSvg}
   </svg>`;
   positionRoomDrawLenBox();
+  positionRoomDrawEdgeLenBox();
 }
 
 // 🆕 2026-09-25: طلب حمدي - "من بداية الرسم يكون في مربع فعّال مع الكيبورد أكتب فيه المقاسات
 // فورًا". صندوق عائم (HTML عادي، مش جوا الـSVG) قرب موقع الماوس الحالي - منحدّث بس مكانو (left/top)
 // هون، وما منلمس/منعيد إنشاء عنصر الـinput نفسه إطلاقًا (هيك ما بيفقد التركيز/القيمة يلي عم يكتبها
 // المستخدم لما تنعاد الرسمة بأي حركة ماوس).
+// 🆕 2026-10-04: خانة تعديل مقاس الضلع المحدد (بوضع المؤشر) - بتظهر عند منتصف الضلع المحدد.
+function positionRoomDrawEdgeLenBox(){
+  const boxWrap = document.getElementById('roomDrawEdgeLenBoxWrap');
+  const canvasWrap = document.getElementById('roomDrawCanvasWrap');
+  if(!boxWrap || !canvasWrap) return;
+  const svg = canvasWrap.querySelector('svg');
+  const n = roomDraw.points.length, i = roomDraw.selectedSegIdx;
+  const dragging = !!(roomDraw.gesture && roomDraw.gesture.dragging);
+  const show = roomDraw.active && roomDraw.mode === 'cursor' && i > -1 && n > 1 && svg && !dragging;
+  if(!show){ boxWrap.style.display = 'none'; roomDraw.edgeBoxKey = null; return; }
+  const stage = canvasWrap.parentElement; if(!stage) return;
+  const a = roomDraw.points[i], b = roomDraw.points[(i+1)%n];
+  const len = Math.hypot(b.x-a.x, b.y-a.y);
+  const svgRect = svg.getBoundingClientRect(), stageRect = stage.getBoundingClientRect();
+  const v = roomDraw.view;
+  const fx = ((a.x+b.x)/2 - v.x0)/v.w, fy = ((a.y+b.y)/2 - v.y0)/v.h;
+  let left = svgRect.left - stageRect.left + fx*svgRect.width - 75;
+  let top = svgRect.top - stageRect.top + fy*svgRect.height + 14;
+  left = Math.max(4, Math.min(left, stageRect.width - 160));
+  top = Math.max(4, Math.min(top, stageRect.height - 44));
+  boxWrap.style.left = left + 'px'; boxWrap.style.top = top + 'px'; boxWrap.style.display = 'block';
+  const key = i + ':' + Math.round(len);
+  const inp = document.getElementById('roomDrawEdgeLenInput');
+  if(inp && roomDraw.edgeBoxKey !== key){
+    roomDraw.edgeBoxKey = key;
+    inp.value = String(Math.round(len));
+    try{ inp.focus({ preventScroll:true }); inp.select(); }catch(e){}
+  }
+}
+
+// تغيير مقاس الضلع المحدد: بنحرّك نهايته على نفس اتجاهه، ولو الضلع اللي بعده عمودي عليه (شكل 90°)
+// بنزحزح نقطته كمان بنفس المقدار حتى تضل الزاوية 90° بالظبط.
+function roomDrawCommitEdgeLength(){
+  if(!roomDraw.active || roomDraw.selectedSegIdx < 0) return;
+  const inp = document.getElementById('roomDrawEdgeLenInput');
+  const rawVal = inp ? inp.value.trim() : '';
+  const newLen = evalMeasureExpr(rawVal) ?? parseFloat(rawVal);
+  if(!newLen || isNaN(newLen) || newLen <= 0){ alert('اكتب مقاس صحيح بالمليمتر (رقم أكبر من صفر).'); return; }
+  const pts = roomDraw.points, n = pts.length, i = roomDraw.selectedSegIdx, j = (i+1)%n;
+  const a = pts[i], b = pts[j];
+  const len = Math.hypot(b.x-a.x, b.y-a.y);
+  if(len < 0.001) return;
+  const ux = (b.x-a.x)/len, uy = (b.y-a.y)/len;
+  const delta = newLen - len;
+  roomDrawSaveUndo();
+  const moveIdx = [j];
+  const k = (j+1)%n;
+  const hasNext = roomDraw.closedLoop || j < n-1;
+  if(hasNext && k !== i){
+    const c = pts[k]; const vx = c.x-b.x, vy = c.y-b.y; const vl = Math.hypot(vx,vy);
+    if(vl > 0.001 && Math.abs((vx*ux+vy*uy)/vl) < 0.01) moveIdx.push(k);
+  }
+  moveIdx.forEach(idx => { pts[idx] = { x: pts[idx].x + ux*delta, y: pts[idx].y + uy*delta }; });
+  roomDraw.edgeBoxKey = null;
+  renderRoomDrawCanvas();
+}
+window.roomDrawCommitEdgeLength = roomDrawCommitEdgeLength;
+
 function positionRoomDrawLenBox(){
   const boxWrap = document.getElementById('roomDrawLenBoxWrap');
   const canvasWrap = document.getElementById('roomDrawCanvasWrap');
