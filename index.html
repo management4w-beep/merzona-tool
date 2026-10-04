@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-04.4';
+  var CURRENT_VERSION = '2026-10-04.6';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -7312,11 +7312,24 @@ window.wdApplyBack = function(results){
           <!-- 🆕 2026-09-30.20 (طلب حمدي: "بدي اعمل تقسيمات بالسقف والسقف يكون متحرك... بدي اضغط
                عليهم متل ما بضغط على اي بند من الابواب السحاب لحتى حدد جهة الفتح وبدي بس انتهي من
                الثري دي وانا عم شوف الثري دي يصير السقف يفتح ويسكر") -->
+          <!-- 🆕 2026-10-04.5 (طلب حمدي: "السقف انا ما حددت انه متحرك هوي ساندويتش بانل وما كان في خيار لحتى
+               حدد نوعية السقف") - محدد نوع السقف. الافتراضي ساندويتش بانل ثابت؛ إعدادات الألواح
+               المتحركة بتظهر بس لما يختار "زجاج سحّاب". -->
+          <label style="margin-top:14px;">🏷️ نوع السقف</label>
+          <div class="add-row" style="margin-top:6px;">
+            <select id="inCeilingType" onchange="onCeilingTypeField(getSelected().id,this.value)" style="flex:1;" title="اختر نوع السقف: ساندويتش بانل ثابت، زجاج ثابت، أو زجاج سحّاب متحرك">
+              <option value="sandwich">🧱 ساندويتش بانل (ثابت)</option>
+              <option value="glass">🪟 زجاج ثابت</option>
+              <option value="slide">🎬 زجاج سحّاب (ألواح متحركة)</option>
+            </select>
+          </div>
+          <div id="ceilingSlideControls" style="display:none;">
           <label style="margin-top:14px;">🎬 سقف سحّاب (ألواح متحركة بالثري دي)</label>
           <p class="hint">قسّمي السقف لعدة ألواح تنزلق جانبًا (نص عليمين ونص عالشمال، متل سقف سيارة سحّاب) - دوسي على أي لوح بالمسقط تحت لتحديد جهة انزلاقه (⟵ شمال / ⟶ يمين)، وبعدين من داخل الثري دي دوسي زر "▶️ افتح السقف" لتشوفي السقف يفتح وينسكر فعليًا قدامك بحركة حية.</p>
           <div class="add-row" style="margin-top:6px;">
             <span style="font-size:12px;">عدد الألواح:</span>
             <input type="number" min="2" max="12" step="1" id="inCeilingSlidePanelCount" style="width:70px;" onchange="onCeilingSlidePanelCountField(getSelected().id,this.value)" title="عدد ألواح السقف المتحركة (من 2 لـ12)">
+          </div>
           </div>
           <label style="margin-top:10px;">مسقط السقف Ceiling Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
           <div id="ceilingPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;position:relative;"></div>
@@ -7615,6 +7628,7 @@ window.wdApplyBack = function(results){
   <div class="threeD-topbar">
     <span>🏠 مشهد ثري دي حقيقي - <span id="room3DTitle"></span></span>
     <div style="display:flex; gap:8px;">
+      <button class="camera-close-btn" id="room3DCeilingVisBtn" onclick="toggleRoom3DCeilingVisibility()" title="إخفاء السقف أو إظهاره بالثري دي (لرؤية داخل الغرفة من فوق)">🙈 أخفِ السقف</button>
       <button class="camera-close-btn" id="room3DCeilingSlideBtn" onclick="toggleCeilingSlideAnimation()" title="افتح/سكّر ألواح السقف السحّاب بحركة حية - حددي جهة كل لوح (يمين/شمال) من لوحة تحكم الغرفة قبل ما تفتحي الثري دي">▶️ افتح السقف</button>
       <button class="camera-close-btn" id="room3DRecordBtn" onclick="recordRoom3DVideo()">🎥 سجّل وحمّل فيديو 360°</button>
       <button class="camera-close-btn" onclick="closeRoom3D()">✕ إغلاق</button>
@@ -10712,6 +10726,7 @@ function computeCeilingPolygonMM(it){
   return newPts;
 }
 
+window.computeCeilingPolygonMM = computeCeilingPolygonMM;
 // 🆕 2026-09-30.20 (طلب حمدي: "بدي اعمل تقسيمات بالسقف والسقف يكون متحرك... بدي اضغط عليهم متل ما بضغط
 // على اي بند من الابواب السحاب لحتى حدد جهة الفتح وبدي بس انتهي من الثري دي وانا عم شوف الثري دي يصير
 // السقف يفتح ويسكر"): نظام "سقف متحرك/سحّاب" جديد - مختلف تمامًا عن نظام الأجزاء المرفوعة/المخفّضة
@@ -10723,6 +10738,69 @@ function computeCeilingPolygonMM(it){
 
 // صندوق إحاطة مضلع السقف الحالي + أي محور (الأطول) رح تنقسم عليه الألواح (x أو y بمستوى المسقط 2D،
 // نفس نظام إحداثيات computeCeilingPolygonMM).
+// 🆕 2026-10-04.5 (طلب حمدي: "سقفي ساندويتش بانل مو متحرك وما كان في خيار لحتى أحدد نوعية السقف"):
+// نوع السقف صار خيار صريح بيحدده المستخدم: 'sandwich' (ساندويتش بانل ثابت - الافتراضي)، 'glass' (زجاج
+// ثابت)، أو 'slide' (زجاج سحّاب متحرك - ألواح بتنزلق بالثري دي). قبل هيك النظام كان يفترض دايمًا إنو
+// السقف سحّاب ومتحرك بدون ما يسأل. أي غرفة قديمة بدون ceilingType = ساندويتش بانل ثابت.
+function getCeilingType(it){
+  const t = it && it.ceilingType;
+  return (t === 'glass' || t === 'slide') ? t : 'sandwich';
+}
+window.getCeilingType = getCeilingType;
+function onCeilingTypeField(itemId, value){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  pushHistory(true);
+  it.ceilingType = (value === 'glass' || value === 'slide') ? value : 'sandwich';
+  renderCeilingSidesUI(it);
+  renderGallery();
+}
+window.onCeilingTypeField = onCeilingTypeField;
+
+// 🆕 2026-10-04.5: قص مضلع (مغلق أو مفتوح) على مستطيل محوري (Sutherland-Hodgman) - بيرجّع نقاط مفتوحة
+// (بدون تكرار النقطة الأولى بالآخر). مستخدم لقص كل لوح سقف على حدود السقف الفعلي (الأرضية + البروز) بدل
+// ما يغطي المستطيل المحيط بالشكل كله (كان هاد سبب المناطق البنية خارج الغرفة).
+function clipPolygonToRectMM(ptsIn, x0, x1, y0, y1){
+  let poly = ptsIn.slice();
+  if(poly.length > 1){
+    const f = poly[0], l = poly[poly.length-1];
+    if(Math.abs(f.x-l.x) < 1e-6 && Math.abs(f.y-l.y) < 1e-6) poly.pop();
+  }
+  const edges = [
+    { inside:p=>p.x >= x0, inter:(a,b)=>{ const t=(x0-a.x)/(b.x-a.x); return {x:x0, y:a.y+t*(b.y-a.y)}; } },
+    { inside:p=>p.x <= x1, inter:(a,b)=>{ const t=(x1-a.x)/(b.x-a.x); return {x:x1, y:a.y+t*(b.y-a.y)}; } },
+    { inside:p=>p.y >= y0, inter:(a,b)=>{ const t=(y0-a.y)/(b.y-a.y); return {x:a.x+t*(b.x-a.x), y:y0}; } },
+    { inside:p=>p.y <= y1, inter:(a,b)=>{ const t=(y1-a.y)/(b.y-a.y); return {x:a.x+t*(b.x-a.x), y:y1}; } },
+  ];
+  for(const e of edges){
+    if(!poly.length) break;
+    const out = [];
+    for(let i=0;i<poly.length;i++){
+      const cur = poly[i], prev = poly[(i+poly.length-1)%poly.length];
+      const ci = e.inside(cur), pi = e.inside(prev);
+      if(ci){ if(!pi) out.push(e.inter(prev,cur)); out.push(cur); }
+      else if(pi){ out.push(e.inter(prev,cur)); }
+    }
+    poly = out;
+  }
+  // نشيل النقاط المكررة المتتالية
+  const clean = [];
+  poly.forEach(pt=>{
+    const last = clean[clean.length-1];
+    if(!last || Math.abs(last.x-pt.x) > 1e-6 || Math.abs(last.y-pt.y) > 1e-6) clean.push(pt);
+  });
+  if(clean.length > 1){
+    const f = clean[0], l = clean[clean.length-1];
+    if(Math.abs(f.x-l.x) < 1e-6 && Math.abs(f.y-l.y) < 1e-6) clean.pop();
+  }
+  return clean;
+}
+window.clipPolygonToRectMM = clipPolygonToRectMM;
+function polygonAreaAbsMM(pts){
+  let a = 0;
+  for(let i=0;i<pts.length;i++){ const p=pts[i], q=pts[(i+1)%pts.length]; a += p.x*q.y - q.x*p.y; }
+  return Math.abs(a)/2;
+}
+
 function getCeilingSlideBoundsMM(it){
   const pts = computeCeilingPolygonMM(it) || [];
   if(pts.length < 3) return null;
@@ -10756,23 +10834,27 @@ window.ensureCeilingSlidePanels = ensureCeilingSlidePanels;
 // sizeAcross}. كل لوح عباره عن شريحة من صندوق الإحاطة عرضها (طول الصندوق على المحور الأطول ÷ العدد)
 // وعمقها = كامل عرض الصندوق على المحور التاني (تبسيط متعمّد - شوف الشرح فوق).
 function getCeilingSlidePanelsMM(it){
+  // 🛠️ 2026-10-04.5: ألواح السقف السحّاب موجودة بس لو نوع السقف 'slide' (اختيار المستخدم الصريح).
+  if(getCeilingType(it) !== 'slide') return [];
   const bounds = getCeilingSlideBoundsMM(it);
   if(!bounds) return [];
   const { axis, minX, maxX, minY, maxY } = bounds;
   const { count, dirs } = ensureCeilingSlidePanels(it);
+  const ceilPts = computeCeilingPolygonMM(it) || [];
   const panels = [];
-  if(axis === 'x'){
-    const step = (maxX-minX)/count;
-    for(let i=0;i<count;i++){
-      const x0 = minX + step*i, x1 = minX + step*(i+1);
-      panels.push({ index:i, dir: dirs[i]||'left', x0, x1, y0:minY, y1:maxY, cx:(x0+x1)/2, cy:(minY+maxY)/2, sizeAlong: step, sizeAcross: (maxY-minY) });
-    }
-  } else {
-    const step = (maxY-minY)/count;
-    for(let i=0;i<count;i++){
-      const y0 = minY + step*i, y1 = minY + step*(i+1);
-      panels.push({ index:i, dir: dirs[i]||'left', x0:minX, x1:maxX, y0, y1, cx:(minX+maxX)/2, cy:(y0+y1)/2, sizeAlong: step, sizeAcross: (maxX-minX) });
-    }
+  // 🛠️ 2026-10-04.5 (بلاغ حمدي: مناطق بنية خارج حدود الغرفة والبروز): كل لوح كان شريحة من المستطيل المحيط
+  // بكل الشكل - فبالغرف غير المستطيلة (L / درج) كان اللوح يغطي أماكن برا السقف الفعلي. هلق كل لوح
+  // بيتقص على مضلع السقف الفعلي (أرضية + بروز)، واللوح يلي كله برا السقف ما بينعمل أصلًا.
+  for(let i=0;i<count;i++){
+    let sx0=minX, sx1=maxX, sy0=minY, sy1=maxY, step;
+    if(axis === 'x'){ step = (maxX-minX)/count; sx0 = minX + step*i; sx1 = minX + step*(i+1); }
+    else { step = (maxY-minY)/count; sy0 = minY + step*i; sy1 = minY + step*(i+1); }
+    const poly = clipPolygonToRectMM(ceilPts, sx0, sx1, sy0, sy1);
+    if(poly.length < 3 || polygonAreaAbsMM(poly) < 1) continue;
+    const xs = poly.map(q=>q.x), ys = poly.map(q=>q.y);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    panels.push({ index:i, dir: dirs[i]||'left', poly, x0, x1, y0, y1, cx:(x0+x1)/2, cy:(y0+y1)/2,
+      sizeAlong: step, sizeAcross: (axis==='x' ? (y1-y0) : (x1-x0)) });
   }
   return panels;
 }
@@ -13207,11 +13289,35 @@ async function buildRoom3DScene(it, wrap){
   // بسيطة حتى تبين الألواح المكدّسة بشكل منفصل) حتى فنكشن الأنيميشن (startCeilingSlideAnimation/
   // updateCeilingSlideAnimationFrame تحت) تقدر تحرّكها حيًا بالثري دي بدون إعادة بناء المشهد.
   room3D.ceilingPanels = [];
+  room3D.ceilingObjects = []; // 🆕 2026-10-04.6: كل مجسمات السقف (لإخفائها/إظهارها)
   room3D.ceilingOpen = false;
   room3D.ceilingAnim = null;
+  const ceilingTypeNow = getCeilingType(it);
   {
     const slideBtnReset = document.getElementById('room3DCeilingSlideBtn');
-    if(slideBtnReset){ slideBtnReset.disabled = false; slideBtnReset.textContent = '▶️ افتح السقف'; }
+    if(slideBtnReset){
+      slideBtnReset.disabled = false; slideBtnReset.textContent = '▶️ افتح السقف';
+      // 🆕 2026-10-04.5: زر فتح/سكر السقف بيظهر بس لو نوع السقف "زجاج سحّاب".
+      slideBtnReset.style.display = ceilingTypeNow === 'slide' ? '' : 'none';
+    }
+  }
+  // 🆕 2026-10-04.5: سقف ثابت (ساندويتش بانل / زجاج ثابت) - سطح واحد بشكل السقف الفعلي (أرضية + بروز)،
+  // مش ألواح متحركة.
+  if(ceilingTypeNow !== 'slide' && ceilingPts && ceilingPts.length >= 4){
+    const cxs = ceilingPts.map(q=>q.x), cys = ceilingPts.map(q=>q.y);
+    const ccx = (Math.min(...cxs)+Math.max(...cxs))/2, ccy = (Math.min(...cys)+Math.max(...cys))/2;
+    const isSandwich = ceilingTypeNow === 'sandwich';
+    const slabGeo = makeCeilingSlabGeometry(ceilingPts.slice(0,-1), ccx, ccy, isSandwich ? 0.08 : 0.03);
+    const slabMat = isSandwich
+      ? new THREE.MeshStandardMaterial({ color:0xe9e6df, roughness:0.7, transparent:true, opacity:0.92, side:THREE.DoubleSide })
+      : new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.45, roughness:0.15, side:THREE.DoubleSide });
+    const slab = new THREE.Mesh(slabGeo, slabMat);
+    slab.position.set(ccx*MMTOM, heightM, ccy*MMTOM);
+    scene.add(slab);
+    const slabEdges = new THREE.LineSegments(new THREE.EdgesGeometry(slabGeo), new THREE.LineBasicMaterial({ color:0x2b2f33 }));
+    slabEdges.position.copy(slab.position);
+    scene.add(slabEdges);
+    room3D.ceilingObjects.push(slab, slabEdges);
   }
   {
     const slideBounds = getCeilingSlideBoundsMM(it);
@@ -13243,10 +13349,9 @@ async function buildRoom3DScene(it, wrap){
         const edgeM = (dir === 'left' ? edgeMinMM : edgeMaxMM) * MMTOM;
         arr.forEach((p, stackSlot)=>{
           const rank = arr.length - 1 - stackSlot;
-          const alongM = p.sizeAlong * MMTOM, acrossM = p.sizeAcross * MMTOM;
-          const geo = (axis === 'x')
-            ? new THREE.BoxGeometry(Math.max(0.02,alongM), panelThicknessM, Math.max(0.02,acrossM))
-            : new THREE.BoxGeometry(Math.max(0.02,acrossM), panelThicknessM, Math.max(0.02,alongM));
+          // 🛠️ 2026-10-04.5: اللوح بيتبني من المضلع المقصوص على حدود السقف الفعلي (p.poly) بدل صندوق
+          // مستطيل كامل - هيك ما بيطلع أي لوح خارج حدود الأرضية + البروز.
+          const geo = makeCeilingSlabGeometry(p.poly, p.cx, p.cy, panelThicknessM);
           const mat = new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.55, roughness:0.15, side:THREE.DoubleSide });
           const mesh = new THREE.Mesh(geo, mat);
           mesh.receiveShadow = true;
@@ -13261,6 +13366,7 @@ async function buildRoom3DScene(it, wrap){
           const edgesLines = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:0x2b2f33 }));
           edgesLines.position.copy(mesh.position);
           scene.add(edgesLines);
+          room3D.ceilingObjects.push(mesh, edgesLines);
           room3D.ceilingPanels.push({
             mesh, edges: edgesLines, dir,
             closed:{ x:closedX, z:closedZ },
@@ -13272,6 +13378,8 @@ async function buildRoom3DScene(it, wrap){
       });
     }
   }
+
+  applyRoom3DCeilingVisibility(); // 🆕 2026-10-04.6: نطبّق اختيار إخفاء/إظهار السقف
 
   // كل ضلع -> كل جزء (segment) فيه: صندوق بمكانه وزاويته الصحيحة، بخامة تصميمه الفعلي لو موجود.
   for(let i=0;i<n;i++){
@@ -13646,6 +13754,35 @@ window.quickDrawRoofFromToolbar = quickDrawRoofFromToolbar;
 // وسرعة (durationMs) لكل لوح محفوظين مسبقًا فيه - هيك الألواح الأقرب للنص بتبلش تتحرك أول والأبعد
 // (الأقرب للحافة) بتبلش بعدها بلحظات، معطية إحساس "الوسط بيقرب ع اللي قبلو وبيسحبه معه" يلي طلبه حمدي،
 // بدون أي فيزياء تصادم فعلية (تبسيط متعمّد يكفي بصريًا).
+// 🆕 2026-10-04.5: بيبني مجسّم لوح سقف (بسماكة thicknessM) من مضلع بالمم (إحداثيات المسقط) متمركز حول
+// (cxMM, cyMM) - المحور Y بالمضلع = عالم Z بدون قلب إشارة (نفس تحويل الأرضية)، والسماكة عالمحور Y.
+function makeCeilingSlabGeometry(polyMM, cxMM, cyMM, thicknessM){
+  const shape = new THREE.Shape();
+  polyMM.forEach((q, i)=>{
+    const X = (q.x - cxMM)*0.001, Y = (q.y - cyMM)*0.001;
+    if(i===0) shape.moveTo(X, Y); else shape.lineTo(X, Y);
+  });
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth:thicknessM, bevelEnabled:false });
+  geo.rotateX(Math.PI/2);          // shape.y -> +Z عالم، عمق الاستخراج -> -Y
+  geo.translate(0, thicknessM/2, 0); // نمركز السماكة حول Y=0
+  return geo;
+}
+// 🆕 2026-10-04.6 (اقتراح حمدي: "خيار إخفاء السقف بالثري دي وإظهاره"): زر بالثري دي بيخفي/بيظهر كل
+// مجسمات السقف (سطح ثابت أو ألواح سحّاب). الاختيار بينحفظ طول الجلسة، فلو أخفاه مرة بيضل مخفي لما
+// يفتح الثري دي من جديد لحد ما يظهره.
+let room3DCeilingHidden = false;
+function applyRoom3DCeilingVisibility(){
+  (room3D.ceilingObjects || []).forEach(o=>{ o.visible = !room3DCeilingHidden; });
+  const b = document.getElementById('room3DCeilingVisBtn');
+  if(b) b.textContent = room3DCeilingHidden ? '👁️ أظهر السقف' : '🙈 أخفِ السقف';
+}
+function toggleRoom3DCeilingVisibility(){
+  room3DCeilingHidden = !room3DCeilingHidden;
+  applyRoom3DCeilingVisibility();
+}
+window.toggleRoom3DCeilingVisibility = toggleRoom3DCeilingVisibility;
+window.__isRoom3DCeilingHidden__ = ()=>room3DCeilingHidden;
 function easeInOutCubicCeilingSlide(t){
   return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
 }
@@ -13735,6 +13872,7 @@ function closeRoom3D(){
   // 🆕 2026-09-30.20: نصفّر حالة أنيميشن السقف السحّاب - المشهد بكامله (وبالتالي كل ألواح السقف)
   // انرمى فوق (disposeThreeSceneDeep)، فما في داعي/معنى لأي حركة معلّقة تكمل على مجسّمات ما عادت موجودة.
   room3D.ceilingPanels = null;
+  room3D.ceilingObjects = null;
   room3D.ceilingAnim = null;
   room3D.ceilingOpen = false;
   const overlay = document.getElementById('room3DOverlay');
@@ -15057,6 +15195,11 @@ function renderCeilingSidesUI(it){
   ensureCeilingSlidePanels(it);
   const slideCountInput = document.getElementById('inCeilingSlidePanelCount');
   if(slideCountInput) slideCountInput.value = it.ceilingSlidePanelCount;
+  // 🆕 2026-10-04.5: محدد نوع السقف + إظهار إعدادات الألواح المتحركة بس لو النوع 'سحّاب'.
+  const typeSel = document.getElementById('inCeilingType');
+  if(typeSel) typeSel.value = getCeilingType(it);
+  const slideCtl = document.getElementById('ceilingSlideControls');
+  if(slideCtl) slideCtl.style.display = getCeilingType(it) === 'slide' ? '' : 'none';
   // 🆕 2026-09-30: طلب حمدي - لو في شكل سقف مستقل مرسوم بالفأرة (it.ceilingSides)، قائمة "بروز لكل
   // ضلع" (تحت) ما إلها معنى/تأثير أصلاً (computeCeilingPolygonMM بيتجاهلها تمامًا بهاي الحالة - شوف
   // الشرح فوقها) - فبدل ما نعرضها بشكل مضلّل وكأنها فعّالة، منعرض رسالة توضيحية بدالها. "🔄 رجّعه
@@ -15128,24 +15271,26 @@ function buildCeilingSVG(it){
   // الفتح") - نرسم ألواح السقف المتحركة كأشرطة قابلة للكليك فوق مسقط السقف - كل شريط لونو بيدل على
   // جهة انزلاقه الحالية (أزرق = شمال ⟵، برتقالي = يمين ⟶) والكليك عليه بيبدّل الجهة فورًا.
   const slidePanels = getCeilingSlidePanelsMM(it);
+  const ceilType = getCeilingType(it);
+  const ceilFill = ceilType === 'sandwich' ? 'rgba(205,200,190,0.75)' : (ceilType === 'glass' ? 'rgba(120,180,220,0.30)' : 'rgba(120,180,220,0.18)');
   let panelsSvg = '';
   if(slidePanels.length){
     const dirColor = { left:'rgba(15,136,205,0.38)', right:'rgba(214,113,17,0.38)' };
     const dirArrow = { left:'⟵', right:'⟶' };
     const dirLabel = { left:'شمال', right:'يمين' };
     slidePanels.forEach(p=>{
-      const c0 = toPx({x:p.x0,y:p.y0}), c1 = toPx({x:p.x1,y:p.y1});
-      const rx = Math.min(c0.x,c1.x), ry = Math.min(c0.y,c1.y);
-      const rw = Math.max(1,Math.abs(c1.x-c0.x)), rh = Math.max(1,Math.abs(c1.y-c0.y));
-      const midx = rx+rw/2, midy = ry+rh/2;
-      panelsSvg += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${dirColor[p.dir]||dirColor.left}" stroke="var(--wd-ink)" stroke-width="1" style="cursor:pointer;" onclick="toggleCeilingSlidePanelDir(${it.id},${p.index})"><title>لوح سقف ${p.index+1} - جهة الانزلاق الحالية: ${dirLabel[p.dir]||''} (دوسي لتبديلها)</title></rect>`;
-      panelsSvg += `<text x="${midx}" y="${midy+5}" font-size="14" text-anchor="middle" pointer-events="none">${dirArrow[p.dir]||''}</text>`;
+      // 🛠️ 2026-10-04.5: اللوح بيترسم كمضلع مقصوص على حدود السقف الفعلي (مش مستطيل كامل).
+      const pxPoly = p.poly.map(toPx);
+      const polyPts = pxPoly.map(q=>q.x+','+q.y).join(' ');
+      const c = toPx({x:p.cx,y:p.cy});
+      panelsSvg += `<polygon class="ceil-slide-panel" data-panel-index="${p.index}" points="${polyPts}" fill="${dirColor[p.dir]||dirColor.left}" stroke="var(--wd-ink)" stroke-width="1" style="cursor:pointer;" onclick="toggleCeilingSlidePanelDir(${it.id},${p.index})"><title>لوح سقف ${p.index+1} - جهة الانزلاق الحالية: ${dirLabel[p.dir]||''} (اضغط لتبديلها)</title></polygon>`;
+      panelsSvg += `<text x="${c.x}" y="${c.y+5}" font-size="14" text-anchor="middle" pointer-events="none">${dirArrow[p.dir]||''}</text>`;
     });
   }
   return `
   <svg viewBox="${-pad} ${-pad} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
     <polygon points="${floorPolyStr}" fill="none" stroke="var(--wd-ink-dim,#6b7280)" stroke-width="1.5" stroke-dasharray="4,3"/>
-    <polygon points="${polyStr}" fill="var(--wd-glass, rgba(160,140,110,0.28))" stroke="var(--wd-ink)" stroke-width="2"/>
+    <polygon class="ceil-main-poly" data-ceiling-type="${ceilType}" points="${polyStr}" fill="${ceilFill}" stroke="var(--wd-ink)" stroke-width="2"/>
     ${panelsSvg}
     ${labelsSvg}
   </svg>`;
