@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-04.8';
+  var CURRENT_VERSION = '2026-10-04.10';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -2165,6 +2165,7 @@ function saveItemsToStorage(){
 
 const DESIGN_ITEMS_DEFAULT = [];
 const DESIGN_NEXT_ID_DEFAULT = 1;
+const DESIGN_BAKED_AT_DEFAULT = 0; // 🆕 2026-10-04.9: وقت خبز التصميم بالملف المحفوظ (0 = ما انخبز)
 
 /* ---------- Materials Catalog (shared database for Purchasing) ---------- */
 const MAT_CATALOG_KEY = 'merzona-materials-catalog';
@@ -2450,7 +2451,16 @@ function removeQtyRow(btn){
       // كمان حتى الحذف من هالمسار (مباشرة من جدول عرض السعر) يعطي نفس النتيجة المتوقعة: الجزء يرجع
       // يبين كحائط عادي فورًا، مش يضل معلّق فاضي.
       if(linkedSeg){ linkedSeg.rowUid = null; linkedSeg.kind = 'wall'; }
-      if(linkedItem) linkedItem.sourceRowUid = null;
+      if(linkedItem){
+        linkedItem.sourceRowUid = null;
+        // 🛠️ 2026-10-04.9: الضلع صار جدار => بند "منظور الضلع" ما إله معنى، بنشيله فورًا (نفس toggleRoomSegKind)
+        // بدل ما يضل يتيم بالقائمة لحد ما تنفتح الأداة من جديد (أو "حفظ وإغلاق" يرجّعه كسطر مسعّر).
+        if(linkedSeg && linkedItem.isRoomWallElevation){
+          const ix = designItems.indexOf(linkedItem);
+          if(ix >= 0) designItems.splice(ix, 1);
+          try{ if(typeof window.__refreshDesignerAfterItemRemoval__ === 'function') window.__refreshDesignerAfterItemRemoval__(linkedItem.id); }catch(e){}
+        }
+      }
     }
   }
   if(tr) tr.remove();
@@ -3525,6 +3535,10 @@ function resetAll(){
 // وراء بعض على نفس الكبسة.
 function resetAllNoConfirm(){
   clearDraft(); // عرض سعر جديد فاضي بالنية - ما منحتاج نرجع نقترح مسودة عرض السعر القديم بعد هلق
+  // 🛠️ 2026-10-04.9 (فحص شامل - فقدان بيانات): عرض سعر جديد كان يرث هوية المسودة/التصميم القديم (draftId/
+  // designId/وقت الحفظ) فأول "حفظ" كان يكتب فوق ملف العرض القديم عالدرايف. هلق هوية جديدة تمامًا.
+  currentDraftId = null; currentDesignId = null; currentDesignName = null; currentDesignSavedAt = 0;
+  window.__quotationSavedAtBaseline = 0;
   // 🛠️ إصلاح جذري 2026-09-30.14 (فحص شامل - بلاغ حمدي: "عم تنزل بنود غريبة... مقاساتها غريبة
   // ومختلفة... حتى ارتفاعاتهم ما كانت متطابقة مع الارتفاع تبع الغرفة"): هون بالضبط السبب الجذري.
   // "عرض سعر جديد" كان يفضّي جدول الكميات (#qty-rows) بالكامل، بس ما كان يلمس items[] (بنود أداة
@@ -4108,6 +4122,7 @@ function captureFullQuotationData(){
   data.currentDesignId = currentDesignId || null;
   data.currentDesignName = currentDesignName || null;
   data.designSavedAt = currentDesignSavedAt || 0;
+  data.quotationSavedAt = Date.now();
   return data;
 }
 
@@ -4122,6 +4137,7 @@ function applyFullQuotationData(data){
   currentDesignId = data.currentDesignId || null;
   currentDesignName = data.currentDesignName || null;
   currentDesignSavedAt = data.designSavedAt || 0;
+  window.__quotationSavedAtBaseline = data.quotationSavedAt || 0;
   try{
     // منفضي كل الجداول أول (نفس خطوة resetAll) قبل ما نطبّق بيانات العرض القديم - حتى ما تختلط
     // مع أي بنود افتراضية كانت انزرعت للتو (seedDefaults) قبل ما توصل بيانات التحميل.
@@ -4454,8 +4470,10 @@ function buildBakedHtmlSnapshot(){
   document.body.setAttribute('data-prefilled', '1');
 
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-  html = html.replace(/const ITEMS_DEFAULT = \[.*\];/, 'const ITEMS_DEFAULT = ' + JSON.stringify(ITEMS) + ';');
-  html = html.replace(/const ALUM_SPEC_AR_DEFAULT = \{.*\};/, 'const ALUM_SPEC_AR_DEFAULT = ' + JSON.stringify(ALUM_SPEC_AR) + ';');
+  // 🛠️ 2026-10-04.9: دوال بديلة (مش نص) حتى الرموز الخاصة بأسماء البنود ما تتفسّر، وتهريب علامة "<" حتى وسم إغلاق السكربت ما يكسر الملف.
+  const __safeBakeJson = v => JSON.stringify(v).replace(/</g, '\\u003c');
+  html = html.replace(/const ITEMS_DEFAULT = \[.*\];/, () => 'const ITEMS_DEFAULT = ' + __safeBakeJson(ITEMS) + ';');
+  html = html.replace(/const ALUM_SPEC_AR_DEFAULT = \{.*\};/, () => 'const ALUM_SPEC_AR_DEFAULT = ' + __safeBakeJson(ALUM_SPEC_AR) + ';');
   try{
     if(window.__flushDesignSave__) window.__flushDesignSave__(); // نتأكد آخر تعديل ع الرسمة انحفظ قبل ما ناخد النسخة
     // 🛠️ إصلاح جذري 2026-10-02 (بلاغ حمدي: "كل ما بعدّل وبعمل حفظ ما بينحفظ التصميم" - S-Q-260003):
@@ -4467,14 +4485,29 @@ function buildBakedHtmlSnapshot(){
     // فالملف المحفوظ كان يتجمّد عند حالة التصميم الأولى للأبد - أي تعديل/إضافة لاحقة (زي ما وصف حمدي:
     // عدّل المسقط، عدّل النوافذ، ضاف جملون) ما كانت تنحفظ إطلاقًا بالملف رغم إنو زر "حفظ" كان ينجح
     // بدون أي رسالة خطأ. هلق صار نفس أسلوب ITEMS_DEFAULT بالضبط - بيتحدث دايمًا مهما كان محتواه الحالي.
-    const savedDesignRaw = localStorage.getItem(getDesignAutosaveStorageKey());
-    if(savedDesignRaw){
-      const savedDesign = JSON.parse(savedDesignRaw);
-      const visibleDesignItems = (savedDesign.items || []).filter(it => !it.isCameraTemp);
-      html = html.replace(/const DESIGN_ITEMS_DEFAULT = \[.*\];/, 'const DESIGN_ITEMS_DEFAULT = ' + JSON.stringify(visibleDesignItems) + ';');
-      html = html.replace(/const DESIGN_NEXT_ID_DEFAULT = \d+;/, 'const DESIGN_NEXT_ID_DEFAULT = ' + JSON.stringify(savedDesign.nextId || 1) + ';');
+    // 🛠️ 2026-10-04.9 (فحص شامل - 3 ثغرات): (1) نخبز من بنود المصمم الحيّة مباشرة (مش من localStorage اللي ممكن
+    // يفشل بصمت QuotaExceeded فيطلع الملف بتصميم قديم)؛ (2) String.replace بنص بديل بيفسّر `$&` `$'` و"$`" فتخرب
+    // أي اسم بند فيه $ - لازم دالة بديلة؛ (3) JSON داخل وسم السكربت لازم نهرّب علامة "<" حتى وسم إغلاق السكربت أو بداية تعليق HTML بأسماء
+    // البنود ما تكسر الملف كله.
+    let bakeItems = null, bakeNextId = 1;
+    try{
+      const live = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
+      if(live && Array.isArray(live.items)){ bakeItems = live.items; bakeNextId = live.nextId || 1; }
+    }catch(e){}
+    if(!bakeItems){
+      const savedDesignRaw = localStorage.getItem(getDesignAutosaveStorageKey());
+      if(savedDesignRaw){ const sd = JSON.parse(savedDesignRaw); bakeItems = sd.items || []; bakeNextId = sd.nextId || 1; }
     }
-  }catch(e){}
+    if(bakeItems){
+      const visibleDesignItems = bakeItems.filter(it => !it.isCameraTemp);
+      const safeJson = v => JSON.stringify(v).replace(/</g, '\\u003c');
+      const itemsJs = 'const DESIGN_ITEMS_DEFAULT = ' + safeJson(visibleDesignItems) + ';';
+      const nextJs = 'const DESIGN_NEXT_ID_DEFAULT = ' + safeJson(bakeNextId) + ';';
+      html = html.replace(/const DESIGN_ITEMS_DEFAULT = \[.*\];/, () => itemsJs);
+      html = html.replace(/const DESIGN_NEXT_ID_DEFAULT = \d+;/, () => nextJs);
+      html = html.replace(/const DESIGN_BAKED_AT_DEFAULT = \d+;/, () => 'const DESIGN_BAKED_AT_DEFAULT = ' + Date.now() + ';');
+    }
+  }catch(e){ console.warn('[حفظ نسخة مخبوزة] تعذّر خبز التصميم:', e); }
   return html;
 }
 
@@ -5358,6 +5391,7 @@ async function findOrCreateDriveFolder(name, parentId, token){
   const searchRes = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
   }, 30000);
+  if(!searchRes.ok) throw new Error('جوجل درايف رفض طلب البحث عن المجلد (' + searchRes.status + ') - تأكد من تسجيل الدخول لجوجل وحاول مرة ثانية.');
   const searchData = await searchRes.json();
   if(searchData.files && searchData.files.length){
     return searchData.files[0].id;
@@ -5367,7 +5401,9 @@ async function findOrCreateDriveFolder(name, parentId, token){
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
   }, 30000);
+  if(!createRes.ok) throw new Error('جوجل درايف رفض إنشاء المجلد (' + createRes.status + ').');
   const createData = await createRes.json();
+  if(!createData || !createData.id) throw new Error('جوجل درايف ما رجّع رقم المجلد بعد إنشائه.');
   return createData.id;
 }
 
@@ -5381,7 +5417,10 @@ async function uploadFileToDriveFolder(filename, mimeType, blob, parentId, token
     headers: { Authorization: 'Bearer ' + token },
     body: form
   }, 50000);
-  return res.json();
+  if(!res.ok) throw new Error('جوجل درايف رفض رفع الملف (' + res.status + ').');
+  const out = await res.json();
+  if(!out || !out.id) throw new Error('جوجل درايف ما أكّد رفع الملف (ما رجّع رقم الملف).');
+  return out;
 }
 
 // 🆕 2026-09-24: طلب حمدي - سجل مسودات عروض الأسعار + سجل التصاميم (شوف الشرح قرب تعريف
@@ -5394,6 +5433,7 @@ async function findFileInFolder(name, parentId, token){
   const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
   }, 30000);
+  if(!res.ok) throw new Error('جوجل درايف رفض طلب البحث عن الملف (' + res.status + ').');
   const data = await res.json();
   return (data.files && data.files.length) ? data.files[0].id : null;
 }
@@ -5404,7 +5444,10 @@ async function updateDriveFileContent(fileId, blob, token){
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type || 'application/octet-stream' },
     body: blob
   }, 50000);
-  return res.json();
+  if(!res.ok) throw new Error('جوجل درايف رفض تحديث الملف (' + res.status + ').');
+  const out = await res.json();
+  if(!out || !out.id) throw new Error('جوجل درايف ما أكّد تحديث الملف (ما رجّع رقم الملف).');
+  return out;
 }
 
 async function saveJsonToDriveFolder(filename, obj, parentId, token){
@@ -5664,13 +5707,9 @@ async function cleanupDraftAfterFinalSave(refRaw){
    عرض سعر قائم، منفحص تلقائيًا (بدون أي نافذة دخول جوجل) لو في تصميم أحدث محفوظ لنفس الرقم المرجعي
    (من _Designs عالدرايف، ومن نسخة محلية بالمتصفح)، ومنعرض عليه يحمّله - ما منفرضه أبدًا بدون سؤال. ====== */
 function designItemsSignature(arr){
-  try{
-    return JSON.stringify((arr||[]).filter(it=>!it.isCameraTemp).map(it=>({
-      id:it.id, label:it.label, t:it.shapeType, w:it.width, h:it.height, l:it.layout,
-      rs:(it.roomSides||[]).map(sd=>[sd.length, sd.angleDeg, sd.ceilingOverhangMm, (sd.segments||[]).map(g=>[g.length, g.kind, g.rowUid])]),
-      cs:it.ceilingSides||null, ct:it.ceilingType||null
-    })));
-  }catch(e){ return String(Math.random()); }
+  // 🛠️ 2026-10-04.9: كل خصائص البند (مش حقول مختارة) - الفرق بأي حقل (ارتفاع غرفة، جملون، مواد...) لازم ينلقط.
+  try{ return JSON.stringify((arr||[]).filter(it=>!it.isCameraTemp)); }
+  catch(e){ return String(Math.random()); }
 }
 function normalizeRefForCompare(r){ return String(r||'').replace(/\s+/g,'').toUpperCase(); }
 async function fetchLatestSavedDesignForRef(refRaw){
@@ -5693,7 +5732,7 @@ async function fetchLatestSavedDesignForRef(refRaw){
     const folderId = fd.files && fd.files[0] && fd.files[0].id;
     if(folderId){
       const ql = encodeURIComponent(`'${folderId}' in parents and trashed = false and mimeType = 'application/json'`);
-      const lr = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${ql}&orderBy=modifiedTime%20desc&pageSize=25&fields=files(id,name,modifiedTime)`, { headers:{ Authorization:'Bearer '+token } }, 20000);
+      const lr = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${ql}&orderBy=modifiedTime%20desc&pageSize=100&fields=files(id,name,modifiedTime)`, { headers:{ Authorization:'Bearer '+token } }, 20000);
       const ld = await lr.json();
       const envs = await Promise.all((ld.files||[]).map(async f=>{
         try{
@@ -5723,7 +5762,10 @@ async function offerNewerSavedDesign(){
       if((env.savedAt||0) > currentDesignSavedAt) currentDesignSavedAt = env.savedAt || 0;
       return false;
     }
-    if((env.savedAt||0) <= currentDesignSavedAt) return false; // التصميم المفتوح هو نفسه أو أحدث
+    // 🛠️ 2026-10-04.9: خط الأساس = أحدث وقت معروف لحفظ التصميم المفتوح: وقت حفظ التصميم نفسه، أو وقت حفظ
+    // عرض السعر (لو انحفظ بعد التصميم فهو أحدث منه)، أو وقت خبز ملف HTML المحفوظ.
+    const baseline = Math.max(currentDesignSavedAt || 0, window.__quotationSavedAtBaseline || 0, Number(DESIGN_BAKED_AT_DEFAULT) || 0);
+    if((env.savedAt||0) <= baseline) return false; // التصميم المفتوح هو نفسه أو أحدث
     const declinedKey = 'merzona-design-offer-declined::' + normalizeRefForCompare(ref);
     let declined = null; try{ declined = localStorage.getItem(declinedKey); }catch(e){}
     if(declined && Number(declined) === env.savedAt) return false;
@@ -6858,7 +6900,9 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
     // عن اسم إطلاقًا - وبتحدّث نفس ملف _Designs الأصلي مباشرة زي المفروض بالضبط.
     if(pendingDesignLoad.ref){
       const refElForDesign = document.getElementById('m-ref');
-      if(refElForDesign && !refElForDesign.value) refElForDesign.value = pendingDesignLoad.ref;
+      // 🛠️ 2026-10-04.9: الشرط القديم (فقط لو الخانة فاضية) ما كان يشتغل أبدًا لأن الخانة بتيجي بقيمة افتراضية
+      // "M-Q-260" - فالتصميم يضل مربوط بالرقم الغلط ويتحفظ بمجلد فرع غلط. صفحة عرض السعر هون فاضية بالنية.
+      if(refElForDesign) refElForDesign.value = pendingDesignLoad.ref;
     }
     runWhenDesignBridgeReady(()=>{
       currentDesignId = pendingDesignLoad.designId || null;
@@ -7764,6 +7808,8 @@ window.wdApplyBack = function(results){
   </div>
   <div style="max-width:1100px; margin:0 auto; padding:24px 20px 60px; direction:rtl;">
 
+    <div id="purchBomBox" style="background:#fff; border-radius:12px; padding:20px; margin-bottom:20px;"></div>
+
     <div style="background:#fff; border-radius:12px; padding:20px; margin-bottom:20px;">
       <h3 style="margin:0 0 14px; font-family:'DM Serif Text',serif; font-size:20px;">حساب الألمنيوم (تيوبات)</h3>
       <p style="font-size:12.5px; color:#6d6d6d; margin:0 0 16px;">المحسوب = محيط كل بند + طول كل التقطيعات الداخلية (القواطع)، بناءً على التصميم الحالي لكل بند. لا يشمل قوس التصميم المنفصل ولا هيكل أبواب الطي الإضافي.</p>
@@ -7774,7 +7820,7 @@ window.wdApplyBack = function(results){
           <option value="6.6">6.60 م</option>
           <option value="custom">مخصص...</option>
         </select>
-        <input type="text" inputmode="decimal" id="purchTubeLenCustom" step="0.01" min="0.5" placeholder="مثلاً 5.8" oninput="restrictMeasureChars(this);renderPurchasingAluminum()" onblur="evalMeasureField(this);renderPurchasingAluminum()" style="display:none; width:110px; padding:8px 10px; border:1px solid #ddd; border-radius:7px; font-size:13px;" value="">
+        <input type="text" inputmode="decimal" id="purchTubeLenCustom" step="0.01" min="0.5" placeholder="مثلاً 5.8" oninput="restrictMeasureChars(this);renderPurchasingAluminum();renderPurchasingBOM()" onblur="evalMeasureField(this);renderPurchasingAluminum();renderPurchasingBOM()" style="display:none; width:110px; padding:8px 10px; border:1px solid #ddd; border-radius:7px; font-size:13px;" value="">
       </div>
       <div id="purchAluminumTable"></div>
       <div id="purchAluminumTotals" style="margin-top:16px; padding-top:14px; border-top:1px dashed #ddd; font-size:15px;"></div>
@@ -8169,7 +8215,10 @@ try{
   const savedDesign = localStorage.getItem(window.getDesignAutosaveStorageKey ? window.getDesignAutosaveStorageKey() : 'merzona-design-items');
   if(savedDesign){
     const parsedDesign = JSON.parse(savedDesign);
-    if(parsedDesign && Array.isArray(parsedDesign.items) && parsedDesign.items.length){
+    // 🛠️ 2026-10-04.9: لو الملف المحفوظ (HTML) انخبز بعد آخر حفظ تلقائي محلي، التصميم المخبوز أحدث - ما منكتب فوقه
+    // بنسخة محلية قديمة (كانت تغلب تصميم الملف بصمت).
+    const bakedNewerThanAutosave = DESIGN_ITEMS_DEFAULT.length && Number(DESIGN_BAKED_AT_DEFAULT) > 0 && parsedDesign && parsedDesign.savedAt && Number(DESIGN_BAKED_AT_DEFAULT) > Date.parse(parsedDesign.savedAt);
+    if(!bakedNewerThanAutosave && parsedDesign && Array.isArray(parsedDesign.items) && parsedDesign.items.length){
       items = parsedDesign.items;
       nextId = parsedDesign.nextId || (items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
       selectedId = (parsedDesign.selectedId != null && items.find(i=>i.id===parsedDesign.selectedId)) ? parsedDesign.selectedId : items[0].id;
@@ -8245,6 +8294,13 @@ window.addEventListener('beforeunload', function(){
 // بنود التصميم (items/nextId) بدون ما تحتاج وصول مباشر لمتغيرات محصورة جوا الـIIFE.
 window.__getDesignItemsForExport__ = function(){
   return { items: items, nextId: nextId };
+};
+// 🆕 2026-10-04.9: جسر لتحديث المصمم بعد ما كتلة <script> تانية تشيل بند من items مباشرة (مثلاً حذف سطر مربوط بضلع).
+window.__refreshDesignerAfterItemRemoval__ = function(removedId){
+  if(selectedId === removedId) selectedId = items.length ? items[0].id : null;
+  if(typeof renderChips === 'function') renderChips();
+  if(typeof loadSelectedIntoControls === 'function') loadSelectedIntoControls();
+  if(typeof renderGallery === 'function') renderGallery();
 };
 // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - حرج): roomSideIdCounter/roomSegIdCounter/hrSegIdCounter/
 // ceilingZoneIdCounter/ceilingZoneSideIdCounter (معرّفة تحت بهالملف) كانت تتصفّر لـ1 كل ما تنفتح
@@ -8328,7 +8384,10 @@ window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
   try{
     if(Array.isArray(importedItems)){
       items = importedItems;
-      nextId = importedNextId || (items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
+      // 🛠️ 2026-10-04.9: (1) nextId = الأكبر بين المُمرَّر وأعلى id موجود + 1 - قبل هيك nextId قديم كان يكرّر ids؛
+      // (2) تراجع المصمم (historyStack) ما لازم يسرّب بنود تصميم تاني بعد الاستيراد.
+      nextId = Math.max(importedNextId || 0, items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
+      historyStack = [];
       selectedId = items.length ? items[0].id : null;
       resyncSubItemIdCounters(items);
       const removedDupes = dedupeDuplicateSourceRowItems();
@@ -8487,6 +8546,35 @@ function pushHistory(force){
   scheduleDesignSave();
 }
 
+// 🛠️ 2026-10-04.9 (فحص شامل - تراجع بعد تحويل ضلع لجدار): لقطة التراجع بتحفظ بنود المصمم بس، مش أسطر جدول
+// الكميات. فلو ضلع مصمم انحوّل لجدار (انحذف سطره) وبعدين "تراجع"، البند والقطعة بيرجعوا بس السطر لأ -
+// فكان "عدّل التصميم" يخلق سطر جديد ويمسح تصميم المستخدم كـ"شبح". هلق منعيد إنشاء السطر المفقود بنفس
+// معرّفه (rowUid) حتى يضل الربط سليم والتصميم محفوظ.
+function repairRoomRowLinksAfterHistory(){
+  try{
+    let repaired = 0;
+    items.forEach(room=>{
+      if(room.shapeType !== 'room') return;
+      (room.roomSides||[]).forEach((side, sIdx)=>{
+        (side.segments||[]).forEach(seg=>{
+          if(seg.kind !== 'design' || !seg.rowUid) return;
+          if(document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]')) return;
+          const linked = items.find(i=>i.sourceRowUid === seg.rowUid);
+          addQtyRow(Math.round(seg.length), Math.round(room.roomHeight||2500), '1', '');
+          const rows = document.querySelectorAll('#qty-rows tr');
+          const tr = rows[rows.length-1]; if(!tr) return;
+          tr.dataset.rowUid = seg.rowUid;
+          const label = linked ? linked.label : ((room.label||'غرفة') + ' - ضلع ' + (sIdx+1));
+          const ni = tr.querySelector('.item-input');
+          if(ni) ni.value = label;
+          tr.dataset.itemName = label;
+          repaired++;
+        });
+      });
+    });
+    if(repaired){ renumber(); recalc(); }
+  }catch(e){ console.warn('[تراجع] تعذّر إعادة ربط الأسطر:', e); }
+}
 function undo(){
   if(historyStack.length === 0) return;
   const snap = historyStack.pop();
@@ -8499,6 +8587,7 @@ function undo(){
   if(!items.find(i=>i.id===selectedId)){
     selectedId = items.length ? items[0].id : null;
   }
+  repairRoomRowLinksAfterHistory();
   renderChips();
   loadSelectedIntoControls();
   renderGallery();
@@ -10794,32 +10883,36 @@ function computeCeilingPolygonMM(it){
     signedArea += (a.x*b.y - b.x*a.y);
   }
   const areaSign = signedArea >= 0 ? 1 : -1;
-  const offsetLines = [];
+  // 🆕 2026-10-04.9: إزاحة عامة لأي زاوية (مش بس 90°/270°) - كل ضلع بيتزاح للخارج بمقدار بروزه بخط
+  // موازي، وكل رأس = تقاطع خطّي الضلعين المجاورين. قبل هيك الكود كان يفترض أضلاع أفقية/عمودية فقط
+  // وبيطلّع NaN لو الأرضية فيها زاوية حرة. للأشكال المستقيمة النتيجة نفسها بالضبط. لو ضلعين متوازيين
+  // (مافي تقاطع) منزيح الرأس بالعمودي على الضلع مباشرة.
+  const lines = [];
   for(let i=0;i<n;i++){
     const a = floorPts[i], b = floorPts[i+1];
-    const overhang = sides[i].ceilingOverhangMm || 0;
-    const isHoriz = Math.abs(a.y-b.y) < 0.01;
-    if(isHoriz){
-      const dx = b.x - a.x;
-      offsetLines.push({ type:'h', y: a.y - areaSign*Math.sign(dx)*overhang });
-    } else {
-      const dy = b.y - a.y;
-      offsetLines.push({ type:'v', x: a.x + areaSign*Math.sign(dy)*overhang });
-    }
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const oh = Number(sides[i].ceilingOverhangMm) || 0;
+    const nx = areaSign*dy/len, ny = -areaSign*dx/len;
+    lines.push({ px:a.x + nx*oh, py:a.y + ny*oh, dx:dx/len, dy:dy/len, nx, ny, oh });
   }
   const newPts = [];
   for(let i=0;i<n;i++){
-    const prevLine = offsetLines[(i-1+n)%n];
-    const curLine = offsetLines[i];
-    const hLine = prevLine.type==='h' ? prevLine : curLine;
-    const vLine = prevLine.type==='v' ? prevLine : curLine;
-    newPts.push({ x: vLine.x, y: hLine.y });
+    const L1 = lines[(i-1+n)%n], L2 = lines[i];
+    const den = L1.dx*L2.dy - L1.dy*L2.dx;
+    if(Math.abs(den) < 1e-9){
+      newPts.push({ x: floorPts[i].x + L2.nx*L2.oh, y: floorPts[i].y + L2.ny*L2.oh });
+    } else {
+      const t = ((L2.px-L1.px)*L2.dy - (L2.py-L1.py)*L2.dx)/den;
+      newPts.push({ x: L1.px + L1.dx*t, y: L1.py + L1.dy*t });
+    }
   }
   newPts.push({ x:newPts[0].x, y:newPts[0].y });
   return newPts;
 }
 
 window.computeCeilingPolygonMM = computeCeilingPolygonMM;
+window.computeSidesPolygonMM = computeSidesPolygonMM;
 // 🆕 2026-09-30.20 (طلب حمدي: "بدي اعمل تقسيمات بالسقف والسقف يكون متحرك... بدي اضغط عليهم متل ما بضغط
 // على اي بند من الابواب السحاب لحتى حدد جهة الفتح وبدي بس انتهي من الثري دي وانا عم شوف الثري دي يصير
 // السقف يفتح ويسكر"): نظام "سقف متحرك/سحّاب" جديد - مختلف تمامًا عن نظام الأجزاء المرفوعة/المخفّضة
@@ -11054,6 +11147,7 @@ function addRoomSideSegment(itemId, sideId){
   }
   side.segments.push({ id:'rg'+(roomSegIdCounter++), length:newLen, kind:'wall', rowUid:null });
   syncRoomSideLength(side);
+  syncRoomSegmentRowDims(it, last); // 🛠️ 2026-10-04.9: الجزء المنقوص مصمم؟ نحدّث سطره/بنده فورًا (كان يضل بالطول القديم)
   renderRoomSidesUI(it);
   renderGallery();
 }
@@ -11071,10 +11165,11 @@ function removeRoomSideSegment(itemId, sideId, segId){
   }
   pushHistory(true);
   const removed = side.segments[idx];
-  if(idx > 0){ side.segments[idx-1].length += removed.length; }
-  else { side.segments[1].length += removed.length; }
+  const neighborSeg = idx > 0 ? side.segments[idx-1] : side.segments[1];
+  neighborSeg.length += removed.length;
   side.segments.splice(idx,1);
   syncRoomSideLength(side);
+  syncRoomSegmentRowDims(it, neighborSeg); // 🛠️ 2026-10-04.9: الجار اتغيّر طوله - نحدّث سطره/بنده
   renderRoomSidesUI(it);
   renderGallery();
 }
@@ -11086,7 +11181,7 @@ function onRoomSegField(itemId, sideId, segId, field, value){
   ensureRoomSideSegments(side);
   const seg = side.segments.find(g=>g.id===segId); if(!seg) return;
   pushHistory();
-  if(field==='length') seg.length = Math.max(50, parseFloat(value)||50);
+  if(field==='length') seg.length = Math.min(100000, Math.max(50, parseFloat(value)||50)); // 🛠️ 2026-10-04.9: سقف 100 متر (كان بدون حد: 1e999 → Infinity)
   // 🆕 2026-09-26 (طلب حمدي: "بدي يكون في زر بحيث اكتب ارتفاع الجدار حتى تبلش منه التصاميم") - ارتفاع
   // جدار مصمت من الأرض (مم) قبل ما يبلش التصميم (زجاج/شباك) فوقه، بدل الافتراضي التلقائي (900مم
   // للشبابيك دايمًا / صفر للأبواب) - شوف buildRoom3DScene تحت كيف منستخدمه. سيبها فاضية = رجوع للتلقائي.
@@ -12037,6 +12132,10 @@ function clearRoomDrawAll(){
   if(roomDraw.points.length && !confirm('متأكد بدك تمسح كل نقاط الرسم الحالي وتبلش من جديد؟')) return;
   roomDrawSaveUndo();
   roomDraw.points = [];
+  roomDraw.closedLoop = false;
+  roomDraw.continueFromIdx = -1;
+  roomDraw.selectedPointIdx = -1;
+  roomDraw.selectedSegIdx = -1;
   roomDraw.gesture = null;
   roomDraw.view = roomDrawComputeFitView([], 1500);
   renderRoomDrawCanvas();
@@ -12535,6 +12634,111 @@ function linkNewRoomSegmentsToClosestOldByPosition(oldSides, newSides){
 }
 window.linkNewRoomSegmentsToClosestOldByPosition = linkNewRoomSegmentsToClosestOldByPosition;
 
+// 🛠️ 2026-10-04.9 (فحص شامل - بلاغ حمدي المتكرر: "لما أعيد الرسم بتروح الجدران والتقسيمات ويتكرر الشغل"):
+// إعادة رسم الأرضية كانت (1) تبني كل ضلع جديد كقسم "تصميم" واحد (فتضيع الجدران والتقسيمات وبروز السقف
+// وارتفاع الجدار)، و(2) تقارن مواقع الأضلاع القديمة بالجديدة وكل قائمة محسوبة بإطارها الخاص (أول ضلع
+// دايمًا على محور x) - فأي تعديل على أول ضلع كان يدوّر كل المطابقة ويفك روابط أسطر لضلوع ما لمستها.
+// هلق: المقارنة بإطار أداة الرسم نفسه (نقاط الرسم pts مقابل نقاط الأضلاع القديمة المبنية بنفس معادلة
+// roomDrawPointsFromSides)، والضلع اللي ما تغيّر (نفس الطرفين) بينسخ كل بياناته القديمة كما هي (أجزاؤه
+// وحائط/تصميم والأسطر المربوطة وبروز السقف...) ولا بنلمسه. الضلع اللي تغيّر بيحاول يرث ربط سطره/كونه حائط
+// بالتطابق الهندسي، وغير هيك بيُحسب ضلع جديد.
+function preserveRoomDataOnRedraw(oldSides, newSides, pts){
+  const n = pts.length;
+  const oldPts = computeSidesPolygonMM(oldSides);
+  const TOL = 30; // مم - نفس الطرفين تقريبًا = نفس الضلع
+  const liveRow = uid => !!(uid && document.querySelector('#qty-rows tr[data-row-uid="'+uid+'"]'));
+  const usedOldSide = new Set(), usedNewSide = new Set();
+  const pairs = [];
+  newSides.forEach((ns, i)=>{
+    const a = pts[i], b = pts[(i+1)%n];
+    oldSides.forEach((os, j)=>{
+      const c = oldPts[j], d = oldPts[j+1];
+      if(!c || !d) return;
+      const dd = Math.max(Math.hypot(a.x-c.x, a.y-c.y), Math.hypot(b.x-d.x, b.y-d.y));
+      if(dd <= TOL) pairs.push({ i, j, dd });
+    });
+  });
+  pairs.sort((p,q)=>p.dd-q.dd);
+  pairs.forEach(pr=>{
+    if(usedOldSide.has(pr.j) || usedNewSide.has(pr.i)) return;
+    usedOldSide.add(pr.j); usedNewSide.add(pr.i);
+    const ns = newSides[pr.i];
+    const clone = JSON.parse(JSON.stringify(oldSides[pr.j]));
+    const newAngle = ns.angleDeg;
+    Object.keys(ns).forEach(k=>{ delete ns[k]; });
+    Object.assign(ns, clone);
+    ns.angleDeg = newAngle; // الزاوية الداخلية بتتحدّث حسب الشكل الجديد (ممكن الجار تحرّك)
+  });
+  // الأضلاع اللي تغيّرت: مطابقة هندسية على مستوى الجزء (موقع+اتجاه) لوراثة الربط/حائط
+  const oldFlat = [];
+  oldSides.forEach((os, j)=>{
+    if(usedOldSide.has(j)) return;
+    const A = oldPts[j], B = oldPts[j+1];
+    const L = Math.max(1, Math.hypot(B.x-A.x, B.y-A.y));
+    const ux = (B.x-A.x)/L, uy = (B.y-A.y)/L;
+    let cursor = 0;
+    ensureRoomSideSegments(os).forEach(seg=>{
+      const len = Math.max(1, seg.length||1);
+      const mx = A.x + ux*(cursor + len/2), my = A.y + uy*(cursor + len/2);
+      cursor += len;
+      if(liveRow(seg.rowUid) || seg.kind === 'wall') oldFlat.push({ seg, side: os, mx, my, ux, uy });
+    });
+  });
+  const cands = [];
+  newSides.forEach((ns, i)=>{
+    if(usedNewSide.has(i)) return;
+    const a = pts[i], b = pts[(i+1)%n];
+    const L = Math.max(1, Math.hypot(b.x-a.x, b.y-a.y));
+    const ux = (b.x-a.x)/L, uy = (b.y-a.y)/L, mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    oldFlat.forEach((of, k)=>{
+      const dist = Math.hypot(mx-of.mx, my-of.my);
+      if(dist > ROOM_SEG_MATCH_TOL_MM) return;
+      if(Math.abs(of.ux*ux + of.uy*uy) < 0.7) return;
+      cands.push({ i, k, dist });
+    });
+  });
+  cands.sort((p,q)=>p.dist-q.dist);
+  const usedK = new Set(), usedI = new Set();
+  cands.forEach(c=>{
+    if(usedK.has(c.k) || usedI.has(c.i)) return;
+    usedK.add(c.k); usedI.add(c.i);
+    const of = oldFlat[c.k], ns = newSides[c.i];
+    const tgt = ns.segments[0];
+    const oldSeg = of.seg;
+    if(oldSeg.kind === 'wall'){ tgt.kind = 'wall'; tgt.rowUid = null; }
+    else if(liveRow(oldSeg.rowUid)){ tgt.rowUid = oldSeg.rowUid; tgt.kind = 'design'; }
+    if(oldSeg.sillHeightMm != null) tgt.sillHeightMm = oldSeg.sillHeightMm;
+    if(of.side.ceilingOverhangMm != null && ns.ceilingOverhangMm == null) ns.ceilingOverhangMm = of.side.ceilingOverhangMm;
+  });
+  // أي سطر قديم حي ما انحمل لأي ضلع جديد = الضلع انحذف فعليًا
+  const kept = new Set();
+  newSides.forEach(ns=>{ (ns.segments||[]).forEach(g=>{ if(g.rowUid) kept.add(g.rowUid); }); });
+  const droppedRowUids = [];
+  oldSides.forEach(os=>{ (os.segments||[]).forEach(g=>{ if(g.rowUid && !kept.has(g.rowUid) && liveRow(g.rowUid)) droppedRowUids.push(g.rowUid); }); });
+  return { droppedRowUids };
+}
+
+// 🆕 2026-10-04.9: رفض الأشكال الفاسدة عند إنهاء الرسم - مساحة صفر (نقاط على خط واحد) أو أضلاع بتتقاطع
+// مع بعضها (شكل ربطة/8). قبل هيك كان بينقبل ويطلع أرضية/سقف/حسابات خاطئة بصمت.
+function roomDrawShapeProblem(pts){
+  const n = pts.length;
+  if(n < 3) return 'قليل';
+  let a2 = 0;
+  for(let i=0;i<n;i++){ const p=pts[i], q=pts[(i+1)%n]; a2 += p.x*q.y - q.x*p.y; }
+  if(Math.abs(a2)/2 < 1) return 'zero';
+  const cross=(o,a,b)=>(a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);
+  for(let i=0;i<n;i++){
+    const a=pts[i], b=pts[(i+1)%n];
+    for(let j=i+1;j<n;j++){
+      if(j===i || (j+1)%n===i || (i+1)%n===j) continue;
+      const c=pts[j], d=pts[(j+1)%n];
+      const d1=cross(a,b,c), d2=cross(a,b,d), d3=cross(c,d,a), d4=cross(c,d,b);
+      if(((d1>0&&d2<0)||(d1<0&&d2>0)) && ((d3>0&&d4<0)||(d3<0&&d4>0))) return 'cross';
+    }
+  }
+  return null;
+}
+window.roomDrawShapeProblem = roomDrawShapeProblem;
 function finishRoomFreehandDraw(){
   if(!roomDraw.active) return;
   const it = items.find(i=>i.id===roomDraw.itemId);
@@ -12562,6 +12766,9 @@ function finishRoomFreehandDraw(){
   }
   if(pts.length < 3){ alert('لازم عالأقل 3 نقاط لتشكيل أرضية مغلقة (كل نقطة = زاوية بالأرضية).'); return; }
   pts = roomDrawRepairClosingEdge(pts);
+  { const prob = roomDrawShapeProblem(pts);
+    if(prob === 'zero'){ alert('الشكل المرسوم ما إلو مساحة (كل النقاط على خط واحد تقريبًا). أضف نقطة خارج الخط وجرب مرة ثانية.'); return; }
+    if(prob === 'cross'){ alert('أضلاع الشكل بتتقاطع مع بعضها (شكل ملتف). عدّل النقاط حتى ما يتقاطع أي ضلعين وجرب مرة ثانية.'); return; } }
   // 🆕 2026-09-30: طلب حمدي - رسم شكل السقف المستقل (roomDraw.target==='ceiling') بيتفرّع هون
   // لالتزام (commit) منفصل تمامًا عن التزام الأرضية تحت: ceilingSides شكل مستقل بالكامل عن roomSides
   // (مافي "أضلاع سقف" مربوطة ببنود جدول الكمية زي أضلاع الأرضية - هاي ميزة لمرحلة تانية لاحقًا خارج
@@ -12611,7 +12818,7 @@ function finishRoomFreehandDraw(){
   // القديمة... عالاقل تنحذف الاضلاع يللي حذفتها وما يصير تكرار") - هلق منلتقط droppedRowUids (أي سطر
   // قديم كان مربوط بضلع حقيقي وما انطبق على أي ضلع جديد - يعني الضلع تبعو انحذف فعليًا من المسقط) حتى
   // نحذفهم تحت بعد ما نخلص الربط/إعادة البناء، بدل ما يضلوا عالقين كبنود يتيمة بدون أي ضلع وراها.
-  const { droppedRowUids } = linkNewRoomSegmentsToClosestOldByPosition(it.roomSides, newSides);
+  const { droppedRowUids } = preserveRoomDataOnRedraw(it.roomSides || [], newSides, pts);
   it.roomSides = newSides;
   // 🆕 2026-09-29 (طلب حمدي: "بدي ياهم يكونوا موجودين كبنود في التصميم بعد تصميم المسقط... مافي داعي
   // لاضغط على زر للتصميم انا اصلا بدي صمم الكل فمن البديهي يكونوا جاهزين للتصميم") - فور ما ينخلص
@@ -12625,6 +12832,12 @@ function finishRoomFreehandDraw(){
   // من المسقط ولا ضلع جديد انطبق عليه هندسيًا)، بدل ما يضل عالق كتكرار منطقي بدون أي ضلع حقيقي وراه -
   // بالضبط متل ما طلب حمدي بالنص.
   (droppedRowUids||[]).forEach(uid=> removeQtyRowByUid(uid));
+  // 🛠️ 2026-10-04.9: بنود "منظور الضلع" المرتبطة بأسطر انحذفت لازم تنحذف معها - قبل هيك كانت تضل يتيمة
+  // وبعدين "حفظ وإغلاق" ترجّعها كأسطر مسعّرة غريبة (Elevation) بجدول عرض السعر.
+  if((droppedRowUids||[]).length){
+    const droppedSet = new Set(droppedRowUids);
+    items = items.filter(i => !(i.isRoomWallElevation && droppedSet.has(i.sourceRowUid)));
+  }
   // 🆕 2026-09-30: autoCreateRoomSideRowsForAllSegments (فوق) بينادي WD.loadFromRows يلي ممكن يبدّل
   // البند "المحدد" حاليًا (selectedId) لبند تاني (مثلاً أول بند بجدول الكمية) كأثر جانبي - فمنرجّع
   // نأكد إنو الغرفة نفسها هي المحددة بعد ما نخلص، حتى لوحة التحكم تضل عارضة شغل الغرفة مش بند تاني بالغلط.
@@ -12658,6 +12871,9 @@ function autoCreateRoomSideRowsForAllSegments(it){
             onDimensionInput(wInput);
             updated++;
           }
+          // 🛠️ 2026-10-04.9: نحدّث بند التصميم المرتبط (عرضه/ارتفاعه) كمان - قبل هيك كان يتحدّث الصف بس
+          // و"حفظ وإغلاق" يرجّع الصف لمقاس البند القديم.
+          syncRoomSegmentRowDims(it, seg);
           return; // مربوط بسطر موجود فعليًا - ما منكرر
         }
         // rowUid موجود بس السطر نفسه مش موجود فعليًا (انحذف يدويًا مثلاً) - منعتبره متل ما إلو سطر إطلاقًا
@@ -16684,7 +16900,9 @@ function renderGallery(){
 
 /* ---------- INIT ---------- */
 document.addEventListener('keydown', (e)=>{
-  const k = (e.key||'').toLowerCase();
+  let k = (e.key||'').toLowerCase();
+  // 🆕 2026-10-04.9: على لوحة مفاتيح عربية e.key بيطلع حرف عربي (ئ/غ) فكان Ctrl+Z/Y ما يشتغل - منستخدم e.code
+  if(e.code === 'KeyZ') k = 'z'; else if(e.code === 'KeyY') k = 'y';
   if((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y') && window.__roomDrawIsActive__ && window.__roomDrawIsActive__()){
     // الرسم مفتوح: Ctrl+Z/Ctrl+Y بيشتغلوا على الرسم نفسه، مش على تراجع المصمم العام
     e.preventDefault();
@@ -16889,7 +17107,14 @@ function resetAllItemDesignsFromQuotationTable(){
 window.resetAllItemDesignsFromQuotationTable = resetAllItemDesignsFromQuotationTable;
 
 function wdSaveAndClose(){
-  const results = items.map(it => {
+  // 🛠️ 2026-10-04.9 (فحص شامل): (1) الغرفة نفسها (حاوية الأضلاع) ما إلها سطر مسعّر - كانت تنضاف كسطر "Plan"
+  // جديد بكل "حفظ وإغلاق"؛ (2) بند "منظور ضلع" يتيم (ما إله سطر حي) ما لازم يرجع كسطر مسعّر غريب.
+  const liveRowsNow = new Set(Array.from(document.querySelectorAll('#qty-rows tr[data-row-uid]')).map(tr=>tr.dataset.rowUid));
+  const results = items.filter(it => {
+    if(it.shapeType === 'room' && !(it.sourceRowUid && liveRowsNow.has(it.sourceRowUid))) return false;
+    if(it.isRoomWallElevation && !(it.sourceRowUid && liveRowsNow.has(it.sourceRowUid))) return false;
+    return true;
+  }).map(it => {
     const cls = classifyItem(it);
     return {
       uid: it.sourceRowUid || null,
@@ -17813,6 +18038,7 @@ function onPurchTubePresetChange(){
   const preset = document.getElementById('purchTubeLenPreset').value;
   document.getElementById('purchTubeLenCustom').style.display = preset==='custom' ? 'inline-block' : 'none';
   renderPurchasingAluminum();
+  renderPurchasingBOM();
 }
 
 function renderPurchasingAluminum(){
@@ -17826,11 +18052,12 @@ function renderPurchasingAluminum(){
   }
   let grandTotalMm = 0;
   tableEl.innerHTML = visibleItems.map(it=>{
-    const lenMm = computeItemAluminumLength(it);
+    const q = getPurchItemQty(it);
+    const lenMm = computeItemAluminumLength(it) * q;
     grandTotalMm += lenMm;
     const lenM = (lenMm/1000).toFixed(2);
     return `<div class="purch-item-row">
-      <span class="purch-name">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}</span>
+      <span class="purch-name">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}${q!==1 ? ` <span style="opacity:.7;font-weight:400;">× ${q}</span>` : ''}</span>
       <span class="purch-len">${lenM} م</span>
     </div>`;
   }).join('');
@@ -17916,7 +18143,7 @@ function renderPurchasingMaterialsTable(){
     const assigned = visibleItems.filter(it => (it.materialIds||[]).includes(m.id));
     let qtyLabel;
     if(m.calcType === 'aluminum_length'){
-      const totalMm = assigned.reduce((s,it)=> s + computeItemAluminumLength(it), 0);
+      const totalMm = assigned.reduce((s,it)=> s + computeItemAluminumLength(it) * getPurchItemQty(it), 0);
       qtyLabel = (totalMm/1000).toFixed(2) + ' م';
     } else {
       qtyLabel = assigned.length + ' بند';
@@ -17931,10 +18158,154 @@ function renderPurchasingMaterialsTable(){
   el.innerHTML = rows;
 }
 
-function openPurchasingOverlay(){
+
+// 🆕 2026-10-04.10 (بلاغ حمدي: "ضغطت على المشتريات وتفاجأت إنو المواد غير واضحة ومافي أي تفاصيل... خليني أختار نوع
+// الفتحة شباك أو باب حتى أعرف الكميات"): نافذة المشتريات كانت بتعرض بس أطوال ألمنيوم + كتالوج مواد يدوي (فاضي
+// غالبًا)، وبنود منظور الغرف ما إلها نوع واضح. هلق في قائمة شراء كاملة: لكل بند نوع الفتحة (بتختاره من قائمة)،
+// المقاس، العدد (من جدول الكميات)، طول الألمنيوم، مساحة الزجاج، وتجميع للإكسسوارات حسب أنواع الفتح.
+const PURCH_TYPE_OPTIONS = ['window','door','slidingWindow','slidingDoor','foldingDoor','showerGlassDoor'];
+function getPurchItemQty(it){
+  try{
+    if(it.sourceRowUid){
+      const tr = document.querySelector('#qty-rows tr[data-row-uid="'+it.sourceRowUid+'"]');
+      const q = tr ? parseFloat((tr.querySelector('.qty-input')||{}).value) : NaN;
+      if(isFinite(q) && q > 0) return q;
+    }
+  }catch(e){}
+  const pq = parseFloat(it.purchQty);
+  return (isFinite(pq) && pq > 0) ? pq : 1;
+}
+function purchLeafList(it){
+  const out = [];
+  (function walk(node, w, h){
+    if(!node) return;
+    if(node.kind === 'leaf'){ out.push({ type: node.type || 'plain', w:w, h:h }); return; }
+    const total = node.direction === 'row' ? w : h;
+    node.children.forEach(ch=>{
+      const size = ch.frac/100*total;
+      walk(ch.node, node.direction==='row' ? size : w, node.direction==='row' ? h : size);
+    });
+  })(it.layout, it.width, it.height);
+  return out;
+}
+function purchHardwareForItem(it){
+  const hw = { hinges:0, handles:0, locks:0, rollers:0, fixed:0, opening:0 };
+  if(it.shapeType === 'showerGlassDoor'){
+    hw.hinges = it.showerHingeCount || 3; hw.handles = 1; hw.opening = 1; return hw;
+  }
+  const door = it.shapeType === 'door';
+  purchLeafList(it).forEach(l=>{
+    const t = l.type;
+    if(t === 'tri_up' || t === 'tri_down'){ hw.hinges += 2; hw.handles += 1; hw.opening++; }
+    else if(t === 'tri_left' || t === 'tri_right'){ hw.hinges += door ? 3 : 2; hw.handles += 1; if(door) hw.locks += 1; hw.opening++; }
+    else if(t === 'slide_left' || t === 'slide_right'){ hw.rollers += 2; hw.handles += 1; hw.locks += 1; hw.opening++; }
+    else if(t === 'fold'){ hw.hinges += 2; hw.rollers += 1; hw.opening++; }
+    else if(t && t.indexOf('louver') === 0){ hw.opening++; }
+    else { hw.fixed++; }
+  });
+  return hw;
+}
+function purchSetItemType(itemId, type){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  if(PURCH_TYPE_OPTIONS.indexOf(type) < 0) return;
+  const prev = selectedId;
+  selectedId = itemId;
+  try{ setShape(type); }finally{ selectedId = (items.find(i=>i.id===prev) ? prev : itemId); }
+  try{ loadSelectedIntoControls(); }catch(e){}
+  renderPurchasingAll();
+}
+function purchSetItemQty(itemId, v){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const q = parseFloat(v);
+  it.purchQty = (isFinite(q) && q > 0) ? Math.min(q, 9999) : 1;
+  scheduleDesignSave();
+  renderPurchasingAluminum();
+  renderPurchasingBOM(true);
+}
+function renderPurchasingBOM(keepFocus){
+  const box = document.getElementById('purchBomBox'); if(!box) return;
+  const open = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
+  const rooms = items.filter(it => isRoom(it));
+  let totAlu = 0, totGlass = 0, totLeaves = 0;
+  const hwTot = { hinges:0, handles:0, locks:0, rollers:0, fixed:0, opening:0 };
+  const rowsHtml = open.map(it=>{
+    const q = getPurchItemQty(it);
+    const linked = !!(it.sourceRowUid && document.querySelector('#qty-rows tr[data-row-uid="'+it.sourceRowUid+'"]'));
+    const alu = computeItemAluminumLength(it) * q / 1000;
+    let glassM2 = 0, leaves = 0, hw = { hinges:0, handles:0, locks:0, rollers:0, fixed:0, opening:0 };
+    if(!isHandrail(it)){
+      const ll = purchLeafList(it);
+      leaves = ll.length;
+      glassM2 = ll.reduce((a,l)=> a + (l.w*l.h)/1e6, 0) * q;
+      hw = purchHardwareForItem(it);
+    }
+    totAlu += alu; totGlass += glassM2; totLeaves += leaves * q;
+    Object.keys(hwTot).forEach(k=> hwTot[k] += hw[k]*q);
+    let typeCell;
+    if(isHandrail(it)){
+      typeCell = '<span>هاندريل</span>';
+    } else {
+      const cur = PURCH_TYPE_OPTIONS.indexOf(it.shapeType) >= 0 ? it.shapeType : 'window';
+      typeCell = '<select onchange="purchSetItemType('+it.id+',this.value)" style="padding:5px 6px;border:1px solid #ccc;border-radius:6px;font-size:12.5px;">' +
+        PURCH_TYPE_OPTIONS.map(t=>'<option value="'+t+'"'+(t===cur?' selected':'')+'>'+(SHAPE_LABELS[t]||t)+'</option>').join('') + '</select>';
+    }
+    const qtyCell = linked
+      ? '<span title="العدد من جدول الكميات">'+q+'</span>'
+      : '<input type="number" min="1" step="1" value="'+q+'" onchange="purchSetItemQty('+it.id+',this.value)" style="width:56px;padding:4px;border:1px solid #ccc;border-radius:6px;">';
+    return '<tr style="border-bottom:1px solid #eee;">' +
+      '<td style="padding:7px 4px;">'+it.label+(it.refCode?' <span style="opacity:.6">('+it.refCode+')</span>':'')+'</td>' +
+      '<td style="padding:7px 4px;">'+typeCell+'</td>' +
+      '<td style="padding:7px 4px;white-space:nowrap;">'+Math.round(it.width)+' × '+Math.round(it.height)+'</td>' +
+      '<td style="padding:7px 4px;text-align:center;">'+qtyCell+'</td>' +
+      '<td style="padding:7px 4px;text-align:center;">'+leaves+'</td>' +
+      '<td style="padding:7px 4px;text-align:center;">'+alu.toFixed(2)+' م</td>' +
+      '<td style="padding:7px 4px;text-align:center;">'+(glassM2 ? glassM2.toFixed(2)+' م²' : '—')+'</td>' +
+      '</tr>';
+  }).join('');
+  const tubeLen = getPurchTubeLenM();
+  const tubes = tubeLen > 0 ? Math.ceil(totAlu / tubeLen) : 0;
+  let html = '<h3 style="margin:0 0 6px;font-family:\'DM Serif Text\',serif;font-size:20px;">🛒 قائمة الشراء (حسب التصميم الحالي)</h3>' +
+    '<p style="font-size:12.5px;color:#6d6d6d;margin:0 0 14px;">اختار نوع كل فتحة (شباك / باب / سحّاب...) من القائمة، والكميات بتنحسب تلقائيًا. العدد بيجي من جدول الكميات، وللبنود غير المربوطة بسطر بتكتبه بنفسك.</p>';
+  if(!open.length){
+    html += '<p style="color:#b45309;background:#fff7ed;border-radius:8px;padding:10px 12px;font-size:13px;">ما في أي شباك/باب مصمَّم بعد، فما في شي يتحسب. ' +
+      (rooms.length ? 'الغرفة نفسها ما بتنحسب كشباك — حوّل أضلاعها لـ"تصميم" وصمّم الفتحات، أو شوف مواد الغرفة تحت.' : 'أضف بند من المصمم أول.') + '</p>';
+  } else {
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:640px;">' +
+      '<thead><tr style="background:#f4f5f7;text-align:right;"><th style="padding:7px 4px;">البند</th><th style="padding:7px 4px;">نوع الفتحة</th><th style="padding:7px 4px;">المقاس (مم)</th><th style="padding:7px 4px;text-align:center;">العدد</th><th style="padding:7px 4px;text-align:center;">عدد الأجنحة/الألواح</th><th style="padding:7px 4px;text-align:center;">الألمنيوم</th><th style="padding:7px 4px;text-align:center;">الزجاج</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
+    html += '<div style="margin-top:16px;padding-top:14px;border-top:1px dashed #ddd;font-size:14px;line-height:1.9;">' +
+      '<div>🔩 <b>ألمنيوم:</b> '+totAlu.toFixed(2)+' م ≈ <b style="color:#0f88cd;">'+tubes+'</b> تيوب (طول التيوب '+tubeLen.toFixed(2)+' م)</div>' +
+      '<div>🪟 <b>زجاج:</b> '+totGlass.toFixed(2)+' م² ('+totLeaves+' لوح/جناح) — مساحة الأجنحة قبل خصم سماكة البروفايل</div>' +
+      '<div>🔧 <b>إكسسوارات (تقدير حسب نوع الفتح):</b> مفصلات '+hwTot.hinges+' • ماسكات '+hwTot.handles+' • أقفال '+hwTot.locks+' • رولات سحّاب '+hwTot.rollers+' • ألواح ثابتة '+hwTot.fixed+'</div>' +
+      '</div>';
+  }
+  if(rooms.length){
+    html += '<h4 style="margin:18px 0 8px;font-size:15px;">🏠 مواد الغرفة</h4>';
+    rooms.forEach(r=>{
+      try{
+        const floorA = polygonAreaAbsMM(computeSidesPolygonMM(r.roomSides||[])) / 1e6;
+        const cp = computeCeilingPolygonMM(r) || [];
+        const ceilA = cp.length >= 3 ? polygonAreaAbsMM(cp) / 1e6 : 0;
+        const ct = getCeilingType(r);
+        const ctLabel = ct === 'glass' ? 'زجاج ثابت' : (ct === 'slide' ? 'زجاج سحّاب' : 'ساندويتش بانل');
+        const walls = (r.roomSides||[]).reduce((a,sd)=> a + (sd.segments||[]).filter(g=>g.kind==='wall').reduce((b,g)=>b+(g.length||0),0), 0);
+        html += '<div style="font-size:13.5px;line-height:1.9;">'+(r.label||'غرفة')+': أرضية '+floorA.toFixed(2)+' م² • سقف ('+ctLabel+') '+ceilA.toFixed(2)+' م² • جدران بطول '+(walls/1000).toFixed(2)+' م</div>';
+      }catch(e){}
+    });
+  }
+  box.innerHTML = html;
+}
+function renderPurchasingAll(){
+  renderPurchasingBOM();
   renderPurchasingAluminum();
   renderPurchasingMaterialsCatalog();
   renderPurchasingMaterialsTable();
+}
+window.purchSetItemType = purchSetItemType;
+window.purchSetItemQty = purchSetItemQty;
+window.renderPurchasingBOM = renderPurchasingBOM;
+
+function openPurchasingOverlay(){
+  renderPurchasingAll();
   document.getElementById('purchasingOverlay').style.display = 'block';
 }
 function closePurchasingOverlay(){
