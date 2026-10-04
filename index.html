@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-04.10';
+  var CURRENT_VERSION = '2026-10-04.13';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1364,6 +1364,18 @@
   #roomDrawWrap .rd-footer{
     flex:0 0 auto; padding:8px 14px; border-top:1px solid var(--wd-line,#333);
     overflow-x:auto; box-sizing:border-box;
+  }
+  /* 🆕 2026-10-04.11: شاشات صغيرة (موبايل/تابلت أفقي): كانت الأدوات العلوية + أزرار الأسفل (بتلف على 4-5 أسطر) بتاكل
+     كل الشاشة وبتترك للرسم 90-230 بكسل بس. هلق الشريط السفلي بسطر أفقي قابل للتمرير، والعلوي أقصر، وفي زر
+     يخفي/يظهر الأدوات العلوية كلها لما بدك أقصى مساحة للرسم. */
+  #roomDrawWrap .rd-tools-toggle{ display:none; }
+  @media (max-width:760px), (max-height:700px){
+    #roomDrawWrap .rd-header{ max-height:30vh; padding:6px 10px; }
+    #roomDrawWrap .rd-footer{ padding:6px 10px; }
+    #roomDrawWrap .rd-footer .add-row{ flex-wrap:nowrap !important; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
+    #roomDrawWrap .rd-footer .add-row button, #roomDrawWrap .rd-footer .add-row span, #roomDrawWrap .rd-footer .add-row input{ flex:0 0 auto; white-space:nowrap; }
+    #roomDrawWrap .rd-tools-toggle{ display:inline-block; }
+    #roomDrawWrap.rd-tools-hidden .rd-header{ display:none; }
   }
   #roomDrawCanvasWrap{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
@@ -3732,6 +3744,19 @@ function restoreTextareaHeights(){
   });
 }
 
+// 🆕 2026-10-04.12 (بلاغ: صفحة عرض السعر على الموبايل بتعمل تمرير أفقي): بوضع "كمبيوتر" الورقة عرضها الأدنى ~470px،
+// فعلى شاشة 390px كان المتصفح يوسّع منطقة التخطيط ويضطر المستخدم يسحب يمين/يسار. هلق على الشاشات الصغيرة بوضع
+// الكمبيوتر منثبّت عرض التخطيط 480px (بيصغّر الصفحة كلها لتناسب الشاشة بدون تمرير أفقي)، وبوضع الموبايل بيرجع
+// عرض الجهاز الطبيعي (وضع الموبايل أصلًا مصمم للشاشة الضيقة).
+function applyViewportForMode(){
+  try{
+    const m = document.querySelector('meta[name="viewport"]'); if(!m) return;
+    const small = Math.min(screen.width || 9999, screen.height || 9999) <= 700;
+    const mobileMode = document.body.classList.contains('mode-mobile');
+    m.setAttribute('content', (small && !mobileMode) ? 'width=480' : 'width=device-width, initial-scale=1');
+  }catch(e){}
+}
+window.applyViewportForMode = applyViewportForMode;
 function setMode(mode){
   if(mode === 'mobile'){
     document.body.classList.add('mode-mobile');
@@ -3740,6 +3765,7 @@ function setMode(mode){
   }
   try{ localStorage.setItem('merzona-layout-mode', mode); }catch(e){}
   document.getElementById('mode-chooser').style.display = 'none';
+  applyViewportForMode();
 }
 
 function showModeChooser(){
@@ -4454,7 +4480,16 @@ function getDesignAutosaveStorageKey(){
   try{
     const refEl = document.getElementById('m-ref');
     const ref = refEl ? (refEl.value || '').trim() : '';
-    return 'merzona-design-items::' + (ref || '__no_ref__');
+    // 🛠️ 2026-10-04.11: الرقم المرجعي غير المكتمل (فاضي، أو بس البادئة الافتراضية "M-Q-260" لما ما يوصل الاقتراح من السيرفر)
+    // كان كل العروض الجديدة تشاركه نفس المفتاح، فتصميم عرض قديم كان يظهر بعرض سعر جديد فاضي ويتحفظ معه. هلق بنعطي
+    // كل تبويب مفتاح خاص (sessionStorage) فالإنعاش بعد تحديث الصفحة بنفس التبويب بيشتغل، وما في تسرّب لتبويب/عرض جديد.
+    const m = ref.match(/(\d+)\s*$/);
+    if(!ref || !m || m[1].length < 5){
+      let tab = '';
+      try{ tab = sessionStorage.getItem('merzona-tab-id') || ''; if(!tab){ tab = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); sessionStorage.setItem('merzona-tab-id', tab); } }catch(e){ tab = 'notab'; }
+      return 'merzona-design-items::__noref__::' + tab;
+    }
+    return 'merzona-design-items::' + ref;
   }catch(e){ return 'merzona-design-items::__no_ref__'; }
 }
 window.getDesignAutosaveStorageKey = getDesignAutosaveStorageKey;
@@ -6939,6 +6974,7 @@ try{
   } else if(window.innerWidth <= 640){
     showModeChooser(); // أول زيارة من شاشة بعرض موبايل ومافي تفضيل محفوظ - نسأل مباشرة
   }
+  applyViewportForMode();
 }catch(e){}
 
 /* ================= DESIGNER BRIDGE ================= */
@@ -7362,6 +7398,7 @@ window.wdApplyBack = function(results){
               </div>
               <div class="rd-footer">
                 <div class="add-row" style="flex-wrap:wrap;">
+                  <button type="button" class="small rd-tools-toggle" onclick="document.getElementById('roomDrawWrap').classList.toggle('rd-tools-hidden'); if(window.renderRoomDrawCanvas) setTimeout(renderRoomDrawCanvas,0);" title="إخفاء/إظهار أدوات الرسم العلوية لتكبير مساحة الرسم">🧰 الأدوات</button>
                   <button type="button" class="small" onclick="roomDrawZoomOut()">🔍− تصغير</button>
                   <button type="button" class="small" onclick="roomDrawZoomIn()">🔍+ تكبير</button>
                   <button type="button" class="small" onclick="roomDrawZoomFit()">↔️ ملائمة العرض</button>
@@ -8272,8 +8309,34 @@ function saveDesignItemsToStorage(){
     // 🛠️ إصلاح جذري 2026-10-02 (S-Q-260003) - نفس مبدأ قراءة الاسترجاع فوق بالضبط: الحفظ التلقائي
     // المحلي هلق مربوط بالرقم المرجعي الحالي، مش مفتاح عالمي مشترك بين كل عروض الأسعار.
     const key = window.getDesignAutosaveStorageKey ? window.getDesignAutosaveStorageKey() : 'merzona-design-items';
-    localStorage.setItem(key, JSON.stringify({ items: items, nextId: nextId, selectedId: selectedId, savedAt: new Date().toISOString() }));
+    // 🆕 2026-10-04.13: ملخّص مشتريات لكل بند (نفس أرقام نافذة "المشتريات" بالمصمم بالضبط: العدد من جدول الكميات، طول الألمنيوم،
+    // مساحة الزجاج، الإكسسوارات) بيتحفظ مع التصميم حتى أداة المشتريات المستقلة (procurement.html) تقرأ نفس الأرقام/العدد/الأنواع
+    // بدل ما تحسبها لحالها بشكل مختلف (كانت تتجاهل العدد وما بتدعم الفولدينغ/الشاور/الهاندريل). ما بيندخل جوا items نفسها.
+    let ref = '';
+    try{ const re = document.getElementById('m-ref'); ref = re ? (re.value || '').trim() : ''; }catch(e){}
+    localStorage.setItem(key, JSON.stringify({ items: items, nextId: nextId, selectedId: selectedId, savedAt: new Date().toISOString(), projectRef: ref || null, purchSummaries: buildPurchSummaries() }));
   }catch(e){}
+}
+function buildPurchSummaries(){
+  const out = {};
+  try{
+    items.forEach(it=>{
+      try{
+        if(!it || it.isCameraTemp || isRoom(it) || isGableRoof(it)) return;
+        const handrail = isHandrail(it);
+        const ll = handrail ? [] : purchLeafList(it);
+        out[it.id] = {
+          type: it.shapeType,
+          qty: getPurchItemQty(it),
+          aluMm: Math.round(computeItemAluminumLength(it)),
+          glassM2: ll.reduce((a,l)=> a + (l.w*l.h)/1e6, 0),
+          leaves: ll.length,
+          hw: handrail ? null : purchHardwareForItem(it)
+        };
+      }catch(e){}
+    });
+  }catch(e){}
+  return out;
 }
 var _designSaveTimer = null;
 function scheduleDesignSave(){
@@ -8288,6 +8351,15 @@ window.__flushDesignSave__ = function(){
 };
 window.addEventListener('beforeunload', function(){
   try{ window.__flushDesignSave__(); }catch(e){}
+});
+// 🆕 2026-10-04.13: تعديل العدد بجدول الكميات (أو الرقم المرجعي) لازم ينعكس بالحفظ التلقائي فورًا، حتى أداة المشتريات تشوف نفس العدد.
+['input','change','click'].forEach(function(evName){
+  document.addEventListener(evName, function(e){
+    try{
+      const t = e.target;
+      if(t && t.closest && (t.closest('#qty-rows') || t.id === 'm-ref')) scheduleDesignSave();
+    }catch(err){}
+  }, true);
 });
 
 // جسور إضافية (خارج الـIIFE) حتى ميزة "افتح عرض سعر قديم بآخر نسخة من الأداة" تقدر تصدّر/تستورد
@@ -10844,6 +10916,7 @@ function resetCeilingToFloor(){
   // يمسح أي شكل سقف مستقل رسمه المستخدم بالفأرة (it.ceilingSides - شوف toggleCeilingFreehandDraw/
   // finishRoomFreehandDraw) - null يعني "مافي شكل مستقل، اشتق من الأرضية" (شوف computeCeilingPolygonMM).
   it.ceilingSides = null;
+  it.ceilingOriginMm = null; it.ceilingBearingDeg = null;
   renderCeilingSidesUI(it);
   renderGallery();
 }
@@ -10852,7 +10925,21 @@ function onCeilingSideField(itemId, sideId, value){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const side = (it.roomSides||[]).find(s=>s.id===sideId); if(!side) return;
   pushHistory();
-  side.ceilingOverhangMm = parseFloat(value)||0;
+  // 🛠️ 2026-10-04.11: حد معقول للبروز (-2000..+5000 مم) والتحقق إنو الشكل الناتج سليم؛ قبل هيك رقم كبير جدًا أو
+  // سالب كبير كان يقلب/يلف شكل السقف بصمت.
+  let v = parseFloat(value); if(!isFinite(v)) v = 0;
+  v = Math.max(-2000, Math.min(5000, v));
+  const oldV = side.ceilingOverhangMm;
+  side.ceilingOverhangMm = v;
+  if(!(it.ceilingSides && it.ceilingSides.length >= 3)){
+    const cp = computeCeilingPolygonMM(it) || [];
+    const open = cp.slice(0, -1);
+    const bad = open.length < 3 || open.some(q => !isFinite(q.x) || !isFinite(q.y)) || roomDrawShapeProblem(open);
+    if(bad){
+      side.ceilingOverhangMm = oldV;
+      alert('هالقيمة بتخلي شكل السقف يتقاطع أو ينعكس. القيمة السالبة لازم تكون أصغر من عرض الغرفة.');
+    }
+  }
   renderCeilingSidesUI(it);
   renderGallery();
 }
@@ -10871,7 +10958,7 @@ function computeCeilingPolygonMM(it){
   // (null/undefined أو أقل من 3 أضلاع، متل كل الغرف القديمة المحفوظة قبل هالميزة) = توافقية كاملة مع
   // القديم: نفس الاشتقاق من الأرضية+البروز يلي كان موجود دايمًا (باقي الكود تحت ما تغيّر إطلاقًا).
   if(it.ceilingSides && it.ceilingSides.length >= 3){
-    return computeSidesPolygonMM(it.ceilingSides);
+    return computeSidesPolygonMM(it.ceilingSides, it.ceilingOriginMm, it.ceilingBearingDeg);
   }
   const sides = it.roomSides || [];
   const floorPts = computeSidesPolygonMM(sides);
@@ -11019,6 +11106,52 @@ window.ensureCeilingSlidePanels = ensureCeilingSlidePanels;
 // مصفوفة أوصاف الألواح بالمم (مستوى مسقط 2D): لكل لوح {index, dir, x0,x1,y0,y1,cx,cy,sizeAlong,
 // sizeAcross}. كل لوح عباره عن شريحة من صندوق الإحاطة عرضها (طول الصندوق على المحور الأطول ÷ العدد)
 // وعمقها = كامل عرض الصندوق على المحور التاني (تبسيط متعمّد - شوف الشرح فوق).
+// 🆕 2026-10-04.11: قص لوح على سقف مقعّر (حرف C/U/L) كان يطلع مضلع واحد فيه "جسر" بسماكة صفر يوصل بين جزأين
+// منفصلين (بيتبيّن كخط إطار زيادة بالمعاينة وبالثري دي). هون منفكّ المضلع عند الجسور لعدة مضلعات حقيقية.
+function splitPolygonBridgesMM(poly){
+  const EPS = 0.01;
+  let pts = poly.map(p=>({x:p.x,y:p.y}));
+  if(pts.length > 1){ const f=pts[0], l=pts[pts.length-1]; if(Math.abs(f.x-l.x)<EPS && Math.abs(f.y-l.y)<EPS) pts.pop(); }
+  let guard = 0, changed = true;
+  while(changed && guard++ < 300){
+    changed = false;
+    const n = pts.length;
+    outer: for(let v=0; v<n; v++){
+      for(let i=0; i<n; i++){
+        if(v === i || v === (i+1)%n) continue;
+        const a = pts[i], b = pts[(i+1)%n], q = pts[v];
+        const dx = b.x-a.x, dy = b.y-a.y, L = Math.hypot(dx,dy);
+        if(L < EPS) continue;
+        const cr = ((q.x-a.x)*dy - (q.y-a.y)*dx)/L;
+        if(Math.abs(cr) > EPS) continue;
+        const t = ((q.x-a.x)*dx + (q.y-a.y)*dy)/(L*L);
+        if(t*L <= EPS || t*L >= L-EPS) continue;
+        pts.splice(i+1, 0, { x:q.x, y:q.y });
+        changed = true; break outer;
+      }
+    }
+  }
+  const out = [];
+  (function rec(loop, depth){
+    if(depth > 60){ out.push(loop); return; }
+    for(let i=0;i<loop.length;i++){
+      for(let j=i+1;j<loop.length;j++){
+        if(Math.abs(loop[i].x-loop[j].x) < EPS && Math.abs(loop[i].y-loop[j].y) < EPS){
+          rec(loop.slice(i, j), depth+1);
+          rec(loop.slice(j).concat(loop.slice(0, i)), depth+1);
+          return;
+        }
+      }
+    }
+    out.push(loop);
+  })(pts, 0);
+  return out.filter(l => l.length >= 3 && polygonAreaAbsMM(l) >= 1);
+}
+window.splitPolygonBridgesMM = splitPolygonBridgesMM;
+window.clipPolygonToRectMM = clipPolygonToRectMM;
+window.polygonAreaAbsMM = polygonAreaAbsMM;
+window.roomDrawSidesFromPoints = roomDrawSidesFromPoints;
+
 function getCeilingSlidePanelsMM(it){
   // 🛠️ 2026-10-04.5: ألواح السقف السحّاب موجودة بس لو نوع السقف 'slide' (اختيار المستخدم الصريح).
   if(getCeilingType(it) !== 'slide') return [];
@@ -11035,11 +11168,15 @@ function getCeilingSlidePanelsMM(it){
     let sx0=minX, sx1=maxX, sy0=minY, sy1=maxY, step;
     if(axis === 'x'){ step = (maxX-minX)/count; sx0 = minX + step*i; sx1 = minX + step*(i+1); }
     else { step = (maxY-minY)/count; sy0 = minY + step*i; sy1 = minY + step*(i+1); }
-    const poly = clipPolygonToRectMM(ceilPts, sx0, sx1, sy0, sy1);
-    if(poly.length < 3 || polygonAreaAbsMM(poly) < 1) continue;
-    const xs = poly.map(q=>q.x), ys = poly.map(q=>q.y);
+    const clipped = clipPolygonToRectMM(ceilPts, sx0, sx1, sy0, sy1);
+    if(clipped.length < 3 || polygonAreaAbsMM(clipped) < 1) continue;
+    const polys = splitPolygonBridgesMM(clipped);
+    if(!polys.length) continue;
+    const poly = polys.slice().sort((a,b)=>polygonAreaAbsMM(b)-polygonAreaAbsMM(a))[0];
+    const allPts = [].concat(...polys);
+    const xs = allPts.map(q=>q.x), ys = allPts.map(q=>q.y);
     const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    panels.push({ index:i, dir: dirs[i]||'left', poly, x0, x1, y0, y1, cx:(x0+x1)/2, cy:(y0+y1)/2,
+    panels.push({ index:i, dir: dirs[i]||'left', poly, polys, x0, x1, y0, y1, cx:(x0+x1)/2, cy:(y0+y1)/2,
       sizeAlong: step, sizeAcross: (axis==='x' ? (y1-y0) : (x1-x0)) });
   }
   return panels;
@@ -11269,8 +11406,8 @@ window.toggleRoomSegKind = toggleRoomSegKind;
 
 // يبني نقاط الرسم (بالمم، مركز أول نقطة عند 0,0) من قائمة أضلاع موجودة أصلاً - نفس بالضبط معادلة
 // المشي (bearing walk) يلي buildRoomSVG مبني عليها، بس بالعكس منستخدمها هون لإعادة البناء مش للرسم.
-function roomDrawPointsFromSides(sides){
-  let bearing = 0, x = 0, y = 0;
+function roomDrawPointsFromSides(sides, origin, bearing0){
+  let bearing = Number(bearing0) || 0, x = (origin && Number(origin.x)) || 0, y = (origin && Number(origin.y)) || 0;
   const pts = [{x, y}];
   (sides||[]).forEach(s=>{
     const rad = bearing * Math.PI/180;
@@ -11375,7 +11512,7 @@ function toggleCeilingFreehandDraw(){
     // بدل ما يرسم من الصفر بدون أي مرجع للجدران الحقيقية تحته. لو بدو يبلش فاضي تمامًا برضو فيه زر
     // "🧹 رسمة فاضية جديدة" (startRoomDrawFresh) تحت يمسح كل شي أول ما يبلش.
     const existingPts = (it.ceilingSides && it.ceilingSides.length>=3)
-      ? roomDrawPointsFromSides(it.ceilingSides)
+      ? roomDrawPointsFromSides(it.ceilingSides, it.ceilingOriginMm, it.ceilingBearingDeg)
       : ((it.roomSides && it.roomSides.length>=3) ? roomDrawPointsFromSides(it.roomSides) : []);
     roomDraw = { active:true, itemId:it.id, target:'ceiling', points:existingPts, mouse:null, freeAngle:roomDrawPrefs.freeAngle, gesture:null,
       mode:'pen', selectedPointIdx:-1, selectedSegIdx:-1, lastClick:null, continueFromIdx:-1,
@@ -11733,8 +11870,76 @@ function roomDrawFindEdgeForInsert(raw){
   return best;
 }
 
+// 🆕 2026-10-04.11: دعم اللمس (موبايل/تابلت). السبب: الـSVG عليه touch-action:none فالمتصفح ما بيولّد mousemove
+// أثناء سحب الإصبع، فكان السحب (نقل نقطة/ضلع) ما يشتغل باللمس نهائيًا. هلق في Pointer Events لللمس/القلم بتنادي
+// نفس دوال الماوس بالضبط (نفس المنطق)، ومربوطة على الحاوية الثابتة لأن الـSVG بينستبدل مع كل رسم.
+function roomDrawIsCoarsePointer(){
+  try{ return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); }catch(e){ return false; }
+}
+(function bindRoomDrawTouch(){
+  const wrap = document.getElementById('roomDrawCanvasWrap');
+  if(!wrap || wrap.__mzTouchBound) return;
+  wrap.__mzTouchBound = true;
+  // 🆕 2026-10-04.12: إصبعين = تكبير/تصغير بالقرص + تحريك المنظر (pan). أول إصبع بيشتغل سحب/إضافة نقاط متل قبل؛
+  // أول ما ينزل إصبع تاني منلغي الحركة الجارية (حتى ما تنضاف أو تنتقل نقطة بالغلط) وما بيرجع الإصبع الباقي
+  // يرسم لحد ما يرتفع الإصبعين كلهم.
+  const touches = new Map();
+  let primaryId = null, pinch = null, pinchedSession = false;
+  const wrapEvt = (e)=> ({ clientX:e.clientX, clientY:e.clientY, button:0, currentTarget:null, preventDefault(){ try{ e.preventDefault(); }catch(_){} } });
+  const mmAt = (x,y)=> roomDrawEventPoint({ clientX:x, clientY:y, currentTarget:null });
+  const two = ()=>{ const a = Array.from(touches.values()); return { a:a[0], b:a[1], dist:Math.hypot(a[0].x-a[1].x, a[0].y-a[1].y) || 1, mx:(a[0].x+a[1].x)/2, my:(a[0].y+a[1].y)/2 }; };
+  wrap.addEventListener('pointerdown', (e)=>{
+    if(e.pointerType === 'mouse' || !roomDraw.active) return;
+    if(!e.target.closest || !e.target.closest('svg')) return;
+    touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    try{ wrap.setPointerCapture(e.pointerId); }catch(_){}
+    if(touches.size >= 2){
+      pinchedSession = true;
+      roomDraw.gesture = null;               // نوقف أي سحب/نقطة جارية
+      const t = two(); pinch = { dist:t.dist, mx:t.mx, my:t.my };
+      try{ e.preventDefault(); }catch(_){}
+      return;
+    }
+    primaryId = e.pointerId; pinchedSession = false;
+    roomDrawPointerDown(wrapEvt(e));
+  });
+  wrap.addEventListener('pointermove', (e)=>{
+    if(e.pointerType === 'mouse' || !roomDraw.active || !touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    try{ e.preventDefault(); }catch(_){}
+    if(touches.size >= 2 && pinch){
+      const t = two();
+      const prevMidMm = mmAt(pinch.mx, pinch.my);
+      roomDrawZoom(pinch.dist / t.dist, prevMidMm);     // فتح الإصبعين = تكبير (factor < 1)
+      const nowMidMm = mmAt(t.mx, t.my);                 // نثبّت النقطة تحت الإصبعين (تحريك المنظر)
+      const v = roomDraw.view;
+      if(v){ roomDraw.view = { x0: v.x0 + (prevMidMm.x - nowMidMm.x), y0: v.y0 + (prevMidMm.y - nowMidMm.y), w:v.w, h:v.h }; }
+      renderRoomDrawCanvas();
+      pinch = { dist:t.dist, mx:t.mx, my:t.my };
+      return;
+    }
+    if(e.pointerId !== primaryId || pinchedSession) return;
+    roomDrawPointerMove(wrapEvt(e));
+  });
+  const end = (e, cancelled)=>{
+    if(e.pointerType === 'mouse' || !touches.has(e.pointerId)) return;
+    touches.delete(e.pointerId);
+    try{ wrap.releasePointerCapture(e.pointerId); }catch(_){}
+    if(touches.size < 2) pinch = null;
+    if(!roomDraw.active){ if(!touches.size){ primaryId = null; pinchedSession = false; } return; }
+    if(e.pointerId === primaryId){
+      primaryId = null;
+      if(cancelled || pinchedSession){ roomDraw.gesture = null; renderRoomDrawCanvas(); }
+      else roomDrawPointerUp(wrapEvt(e));
+    }
+    if(!touches.size){ primaryId = null; pinchedSession = false; }
+  };
+  wrap.addEventListener('pointerup', (e)=>end(e,false));
+  wrap.addEventListener('pointercancel', (e)=>end(e,true));
+})();
 function roomDrawEventPoint(evt){
-  const svg = evt.currentTarget;
+  const svg = (evt.currentTarget && evt.currentTarget.getBoundingClientRect) ? evt.currentTarget : document.querySelector('#roomDrawCanvasWrap svg');
+  if(!svg) return { x:0, y:0 };
   const rect = svg.getBoundingClientRect();
   const px = (evt.clientX - rect.left) * (ROOM_DRAW_PX_W / rect.width);
   const py = (evt.clientY - rect.top) * (ROOM_DRAW_PX_H / rect.height);
@@ -12281,6 +12486,7 @@ function renderRoomDrawCanvas(){
 // هون، وما منلمس/منعيد إنشاء عنصر الـinput نفسه إطلاقًا (هيك ما بيفقد التركيز/القيمة يلي عم يكتبها
 // المستخدم لما تنعاد الرسمة بأي حركة ماوس).
 // 🆕 2026-10-04: خانة تعديل مقاس الضلع المحدد (بوضع المؤشر) - بتظهر عند منتصف الضلع المحدد.
+window.renderRoomDrawCanvas = function(){ return renderRoomDrawCanvas(); };
 function positionRoomDrawEdgeLenBox(){
   const boxWrap = document.getElementById('roomDrawEdgeLenBoxWrap');
   const canvasWrap = document.getElementById('roomDrawCanvasWrap');
@@ -12306,7 +12512,7 @@ function positionRoomDrawEdgeLenBox(){
   if(inp && roomDraw.edgeBoxKey !== key){
     roomDraw.edgeBoxKey = key;
     inp.value = String(Math.round(len));
-    try{ inp.focus({ preventScroll:true }); inp.select(); }catch(e){}
+    if(!roomDrawIsCoarsePointer()){ try{ inp.focus({ preventScroll:true }); inp.select(); }catch(e){} }
   }
 }
 
@@ -12366,7 +12572,7 @@ function positionRoomDrawLenBox(){
   // وما هو أصلًا هو العنصر الحالي المركَّز عليه (document.activeElement) - منركّز عليه تلقائيًا، حتى
   // يضل جاهز للكتابة فورًا بأي لحظة بدون ما يحتاج يدوس عليه بالماوس قبل.
   const inp = document.getElementById('roomDrawLenInput');
-  if(inp && document.activeElement !== inp){
+  if(inp && document.activeElement !== inp && !roomDrawIsCoarsePointer()){
     try{ inp.focus({ preventScroll:true }); }catch(e){ try{ inp.focus(); }catch(e2){} }
   }
 }
@@ -12432,7 +12638,7 @@ function roomDrawCommitTypedLength(){
   roomDraw.lastClick = null;
   if(inp) inp.value = '';
   renderRoomDrawCanvas();
-  setTimeout(()=>{ const el = document.getElementById('roomDrawLenInput'); if(el) el.focus(); }, 0);
+  setTimeout(()=>{ const el = document.getElementById('roomDrawLenInput'); if(el && !roomDrawIsCoarsePointer()) el.focus(); }, 0);
 }
 window.roomDrawCommitTypedLength = roomDrawCommitTypedLength;
 
@@ -12769,6 +12975,11 @@ function finishRoomFreehandDraw(){
   { const prob = roomDrawShapeProblem(pts);
     if(prob === 'zero'){ alert('الشكل المرسوم ما إلو مساحة (كل النقاط على خط واحد تقريبًا). أضف نقطة خارج الخط وجرب مرة ثانية.'); return; }
     if(prob === 'cross'){ alert('أضلاع الشكل بتتقاطع مع بعضها (شكل ملتف). عدّل النقاط حتى ما يتقاطع أي ضلعين وجرب مرة ثانية.'); return; } }
+  // 🆕 2026-10-04.11: توحيد اتجاه الشكل. الأداة بتحسب الزاوية الداخلية على أساس رسم باتجاه عقارب الساعة؛ لو
+  // المستخدم رسم عكس العقارب كانت كل الزوايا بتطلع 270° (والشكل كأنو مقلوب) بدل 90°. هلق منعكس ترتيب النقاط
+  // (مع إبقاء النقطة الأولى) فيطلع الشكل نفسه بزوايا صحيحة.
+  { let a2 = 0; for(let i=0;i<pts.length;i++){ const p=pts[i], q=pts[(i+1)%pts.length]; a2 += p.x*q.y - q.x*p.y; }
+    if(a2 < 0) pts = [pts[0]].concat(pts.slice(1).reverse()); }
   // 🆕 2026-09-30: طلب حمدي - رسم شكل السقف المستقل (roomDraw.target==='ceiling') بيتفرّع هون
   // لالتزام (commit) منفصل تمامًا عن التزام الأرضية تحت: ceilingSides شكل مستقل بالكامل عن roomSides
   // (مافي "أضلاع سقف" مربوطة ببنود جدول الكمية زي أضلاع الأرضية - هاي ميزة لمرحلة تانية لاحقًا خارج
@@ -12778,6 +12989,9 @@ function finishRoomFreehandDraw(){
     if(!confirmRoomShapeGrowthIfSuspicious(oldCeilingCount, pts.length, 'شكل السقف')) return;
     pushHistory(true);
     it.ceilingSides = roomDrawSidesFromPoints(pts);
+    // 🆕 2026-10-04.11: نخزّن مكان أول نقطة واتجاه أول ضلع حتى يضل السقف مكانه الصح فوق الأرضية
+    it.ceilingOriginMm = { x: pts[0].x, y: pts[0].y };
+    it.ceilingBearingDeg = Math.atan2(pts[1].y-pts[0].y, pts[1].x-pts[0].x) * 180/Math.PI;
     selectItem(it.id);
     cancelRoomFreehandDraw();
     renderCeilingSidesUI(it);
@@ -12854,6 +13068,36 @@ window.finishRoomFreehandDraw = finishRoomFreehandDraw;
 function autoCreateRoomSideRowsForAllSegments(it){
   const sides = it.roomSides || [];
   let created = 0, updated = 0;
+  // 🛠️ 2026-10-04.11: أسماء الأسطر التلقائية ("غرفة 1 - ضلع N") بتتحدّث لرقم الضلع الحالي لما تتغيّر الأضلاع
+  // (حذف ضلع ثم إضافة ضلع كان يطلع سطرين بنفس الاسم "ضلع 4"). الأسماء المخصصة (اللي غيّرها المستخدم) ما بنلمسها.
+  const roomLabel = it.label || 'غرفة';
+  const autoNameRe = new RegExp('^' + roomLabel.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ' - ضلع \\d+( - جزء \\d+)?$');
+  const nameTaken = (nm, exceptTr)=> Array.from(document.querySelectorAll('#qty-rows tr')).some(r => r !== exceptTr && ((r.querySelector('.item-input')||{}).value||'') === nm);
+  let renamed = 0;
+  sides.forEach((side, sIdx)=>{
+    const segs0 = ensureRoomSideSegments(side);
+    segs0.forEach((seg, gIdx)=>{
+      if(seg.kind !== 'design' || !seg.rowUid) return;
+      const tr0 = document.querySelector('#qty-rows tr[data-row-uid="'+seg.rowUid+'"]');
+      if(!tr0) return;
+      const inp0 = tr0.querySelector('.item-input');
+      if(!inp0 || !autoNameRe.test(inp0.value||'')) return;
+      const want = segs0.length > 1 ? roomLabel + ' - ضلع ' + (sIdx+1) + ' - جزء ' + (gIdx+1) : roomLabel + ' - ضلع ' + (sIdx+1);
+      if(inp0.value === want) return;
+      tr0.__mzWantName = want;
+    });
+  });
+  // نطبّق بعد ما نجمع كل الأسماء المطلوبة حتى ما يتصادم اسمين أثناء التبديل (مثلاً ضلع 2 <-> ضلع 3)
+  Array.from(document.querySelectorAll('#qty-rows tr')).forEach(tr0=>{
+    const want = tr0.__mzWantName; if(!want) return;
+    delete tr0.__mzWantName;
+    const inp0 = tr0.querySelector('.item-input'); if(!inp0) return;
+    inp0.value = want; tr0.dataset.itemName = want;
+    const uid0 = tr0.dataset.rowUid;
+    items.forEach(i=>{ if(uid0 && i.sourceRowUid === uid0 && i.isRoomWallElevation) i.label = want; });
+    renamed++;
+  });
+  if(renamed){ try{ renumber(); }catch(e){} }
   sides.forEach((side, sIdx)=>{
     const segs = ensureRoomSideSegments(side);
     segs.forEach((seg, gIdx)=>{
@@ -12887,9 +13131,10 @@ function autoCreateRoomSideRowsForAllSegments(it){
       if(!tr) return;
       const nameInput = tr.querySelector('.item-input');
       if(nameInput){
-        const label = segs.length > 1
+        let label = segs.length > 1
           ? (it.label||'غرفة') + ' - ضلع ' + sideIdx + ' - جزء ' + segIdx
           : (it.label||'غرفة') + ' - ضلع ' + sideIdx;
+        if(nameTaken(label, tr)){ let k = 2; while(nameTaken(label + ' (' + k + ')', tr)) k++; label = label + ' (' + k + ')'; }
         nameInput.value = label;
         tr.dataset.itemName = label;
       }
@@ -12954,8 +13199,10 @@ const GABLE_SPEED_FACTORS = { slow: 2.4, medium: 1, fast: 0.42 };
 // نخاطر نكسر معاينة الأرضية 2D يلي شغالة ومجربة) - بيرجع نقاط المضلع بالمم.
 // نفس منطق المشي حول الأضلاع (طول+زاوية داخلية لكل ضلع) - معمّمة لأي قائمة أضلاع (أرضية أو سقف)
 // حتى تصير قابلة لإعادة الاستخدام بدون ما نكرر نفس الحساب بمكان تاني.
-function computeSidesPolygonMM(sides){
-  let bearing = 0, x = 0, y = 0;
+function computeSidesPolygonMM(sides, origin, bearing0){
+  // 🆕 2026-10-04.11: origin/bearing0 اختياريين - لشكل السقف المستقل (بيحفظ نقطة بدايته واتجاه أول ضلع بإطار الأرضية
+  // حتى ما يتزحزح عن مكانه الحقيقي فوق الأرضية). بدونهم = السلوك القديم بالضبط (من 0,0 باتجاه 0).
+  let bearing = Number(bearing0) || 0, x = (origin && Number(origin.x)) || 0, y = (origin && Number(origin.y)) || 0;
   const pts = [{x,y}];
   (sides||[]).forEach(s=>{
     const rad = bearing * Math.PI/180;
@@ -13672,28 +13919,37 @@ async function buildRoom3DScene(it, wrap){
           const rank = arr.length - 1 - stackSlot;
           // 🛠️ 2026-10-04.5: اللوح بيتبني من المضلع المقصوص على حدود السقف الفعلي (p.poly) بدل صندوق
           // مستطيل كامل - هيك ما بيطلع أي لوح خارج حدود الأرضية + البروز.
-          const geo = makeCeilingSlabGeometry(p.poly, p.cx, p.cy, panelThicknessM);
-          const mat = new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.55, roughness:0.15, side:THREE.DoubleSide });
-          const mesh = new THREE.Mesh(geo, mat);
-          mesh.receiveShadow = true;
-          const closedX = p.cx*MMTOM, closedZ = p.cy*MMTOM;
-          let openX = closedX, openZ = closedZ;
-          const openAlongM = edgeM + dirSign*(stackGapM*(stackSlot+1));
-          if(axis === 'x') openX = openAlongM; else openZ = openAlongM;
-          mesh.position.set(closedX, heightM, closedZ);
-          scene.add(mesh);
-          // حواف كل لوح (خطوط غامقة) - هاي فعليًا هي "تقطيعات الزجاج" الدقيقة يلي طلبها حمدي بالسقف
-          // ("انا بالسقف برسم تقطيعات للزجاج ولازم يكون الرسم جدا دقيق").
-          const edgesLines = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:0x2b2f33 }));
-          edgesLines.position.copy(mesh.position);
-          scene.add(edgesLines);
-          room3D.ceilingObjects.push(mesh, edgesLines);
-          room3D.ceilingPanels.push({
-            mesh, edges: edgesLines, dir,
-            closed:{ x:closedX, z:closedZ },
-            open:{ x:openX, z:openZ },
-            delayMs: rank*130,
-            durationMs: 900,
+          // 🛠️ 2026-10-04.11: لوح بسقف مقعّر ممكن يكون عدة قطع منفصلة؛ كل قطعة مجسم، وكلها بتتحرك مع بعض
+          // (نفس المركز/الفتح) حتى ما تتفرق.
+          (p.polys || [p.poly]).forEach(pieceMM=>{
+            const geo = makeCeilingSlabGeometry(pieceMM, p.cx, p.cy, panelThicknessM);
+            const mat = new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.55, roughness:0.15, side:THREE.DoubleSide });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.receiveShadow = true;
+            const closedX = p.cx*MMTOM, closedZ = p.cy*MMTOM;
+            let openX = closedX, openZ = closedZ;
+            // 🛠️ 2026-10-04.12: قبل هيك مركز اللوح كان يروح لـ(الحافة + فجوة) يعني نص اللوح يطلع برّا حدود السقف.
+            // هلق حافة اللوح القريبة بتوقف عند حافة السقف بالضبط (اللوح كله جوا الحدود)، والألواح المتراصة
+            // بتنرفع فوق بعضها (liftM) حتى ما تتداخل مع بعض بالمشهد.
+            const sizeAlongM = (axis === 'x' ? (p.x1 - p.x0) : (p.y1 - p.y0))*MMTOM;
+            const openAlongM = edgeM - dirSign*(sizeAlongM/2);
+            const liftM = stackSlot * panelThicknessM * 1.6;
+            if(axis === 'x') openX = openAlongM; else openZ = openAlongM;
+            mesh.position.set(closedX, heightM, closedZ);
+            scene.add(mesh);
+            // حواف كل لوح (خطوط غامقة) - هاي فعليًا هي "تقطيعات الزجاج" الدقيقة يلي طلبها حمدي بالسقف
+            // ("انا بالسقف برسم تقطيعات للزجاج ولازم يكون الرسم جدا دقيق").
+            const edgesLines = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:0x2b2f33 }));
+            edgesLines.position.copy(mesh.position);
+            scene.add(edgesLines);
+            room3D.ceilingObjects.push(mesh, edgesLines);
+            room3D.ceilingPanels.push({
+              mesh, edges: edgesLines, dir,
+              closed:{ x:closedX, z:closedZ, y:heightM },
+              open:{ x:openX, z:openZ, y:heightM + liftM },
+              delayMs: rank*130,
+              durationMs: 900,
+            });
           });
         });
       });
@@ -14139,6 +14395,10 @@ function updateCeilingSlideAnimationFrame(){
     const z = entry.from.z + (entry.to.z - entry.from.z)*e;
     entry.cp.mesh.position.x = x; entry.cp.mesh.position.z = z;
     entry.cp.edges.position.x = x; entry.cp.edges.position.z = z;
+    if(entry.from.y != null && entry.to.y != null){
+      const y = entry.from.y + (entry.to.y - entry.from.y)*e;
+      entry.cp.mesh.position.y = y; entry.cp.edges.position.y = y;
+    }
   });
   if(allDone){
     room3D.ceilingOpen = anim.toOpen;
@@ -14321,6 +14581,21 @@ function buildFlatFixedGlassPanel(wM, dM, cxM, yM, czM){
   return group;
 }
 
+// 🆕 2026-10-04.12: لوح زجاج ثابت بشكل مضلع حقيقي (للمسقط ذي الأضلاع المائلة) - نفس مظهر اللوح المستطيل فوق.
+function buildFlatFixedGlassPolygonPanel(polyMM, cxMM, cyMM, yM){
+  const frameColor = 0x2b2f33;
+  const glassMat = new THREE.MeshStandardMaterial({ color:0xbcdcec, transparent:true, opacity:0.45, roughness:0.15, side:THREE.DoubleSide });
+  const geo = makeCeilingSlabGeometry(polyMM, cxMM, cyMM, 0.02);
+  const mesh = new THREE.Mesh(geo, glassMat);
+  mesh.position.set(cxMM/1000, yM, cyMM/1000);
+  const group = new THREE.Group();
+  group.add(mesh);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:frameColor }));
+  edges.position.copy(mesh.position);
+  group.add(edges);
+  return group;
+}
+
 // 🆕 2026-10-02: اختبار "نقطة جوا مضلع" كلاسيكي (ray casting) بالمليمتر - مستخدم من
 // computeFixedGlassPanelsMM تحت لتحديد أي خلايا الشبكة فعليًا جوا مسقط السقف المرسوم.
 function pointInPolygonMM(x, y, poly){
@@ -14353,6 +14628,33 @@ function computeFixedGlassPanelsMM(it){
   const gz0 = box.minYMm + (it.gableOffsetZMm||0);
   const gx1 = gx0 + (it.gableLengthMm||0);
   const gz1 = gz0 + (it.gableWidthMm||0);
+
+  // 🛠️ 2026-10-04.12: مسقط بزوايا حرة (أضلاع مائلة). الشبكة بالأسفل بتفحص مركز كل خلية، فالأضلاع المائلة كانت
+  // تطلع درجات سلّم (ألواح بتزيد أو بتنقص عن الحد الحقيقي). لما أي ضلع مو أفقي/عمودي بنقص مضلع المسقط فعليًا
+  // على المناطق الأربع خارج مستطيل الجملون (يسار/يمين/فوق/تحت) فيطلع لوح بالشكل الحقيقي بالضبط.
+  const AXIS_TOL = 0.5;
+  const rectilinear = poly.every((a,i)=>{ const b = poly[(i+1)%poly.length]; return Math.abs(a.x-b.x) < AXIS_TOL || Math.abs(a.y-b.y) < AXIS_TOL; });
+  if(!rectilinear){
+    const INF = 1e7;
+    const zones = [
+      [-INF, gx0, -INF, INF],
+      [gx1, INF, -INF, INF],
+      [gx0, gx1, -INF, gz0],
+      [gx0, gx1, gz1, INF]
+    ];
+    const out = [];
+    zones.forEach(z=>{
+      if(z[1] - z[0] <= 0 || z[3] - z[2] <= 0) return;
+      const clipped = clipPolygonToRectMM(poly, z[0], z[1], z[2], z[3]);
+      if(clipped.length < 3) return;
+      splitPolygonBridgesMM(clipped).forEach(pc=>{
+        const xs = pc.map(q=>q.x), ys = pc.map(q=>q.y);
+        const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+        out.push({ xMm:x0, yMm:y0, wMm:x1-x0, dMm:y1-y0, poly:pc, cxMm:(x0+x1)/2, cyMm:(y0+y1)/2 });
+      });
+    });
+    return out;
+  }
 
   const xsSet = new Set([box.minXMm, box.minXMm+box.lengthMm, gx0, gx1]);
   const ysSet = new Set([box.minYMm, box.minYMm+box.widthMm, gz0, gz1]);
@@ -14683,10 +14985,12 @@ async function buildGableRoof3DScene(it, wrap){
   if(it.roofFootprintSides && it.roofFootprintSides.length >= 3){
     const fixedPanelsMM = computeFixedGlassPanelsMM(it);
     fixedPanelsMM.forEach(p=>{
-      const panelGroup = buildFlatFixedGlassPanel(
-        p.wMm*MMTOM, p.dMm*MMTOM,
-        (p.xMm + p.wMm/2)*MMTOM, roomOriginYM + legHM, (p.yMm + p.dMm/2)*MMTOM
-      );
+      const panelGroup = p.poly
+        ? buildFlatFixedGlassPolygonPanel(p.poly, p.cxMm, p.cyMm, roomOriginYM + legHM)
+        : buildFlatFixedGlassPanel(
+            p.wMm*MMTOM, p.dMm*MMTOM,
+            (p.xMm + p.wMm/2)*MMTOM, roomOriginYM + legHM, (p.yMm + p.dMm/2)*MMTOM
+          );
       panelGroup.traverse(o=>{ if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
       scene.add(panelGroup);
     });
@@ -15597,15 +15901,21 @@ function buildCeilingSVG(it){
   let panelsSvg = '';
   if(slidePanels.length){
     const dirColor = { left:'rgba(15,136,205,0.38)', right:'rgba(214,113,17,0.38)' };
-    const dirArrow = { left:'⟵', right:'⟶' };
-    const dirLabel = { left:'شمال', right:'يمين' };
+    const slideAxisY = !!(getCeilingSlideBoundsMM(it) && getCeilingSlideBoundsMM(it).axis === 'y');
+    const dirArrow = slideAxisY ? { left:'⟰', right:'⟱' } : { left:'⟵', right:'⟶' };
+    const dirLabel = slideAxisY ? { left:'أعلى', right:'أسفل' } : { left:'شمال', right:'يمين' };
     slidePanels.forEach(p=>{
       // 🛠️ 2026-10-04.5: اللوح بيترسم كمضلع مقصوص على حدود السقف الفعلي (مش مستطيل كامل).
-      const pxPoly = p.poly.map(toPx);
-      const polyPts = pxPoly.map(q=>q.x+','+q.y).join(' ');
-      const c = toPx({x:p.cx,y:p.cy});
-      panelsSvg += `<polygon class="ceil-slide-panel" data-panel-index="${p.index}" points="${polyPts}" fill="${dirColor[p.dir]||dirColor.left}" stroke="var(--wd-ink)" stroke-width="1" style="cursor:pointer;" onclick="toggleCeilingSlidePanelDir(${it.id},${p.index})"><title>لوح سقف ${p.index+1} - جهة الانزلاق الحالية: ${dirLabel[p.dir]||''} (اضغط لتبديلها)</title></polygon>`;
-      panelsSvg += `<text x="${c.x}" y="${c.y+5}" font-size="14" text-anchor="middle" pointer-events="none">${dirArrow[p.dir]||''}</text>`;
+      // 🛠️ 2026-10-04.11: كل قطعة من اللوح (السقف المقعّر ممكن يقسمو لقطعتين) بتترسم لحالها، والضغط على أي قطعة
+      // بيبدّل جهة نفس اللوح.
+      (p.polys || [p.poly]).forEach(pieceMM=>{
+        const pxPoly = pieceMM.map(toPx);
+        const polyPts = pxPoly.map(q=>q.x+','+q.y).join(' ');
+        const pxs = pieceMM.map(q=>q.x), pys = pieceMM.map(q=>q.y);
+        const c = toPx({ x:(Math.min(...pxs)+Math.max(...pxs))/2, y:(Math.min(...pys)+Math.max(...pys))/2 });
+        panelsSvg += `<polygon class="ceil-slide-panel" data-panel-index="${p.index}" points="${polyPts}" fill="${dirColor[p.dir]||dirColor.left}" stroke="var(--wd-ink)" stroke-width="1" style="cursor:pointer;" onclick="toggleCeilingSlidePanelDir(${it.id},${p.index})"><title>لوح سقف ${p.index+1} - جهة الانزلاق الحالية: ${dirLabel[p.dir]||''} (اضغط لتبديلها)</title></polygon>`;
+        panelsSvg += `<text x="${c.x}" y="${c.y+5}" font-size="14" text-anchor="middle" pointer-events="none">${dirArrow[p.dir]||''}</text>`;
+      });
     });
   }
   return `
