@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-04.6';
+  var CURRENT_VERSION = '2026-10-04.8';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -4107,6 +4107,7 @@ function captureFullQuotationData(){
   // (كان هاد بالضبط سبب تكرار/ضياع الربط بين التصميم وعرض السعر يلي اشتكى منّو حمدي).
   data.currentDesignId = currentDesignId || null;
   data.currentDesignName = currentDesignName || null;
+  data.designSavedAt = currentDesignSavedAt || 0;
   return data;
 }
 
@@ -4120,6 +4121,7 @@ function applyFullQuotationData(data){
   // _Designs لهاد العرض بالذات، حتى "حفظ التصميم" الجاي يحدّث نفس الملف مش ينشئ وحدة جديدة.
   currentDesignId = data.currentDesignId || null;
   currentDesignName = data.currentDesignName || null;
+  currentDesignSavedAt = data.designSavedAt || 0;
   try{
     // منفضي كل الجداول أول (نفس خطوة resetAll) قبل ما نطبّق بيانات العرض القديم - حتى ما تختلط
     // مع أي بنود افتراضية كانت انزرعت للتو (seedDefaults) قبل ما توصل بيانات التحميل.
@@ -4191,6 +4193,8 @@ function applyFullQuotationData(data){
 let currentDraftId = null;
 let currentDesignId = null;
 let currentDesignName = null;
+// 🆕 2026-10-04.7: وقت (savedAt) آخر نسخة تصميم مرتبطة بعرض السعر هاد (محفوظة بـ_Designs أو محمّلة منها).
+let currentDesignSavedAt = 0;
 
 /* ================= مسودة محلية (Draft) - حماية من فقدان العمل عند تعليق/إغلاق المتصفح فجأة =================
    🆕 2026-09-02: طلب من حمدي بعد ما فقد عرض سعر كامل (كان عم يدخل بنود كتيرة) بسبب تعليق المتصفح
@@ -5653,6 +5657,92 @@ async function cleanupDraftAfterFinalSave(refRaw){
 // يلي جوا أداة عرض السعر، مش designer.html المنفصلة). لو عرض السعر إله رقم مرجعي حاليًا، التصميم
 // بينحفظ مرتبط فيه تلقائيًا؛ لو لسا ما في رقم مرجعي (تصميم حر/مستقل)، لازم يتسمّى يدويًا حتى يتميز
 // عن باقي التصاميم الحرة بسجل "المسودات والتصاميم" بالداشبورد.
+/* ================= 🆕 2026-10-04.7 (بلاغ حمدي S-Q-260002: "ضغطت حفظ التصميم وطلعت ودخلت من جديد وما لقيت
+   التصميم") - السبب الجذري: "💾 حفظ التصميم" بيكتب بس بمجلد _Designs، ما بيحدّث ملف عرض السعر نفسه
+   عالدرايف. فلما حمدي يفتح عرض السعر من جديد (من الداشبورد/آخر نسخة)، كان يتحمّل التصميم القديم المخزّن
+   جوا ملف عرض السعر، والتصميم الأحدث يضل نايم بـ_Designs بدون ما حدا يقول لحمدي. الحل: بعد ما ينفتح
+   عرض سعر قائم، منفحص تلقائيًا (بدون أي نافذة دخول جوجل) لو في تصميم أحدث محفوظ لنفس الرقم المرجعي
+   (من _Designs عالدرايف، ومن نسخة محلية بالمتصفح)، ومنعرض عليه يحمّله - ما منفرضه أبدًا بدون سؤال. ====== */
+function designItemsSignature(arr){
+  try{
+    return JSON.stringify((arr||[]).filter(it=>!it.isCameraTemp).map(it=>({
+      id:it.id, label:it.label, t:it.shapeType, w:it.width, h:it.height, l:it.layout,
+      rs:(it.roomSides||[]).map(sd=>[sd.length, sd.angleDeg, sd.ceilingOverhangMm, (sd.segments||[]).map(g=>[g.length, g.kind, g.rowUid])]),
+      cs:it.ceilingSides||null, ct:it.ceilingType||null
+    })));
+  }catch(e){ return String(Math.random()); }
+}
+function normalizeRefForCompare(r){ return String(r||'').replace(/\s+/g,'').toUpperCase(); }
+async function fetchLatestSavedDesignForRef(refRaw){
+  const refNorm = normalizeRefForCompare(refRaw);
+  if(!refNorm) return null;
+  let best = null;
+  // (أ) نسخة محلية بنفس المتصفح (بتنكتب كل مرة "حفظ التصميم" ينجح) - بتشتغل حتى بدون إنترنت/توكن.
+  try{
+    const raw = localStorage.getItem('merzona-latest-design::' + refNorm);
+    if(raw){ const env = JSON.parse(raw); if(env && Array.isArray(env.designItems)) best = env; }
+  }catch(e){}
+  // (ب) نسخة الدرايف (مجلد _Designs لفرع الرقم المرجعي) - بدون أي نافذة: توكن صامت فقط.
+  try{
+    const token = await getGoogleAccessToken(true);
+    const branch = getBranchFromRef(refRaw);
+    const rootId = getDriveRootFolderIdForBranch(branch);
+    const qf = encodeURIComponent(`name = '_Designs' and '${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
+    const fr = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${qf}&fields=files(id,name)`, { headers:{ Authorization:'Bearer '+token } }, 20000);
+    const fd = await fr.json();
+    const folderId = fd.files && fd.files[0] && fd.files[0].id;
+    if(folderId){
+      const ql = encodeURIComponent(`'${folderId}' in parents and trashed = false and mimeType = 'application/json'`);
+      const lr = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${ql}&orderBy=modifiedTime%20desc&pageSize=25&fields=files(id,name,modifiedTime)`, { headers:{ Authorization:'Bearer '+token } }, 20000);
+      const ld = await lr.json();
+      const envs = await Promise.all((ld.files||[]).map(async f=>{
+        try{
+          const r = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`, { headers:{ Authorization:'Bearer '+token } }, 20000);
+          const e = await r.json();
+          return (e && e.schema === 'merzona-design-v1' && normalizeRefForCompare(e.ref) === refNorm && Array.isArray(e.designItems)) ? e : null;
+        }catch(err){ return null; }
+      }));
+      envs.filter(Boolean).forEach(e=>{ if(!best || (e.savedAt||0) > (best.savedAt||0)) best = e; });
+    }
+  }catch(e){ console.warn('[تصميم أحدث] تعذّر فحص الدرايف (بنكمل بالنسخة المحلية فقط):', (e && e.message) || e); }
+  return best;
+}
+// بتنفّذ بعد فتح عرض سعر قائم (مش بعد تراجع/استرجاع). بترجع true لو حمّلت تصميم أحدث.
+async function offerNewerSavedDesign(){
+  try{
+    const refEl = document.getElementById('m-ref');
+    const ref = refEl ? (refEl.value || '').trim() : '';
+    if(!ref) return false;
+    const env = await fetchLatestSavedDesignForRef(ref);
+    if(!env) return false;
+    const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : { items:[] };
+    const curSig = designItemsSignature(exported.items);
+    const newSig = designItemsSignature(env.designItems);
+    if(curSig === newSig){ // نفس التصميم - بس منزامن الربط
+      if(env.designId && !currentDesignId){ currentDesignId = env.designId; currentDesignName = env.name || null; }
+      if((env.savedAt||0) > currentDesignSavedAt) currentDesignSavedAt = env.savedAt || 0;
+      return false;
+    }
+    if((env.savedAt||0) <= currentDesignSavedAt) return false; // التصميم المفتوح هو نفسه أو أحدث
+    const declinedKey = 'merzona-design-offer-declined::' + normalizeRefForCompare(ref);
+    let declined = null; try{ declined = localStorage.getItem(declinedKey); }catch(e){}
+    if(declined && Number(declined) === env.savedAt) return false;
+    const when = new Date(env.savedAt || Date.now()).toLocaleString('ar');
+    const ok = confirm('📌 لقينا تصميمًا أحدث محفوظًا لعرض السعر هاد (' + ref + ')\n\n' +
+      '• التصميم المحفوظ: ' + (env.designItems||[]).length + ' بند - بتاريخ ' + when + '\n' +
+      '• التصميم المفتوح حاليًا: ' + (exported.items||[]).length + ' بند\n\n' +
+      'هل تريد تحميل التصميم المحفوظ الأحدث؟\n(إذا ضغطت "إلغاء" بيبقى التصميم المفتوح حاليًا كما هو، وما رح نسألك عن نفس النسخة مرة ثانية)');
+    if(!ok){ try{ localStorage.setItem(declinedKey, String(env.savedAt)); }catch(e){} return false; }
+    currentDesignId = env.designId || currentDesignId;
+    currentDesignName = env.name || null;
+    currentDesignSavedAt = env.savedAt || 0;
+    if(window.__applyDesignItemsImport__) window.__applyDesignItemsImport__(env.designItems, env.designNextId);
+    return true;
+  }catch(e){ console.warn('[تصميم أحدث] فشل الفحص:', e); return false; }
+}
+window.offerNewerSavedDesign = offerNewerSavedDesign;
+window.fetchLatestSavedDesignForRef = fetchLatestSavedDesignForRef;
+
 async function saveDesignToDrive(){
   if(window.__flushDesignSave__) window.__flushDesignSave__(); // نضمن آخر تعديل عالرسمة محفوظ قبل ما ناخد نسخة تصدير
   const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
@@ -5689,6 +5779,8 @@ async function saveDesignToDrive(){
       designItems: exported.items, designNextId: exported.nextId
     };
     await saveJsonToDriveFolder(currentDesignId + '.json', envelope, designsFolderId, token);
+    currentDesignSavedAt = envelope.savedAt;
+    if(refRaw){ try{ localStorage.setItem('merzona-latest-design::' + normalizeRefForCompare(refRaw), JSON.stringify(envelope)); }catch(e){} }
     if(btn){
       btn.textContent = '✅ انحفظ التصميم';
       setTimeout(()=>{ if(btn){ btn.textContent = originalLabel; btn.disabled = false; } }, 1800);
@@ -6720,7 +6812,7 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
   if(pendingQuotationLoad){
     // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
     // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
-    setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); }, 0);
+    setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); setTimeout(()=>{ offerNewerSavedDesign(); }, 600); }, 0);
   } else if(pendingDesignLoad){
     // تصميم حر بس (مش مرتبط بعرض سعر مفتوح) - ولا شي هون؛ رح ينفتح مباشرة بـwdOverlay تحت.
   } else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
@@ -6731,6 +6823,7 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
     renumber();
     recalc();
     syncPage2Header();
+    setTimeout(()=>{ offerNewerSavedDesign(); }, 1500); // 🆕 2026-10-04.7: عرض سعر محفوظ كملف HTML - نفحص لو في تصميم أحدث
   } else {
     seedDefaults();
     syncPage2Header();
@@ -11045,10 +11138,22 @@ function toggleRoomSegKind(itemId, sideId, segId){
       removeLinkedSpecsIfUnused(itemName);
     }
     const linkedItem = items.find(i => i.sourceRowUid === seg.rowUid);
-    if(linkedItem) linkedItem.sourceRowUid = null;
+    if(linkedItem){
+      linkedItem.sourceRowUid = null;
+      // 🛠️ 2026-10-04.8 (بلاغ حمدي: "لما عم حول ضلع الى جدار ماعم ينحذف من ليستة البنود... المفروض الجدار
+      // ما يتم تعديله ولا تقسيمه لأنه جدار"): قبل هيك بند التصميم (منظور الضلع) كان يضل بقائمة بنود
+      // الرسم/المعرض بعد تحويل الضلع لجدار، وبقدر يرسم عليه ويقسّمه. هلق بند "منظور الضلع" بينشال
+      // نهائيًا من القائمة لحظة التحويل (الجدار مش بند تصميم). الضلع نفسه بيضل بالمسقط كجدار.
+      if(linkedItem.isRoomWallElevation){
+        items = items.filter(i => i !== linkedItem);
+        if(selectedId === linkedItem.id) selectedId = it.id;
+      }
+    }
   }
   seg.kind = goingToWall ? 'wall' : 'design';
   if(goingToWall) seg.rowUid = null;
+  renderChips();
+  loadSelectedIntoControls();
   renderRoomSidesUI(it);
   renderGallery();
 }
