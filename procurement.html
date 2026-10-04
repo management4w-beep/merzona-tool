@@ -27,7 +27,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-08-23.3';
+  var CURRENT_VERSION = '2026-10-04.1';
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -443,6 +443,8 @@
   #topbar{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;}
   #settings-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
   .sync-status{width:100%;font-size:12.5px;color:var(--muted);margin-top:8px;}
+  .sync-notes{width:100%;font-size:12.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-top:8px;line-height:1.8;}
+  #designSource{max-width:100%;font-family:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;}
 
   #tabs{display:flex;gap:8px;margin-bottom:12px;}
   .tab-btn{border-radius:8px 8px 0 0;background:#e9ecf1;}
@@ -514,6 +516,8 @@
       <input id="fileImportDesign" type="file" accept=".json" style="display:none">
     </div>
     <div id="syncStatus" class="sync-status"></div>
+    <div id="syncSourceRow" class="sync-status" style="display:none"><label>التصميم المسحوب منه: <select id="designSource"></select></label></div>
+    <div id="syncNotes" class="sync-notes" style="display:none"></div>
   </header>
 
   <nav id="tabs">
@@ -532,7 +536,7 @@
   </main>
 
   <footer>
-    <p class="note">ملاحظة: البنود بتتعبّى هون أوتوماتيكياً أول ما ترسم بأداة التصميم — ما في داعي ترفع أي ملف. لو البنود ما ظهرت لحالها اضغط "🔄 مزامنة من التصميم". زر "📐 استيراد يدوي من ملف (احتياطي)" بيضل موجود بس لحالات نادرة (مثلاً فتح أداة المشتريات لحالها بجهاز تاني ما فيه نفس بيانات المتصفح). الأنواع المدعومة حالياً: الشبابيك (كرتن وول/مفصلية)، أبواب/نوافذ السحاب، والأبواب المفصلية. الفولدينغ وأبواب الشاور والهاندريل لسا مو مدعومة وبتترك تنبيه إذا انلقت بالتصميم.</p>
+    <p class="note">ملاحظة: البنود بتتعبّى هون أوتوماتيكياً أول ما ترسم بأداة التصميم — ما في داعي ترفع أي ملف. لو البنود ما ظهرت لحالها اضغط "🔄 مزامنة من التصميم". زر "📐 استيراد يدوي من ملف (احتياطي)" بيضل موجود بس لحالات نادرة (مثلاً فتح أداة المشتريات لحالها بجهاز تاني ما فيه نفس بيانات المتصفح). الأنواع: الشبابيك (كرتن وول/مفصلية)، أبواب/نوافذ السحاب، والأبواب المفصلية (بتفنيد بروفايلات كامل). الفولدينغ وأبواب الشاور والهاندريل بتنسحب بأرقام تقدير عام من نافذة المشتريات بأداة التصميم. العدد بيجي من جدول الكميات بعرض السعر. وإذا اشتغلت على أكتر من عرض سعر بنفس المتصفح، اختار التصميم المطلوب من القائمة اللي بتظهر فوق.</p>
   </footer>
 </div>
 <script>
@@ -957,8 +961,18 @@ function computeFixParts(fixParts) {
 
 function round2(n) { return Math.round(n * 100) / 100; }
 
+// مساحة الزجاج (م²) = مجموع مساحات الأقسام (أجنحة/ثوابت) قبل خصم سماكة البروفايل - نفس تعريف نافذة المشتريات بالمصمم.
+function treeGlassArea(node) {
+  if (node.type === 'leaf') return node.w * node.h;
+  return treeGlassArea(node.a) + treeGlassArea(node.b);
+}
+function countLeaves(node, pred) {
+  if (node.type === 'leaf') return pred(node) ? 1 : 0;
+  return countLeaves(node.a, pred) + countLeaves(node.b, pred);
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { computeCurtainWall, computeSlidingTree, computeHinged, computeFixParts, round2, getNodeSize, edgeLeaf };
+  module.exports = { computeCurtainWall, computeSlidingTree, computeHinged, computeFixParts, round2, getNodeSize, edgeLeaf, treeGlassArea, countLeaves };
 }
 
 </script>
@@ -978,12 +992,19 @@ if (typeof module !== 'undefined') {
     overrides: {}, // key: itemId+'|'+rowKey -> manual qty
     items: [],
     lastSyncAt: null,   // ISO timestamp of last successful auto-sync from the designer
-    lastSyncCount: null // number of items pulled in on the last auto-sync (null = never synced)
+    lastSyncCount: null, // number of items pulled in on the last auto-sync (null = never synced)
+    designSourceKey: 'auto', // 'auto' = أحدث تصميم محفوظ بالمتصفح، أو مفتاح تخزين محدد (عرض سعر معيّن)
+    designSources: [],       // قائمة التصاميم المحفوظة بالمتصفح (للاختيار بينها)
+    lastSyncSource: null,    // الرقم المرجعي/الاسم للتصميم اللي انسحبت منه آخر مزامنة
+    syncNotes: []            // تنبيهات آخر مزامنة (بنود تخطّيناها / ملاحظات)
   };
 
   // Same-origin localStorage key the window/door designer (Quotation_Generator.html) autosaves
   // its drawn items to on every edit. Both tools live as sibling same-origin iframes inside
   // Dashboard.html, so this is the live, file-upload-free bridge between them.
+  // 🛠️ 2026-10-04: أداة التصميم صارت تحفظ تلقائياً بمفتاح لكل عرض سعر ('merzona-design-items::<الرقم المرجعي>') بعد إصلاح
+  // 2026-10-02، بدل المفتاح العالمي الواحد القديم. هاد الملف كان لسا بيقرأ المفتاح القديم بس فما كان يشوف أي تصميم جديد
+  // (أو بيشوف نسخة قديمة عالقة). هلق بنفتش على كل المفاتيح اللي بتبدأ بهالبادئة وبناخد الأحدث (أو يلي بتختاره من القائمة).
   var DESIGN_STORAGE_KEY = 'merzona-design-items';
 
   // ---------------- Tree helpers (shared by curtain wall AND sliding items) ----------------
@@ -1073,7 +1094,7 @@ if (typeof module !== 'undefined') {
 
   function newCurtainWallItem() {
     var n = countOfType('curtainwall') + 1;
-    return { id: uid('cw'), type: 'curtainwall', name: 'كرتن وول ' + n, tree: newLeaf(2, 2, 'openable', false), refCode: '' };
+    return { id: uid('cw'), type: 'curtainwall', name: 'كرتن وول ' + n, tree: newLeaf(2, 2, 'openable', false), qty: 1, refCode: '' };
   }
   function newSlidingItem() {
     var n = countOfType('sliding') + 1;
@@ -1085,15 +1106,25 @@ if (typeof module !== 'undefined') {
         b: newLeaf(0.9, 2.2, 'sliding', true)
       },
       fixParts: [],
+      qty: 1,
       refCode: ''
     };
+  }
+  function newGenericItem(label) {
+    return { id: uid('gn'), type: 'generic', name: label || 'بند آخر', genericLabel: label || 'بند آخر', qty: 1, summary: null, refCode: '' };
+  }
+  function itemQty(item) {
+    var q = parseFloat(item && item.qty);
+    return (isFinite(q) && q > 0) ? q : 1;
   }
   function newHingedItem() {
     var n = countOfType('hinged') + 1;
     return { id: uid('hg'), type: 'hinged', name: 'باب مفصلي ' + n, width: 0.9, height: 2.1, qty: 1, fixParts: [], refCode: '' };
   }
 
-  function typeLabel(type) {
+  function typeLabel(x) {
+    var type = (x && typeof x === 'object') ? x.type : x;
+    if (type === 'generic') return (x && x.genericLabel) || 'بند آخر';
     return type === 'curtainwall' ? 'كرتن وول' : type === 'sliding' ? 'أبواب/نوافذ سحاب' : 'أبواب مفصلية';
   }
 
@@ -1136,8 +1167,33 @@ if (typeof module !== 'undefined') {
       } else {
         var t = new Date(state.lastSyncAt);
         var hh = String(t.getHours()).padStart(2, '0'), mm = String(t.getMinutes()).padStart(2, '0');
-        statusEl.textContent = '✅ آخر مزامنة من التصميم: ' + state.lastSyncCount + ' بند — الساعة ' + hh + ':' + mm;
+        statusEl.textContent = '✅ آخر مزامنة من التصميم' + (state.lastSyncSource ? ' «' + state.lastSyncSource + '»' : '') + ': ' + state.lastSyncCount + ' بند — الساعة ' + hh + ':' + mm;
       }
+    }
+    var srcRow = q('syncSourceRow'), srcSel = q('designSource');
+    if (srcRow && srcSel) {
+      var list = state.designSources || [];
+      srcRow.style.display = list.length > 1 ? '' : 'none';
+      srcSel.innerHTML = '';
+      var optAuto = document.createElement('option');
+      optAuto.value = 'auto'; optAuto.textContent = 'الأحدث تلقائياً';
+      srcSel.appendChild(optAuto);
+      list.forEach(function (sx) {
+        var o = document.createElement('option');
+        var d = sx.savedAt ? new Date(sx.savedAt) : null;
+        o.value = sx.key;
+        o.textContent = sx.ref + ' — ' + sx.count + ' بند' + (d ? ' — ' + d.getDate() + '/' + (d.getMonth() + 1) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '');
+        srcSel.appendChild(o);
+      });
+      srcSel.value = state.designSourceKey;
+      if (srcSel.value !== state.designSourceKey) srcSel.value = 'auto';
+    }
+    var notesEl = q('syncNotes');
+    if (notesEl) {
+      var notes = state.syncNotes || [];
+      notesEl.style.display = notes.length ? '' : 'none';
+      notesEl.innerHTML = '';
+      notes.forEach(function (n) { var d = document.createElement('div'); d.textContent = n; notesEl.appendChild(d); });
     }
   }
 
@@ -1167,7 +1223,7 @@ if (typeof module !== 'undefined') {
       nameInput.addEventListener('input', function (e) { item.name = e.target.value; renderSidebar(); renderBOQTab(); });
       row.appendChild(nameInput);
       if (item.refCode) row.appendChild(el('span', { class: 'badge ref-badge', text: item.refCode }));
-      row.appendChild(el('span', { class: 'badge', text: typeLabel(item.type) }));
+      row.appendChild(el('span', { class: 'badge', text: typeLabel(item) }));
       var delBtn = mkBtn('🗑', function (e) {
         e.stopPropagation();
         state.items = state.items.filter(function (i) { return i.id !== item.id; });
@@ -1201,7 +1257,7 @@ if (typeof module !== 'undefined') {
       box.appendChild(el('div', { class: 'empty-state', text: 'اختر بند من القائمة أو أضف بند جديد للبدء.' }));
       return;
     }
-    box.appendChild(el('div', { class: 'section-title' }, [el('h2', { text: item.name + ' — ' + typeLabel(item.type) })]));
+    box.appendChild(el('div', { class: 'section-title' }, [el('h2', { text: item.name + ' — ' + typeLabel(item) })]));
     var refRow = el('div', { class: 'editor-ref' });
     refRow.appendChild(el('label', { text: 'الرقم المرجعي (من جدول عروض الأسعار): ' }));
     var refInput = el('input', { type: 'text', value: item.refCode || '', placeholder: '—' });
@@ -1211,6 +1267,7 @@ if (typeof module !== 'undefined') {
     box.appendChild(refRow);
     if (item.type === 'curtainwall') renderCurtainWallEditor(item, box);
     else if (item.type === 'sliding') renderSlidingEditor(item, box);
+    else if (item.type === 'generic') renderGenericEditor(item, box);
     else renderHingedEditor(item, box);
   }
 
@@ -1261,6 +1318,9 @@ if (typeof module !== 'undefined') {
     });
     dims.appendChild(el('label', { text: 'العرض الكلي (م): ' }, [wInput]));
     dims.appendChild(el('label', { text: 'الارتفاع الكلي (م): ' }, [hInput]));
+    var tqInput = el('input', { type: 'number', step: '1', min: '1', value: itemQty(item) });
+    tqInput.addEventListener('change', function (e) { var v = parseFloat(e.target.value); item.qty = (isFinite(v) && v > 0) ? v : 1; renderApp(); });
+    dims.appendChild(el('label', { text: 'العدد (بنود مطابقة): ' }, [tqInput]));
     box.appendChild(dims);
 
     // نفس طريقة رسم أداة تصميم النوافذ/الأبواب بالضبط: صورة واحدة متناسبة الأبعاد (SVG) للتقسيمات
@@ -1399,6 +1459,19 @@ if (typeof module !== 'undefined') {
     }
   }
 
+  // ---------------- Generic editor (فولدينغ / شاور / هاندريل - أرقام جاية جاهزة من نافذة المشتريات بالمصمم) ----------------
+  function renderGenericEditor(item, box) {
+    var dims = el('div', { class: 'dims-row' });
+    var gq = el('input', { type: 'number', step: '1', min: '1', value: itemQty(item) });
+    gq.addEventListener('change', function (e) { var v = parseFloat(e.target.value); item.qty = (isFinite(v) && v > 0) ? v : 1; renderApp(); });
+    dims.appendChild(el('label', { text: 'العدد: ' }, [gq]));
+    box.appendChild(dims);
+    box.appendChild(el('p', {
+      class: 'hint',
+      text: 'هاد النوع (' + typeLabel(item) + ') مو مفنَّد لبروفايلات هون — الأرقام (طول الألمنيوم الإجمالي، الزجاج، الإكسسوارات) مأخوذة مباشرة من نافذة "المشتريات" بأداة التصميم، وهي تقدير عام. تقدر تعدّل أي كمية يدوياً من جدول المشتريات.'
+    }));
+  }
+
   // ---------------- Hinged editor ----------------
   function renderHingedEditor(item, box) {
     var dims = el('div', { class: 'dims-row' });
@@ -1408,8 +1481,13 @@ if (typeof module !== 'undefined') {
     wInput.addEventListener('change', function (e) { item.width = parseFloat(e.target.value) || item.width; renderApp(); });
     hInput.addEventListener('change', function (e) { item.height = parseFloat(e.target.value) || item.height; renderApp(); });
     qInput.addEventListener('change', function (e) { item.qty = parseInt(e.target.value, 10) || 1; renderApp(); });
-    dims.appendChild(el('label', { text: 'عرض الباب (م): ' }, [wInput]));
-    dims.appendChild(el('label', { text: 'ارتفاع الباب (م): ' }, [hInput]));
+    if (item.doorLeaves && item.doorLeaves.length) {
+      // باب مستورد من التصميم فيه أكتر من قسم: الأقسام المفتوحة (مفصلية) بتتحسب أبواب، والباقي أجزاء فكس إضافية.
+      dims.appendChild(el('span', { text: 'أبواب مفتوحة بالتصميم: ' + item.doorLeaves.map(function (l) { return l.w + '×' + l.h; }).join(' ، ') + ' م' }));
+    } else {
+      dims.appendChild(el('label', { text: 'عرض الباب (م): ' }, [wInput]));
+      dims.appendChild(el('label', { text: 'ارتفاع الباب (م): ' }, [hInput]));
+    }
     dims.appendChild(el('label', { text: 'العدد (أبواب مطابقة): ' }, [qInput]));
     box.appendChild(dims);
 
@@ -1456,43 +1534,76 @@ if (typeof module !== 'undefined') {
   // ---------------- BOQ computation ----------------
   function computeItemBOQ(item) {
     var rows = [];
+    var qty = itemQty(item);
+    // كل الأرقام هون محسوبة "للوحدة الواحدة" وبعدين بتنضرب بالعدد (نفس العدد اللي بجدول الكميات بعرض السعر).
+    function add(key, material, val, unit) { rows.push({ key: key, material: material, qty: round2(val * qty), unit: unit }); }
+    var GLASS_LABEL = 'زجاج (مساحة الأقسام قبل خصم البروفايل — تقدير)';
     if (item.type === 'curtainwall') {
       var size = getNodeSize(item.tree);
       var r = computeCurtainWall(item.tree, size.w, size.h);
-      rows.push({ key: 'main_tube', material: 'تيوب كرتن وول (رئيسي + تقسيمات)', qty: r.mainTubeLength, unit: 'متر طولي' });
+      add('main_tube', 'تيوب كرتن وول (رئيسي + تقسيمات)', r.mainTubeLength, 'متر طولي');
       if (r.openCount > 0) {
-        rows.push({ key: 'open_frame', material: 'فريم فتحة متحركة', qty: r.openFrameLength, unit: 'متر طولي' });
-        rows.push({ key: 'open_shutter', material: 'شتر فتحة متحركة', qty: r.openShutterLength, unit: 'متر طولي' });
-        rows.push({ key: 'stay_arm', material: 'ذراع تحريك (Stay Arm)', qty: r.stayArms, unit: 'قطعة' });
-        rows.push({ key: 'handle', material: 'مسكة + إكسسواراتها', qty: r.handles, unit: 'طقم' });
+        add('open_frame', 'فريم فتحة متحركة', r.openFrameLength, 'متر طولي');
+        add('open_shutter', 'شتر فتحة متحركة', r.openShutterLength, 'متر طولي');
+        add('stay_arm', 'ذراع تحريك (Stay Arm)', r.stayArms, 'قطعة');
+        add('handle', 'مسكة + إكسسواراتها', r.handles, 'طقم');
       }
+      add('glass', GLASS_LABEL, treeGlassArea(item.tree), 'م²');
     } else if (item.type === 'sliding') {
       var slSize = getNodeSize(item.tree);
       var rs = computeSlidingTree(item.tree, slSize.w, slSize.h);
-      rows.push({ key: 'outer_frame', material: 'فريم خارجي', qty: rs.outerFrameLength, unit: 'متر طولي' });
-      if (rs.shutterLength > 0) rows.push({ key: 'shutter', material: 'شتر', qty: rs.shutterLength, unit: 'متر طولي' });
-      if (rs.interlockLength > 0) rows.push({ key: 'interlock', material: 'انترلوك', qty: rs.interlockLength, unit: 'متر طولي' });
-      if (rs.locks > 0) rows.push({ key: 'lock', material: 'قفل', qty: rs.locks, unit: 'قطعة' });
-      if (rs.fixFrameLength > 0) rows.push({ key: 'fix_frame', material: 'فكس فريم (أقسام ثابتة داخل الفريم)', qty: rs.fixFrameLength, unit: 'متر طولي' });
-      if (rs.barCloserLength > 0) rows.push({ key: 'bar_closer', material: 'بار كلوزر (أقسام ثابتة داخل الفريم)', qty: rs.barCloserLength, unit: 'متر طولي' });
-      if (rs.otherDividerLength > 0) rows.push({ key: 'other_divider', material: '⚠️ قواطع إضافية (تقسيمة معقّدة - راجع يدوياً)', qty: rs.otherDividerLength, unit: 'متر طولي' });
+      add('outer_frame', 'فريم خارجي', rs.outerFrameLength, 'متر طولي');
+      if (rs.shutterLength > 0) add('shutter', 'شتر', rs.shutterLength, 'متر طولي');
+      if (rs.interlockLength > 0) add('interlock', 'انترلوك', rs.interlockLength, 'متر طولي');
+      if (rs.locks > 0) add('lock', 'قفل', rs.locks, 'قطعة');
+      if (rs.fixFrameLength > 0) add('fix_frame', 'فكس فريم (أقسام ثابتة داخل الفريم)', rs.fixFrameLength, 'متر طولي');
+      if (rs.barCloserLength > 0) add('bar_closer', 'بار كلوزر (أقسام ثابتة داخل الفريم)', rs.barCloserLength, 'متر طولي');
+      if (rs.otherDividerLength > 0) add('other_divider', '⚠️ قواطع إضافية (تقسيمة معقّدة - راجع يدوياً)', rs.otherDividerLength, 'متر طولي');
+      var slideLeaves = countLeaves(item.tree, function (l) { return !!l.sliding; });
+      if (slideLeaves > 0) {
+        add('rollers', 'رولات سحّاب (تقدير: 2 لكل ورقة)', slideLeaves * 2, 'قطعة');
+        add('slide_handle', 'مسكة سحّاب (تقدير: 1 لكل ورقة)', slideLeaves, 'قطعة');
+      }
+      var slFixArea = 0;
       if (item.fixParts && item.fixParts.length) {
         var rsFix = computeFixParts(item.fixParts);
-        rows.push({ key: 'extra_fix_frame', material: 'فكس فريم إضافي (خارج الفريم)', qty: rsFix.fixFrameLength, unit: 'متر طولي' });
-        rows.push({ key: 'extra_bar_closer', material: 'بار كلوزر إضافي (خارج الفريم)', qty: rsFix.barCloserLength, unit: 'متر طولي' });
+        add('extra_fix_frame', 'فكس فريم إضافي (خارج الفريم)', rsFix.fixFrameLength, 'متر طولي');
+        add('extra_bar_closer', 'بار كلوزر إضافي (خارج الفريم)', rsFix.barCloserLength, 'متر طولي');
+        item.fixParts.forEach(function (f) { slFixArea += f.w * f.h; });
       }
+      add('glass', GLASS_LABEL, treeGlassArea(item.tree) + slFixArea, 'م²');
     } else if (item.type === 'hinged') {
-      var rh = computeHinged(item.width, item.height, item.qty, item.fixParts);
-      rows.push({ key: 'door_fix_frame', material: 'فكس فريم الباب (3 أطراف)', qty: rh.doorFixFrameLength, unit: 'متر طولي' });
-      rows.push({ key: 'shutter_z', material: 'شتر Z', qty: rh.shutterZLength, unit: 'متر طولي' });
-      rows.push({ key: 'door_bar_closer', material: 'بار كلوزر الباب', qty: rh.doorBarCloserLength, unit: 'متر طولي' });
-      rows.push({ key: 'hinges', material: 'مفصلات', qty: rh.hinges, unit: 'قطعة' });
-      rows.push({ key: 'lock', material: 'قفل', qty: rh.locks, unit: 'قطعة' });
-      rows.push({ key: 'handle', material: 'مسكة', qty: rh.handles, unit: 'قطعة' });
+      var legs = (item.doorLeaves && item.doorLeaves.length) ? item.doorLeaves : [{ w: item.width, h: item.height }];
+      var tot = { doorFixFrameLength: 0, shutterZLength: 0, doorBarCloserLength: 0, hinges: 0, locks: 0, handles: 0 };
+      var hgArea = 0;
+      legs.forEach(function (l) {
+        var one = computeHinged(l.w, l.h, 1, []);
+        Object.keys(tot).forEach(function (k) { tot[k] += one[k]; });
+        hgArea += l.w * l.h;
+      });
+      var rh = computeFixParts(item.fixParts);
+      add('door_fix_frame', 'فكس فريم الباب (3 أطراف)', tot.doorFixFrameLength, 'متر طولي');
+      add('shutter_z', 'شتر Z', tot.shutterZLength, 'متر طولي');
+      add('door_bar_closer', 'بار كلوزر الباب', tot.doorBarCloserLength, 'متر طولي');
+      add('hinges', 'مفصلات', tot.hinges, 'قطعة');
+      add('lock', 'قفل', tot.locks, 'قطعة');
+      add('handle', 'مسكة', tot.handles, 'قطعة');
       if (item.fixParts && item.fixParts.length) {
-        rows.push({ key: 'extra_fix_frame', material: 'فكس فريم إضافي (فوق الباب)', qty: rh.extraFixFrameLength, unit: 'متر طولي' });
-        rows.push({ key: 'extra_bar_closer', material: 'بار كلوزر إضافي', qty: rh.extraBarCloserLength, unit: 'متر طولي' });
+        add('extra_fix_frame', 'فكس فريم إضافي (فوق/جنب الباب)', rh.fixFrameLength, 'متر طولي');
+        add('extra_bar_closer', 'بار كلوزر إضافي', rh.barCloserLength, 'متر طولي');
+        item.fixParts.forEach(function (f) { hgArea += f.w * f.h; });
       }
+      add('glass', GLASS_LABEL, hgArea, 'م²');
+    } else if (item.type === 'generic') {
+      var sm = item.summary || {};
+      if (sm.aluMm > 0) add('alu', 'ألمنيوم (محيط + قواطع — تقدير إجمالي، مو تفنيد بروفايلات)', sm.aluMm / 1000, 'متر طولي');
+      if (sm.glassM2 > 0) add('glass', GLASS_LABEL, sm.glassM2, 'م²');
+      var hw = sm.hw || {};
+      if (hw.hinges) add('hinges', 'مفصلات (تقدير)', hw.hinges, 'قطعة');
+      if (hw.handles) add('handle', 'مسكة (تقدير)', hw.handles, 'قطعة');
+      if (hw.locks) add('lock', 'قفل (تقدير)', hw.locks, 'قطعة');
+      if (hw.rollers) add('rollers', 'رولات (تقدير)', hw.rollers, 'قطعة');
+      if (!rows.length) add('note', '⚠️ ما وصلت أرقام لهاد البند — افتح أداة التصميم مرة وحدة وارجع زامن', 0, 'قطعة');
     }
     rows.forEach(function (row) {
       var ovKey = item.id + '|' + row.key;
@@ -1533,7 +1644,7 @@ if (typeof module !== 'undefined') {
         var tr = el('tr', { class: row.overridden ? 'overridden' : '' });
         tr.appendChild(el('td', { text: item.refCode || '—' }));
         tr.appendChild(el('td', { text: item.name }));
-        tr.appendChild(el('td', { text: typeLabel(item.type) }));
+        tr.appendChild(el('td', { text: typeLabel(item) }));
         tr.appendChild(el('td', { text: row.material }));
         var qtyTd = el('td');
         var qtyInput = el('input', { type: 'number', step: '0.01', value: row.qty });
@@ -1594,7 +1705,7 @@ if (typeof module !== 'undefined') {
       var rows = computeItemBOQ(item);
       rows.forEach(function (row) {
         var bars = row.unit === 'متر طولي' ? Math.ceil(row.qty / state.barLength) : '';
-        detailRows.push([item.refCode || '', item.name, typeLabel(item.type), row.material, row.qty, row.unit, bars]);
+        detailRows.push([item.refCode || '', item.name, typeLabel(item), row.material, row.qty, row.unit, bars]);
         var key = row.material + '|' + row.unit;
         if (!groups[key]) { groups[key] = { material: row.material, unit: row.unit, qty: 0 }; order.push(key); }
         groups[key].qty += row.qty;
@@ -1656,52 +1767,134 @@ if (typeof module !== 'undefined') {
     return build(children);
   }
 
+  // يجمّع كل أقسام الورقة (leaf) بقياساتها (م) من تقسيمات أداة التصميم (kind/children/frac/direction).
+  function collectDesignerLeaves(node, wM, hM, out) {
+    if (!node) return out;
+    if (node.kind === 'leaf') { out.push({ type: node.type || 'plain', w: round2(wM), h: round2(hM) }); return out; }
+    var isRow = node.direction === 'row';
+    var total = isRow ? wM : hM;
+    (node.children || []).forEach(function (ch) {
+      var size = (ch.frac / 100) * total;
+      collectDesignerLeaves(ch.node, isRow ? size : wM, isRow ? hM : size, out);
+    });
+    return out;
+  }
+
+  var GENERIC_TYPES = ['foldingDoor', 'showerGlassDoor', 'handrail'];
+
+  // محوّل واحد مشترك (للمزامنة التلقائية ولاستيراد ملف JSON): بيرجع { item } أو { skip: {label, reason} } أو null (تجاهل صامت لغرف/سقوف/مؤقتات).
+  function convertDesignItem(it, summaries) {
+    if (!it || it.isCameraTemp || it.isInitialPlaceholder) return null;
+    if (it.shapeType === 'room' || it.shapeType === 'gableRoof') return null; // مسقط/سقف مو فتحة - مو بند مشتريات هون
+    var label = it.label || it.shapeType;
+    var sum = summaries && summaries[it.id];
+    var qty = (sum && sum.qty > 0) ? sum.qty : (parseFloat(it.purchQty) > 0 ? parseFloat(it.purchQty) : 1);
+    var converted = null;
+
+    if (GENERIC_TYPES.indexOf(it.shapeType) !== -1) {
+      if (!sum) return { skip: { label: label, reason: 'نوع "' + (UNSUPPORTED_LABELS[it.shapeType] || it.shapeType) + '" بيحتاج نسخة أحدث من أداة التصميم (افتح التصميم مرة وحدة بآخر نسخة وارجع زامن)' } };
+      converted = newGenericItem(UNSUPPORTED_LABELS[it.shapeType] || it.shapeType);
+      converted.summary = { aluMm: sum.aluMm || 0, glassM2: sum.glassM2 || 0, hw: sum.hw || null, leaves: sum.leaves || 0 };
+    } else {
+      var wM = (it.width || 0) / 1000, hM = (it.height || 0) / 1000;
+      if (!wM || !hM) return { skip: { label: label, reason: 'بدون أبعاد صحيحة' } };
+      if (['window', 'door', 'slidingWindow', 'slidingDoor'].indexOf(it.shapeType) === -1) {
+        return { skip: { label: label, reason: 'نوع "' + it.shapeType + '" مش معروف لأداة المشتريات' } };
+      }
+      if (!it.layout) return { skip: { label: label, reason: 'بدون تقسيمات (layout) — افتح البند بأداة التصميم مرة وحدة' } };
+      try {
+        if (it.shapeType === 'window') {
+          converted = newCurtainWallItem();
+          converted.tree = convertDesignerNode(it.layout, wM, hM, 'openable', TRI_TYPES);
+        } else if (it.shapeType === 'door') {
+          converted = newHingedItem();
+          converted.width = round2(wM);
+          converted.height = round2(hM);
+          var leaves = collectDesignerLeaves(it.layout, wM, hM, []);
+          var open = leaves.filter(function (l) { return TRI_TYPES.indexOf(l.type) !== -1; });
+          if (open.length) {
+            // الباب فيه أقسام: الأقسام المفتوحة = أبواب مفصلية فعلية، والأقسام الثابتة (فوق الباب/جنبه) = أجزاء فكس إضافية.
+            converted.doorLeaves = open.map(function (l) { return { w: l.w, h: l.h }; });
+            converted.fixParts = leaves.filter(function (l) { return TRI_TYPES.indexOf(l.type) === -1; })
+              .map(function (l) { return { id: uid('fx'), name: 'جزء ثابت', w: l.w, h: l.h }; });
+            if (open.length > 1 || converted.fixParts.length) {
+              converted.importNote = 'الباب فيه ' + open.length + ' قسم مفتوح و ' + converted.fixParts.length + ' قسم ثابت — انحسب كل قسم لحاله (كل قسم ثابت إله فكس فريم + بار كلوزر 4 أطراف).';
+            }
+          }
+          // لو ما في ولا قسم مفتوح بالتصميم، منحسب الباب كامل كباب واحد (نفس السلوك القديم).
+        } else {
+          converted = newSlidingItem();
+          converted.tree = convertDesignerNode(it.layout, wM, hM, 'sliding', SLIDE_TYPES);
+        }
+      } catch (err) {
+        return { skip: { label: label, reason: 'تعذّر قراءة تقسيمات البند (' + (err && err.message || err) + ')' } };
+      }
+      if (it.archTop) converted.importNote = (converted.importNote ? converted.importNote + ' ' : '') + 'هذا البند فيه قوس (arch) أعلاه — القياس المستورد هو ارتفاع الجزء المستطيل فقط، لازم تضيف قياس القوس يدوياً.';
+    }
+    converted.qty = qty;
+    if (it.label) converted.name = it.label;
+    converted.refCode = it.refCode || '';
+    return { item: converted };
+  }
+
   function importDesignerPayload(payload) {
     var imported = [], skipped = [];
     var srcItems = (payload && payload.items) || [];
+    var summaries = (payload && payload.purchSummaries) || null;
     srcItems.forEach(function (it) {
-      var wM = (it.width || 0) / 1000, hM = (it.height || 0) / 1000;
-      if (!wM || !hM) { skipped.push({ label: it.label || it.shapeType, reason: 'بدون أبعاد صحيحة' }); return; }
-      var newItem = null;
-      if (it.shapeType === 'window') {
-        newItem = newCurtainWallItem();
-        newItem.tree = convertDesignerNode(it.layout, wM, hM, 'openable', TRI_TYPES);
-      } else if (it.shapeType === 'door') {
-        newItem = newHingedItem();
-        newItem.width = round2(wM);
-        newItem.height = round2(hM);
-        newItem.qty = 1;
-      } else if (it.shapeType === 'slidingWindow' || it.shapeType === 'slidingDoor') {
-        newItem = newSlidingItem();
-        newItem.tree = convertDesignerNode(it.layout, wM, hM, 'sliding', SLIDE_TYPES);
-      } else {
-        skipped.push({ label: it.label || it.shapeType, reason: 'نوع "' + (UNSUPPORTED_LABELS[it.shapeType] || it.shapeType) + '" مش مدعوم بعد بأداة المشتريات' });
-        return;
-      }
-      if (it.label) newItem.name = it.label;
-      newItem.refCode = it.refCode || '';
-      if (it.archTop) newItem.importNote = 'هذا البند فيه قوس (arch) أعلاه — الارتفاع المستورد هو ارتفاع الجزء المستطيل فقط، لازم تضيف قياس القوس يدوياً.';
-      imported.push(newItem);
+      var r = convertDesignItem(it, summaries);
+      if (!r) return;
+      if (r.skip) { skipped.push(r.skip); return; }
+      imported.push(r.item);
     });
     return { imported: imported, skipped: skipped };
   }
 
   // ---------------- Automatic sync from the designer (no file upload) ----------------
-  // Reads the same JSON payload shape as importDesignerPayload(), but sources it from the
-  // shared localStorage key instead of an uploaded file, and keeps re-syncing idempotent:
-  // - items are matched to their designer-side item by `sourceDesignId` so re-importing the
-  //   same drawing updates it in place (and keeps its BOQ manual overrides, since those are
-  //   keyed by the procurement item's own stable id).
-  // - items the user added manually inside the procurement tool (not tagged autoSynced) are
-  //   never touched.
-  // - a design item removed from the designer disappears from here on the next sync too.
+  // - بتفتّش على كل تصاميم الحفظ التلقائي بالمتصفح (مفتاح لكل عرض سعر)، وبتاخد الأحدث أو يلي اخترته من القائمة.
+  // - items المسحوبة من التصميم بتنربط بـ sourceDesignId (= مفتاح التصميم + رقم البند) فإعادة المزامنة بتحدّث نفس البند
+  //   وبتحافظ على تعديلاتك اليدوية بجدول المشتريات (overrides)، ومستحيل بند من عرض سعر يستعمل تعديلات بند من عرض سعر تاني.
+  // - البنود يلي أضفتها يدوياً بأداة المشتريات (مو autoSynced) ما بنلمسها.
+  function isDesignKey(k) {
+    return k === DESIGN_STORAGE_KEY || (typeof k === 'string' && k.indexOf(DESIGN_STORAGE_KEY + '::') === 0);
+  }
+  function refFromDesignKey(k) {
+    if (k === DESIGN_STORAGE_KEY) return 'تصميم قديم (قبل الربط بالرقم المرجعي)';
+    var rest = k.slice((DESIGN_STORAGE_KEY + '::').length);
+    if (rest.indexOf('__noref__') === 0 || rest.indexOf('__no_ref__') === 0) return 'عرض سعر بدون رقم مرجعي';
+    return rest;
+  }
+  function listDesignSources() {
+    var out = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (!isDesignKey(k)) continue;
+        try {
+          var data = JSON.parse(localStorage.getItem(k));
+          var real = ((data && data.items) || []).filter(function (x) { return x && !x.isCameraTemp && !x.isInitialPlaceholder && x.shapeType !== 'room' && x.shapeType !== 'gableRoof'; });
+          if (!real.length) continue; // التصاميم الفاضية (عرض سعر جديد لسا ما انرسم فيه) ما بتنعرض
+          var at = data.savedAt ? Date.parse(data.savedAt) : 0;
+          out.push({ key: k, savedAt: isNaN(at) ? 0 : at, ref: data.projectRef || refFromDesignKey(k), count: real.length, data: data });
+        } catch (e) { /* مفتاح تالف - تجاهل */ }
+      }
+    } catch (e) { return []; }
+    out.sort(function (a, b) { return b.savedAt - a.savedAt; });
+    return out;
+  }
+
   function autoSyncFromDesigner() {
-    var raw;
-    try { raw = localStorage.getItem(DESIGN_STORAGE_KEY); } catch (e) { return null; }
-    if (!raw) return null;
-    var payload;
-    try { payload = JSON.parse(raw); } catch (e) { return null; }
-    var srcItems = (payload && payload.items) || [];
+    var sources = listDesignSources();
+    state.designSources = sources.map(function (x) { return { key: x.key, ref: x.ref, count: x.count, savedAt: x.savedAt }; });
+    if (!sources.length) return null;
+    var chosen = null;
+    if (state.designSourceKey !== 'auto') {
+      for (var i = 0; i < sources.length; i++) if (sources[i].key === state.designSourceKey) { chosen = sources[i]; break; }
+    }
+    if (!chosen) chosen = sources[0];
+    var payload = chosen.data;
+    var srcItems = payload.items || [];
+    var summaries = payload.purchSummaries || null;
 
     var existingByDesignId = {};
     state.items.forEach(function (it) {
@@ -1710,41 +1903,22 @@ if (typeof module !== 'undefined') {
 
     var newAutoItems = [];
     var skipped = [];
-
     srcItems.forEach(function (it) {
-      if (it.isCameraTemp || it.isInitialPlaceholder) return; // scratch/placeholder rows, not real design items
-      var wM = (it.width || 0) / 1000, hM = (it.height || 0) / 1000;
-      if (!wM || !hM) { skipped.push({ label: it.label || it.shapeType, reason: 'بدون أبعاد صحيحة' }); return; }
-      var converted = null;
-      if (it.shapeType === 'window') {
-        converted = newCurtainWallItem();
-        converted.tree = convertDesignerNode(it.layout, wM, hM, 'openable', TRI_TYPES);
-      } else if (it.shapeType === 'door') {
-        converted = newHingedItem();
-        converted.width = round2(wM);
-        converted.height = round2(hM);
-        converted.qty = 1;
-      } else if (it.shapeType === 'slidingWindow' || it.shapeType === 'slidingDoor') {
-        converted = newSlidingItem();
-        converted.tree = convertDesignerNode(it.layout, wM, hM, 'sliding', SLIDE_TYPES);
-      } else {
-        skipped.push({ label: it.label || it.shapeType, reason: 'نوع "' + (UNSUPPORTED_LABELS[it.shapeType] || it.shapeType) + '" مش مدعوم بعد بأداة المشتريات' });
-        return;
-      }
-      if (it.label) converted.name = it.label;
-      converted.refCode = it.refCode || '';
-      if (it.archTop) converted.importNote = 'هذا البند فيه قوس (arch) أعلاه — القياس المستورد هو ارتفاع الجزء المستطيل فقط، لازم تضيف قياس القوس يدوياً.';
-
-      var existing = existingByDesignId[it.id];
-      if (existing) converted.id = existing.id; // keep the same procurement id -> BOQ manual overrides survive the re-sync
+      var r = convertDesignItem(it, summaries);
+      if (!r) return;
+      if (r.skip) { skipped.push(r.skip); return; }
+      var converted = r.item;
+      var designId = chosen.key + '|' + it.id;
+      var existing = existingByDesignId[designId];
+      if (existing) converted.id = existing.id; // نفس رقم البند -> تعديلات الكميات اليدوية بتضل
       converted.autoSynced = true;
-      converted.sourceDesignId = it.id;
+      converted.sourceDesignId = designId;
       newAutoItems.push(converted);
     });
 
     var manualItems = state.items.filter(function (it) {
       if (it.autoSynced) return false;
-      if (it.isDemoPlaceholder && newAutoItems.length > 0) return false; // real synced items arrived - drop the example
+      if (it.isDemoPlaceholder && newAutoItems.length > 0) return false;
       return true;
     });
     state.items = manualItems.concat(newAutoItems);
@@ -1755,8 +1929,11 @@ if (typeof module !== 'undefined') {
 
     state.lastSyncAt = new Date().toISOString();
     state.lastSyncCount = newAutoItems.length;
+    state.lastSyncSource = chosen.ref;
+    state.syncNotes = skipped.map(function (s) { return '⚠️ تم تخطي «' + s.label + '»: ' + s.reason; })
+      .concat(newAutoItems.filter(function (it) { return it.importNote; }).map(function (it) { return 'ℹ️ «' + it.name + '»: ' + it.importNote; }));
 
-    return { count: newAutoItems.length, skipped: skipped };
+    return { count: newAutoItems.length, skipped: skipped, source: chosen.ref };
   }
 
   function handleImportDesignFile(file) {
@@ -1833,6 +2010,12 @@ if (typeof module !== 'undefined') {
       if (e.target.files && e.target.files[0]) handleImportDesignFile(e.target.files[0]);
       e.target.value = '';
     });
+    var srcSelEl = q('designSource');
+    if (srcSelEl) srcSelEl.addEventListener('change', function (e) {
+      state.designSourceKey = e.target.value || 'auto';
+      autoSyncFromDesigner();
+      renderApp();
+    });
     var syncBtn = q('btnSyncDesign');
     if (syncBtn) {
       syncBtn.addEventListener('click', function () {
@@ -1868,7 +2051,7 @@ if (typeof module !== 'undefined') {
     // document (the designer, in the other Dashboard tab/iframe) writes to localStorage - so
     // edits made there while this tool is open reflect here automatically, no reload needed.
     window.addEventListener('storage', function (e) {
-      if (e.key === DESIGN_STORAGE_KEY) {
+      if (isDesignKey(e.key)) {
         autoSyncFromDesigner();
         renderApp();
       }
