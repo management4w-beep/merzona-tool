@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.4';
+  var CURRENT_VERSION = '2026-10-05.5';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1830,7 +1830,7 @@ async function mzFetchSeed(){
     const dev = localStorage.getItem('merzona-device-token') || '';
     if(!dev){ retryMs = 15000; }
     else {
-      const url = 'https://merzona-server-production.up.railway.app/dashboard-seed?token=' + encodeURIComponent(DASH_SERVER_AUTH_TOKEN) + '&device=' + encodeURIComponent(dev);
+      const url = 'https://merzona-server-production.up.railway.app/dashboard-seed?device=' + encodeURIComponent(dev);
       const res = await fetch(url, { cache:'no-store' });
       if(res.ok){
         const rows = await res.json();
@@ -3480,7 +3480,7 @@ async function sendEmployeeLinkWhatsApp(id, btnEl){
   try{
     const res = await dashFetchWithTimeout(PAYROLL_SEND_LINK_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': DASH_SERVER_AUTH_TOKEN },
+      headers: { 'Content-Type': 'application/json', 'x-device': (function(){ try{ return localStorage.getItem('merzona-device-token')||''; }catch(e){ return ''; } })() },
       body: JSON.stringify({ phone: digits, empName: e.name || '', link: url })
     }, 40000);
     const data = await res.json().catch(()=> ({}));
@@ -4562,8 +4562,7 @@ async function fetchDashDriveTokenFromServer(timeoutMs){
     // (/drive-token) صار يتحقق إنو هالجهاز لسا 'approved' بdevices.json قبل ما يرجع توكن.
     let deviceToken = '';
     try{ deviceToken = localStorage.getItem('merzona-device-token') || ''; }catch(e){}
-    const url = DASH_DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(DASH_SERVER_AUTH_TOKEN) +
-      (deviceToken ? ('&device=' + encodeURIComponent(deviceToken)) : '');
+    const url = DASH_DRIVE_TOKEN_URL + '?device=' + encodeURIComponent(deviceToken);
     const res = await fetch(url, { signal: controller.signal });
     if(!res.ok) return null;
     const data = await res.json();
@@ -4690,7 +4689,6 @@ const DRIVE_SCOPE_DASH = 'https://www.googleapis.com/auth/drive';
 // مرة وحدة من /drive-auth/start. نفس AUTH_TOKEN تبع بقية السيرفر (مطابق لـWHATSAPP_NOTIFY_TOKEN
 // جوا Quotation_Generator.html).
 const DASH_DRIVE_TOKEN_URL = 'https://merzona-server-production.up.railway.app/drive-token';
-const DASH_SERVER_AUTH_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky';
 
 let cachedSyncFileId = localStorage.getItem('merzona_sync_file_id') || null;
 async function getOrCreateSyncFileId(token){

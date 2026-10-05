@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.4';
+  var CURRENT_VERSION = '2026-10-05.6';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1487,6 +1487,16 @@
     background:#eef1f4;
     overflow-y:auto;
   }
+  #purchasingOverlay, #mfgSizesOverlay{ color:#1c1c1c; }
+  #purchasingOverlay .threeD-topbar, #mfgSizesOverlay .threeD-topbar{ color:#fff; }
+  #purchasingOverlay select, #purchasingOverlay input, #mfgSizesOverlay select, #mfgSizesOverlay input{ color:#1c1c1c !important; background:#fff !important; }
+  #purchasingOverlay table, #purchasingOverlay td, #purchasingOverlay th, #purchasingOverlay h3, #purchasingOverlay h4, #purchasingOverlay label{ color:#1c1c1c; }
+  #purchasingOverlay th, #mfgSizesOverlay th{ background:#f4f5f7 !important; color:#1c1c1c !important; }
+  #purchasingOverlay td, #mfgSizesOverlay td{ background:transparent; color:#1c1c1c; }
+  #purchasingOverlay b[style*="0f88cd"], #purchasingOverlay [style*="color:#0f88cd"]{ color:#0a5f93 !important; }
+  #purchasingOverlay div[style*="color:#999"], #purchasingOverlay [style*="color:#999"]{ color:#555 !important; }
+  #purchasingOverlay button[style*="background:#0f88cd"]{ background:#0a5f93 !important; color:#fff !important; }
+  #purchasingOverlay p[style*="6d6d6d"], #mfgSizesOverlay p[style*="6d6d6d"]{ color:#4a4a4a !important; }
   #mfgSizesOverlay{
     display:none;
     position:fixed; inset:0; z-index:10600;
@@ -1510,7 +1520,7 @@
     border-bottom:1px solid #eee; font-size:13px; flex-wrap:wrap;
   }
   .purch-item-row .purch-name{ flex:1; min-width:160px; font-weight:600; color:#333; }
-  .purch-item-row .purch-len{ color:#0f88cd; font-weight:700; direction:ltr; }
+  .purch-item-row .purch-len{ color:#0a5f93; font-weight:700; direction:ltr; }
   .purch-mat-chip{
     display:inline-flex; align-items:center; gap:5px;
     background:rgba(15,136,205,0.09); color:#0f88cd; border-radius:99px;
@@ -4977,7 +4987,7 @@ async function warnIfSavedRefExistsUnderOtherBranch(refRaw, savedBranch){
 // ⚠️ سيرفر إشعارات واتساب (اختياري) - بيبعت أوتوماتيك عرض السعر لمجموعة "Tasks" عند كل حفظ.
 // اتركهم فاضيين/كما هم حتى تجهز سيرفر whatsapp-server (شوف README.md جواه) - قبل هيك هاد الشي معطّل تلقائيًا.
 const WHATSAPP_NOTIFY_URL = 'https://merzona-server-production.up.railway.app/send-quotation';
-const WHATSAPP_NOTIFY_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky'; // نفس AUTH_TOKEN يلي حطيته بمتغيرات البيئة تبع السيرفر
+function mzDeviceToken(){ try{ return localStorage.getItem('merzona-device-token') || ''; }catch(e){ return ''; } } // توكن الجهاز المعتمد (بدل كلمة السر المشتركة المكشوفة سابقاً)
 // 🆕 2026-09-26 (طلب/ملاحظة حمدي: فشل إرسال إشعار واتساب بخطأ "Failed to fetch" رغم إنو الحفظ لجوجل
 // درايف نجح) - فحصنا سيرفر الواتساب مباشرة (endpoint /health تبعه) ولقينا السبب الحقيقي: السيرفر نفسه
 // شغال تمام، بس جلسة واتساب المرتبطة فيه لوحدها "مسجّلة خروج" (whatsappReady=false بالرد) - يعني أي
@@ -5244,7 +5254,7 @@ async function fetchDriveTokenFromServer(){
   const timer = setTimeout(()=> controller.abort(), 8000);
   try{
     let __devTok = ''; try{ __devTok = localStorage.getItem('merzona-device-token') || ''; }catch(e){}
-    const res = await fetch(DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(WHATSAPP_NOTIFY_TOKEN) + '&device=' + encodeURIComponent(__devTok), { signal: controller.signal });
+    const res = await fetch(DRIVE_TOKEN_URL + '?device=' + encodeURIComponent(__devTok), { signal: controller.signal });
     if(!res.ok) return null;
     const data = await res.json();
     if(!data || !data.access_token) return null;
@@ -6260,7 +6270,7 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe){
   // لحد ما يطلع "Failed to fetch" غامضة.
   const resp = await fetchWithTimeout(WHATSAPP_NOTIFY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': WHATSAPP_NOTIFY_TOKEN },
+    headers: { 'Content-Type': 'application/json', 'x-device': mzDeviceToken() },
     body: bodyStr
   }, 45000);
   if(!resp.ok) throw new Error('WhatsApp notify failed: HTTP ' + resp.status);

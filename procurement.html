@@ -29,7 +29,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.3';
+  var CURRENT_VERSION = '2026-10-05.4';
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1895,7 +1895,6 @@ if (typeof module !== 'undefined') {
   // على جهاز/متصفح تاني، المشتريات كانت تضل فاضية. هلق في زر "جلب تصميم من الدرايف" بيعرض كل التصاميم والمسودات المحفوظة بالفرعين.
   var DRIVE_CACHE_KEY = 'merzona-proc-drive-sources';
   var PROC_SERVER = 'https://merzona-server-production.up.railway.app';
-  var PROC_AUTH_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky';
   var PROC_DRIVE_ROOTS = { uae: '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', syria: '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS' };
   var driveSources = [];
   try { driveSources = JSON.parse(localStorage.getItem(DRIVE_CACHE_KEY) || '[]') || []; } catch (e) { driveSources = []; }
@@ -1904,7 +1903,7 @@ if (typeof module !== 'undefined') {
   }
   function procDriveToken() {
     var dev = ''; try { dev = localStorage.getItem('merzona-device-token') || ''; } catch (e) {}
-    var url = PROC_SERVER + '/drive-token?token=' + encodeURIComponent(PROC_AUTH_TOKEN) + '&device=' + encodeURIComponent(dev);
+    var url = PROC_SERVER + '/drive-token?device=' + encodeURIComponent(dev);
     return fetch(url, { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error('تعذّر الحصول على إذن الدرايف من السيرفر (' + r.status + ')');
       return r.json();
