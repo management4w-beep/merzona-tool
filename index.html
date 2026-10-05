@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.2';
+  var CURRENT_VERSION = '2026-10-05.4';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -4153,6 +4153,8 @@ function captureFullQuotationData(){
     if(window.__flushDesignSave__) window.__flushDesignSave__();
     const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
     if(exported){ data.designItems = exported.items; data.designNextId = exported.nextId; }
+    // 🆕 2026-10-05: ملخّص المشتريات (العدد من جدول الكميات + طول الألمنيوم + الزجاج + الإكسسوارات) بيتحفظ مع المسودة/العرض كمان - حتى أداة المشتريات تجيب نفس الأرقام الدقيقة من الدرايف
+    if(window.__getPurchSummaries__){ const ps = window.__getPurchSummaries__(); if(ps && Object.keys(ps).length) data.designPurchSummaries = ps; }
   }catch(e){}
   // 🔧 2026-08-25: نحفظ القيمة الإجمالية كرقم صريح هون كمان (مش بس داخل جدول العرض) - الداشبورد
   // كان يضطر يخمّن القيمة الإجمالية بقراءة نص ملف HTML المخبوز وبحث عن "AED" جنب رقم، وهاي الطريقة
@@ -5987,7 +5989,8 @@ async function saveDesignToDrive(opts){
     const envelope = {
       schema: 'merzona-design-v1', designId: currentDesignId, label,
       ref: refRaw || null, name: refRaw ? null : designName, branch, savedAt: Date.now(),
-      designItems: exported.items, designNextId: exported.nextId
+      designItems: exported.items, designNextId: exported.nextId,
+      purchSummaries: (window.__getPurchSummaries__ ? window.__getPurchSummaries__() : null)
     };
     await saveJsonToDriveFolder(currentDesignId + '.json', envelope, designsFolderId, token);
     currentDesignSavedAt = envelope.savedAt;
@@ -8488,6 +8491,7 @@ function buildPurchSummaries(){
     items.forEach(it=>{
       try{
         if(!it || it.isCameraTemp || isRoom(it) || isGableRoof(it)) return;
+        if(it.isRoomWallElevation && !it.sourceRowUid) return; // بند "منظور حائط" يتيم (بدون صف بجدول الكميات) - مو بند مشتريات حقيقي
         const handrail = isHandrail(it);
         const ll = handrail ? [] : purchLeafList(it);
         out[it.id] = {
@@ -8503,6 +8507,7 @@ function buildPurchSummaries(){
   }catch(e){}
   return out;
 }
+window.__getPurchSummaries__ = buildPurchSummaries;
 var _designSaveTimer = null;
 function scheduleDesignSave(){
   if(_designSaveTimer) clearTimeout(_designSaveTimer);
@@ -8647,7 +8652,11 @@ window.__applyDesignItemsImport__ = function(importedItems, importedNextId){
       // qtyRowsHtml ينحمّل بـapplyFullQuotationData قبل ما توصل لهون)، ومنشيل أي بند "منظور حائط" ما
       // عاد مرتبط بأي وحدة منها.
       const liveRowUidsForGhosts = new Set(Array.from(document.querySelectorAll('#qty-rows tr[data-row-uid]')).map(tr=>tr.dataset.rowUid));
-      const removedGhosts = removeOrphanedRoomWallElevationGhosts(liveRowUidsForGhosts);
+      // 🛠️ 2026-10-05 (بلاغ حمدي: "حفظت تصميم S-Q-260002 وكل ما برجع بفتحو ما بلاقي إلا المسقط"): لما بينفتح تصميم محفوظ لحاله (من سجل
+      // التصاميم) ما في صفوف بجدول الكميات أصلًا، فكل بنود "منظور الحائط" كانت تنحسب "يتيمة" وتنمسح، والحفظ بعدها كان يكتب النسخة الناقصة فوق
+      // الأصلية. هلق منحذف اليتامى بس لما صفوف عرض السعر محمّلة فعليًا (مو بوضع فتح تصميم لحاله).
+      const rowsLoadedForGhosts = liveRowUidsForGhosts.size > 0 && !window.__mzOpenedAsDesign;
+      const removedGhosts = rowsLoadedForGhosts ? removeOrphanedRoomWallElevationGhosts(liveRowUidsForGhosts) : 0;
       if(removedGhosts > 0){
         console.warn('[تنظيف تلقائي] لقينا وحذفنا ' + removedGhosts + ' بند "منظور حائط" يتيم (ما عاد مرتبط بأي صف حقيقي بجدول عرض السعر) - هاد بالضبط سبب تكرار بنود منظور الحيطان بمرجع S-Q-260003.');
       }
@@ -17513,9 +17522,12 @@ WD.loadFromRows = function(rowData){
   // 🆕 2026-10-01 (شوف الشرح الكامل قرب removeOrphanedRoomWallElevationGhosts): قبل ما نحافظ على
   // "البنود المستقلة"، نشيل أي بند "منظور حائط" يتيم (ما عاد مرتبط بأي صف من rowData الحالي) - وإلا
   // بيترسب كـ"بند مستقل" بالغلط ويضل يتكرر بالمعرض كل ما تفتحي أداة التصميم من جديد.
-  removeOrphanedRoomWallElevationGhosts(new Set(rowData.map(rd => rd.uid)));
+  // 🛠️ 2026-10-05: بوضع "فتح تصميم لحاله" (من سجل التصاميم) ما في صفوف بالجدول أصلًا - ما منحذف أي بند (قبل هيك كانت تضيع بنود الجدران وتضل المسقط بس)
+  const keepAllDesignItems = !!window.__mzOpenedAsDesign;
+  if(!keepAllDesignItems) removeOrphanedRoomWallElevationGhosts(new Set(rowData.map(rd => rd.uid)));
   // نحافظ على أي عنصر أضافه المستخدم يدويًا جوا الرسّام (مش مرتبط بأي سطر بالجدول) - قبل هيك كان يضيع كل ما تفتح الأداة من جديد
-  const standaloneItems = items.filter(it => !it.sourceRowUid && !it.isInitialPlaceholder);
+  const matchedNow = new Set(newItems);
+  const standaloneItems = items.filter(it => keepAllDesignItems ? !matchedNow.has(it) : (!it.sourceRowUid && !it.isInitialPlaceholder));
   items = newItems.concat(standaloneItems);
   selectedId = items.length ? items[0].id : null;
   historyStack = [];
