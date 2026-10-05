@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-04.13';
+  var CURRENT_VERSION = '2026-10-05.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -659,7 +659,7 @@
   .meta-rows{border:1px solid var(--line); border-top:none;}
   .meta-row{
     display:grid;
-    grid-template-columns:74px 1fr;
+    grid-template-columns:74px minmax(0,1fr);
     border-bottom:1px solid var(--line);
     font-size:13px;
   }
@@ -671,7 +671,7 @@
     background:#f4f5f7;
     display:flex;align-items:center;
   }
-  .meta-row .val{padding:2px 4px; display:flex; align-items:center;}
+  .meta-row .val{padding:2px 4px; display:flex; align-items:center; min-width:0; overflow-wrap:anywhere;}
   .meta-row input{border:none; background:transparent; padding:2px 4px;}
 
   /* ---------- Two-column bilingual sections ---------- */
@@ -1033,7 +1033,7 @@
   body.mode-mobile .footer > div[style*="display:flex"]{ flex-direction:column !important; }
   body.mode-mobile .table-block{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
   body.mode-mobile #qty-table{ min-width:760px; }
-  body.mode-mobile .meta-row{ grid-template-columns:74px 1fr; }
+  body.mode-mobile .meta-row{ grid-template-columns:74px minmax(0,1fr); }
 
   @media print{
     *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
@@ -1059,7 +1059,7 @@
     body.mode-mobile .footer > div[style*="display:flex"]{ flex-direction:row !important; }
     body.mode-mobile .top{ flex-direction:row !important; align-items:flex-start !important; }
     body.mode-mobile .meta-box{ width:270px !important; }
-    body.mode-mobile .meta-row{ grid-template-columns:74px 1fr !important; }
+    body.mode-mobile .meta-row{ grid-template-columns:74px minmax(0,1fr) !important; }
     body.mode-mobile #qty-table{ min-width:0 !important; }
     body.mode-mobile .table-block{ overflow-x:visible !important; }
     body.mode-mobile button, body.mode-mobile input, body.mode-mobile textarea{ font-size:inherit !important; padding:1px 2px !important; }
@@ -2201,7 +2201,7 @@ function removeCatalogMaterial(matId){
   // نظّف أي إشارة إليها من الأصناف والبنود المصمَّمة
   ITEMS.forEach(it => { if(it.materialIds) it.materialIds = it.materialIds.filter(id => id !== matId); });
   saveItemsToStorage();
-  items.forEach(it => { if(it.materialIds) it.materialIds = it.materialIds.filter(id => id !== matId); });
+  ((window.__getDesignItemsForExport__ && window.__getDesignItemsForExport__().items) || []).forEach(it => { if(it.materialIds) it.materialIds = it.materialIds.filter(id => id !== matId); });
 }
 function saveAlumSpecArToStorage(){
   try{ localStorage.setItem('merzona-alum-spec-ar', JSON.stringify(ALUM_SPEC_AR)); }catch(e){}
@@ -3139,7 +3139,7 @@ function handleRowEnter(e){
      حقيقي - رقم عادي لحاله، حتى لو سالب، بيرجع null قصدًا عشان يضل يتعامل معه العادي كرقم مش كتعبير).
    - evalMeasureField(el): بتاخد أي حقل، تحسب قيمته لو كانت تعبير، وتحط الناتج مكان النص. */
 function restrictMeasureChars(el){
-  const cleaned = el.value.replace(/[^0-9+\-.\s]/g, '');
+  const cleaned = normDigits(el.value).replace(/[^0-9+\-.\s]/g, '');
   if(cleaned !== el.value){
     const pos = (el.selectionStart==null ? cleaned.length : el.selectionStart) - (el.value.length - cleaned.length);
     el.value = cleaned;
@@ -3389,10 +3389,13 @@ function numToWordsEn(num){
   const groups=[['',1],['Thousand',1000],['Million',1000000],['Billion',1000000000]];
   let result=[];
   let n=num;
+  if(!isFinite(num) || num>=1e12) return String(num);
+  let billions=Math.floor(n/1000000000); n%=1000000000;
   let millions=Math.floor(n/1000000); n%=1000000;
   let thousands=Math.floor(n/1000); n%=1000;
   let rest=n;
   let parts=[];
+  if(billions>0) parts.push(chunk2(billions)+' Billion');
   if(millions>0) parts.push(chunk2(millions)+' Million');
   if(thousands>0) parts.push(chunk2(thousands)+' Thousand');
   if(rest>0) parts.push(chunk2(rest));
@@ -3402,6 +3405,7 @@ function numToWordsEn(num){
 function numToWordsAr(num){
   num = Math.round(num);
   if(num === 0) return 'صفر';
+  if(!isFinite(num) || num>=1e12) return String(num);
   const ones=['','واحد','اثنان','ثلاثة','أربعة','خمسة','ستة','سبعة','ثمانية','تسعة','عشرة',
     'أحد عشر','اثنا عشر','ثلاثة عشر','أربعة عشر','خمسة عشر','ستة عشر','سبعة عشر','ثمانية عشر','تسعة عشر'];
   const tens=['','','عشرون','ثلاثون','أربعون','خمسون','ستون','سبعون','ثمانون','تسعون'];
@@ -3445,12 +3449,18 @@ function numToWordsAr(num){
   return resultParts.join(' و');
 }
 
+function normDigits(str){
+  return String(str == null ? '' : str).replace(/[\u0660-\u0669]/g, d=>d.charCodeAt(0)-0x660).replace(/[\u06F0-\u06F9]/g, d=>d.charCodeAt(0)-0x6F0).replace(/\u066B/g,'.').replace(/[,\u066C]/g,'');
+}
+function fmtMoney(n){
+  return n.toLocaleString('en-US',{minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits:2});
+}
 function parseMoney(str){
-  return parseFloat(String(str).replace(/,/g,'')) || 0;
+  return parseFloat(normDigits(str)) || 0;
 }
 
 function round2(n){
-  return Math.round(n * 100) / 100;
+  return Math.round((n + Math.sign(n) * 1e-9) * 100) / 100;
 }
 
 function recalc(){
@@ -3459,12 +3469,13 @@ function recalc(){
     if(totalInput.dataset.manual === '1') return;
     const w = parseFloat(tr.querySelector('.w-input').value) || 0;
     const h = parseFloat(tr.querySelector('.h-input').value) || 0;
-    const qty = parseFloat(tr.querySelector('.qty-input').value) || 0;
-    const pricePerSqm = parseFloat(tr.querySelector('.price').value) || 0;
+    const qty = parseMoney(tr.querySelector('.qty-input').value);
+    const pricePerSqm = parseMoney(tr.querySelector('.price').value);
     const rawArea = (w * h) / 1000000;
     const billableArea = (rawArea > 0 && rawArea < 1) ? 1 : rawArea;
-    const lineTotal = round2(billableArea * pricePerSqm * qty);
-    totalInput.value = lineTotal.toLocaleString(undefined,{maximumFractionDigits:2});
+    const lineTotalRaw = billableArea * pricePerSqm * qty;
+    const lineTotal = Number.isFinite(lineTotalRaw) ? round2(lineTotalRaw) : 0;
+    totalInput.value = fmtMoney(lineTotal);
   });
   recalcSummary();
 }
@@ -3475,7 +3486,7 @@ function recalcSummary(){
     total += parseMoney(t.value);
   });
   total = round2(total);
-  document.getElementById('sum-total').textContent = total.toLocaleString(undefined,{maximumFractionDigits:2});
+  document.getElementById('sum-total').textContent = fmtMoney(total);
 
   const discountAmountInput = document.getElementById('discount-amount');
   const discountPctInput = document.getElementById('discount-pct');
@@ -3483,13 +3494,13 @@ function recalcSummary(){
   if(discountAmountInput.dataset.manual === '1'){
     discountAmount = parseMoney(discountAmountInput.value) || 0;
   } else {
-    const pct = parseFloat(discountPctInput.value) || 0;
+    const pct = parseMoney(discountPctInput.value);
     discountAmount = round2(total * pct / 100);
     discountAmountInput.value = discountAmount > 0 ? discountAmount : '';
   }
   discountAmount = Math.max(0, Math.min(discountAmount, total));
   document.getElementById('sum-discount').textContent = discountAmount>0
-    ? '-' + discountAmount.toLocaleString(undefined,{maximumFractionDigits:2})
+    ? '-' + fmtMoney(discountAmount)
     : '0';
 
   const discountedTotal = round2(total - discountAmount);
@@ -3498,14 +3509,17 @@ function recalcSummary(){
   const hasVat = getBranchConfig(getCurrentBranch()).hasVat;
   const vat = hasVat ? round2(discountedTotal*0.05) : 0;
   const grand=round2(discountedTotal+vat);
-  document.getElementById('sum-vat').textContent = vat.toLocaleString(undefined,{maximumFractionDigits:2});
-  document.getElementById('sum-grand').textContent = grand.toLocaleString(undefined,{maximumFractionDigits:2});
+  document.getElementById('sum-vat').textContent = fmtMoney(vat);
+  document.getElementById('sum-grand').textContent = fmtMoney(grand);
   // 🆕 2026-09-22: اسم العملة (بالكلمة الإنجليزية/العربية) بسطر "فقط ... لا غير" صار حسب العملة
   // الحالية (درهم لفرع الإمارات، أو دولار/ليرة سورية لفرع دمشق حسب قائمة #m-currency).
   const curCfg = getCurrentCurrencyConfig();
-  const words = grand>0 ? 'Only ' + numToWordsEn(grand) + ' ' + curCfg.code : 'Only — ' + curCfg.code;
+  const grandWhole = Math.floor(grand + 1e-9), grandFils = Math.round((grand - grandWhole) * 100);
+  const fracEn = grandFils > 0 ? ' and ' + String(grandFils).padStart(2,'0') + '/100' : '';
+  const fracAr = grandFils > 0 ? ' و' + String(grandFils).padStart(2,'0') + '/100' : '';
+  const words = grand>0 ? 'Only ' + numToWordsEn(grandWhole) + fracEn + ' ' + curCfg.code : 'Only — ' + curCfg.code;
   document.getElementById('sum-words').textContent = words;
-  const wordsAr = grand>0 ? 'فقط ' + numToWordsAr(grand) + ' ' + curCfg.arWord : 'فقط — ' + curCfg.arWord;
+  const wordsAr = grand>0 ? 'فقط ' + numToWordsAr(grandWhole) + fracAr + ' ' + curCfg.arWord : 'فقط — ' + curCfg.arWord;
   document.getElementById('sum-words-ar').textContent = wordsAr;
 
   // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ): هاد الشرط كان يقارن "grand" برقم ثابت 150000 بدون ما يتحقق
@@ -3517,7 +3531,7 @@ function recalcSummary(){
   // لفرع سوريا كمان، بس يعطينا الرقم بالدولار/الليرة المطلوب ومنضيفه بنفس أسلوب SYRIA_LOW_TOTAL_THRESHOLD_USD.
   if(getCurrentCurrencyKey() === 'aed' && grand > 150000){
     const deliveryEl = document.getElementById('delivery-days');
-    if(deliveryEl && deliveryEl.value !== '60') deliveryEl.value = '60';
+    if(deliveryEl && deliveryEl.value === '45') deliveryEl.value = '60';
   }
 }
 
@@ -3549,8 +3563,9 @@ function resetAllNoConfirm(){
   clearDraft(); // عرض سعر جديد فاضي بالنية - ما منحتاج نرجع نقترح مسودة عرض السعر القديم بعد هلق
   // 🛠️ 2026-10-04.9 (فحص شامل - فقدان بيانات): عرض سعر جديد كان يرث هوية المسودة/التصميم القديم (draftId/
   // designId/وقت الحفظ) فأول "حفظ" كان يكتب فوق ملف العرض القديم عالدرايف. هلق هوية جديدة تمامًا.
-  currentDraftId = null; currentDesignId = null; currentDesignName = null; currentDesignSavedAt = 0;
+  currentDraftId = null; currentDesignId = null; currentDesignName = null; currentDesignBranch = null; currentDesignSavedAt = 0;
   window.__quotationSavedAtBaseline = 0;
+  window.__mzMergedFromRefs = [];
   // 🛠️ إصلاح جذري 2026-09-30.14 (فحص شامل - بلاغ حمدي: "عم تنزل بنود غريبة... مقاساتها غريبة
   // ومختلفة... حتى ارتفاعاتهم ما كانت متطابقة مع الارتفاع تبع الغرفة"): هون بالضبط السبب الجذري.
   // "عرض سعر جديد" كان يفضّي جدول الكميات (#qty-rows) بالكامل، بس ما كان يلمس items[] (بنود أداة
@@ -3723,6 +3738,12 @@ function seedDefaults(){
 }
 
 function autosizeTextareasForPrint(){
+  document.querySelectorAll('.meta-row input:not([type=date]), #qty-table .item-input').forEach(i=>{
+    if(i.dataset.prevFs === undefined) i.dataset.prevFs = i.style.fontSize || '';
+    i.style.fontSize = '';
+    let fs = parseFloat(getComputedStyle(i).fontSize) || 12;
+    while(i.scrollWidth > i.clientWidth + 1 && fs > 7){ fs -= 0.5; i.style.fontSize = fs + 'px'; }
+  });
   document.querySelectorAll('textarea').forEach(t=>{
     t.dataset.prevHeight = t.style.height || '';
     t.style.height = 'auto';
@@ -3739,6 +3760,9 @@ function autosizeTextareasForPrint(){
 }
 
 function restoreTextareaHeights(){
+  document.querySelectorAll('.meta-row input, #qty-table .item-input').forEach(i=>{
+    if(i.dataset.prevFs !== undefined){ i.style.fontSize = i.dataset.prevFs; delete i.dataset.prevFs; }
+  });
   document.querySelectorAll('textarea').forEach(t=>{
     t.style.height = t.dataset.prevHeight || '';
   });
@@ -4105,7 +4129,7 @@ function captureFullQuotationData(){
     el.setAttribute('value', el.value);
   });
   document.querySelectorAll('#qty-rows textarea, #supply-rows textarea, #alum-spec-rows textarea, #specs-rows textarea, #acc-rows textarea, #pay-rows textarea, #notes-rows textarea').forEach(el=>{
-    el.textContent = el.value;
+    el.textContent = (el.value.charAt(0) === '\n' ? '\n' : '') + el.value;
   });
   const data = { schema:'merzona-quotation-data-v1', fields:{}, rows:{}, qtyRowsHtml:'' };
   QUOTATION_FIELD_IDS.forEach(id=>{
@@ -4124,6 +4148,7 @@ function captureFullQuotationData(){
   });
   const qtyBody = document.getElementById('qty-rows');
   if(qtyBody) data.qtyRowsHtml = qtyBody.innerHTML;
+  data.discountManual = (document.getElementById('discount-amount')||{dataset:{}}).dataset.manual === '1';
   try{
     if(window.__flushDesignSave__) window.__flushDesignSave__();
     const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
@@ -4158,6 +4183,8 @@ function applyFullQuotationData(data){
   // تربط currentDraftId بنفس القيمة المحفوظة فيها - هيك "حفظ كمسودة" التالي بيحدّث نفس ملف الـJSON
   // عالدرايف بدل ما ينشئ ملف تاني مكرر.
   currentDraftId = data.draftId || null;
+  window.__mzDraftBoundRef = (data.fields && data.fields['m-ref']) ? String(data.fields['m-ref']).replace(/\s+/g,'').toUpperCase() : null;
+  window.__mzDesignBoundRef = window.__mzDraftBoundRef;
   // 🆕 2026-09-30: نفس فكرة currentDraftId فوق بالضبط - نرجع نربط أي تصميم كان محفوظ سابقًا بسجل
   // _Designs لهاد العرض بالذات، حتى "حفظ التصميم" الجاي يحدّث نفس الملف مش ينشئ وحدة جديدة.
   currentDesignId = data.currentDesignId || null;
@@ -4193,15 +4220,21 @@ function applyFullQuotationData(data){
       // جديد - وإلا أي رابط توقيع سبق وانبعت للزبون من نسخة سابقة بينكسر.
       try{ if(refEl && refEl.value && data.signToken) ensureSignToken(refEl.value, data.signToken); }catch(e){}
     }
+    {
+      const daEl = document.getElementById('discount-amount'), dpEl = document.getElementById('discount-pct');
+      if(daEl && dpEl){
+        daEl.dataset.manual = (data.discountManual === true || (data.discountManual === undefined && daEl.value.trim() !== '' && !(parseMoney(dpEl.value) > 0))) ? '1' : '';
+      }
+    }
     if(data.rows){
       Object.keys(data.rows).forEach(cid=>{
         const el = document.getElementById(cid);
-        if(el) el.innerHTML = data.rows[cid];
+        if(el) el.innerHTML = mzSanitizeHtml(data.rows[cid]);
       });
     }
     if(typeof data.qtyRowsHtml === 'string'){
       const qtyBody = document.getElementById('qty-rows');
-      if(qtyBody) qtyBody.innerHTML = data.qtyRowsHtml;
+      if(qtyBody) qtyBody.innerHTML = mzSanitizeHtml(data.qtyRowsHtml);
     }
     // 🛠️ إصلاح جذري 2026-09-30.21 (شوف الشرح الكامل قرب resyncRowUidCounter فوق بهاي الكتلة بالذات):
     // لازم نزامن rowUidCounter مباشرة بعد ما نستعيد صفوف جدول الكمية الحقيقية من عرض السعر المحمّل،
@@ -4219,6 +4252,7 @@ function applyFullQuotationData(data){
       window.__applyDesignItemsImport__(Array.isArray(data.designItems) ? data.designItems : [], data.designNextId);
     }
     document.body.setAttribute('data-prefilled','1');
+    try{ const __re=document.getElementById('m-ref'); if(__re && __re.value && !data.__noOwn) window.__mzOwnedRefSafe = __re.value.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-\u0600-\u06FF]+/g,'_'); }catch(e){}
     renumber();
     recalc();
     syncPage2Header();
@@ -4235,6 +4269,7 @@ function applyFullQuotationData(data){
 let currentDraftId = null;
 let currentDesignId = null;
 let currentDesignName = null;
+let currentDesignBranch = null; // 🛠️ 2026-10-04.14: فرع ملف التصميم الحر على الدرايف (بدونه كان الحفظ يروح لمجلد الفرع الافتراضي = ملف تاني نسخة مكررة)
 // 🆕 2026-10-04.7: وقت (savedAt) آخر نسخة تصميم مرتبطة بعرض السعر هاد (محفوظة بـ_Designs أو محمّلة منها).
 let currentDesignSavedAt = 0;
 
@@ -4331,9 +4366,9 @@ function pushQuotationHistorySnapshotNow(force){
   try{
     const snap = JSON.stringify(captureFullQuotationData());
     lastQuotationSnapshotAt = Date.now();
-    if(snap === lastQuotationSnapshotJson) return; // ما تغيّر شي فعليًا (مثلاً focus/blur بدون تعديل)
+    if(mzSnapKey(snap) === mzSnapKey(lastQuotationSnapshotJson)) return; // ما تغيّر شي فعليًا (مثلاً focus/blur بدون تعديل) - نتجاهل بصمة الوقت quotationSavedAt لأنها بتتغيّر بكل التقاط
     if(lastQuotationSnapshotJson !== null){
-      quotationHistoryStack.push(lastQuotationSnapshotJson);
+      quotationHistoryStack.push(lastQuotationSnapshotJson); if(Date.now() - (window.__mzCleanAt||0) > 3000) window.__mzDirty = true; // (بعد الحفظ بثواني تعديلات التطبيق التلقائي ما بتعتبر "غير محفوظة")
       if(quotationHistoryStack.length > QUOTATION_MAX_HISTORY) quotationHistoryStack.shift();
     }
     lastQuotationSnapshotJson = snap;
@@ -4413,7 +4448,8 @@ function updateQuotationUndoButton(){
   // صارت أقل من 700ms قبل الإغلاق المفاجئ.
   // 🛠️ 2026-09-30.12: هون تحديدًا لازم نلتقط فورًا (force=true) بدون احترام الفاصل الأدنى الجديد -
   // الصفحة عم تنسكر/تختفي فعليًا، ما في وقت نستنى فيه فاصل 2.5 ثانية.
-  window.addEventListener('beforeunload', function(){ pushQuotationHistorySnapshotNow(true); });
+  window.__mzIsDirty = function(){ return !!window.__mzDirty && !(window.__mzOpenedAsDesign && !currentDraftId); };
+  window.addEventListener('beforeunload', function(e){ pushQuotationHistorySnapshotNow(true); if(window.__mzIsDirty()){ e.preventDefault(); e.returnValue = ''; } });
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') pushQuotationHistorySnapshotNow(true); });
 })();
 
@@ -4506,7 +4542,7 @@ function buildBakedHtmlSnapshot(){
 
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
   // 🛠️ 2026-10-04.9: دوال بديلة (مش نص) حتى الرموز الخاصة بأسماء البنود ما تتفسّر، وتهريب علامة "<" حتى وسم إغلاق السكربت ما يكسر الملف.
-  const __safeBakeJson = v => JSON.stringify(v).replace(/</g, '\\u003c');
+  const __safeBakeJson = v => JSON.stringify(v).replace(/</g, '\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
   html = html.replace(/const ITEMS_DEFAULT = \[.*\];/, () => 'const ITEMS_DEFAULT = ' + __safeBakeJson(ITEMS) + ';');
   html = html.replace(/const ALUM_SPEC_AR_DEFAULT = \{.*\};/, () => 'const ALUM_SPEC_AR_DEFAULT = ' + __safeBakeJson(ALUM_SPEC_AR) + ';');
   try{
@@ -4535,10 +4571,10 @@ function buildBakedHtmlSnapshot(){
     }
     if(bakeItems){
       const visibleDesignItems = bakeItems.filter(it => !it.isCameraTemp);
-      const safeJson = v => JSON.stringify(v).replace(/</g, '\\u003c');
+      const safeJson = v => JSON.stringify(v).replace(/</g, '\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
       const itemsJs = 'const DESIGN_ITEMS_DEFAULT = ' + safeJson(visibleDesignItems) + ';';
       const nextJs = 'const DESIGN_NEXT_ID_DEFAULT = ' + safeJson(bakeNextId) + ';';
-      html = html.replace(/const DESIGN_ITEMS_DEFAULT = \[.*\];/, () => itemsJs);
+      html = html.replace(/const DESIGN_ITEMS_DEFAULT = \[[^\n]*\];/, () => itemsJs);
       html = html.replace(/const DESIGN_NEXT_ID_DEFAULT = \d+;/, () => nextJs);
       html = html.replace(/const DESIGN_BAKED_AT_DEFAULT = \d+;/, () => 'const DESIGN_BAKED_AT_DEFAULT = ' + Date.now() + ';');
     }
@@ -4899,7 +4935,7 @@ function mergeQtyRowsFromOtherData(otherQtyRowsHtml){
   const qtyBody = document.getElementById('qty-rows');
   if(!qtyBody || typeof otherQtyRowsHtml !== 'string' || !otherQtyRowsHtml.trim()) return uidMap;
   const tmp = document.createElement('tbody');
-  tmp.innerHTML = otherQtyRowsHtml;
+  tmp.innerHTML = mzSanitizeHtml(otherQtyRowsHtml);
   Array.from(tmp.querySelectorAll('tr')).forEach(tr=>{
     const oldUid = tr.dataset.rowUid;
     if(oldUid){
@@ -5205,7 +5241,8 @@ async function fetchDriveTokenFromServer(){
   const controller = new AbortController();
   const timer = setTimeout(()=> controller.abort(), 8000);
   try{
-    const res = await fetch(DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(WHATSAPP_NOTIFY_TOKEN), { signal: controller.signal });
+    let __devTok = ''; try{ __devTok = localStorage.getItem('merzona-device-token') || ''; }catch(e){}
+    const res = await fetch(DRIVE_TOKEN_URL + '?token=' + encodeURIComponent(WHATSAPP_NOTIFY_TOKEN) + '&device=' + encodeURIComponent(__devTok), { signal: controller.signal });
     if(!res.ok) return null;
     const data = await res.json();
     if(!data || !data.access_token) return null;
@@ -5417,7 +5454,17 @@ async function manualSuggestNextReference(){
   }
 }
 
-async function findOrCreateDriveFolder(name, parentId, token){
+const __mzFolderInFlight = {};
+function findOrCreateDriveFolder(name, parentId, token){
+  const k = parentId + '/' + name;
+  if(__mzFolderInFlight[k]) return __mzFolderInFlight[k];
+  const p = __findOrCreateDriveFolderRaw(name, parentId, token);
+  __mzFolderInFlight[k] = p;
+  const clr = ()=>{ if(__mzFolderInFlight[k] === p) delete __mzFolderInFlight[k]; };
+  p.then(clr, clr);
+  return p;
+}
+async function __findOrCreateDriveFolderRaw(name, parentId, token){
   const safeName = name.replace(/'/g, "\\'");
   const q = encodeURIComponent(`name = '${safeName}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   // 🔧 2026-09-23: رفعنا المهلة هون (كانت 15 ثانية) - أول حفظة لفرع جديد كليًا (متل دمشق-سوريا) بتحتاج
@@ -5485,7 +5532,15 @@ async function updateDriveFileContent(fileId, blob, token){
   return out;
 }
 
-async function saveJsonToDriveFolder(filename, obj, parentId, token){
+const __mzDriveWriteChains = {};
+function saveJsonToDriveFolder(filename, obj, parentId, token){
+  const key = parentId + '/' + filename;
+  const prev = __mzDriveWriteChains[key] || Promise.resolve();
+  const run = prev.catch(()=>{}).then(()=> __saveJsonToDriveFolderRaw(filename, obj, parentId, token));
+  __mzDriveWriteChains[key] = run.catch(()=>{});
+  return run;
+}
+async function __saveJsonToDriveFolderRaw(filename, obj, parentId, token){
   const blob = new Blob([JSON.stringify(obj)], {type:'application/json'});
   const existingId = await findFileInFolder(filename, parentId, token);
   if(existingId){
@@ -5547,7 +5602,7 @@ async function downloadDriveJsonFile(fileId, token){
 function countQtyRowsInSnapshot(data){
   try{
     const tmp = document.createElement('tbody');
-    tmp.innerHTML = (data && data.qtyRowsHtml) || '';
+    tmp.innerHTML = mzSanitizeHtml((data && data.qtyRowsHtml) || '');
     return tmp.querySelectorAll('tr').length;
   }catch(e){ return 0; }
 }
@@ -5662,7 +5717,10 @@ async function restoreVersionFromHistory(fileId, token){
     // الاسترجاع) بزر "↩️ تراجع" العادي لو غيّر رأيه بنفس الجلسة.
     pushQuotationHistorySnapshotNow();
     const data = await downloadDriveJsonFile(fileId, token);
+    const __kd = { id: currentDesignId, name: currentDesignName, at: currentDesignSavedAt, br: currentDesignBranch, dr: currentDraftId };
     applyFullQuotationData(data);
+    if(__kd.id){ currentDesignId = __kd.id; currentDesignName = __kd.name; currentDesignSavedAt = __kd.at; currentDesignBranch = __kd.br; }
+    if(__kd.dr) currentDraftId = __kd.dr;
     lastQuotationSnapshotJson = JSON.stringify(data);
     updateQuotationUndoButton();
     closeVersionHistoryPanel();
@@ -5677,13 +5735,63 @@ window.restoreVersionFromHistory = restoreVersionFromHistory;
 function generateDraftId(){ return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function generateDesignId(){ return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
-async function saveDraftToDrive(evt){
+// 🆕 2026-10-04.14: رسالة صغيرة فوق كل شي (حتى فوق نافذة المصمم) تأكّد لحمدي بالضبط شو انحفظ وشو لأ.
+function showMerzonaToast(msg, ok){
+  try{
+    const old = document.getElementById('merzonaToast'); if(old) old.remove();
+    const d = document.createElement('div');
+    d.id = 'merzonaToast';
+    d.textContent = msg;
+    d.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);max-width:92vw;padding:12px 18px;border-radius:10px;font:600 14px/1.6 Tahoma,Arial,sans-serif;direction:rtl;text-align:center;z-index:2147483000;box-shadow:0 6px 24px rgba(0,0,0,.35);color:#fff;background:' + (ok ? '#15803d' : '#b45309');
+    document.body.appendChild(d);
+    setTimeout(()=>{ try{ d.remove(); }catch(e){} }, ok ? 4000 : 9000);
+  }catch(e){}
+}
+window.showMerzonaToast = showMerzonaToast;
+
+// 🛠️ 2026-10-05: بعد أي حفظ ناجح (مسودة/تصميم/حفظ نهائي) منعتبر الحالة الحالية "نظيفة" ومنعيد أساس لقطة التراجع - وإلا لقطات لاحقة
+// بتختلف بس بسبب وقت الحفظ نفسه كانت تعتبرها "تعديلات غير محفوظة" وتطلع تحذير غلط.
+function mzSnapKey(j){ return typeof j==='string' ? j.replace(/"quotationSavedAt":\d+/,'') : j; }
+function mzMarkClean(){
+  window.__mzDirty = false; window.__mzCleanAt = Date.now();
+  try{
+    const snap = JSON.stringify(captureFullQuotationData());
+    if(lastQuotationSnapshotJson !== null && mzSnapKey(lastQuotationSnapshotJson) !== mzSnapKey(snap)){ quotationHistoryStack.push(lastQuotationSnapshotJson); if(quotationHistoryStack.length > QUOTATION_MAX_HISTORY) quotationHistoryStack.shift(); }
+    lastQuotationSnapshotJson = snap; lastQuotationSnapshotAt = Date.now();
+    if(typeof updateQuotationUndoButton === 'function') updateQuotationUndoButton();
+  }catch(e){}
+}
+
+// 🛠️ 2026-10-05 (فحص شامل - أمان): أي HTML جاي من ملف محفوظ (مسودة/نسخة عرض سعر عالدرايف) كان يتحط بـinnerHTML مباشرة، فلو الملف فيه
+// <img onerror=...> أو <script> كان ينفّذ كود بجلسة حمدي. هلق بنمرّره بمنظّف: بنحلّله جوا <template> (خامل - ما بينفّذ شي) وبنشيل
+// السكربتات والإطارات وكل خاصية on* وأي رابط javascript:. ما بيأثر على جدول الكميات العادي (حقول إدخال + ستايل).
+function mzSanitizeHtml(html){
+  try{
+    const t = document.createElement('template');
+    t.innerHTML = String(html == null ? '' : html);
+    t.content.querySelectorAll('script,iframe,object,embed,link,meta,base,form').forEach(n=>n.remove());
+    t.content.querySelectorAll('*').forEach(el=>{
+      Array.from(el.attributes).forEach(a=>{
+        const nm = a.name.toLowerCase(), v = String(a.value||'').replace(/[\s\u0000-\u001f]+/g,'').toLowerCase();
+        if(nm.indexOf('on') === 0 || ((nm === 'href' || nm === 'src' || nm === 'xlink:href' || nm === 'action' || nm === 'formaction') && (v.indexOf('javascript:') === 0 || v.indexOf('data:text/html') === 0))) el.removeAttribute(a.name);
+      });
+    });
+    return t.innerHTML;
+  }catch(e){ return ''; }
+}
+window.mzSanitizeHtml = mzSanitizeHtml;
+
+async function saveDraftToDrive(evt, opts){
+  const silent = !!(opts && opts.silent === true);
   const btn = evt && evt.target;
   const originalLabel = btn ? btn.textContent : null;
   if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نحفظ المسودة...'; }
   try{
-    const token = await getGoogleAccessToken();
-    if(!currentDraftId) currentDraftId = generateDraftId();
+    const token = silent ? await getGoogleAccessToken(true) : await getGoogleAccessToken();
+    { const __r = normalizeRefForCompare(document.getElementById('m-ref') && document.getElementById('m-ref').value);
+      if(currentDraftId && window.__mzDraftBoundRef && window.__mzDraftBoundRef !== __r) currentDraftId = null;
+      if(!currentDraftId) currentDraftId = generateDraftId();
+      window.__mzDraftBoundRef = __r; }
     const data = captureFullQuotationData(); // بتحمل draftId تلقائيًا لأنو currentDraftId اتحدد فوق
     const refRaw = (data.fields && data.fields['m-ref']) || '';
     const clientName = (data.fields && data.fields['m-client']) || '';
@@ -5696,15 +5804,19 @@ async function saveDraftToDrive(evt){
       client: clientName || null, branch, savedAt: Date.now(), data
     };
     await saveJsonToDriveFolder(currentDraftId + '.json', envelope, draftsFolderId, token);
+    mzMarkClean();
     if(btn){
       btn.textContent = '✅ انحفظت المسودة';
       setTimeout(()=>{ if(btn){ btn.textContent = originalLabel; btn.disabled = false; } }, 1800);
     }
   }catch(e){
     console.error('[حفظ كمسودة] فشل:', e);
-    alert('تعذّر حفظ المسودة: ' + ((e && e.message) || e));
+    if(silent){ showMerzonaToast('⚠️ ما انحفظت المسودة المرتبطة على الدرايف (' + ((e && e.message) || e) + ') — اضغط "💾 حفظ كمسودة" يدويًا.', false); }
+    else alert('تعذّر حفظ المسودة: ' + ((e && e.message) || e));
     if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
+    return false;
   }
+  return true;
 }
 window.saveDraftToDrive = saveDraftToDrive;
 
@@ -5820,33 +5932,55 @@ async function offerNewerSavedDesign(){
 window.offerNewerSavedDesign = offerNewerSavedDesign;
 window.fetchLatestSavedDesignForRef = fetchLatestSavedDesignForRef;
 
-async function saveDesignToDrive(){
+async function saveDesignToDrive(opts){
+  // 🛠️ 2026-10-04.14 (بلاغ حمدي: "بفتح تصميم من المسودة وبعدّل وبعمل حفظ دون أي جدوى"): زر "✅ استخدم هذا التصميم واحفظه للبند"
+  // (الأخضر، الأبرز) كان بس بيطبّق التعديل على عرض السعر المفتوح وبيسكّر - ما بيكتب شي عالدرايف، فكل ما حمدي يرجع يفتح المسودة/التصميم
+  // بيلاقي القديم. هلق هالزر بينادي هالدالة تلقائيًا (silent=true) لما التصميم مرتبط بمسودة/تصميم/رقم مرجعي، وحفظ التصميم بحدّث المسودة
+  // المفتوحة معه كمان. بالوضع الصامت ما في أسئلة ولا نافذة دخول جوجل - لو فشل بتطلع رسالة واضحة فوق الشاشة.
+  const silent = !!(opts && opts.silent === true);
   if(window.__flushDesignSave__) window.__flushDesignSave__(); // نضمن آخر تعديل عالرسمة محفوظ قبل ما ناخد نسخة تصدير
   const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
   if(!exported || !Array.isArray(exported.items) || !exported.items.length){
-    alert('ما في أي بند تصميم لحفظه حاليًا.');
-    return;
+    if(!silent) alert('ما في أي بند تصميم لحفظه حاليًا.');
+    return false;
   }
-  const refRaw = (document.getElementById('m-ref') && document.getElementById('m-ref').value || '').trim();
+  // 🛠️ 2026-10-04.14: الرقم المرجعي غير المكتمل (الافتراضي "M-Q-260" وهو بيجي دايمًا بالخانة حتى بالتصميم الحر) ما بيعتبر رقم مرجعي -
+  // قبل هيك التصميم الحر كان ينحفظ كأنه تصميم لـ"M-Q-260" بمجلد الإمارات (ملف تاني، والأصلي يضل قديم).
+  const refField = (document.getElementById('m-ref') && document.getElementById('m-ref').value || '').trim();
+  const refDigits = refField.match(/(\d+)\s*$/);
+  const refRaw = (refDigits && refDigits[1].length >= 5) ? refField : '';
   let designName = currentDesignName;
   if(!refRaw){
-    designName = (prompt('هاد تصميم حر (مش مرتبط برقم مرجعي لعرض سعر حاليًا) - اكتب اسم يميّزه عن باقي التصاميم:', currentDesignName || '') || '').trim();
-    if(!designName){
-      // 🔧 2026-09-30: كانت هون ترجع بصمت تام بدون أي تنبيه - وهاد بالضبط يلي كان يخلي حمدي يظن إنو
-      // الحفظ صار عادي بينما فعليًا ما انحفظ ولا شي (لو ألغى نافذة الاسم أو تركها فاضية بالغلط).
-      // هلق دايمًا منعرض تنبيه واضح إنو الحفظ ما تم، حتى ما يصير هيك لبس تاني.
-      alert('⚠️ ما انحفظ التصميم - لازم تكتب اسم للتصميم الحر حتى يتحفظ. جرّب "💾 حفظ التصميم" من جديد واكتب اسم.');
-      return;
+    if(silent){
+      if(!designName){ // تصميم حر بدون اسم: ما منقدر نحفظه تلقائيًا بدون ما نسأل
+        showMerzonaToast('⚠️ التصميم انطبق على عرض السعر بس ما انحفظ عالدرايف لأنو تصميم حر بدون اسم — افتح المصمم واضغط "💾 حفظ التصميم" واكتب اسم.', false);
+        return false;
+      }
+    } else {
+      designName = (prompt('هاد تصميم حر (مش مرتبط برقم مرجعي لعرض سعر حاليًا) - اكتب اسم يميّزه عن باقي التصاميم:', currentDesignName || '') || '').trim();
+      if(!designName){
+        // 🔧 2026-09-30: كانت هون ترجع بصمت تام بدون أي تنبيه - وهاد بالضبط يلي كان يخلي حمدي يظن إنو
+        // الحفظ صار عادي بينما فعليًا ما انحفظ ولا شي (لو ألغى نافذة الاسم أو تركها فاضية بالغلط).
+        // هلق دايمًا منعرض تنبيه واضح إنو الحفظ ما تم، حتى ما يصير هيك لبس تاني.
+        alert('⚠️ ما انحفظ التصميم - لازم تكتب اسم للتصميم الحر حتى يتحفظ. جرّب "💾 حفظ التصميم" من جديد واكتب اسم.');
+        return false;
+      }
+      currentDesignName = designName;
     }
-    currentDesignName = designName;
   }
-  const btn = document.getElementById('saveDesignBtn');
+  const btn = silent ? null : document.getElementById('saveDesignBtn');
   const originalLabel = btn ? btn.textContent : null;
   if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نحفظ التصميم...'; }
   try{
-    const token = await getGoogleAccessToken();
-    if(!currentDesignId) currentDesignId = generateDesignId();
-    const branch = getBranchFromRef(refRaw);
+    const token = silent ? await getGoogleAccessToken(true) : await getGoogleAccessToken();
+    { const __r = normalizeRefForCompare(refRaw);
+      if(currentDesignId && refRaw && window.__mzDesignBoundRef && window.__mzDesignBoundRef !== __r){ currentDesignId = null; currentDesignName = null; currentDesignSavedAt = 0; }
+      if(!currentDesignId) currentDesignId = generateDesignId();
+      window.__mzDesignBoundRef = refRaw ? __r : null; }
+    // 🛠️ 2026-10-04.14: التصميم الحر ما إله رقم مرجعي نشتق منه الفرع - كنا نرجع للفرع الافتراضي (الإمارات) حتى لو الملف الأصلي
+    // بمجلد سوريا، فينكتب ملف تاني بمجلد تاني والملف الأصلي (يلي بيفتحه حمدي من القائمة) يضل قديم. هلق منحفظ فرع الملف الأصلي.
+    const branch = refRaw ? getBranchFromRef(refRaw) : (currentDesignBranch || getBranchFromRef(refField));
+    currentDesignBranch = branch;
     const rootFolderId = getDriveRootFolderIdForBranch(branch);
     const designsFolderId = await findOrCreateDriveFolder('_Designs', rootFolderId, token);
     const label = refRaw || designName || 'تصميم بدون اسم';
@@ -5858,14 +5992,23 @@ async function saveDesignToDrive(){
     await saveJsonToDriveFolder(currentDesignId + '.json', envelope, designsFolderId, token);
     currentDesignSavedAt = envelope.savedAt;
     if(refRaw){ try{ localStorage.setItem('merzona-latest-design::' + normalizeRefForCompare(refRaw), JSON.stringify(envelope)); }catch(e){} }
+    // المسودة المفتوحة (لو في) لازم تحمل نفس التصميم، وإلا فتحها بعدين بيجيب النسخة القديمة المخزنة جواها.
+    let draftOk = null;
+    if(currentDraftId){ draftOk = await saveDraftToDrive(null, { silent: true }); }
+    if(draftOk || (window.__mzOpenedAsDesign && !currentDraftId)){ mzMarkClean(); }
     if(btn){
       btn.textContent = '✅ انحفظ التصميم';
       setTimeout(()=>{ if(btn){ btn.textContent = originalLabel; btn.disabled = false; } }, 1800);
     }
+    if(draftOk === false) showMerzonaToast('⚠️ انحفظ التصميم عالدرايف (' + label + ') بس المسودة المرتبطة ما انحدّثت - اضغط "💾 حفظ كمسودة" يدويًا.', false);
+    else showMerzonaToast('☁️ انحفظ التصميم عالدرايف (' + label + ')' + (draftOk ? ' + تحدّثت المسودة المرتبطة' : ''), true);
+    return true;
   }catch(e){
     console.error('[حفظ التصميم] فشل:', e);
-    alert('تعذّر حفظ التصميم: ' + ((e && e.message) || e));
+    if(silent){ showMerzonaToast('⚠️ التصميم انطبق على عرض السعر بس ما انحفظ عالدرايف (' + ((e && e.message) || e) + ') — افتح المصمم واضغط "💾 حفظ التصميم".', false); }
+    else alert('تعذّر حفظ التصميم: ' + ((e && e.message) || e));
     if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
+    return false;
   }
 }
 window.saveDesignToDrive = saveDesignToDrive;
@@ -5981,9 +6124,10 @@ async function saveToGoogleDrive(evt){
       new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت العملية الوقت المسموح (150 ثانية) - تأكد من اتصالك بالإنترنت وجرّب تاني.')), 150000))
     ]);
     window.removeEventListener('focus', onFocusReturn);
-    if(driveSaveCancelled) return; // المستخدم كان ألغى يدويًا - ما منعرض أي نتيجة متأخرة
-    resetBtn(); // نرجّع الزر لطبيعته فورًا قبل ما نعرض رسالة النجاح، حتى ما يضل الزر معلّق وراء نافذة الـ alert
+    const __wasCancelled = driveSaveCancelled;
+    if(!__wasCancelled) resetBtn(); // نرجّع الزر لطبيعته فورًا قبل ما نعرض رسالة النجاح، حتى ما يضل الزر معلّق وراء نافذة الـ alert
     console.log('[Drive Save] نجح -', new Date().toLocaleTimeString());
+    mzMarkClean();
     // 🔧 2026-08-25: منسجّل طابع زمني بالـlocalStorage فور نجاح الحفظ - لوحة التحكم (Dashboard.html)
     // عم تسمع لهالإشارة (حدث "storage") وبتعمل مطابقة فورية مع جوجل درايف فور ما توصلها، سواء كانت
     // أداة عرض السعر شغالة جوا إطار الداشبورد نفسها أو بتبويب منفصل لحاله - هيك أي حفظة جديدة بتنعكس
@@ -6013,7 +6157,8 @@ async function saveToGoogleDrive(evt){
       }catch(e2){}
       alert('⚠️ تم الحفظ لجوجل درايف بنجاح، لكن تعذّر إرسال إشعار واتساب لمجموعة Tasks:\n' + (e && e.message ? e.message : e) + (e && e.cause ? ('\nالسبب التفصيلي: ' + (e.cause.message || JSON.stringify(e.cause))) : '') + '\n\nممكن تحتاجي تبعتي العرض يدويًا، أو تتأكدي إنه سيرفر الواتساب شغال.');
     });
-    alert('تم الحفظ لجوجل درايف بنجاح ✅\n' + ((result && result.summary) || ''));
+    if(!__wasCancelled) alert('تم الحفظ لجوجل درايف بنجاح ✅\n' + ((result && result.summary) || ''));
+    else showMerzonaToast('☁️ تم الحفظ لجوجل درايف بنجاح ✅ ' + ((result && result.summary) || ''), true);
   }catch(err){
     window.removeEventListener('focus', onFocusReturn);
     if(driveSaveCancelled) return; // المستخدم كان ألغى يدويًا - ما منعرض رسالة خطأ لعملية هو نفسه ألغاها
@@ -6175,7 +6320,14 @@ async function saveToGoogleDriveInner(){
 
     const yearFolderId = await findOrCreateDriveFolder(year, rootFolderIdForSave, token);
     const refFolderId = await findOrCreateDriveFolder(refSafe, yearFolderId, token);
-
+    if(window.__mzOwnedRefSafe !== refSafe){
+      const exId = await findFileInFolder(refSafe + '-data.json', refFolderId, token);
+      if(exId){
+        let exInfo = ''; try{ const ex = await downloadDriveJsonFile(exId, token); exInfo = ' (الزبون: ' + ((ex.fields && ex.fields['m-client']) || '؟') + ')'; }catch(e){}
+        if(!confirm('⚠️ الرقم المرجعي "' + refRaw + '" محفوظ مسبقًا بجوجل درايف' + exInfo + ' - الحفظ رح يستبدله. تكمل؟')) throw new Error('تم إلغاء الحفظ حتى ما ينستبدل عرض سعر موجود بنفس الرقم - غيّر الرقم المرجعي.');
+      }
+    }
+    window.__mzOwnedRefSafe = refSafe;
     // نسخة HTML الكاملة من الأداة (نفس نظامك الحالي بالضبط)
     const htmlContent = buildBakedHtmlSnapshot();
     const htmlBlob = new Blob([htmlContent], {type:'text/html'});
@@ -6190,6 +6342,7 @@ async function saveToGoogleDriveInner(){
     let quotationDataJsonFileId = null;
     try{
       const fullData = captureFullQuotationData();
+      fullData.draftId = null;
       quotationFullDataForSignBox = fullData;
       const dataBlob = new Blob([JSON.stringify(fullData)], {type:'application/json'});
       const dataUploadResult = await uploadOrUpdateFileInDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
@@ -6940,8 +7093,11 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
       if(refElForDesign) refElForDesign.value = pendingDesignLoad.ref;
     }
     runWhenDesignBridgeReady(()=>{
+      window.__mzDesignBoundRef = pendingDesignLoad.ref ? String(pendingDesignLoad.ref).replace(/\s+/g,'').toUpperCase() : null;
       currentDesignId = pendingDesignLoad.designId || null;
       currentDesignName = pendingDesignLoad.name || null;
+      currentDesignBranch = pendingDesignLoad.branch || null;
+      window.__mzOpenedAsDesign = true; // صفحة عرض السعر هون مجرد حاوية للتصميم - حفظ التصميم لحاله بيكفي (ما في تعديلات عرض سعر نخاف نضيّعها)
       openDesignerWithImportedItems(pendingDesignLoad.designItems, pendingDesignLoad.designNextId);
     }, 40);
   }
@@ -7134,7 +7290,7 @@ window.wdApplyBack = function(results){
     <div class="wd-action-controls">
       <button class="wd-save-btn" onclick="wdSaveAndClose()">✅ استخدم هذا التصميم واحفظه للبند</button>
       <button id="saveDesignBtn" onclick="saveDesignToDrive()" title="احفظ هالتصميم بسجل التصاميم بجوجل درايف - بتقدر ترجعله لاحقًا من تبويب &quot;المسودات والتصاميم&quot; بلوحة التحكم">💾 حفظ التصميم</button>
-      <button class="wd-close-btn" onclick="wdCloseOverlay()">✕ إغلاق بدون حفظ</button>
+      <button class="wd-close-btn" onclick="wdCloseOverlay()">✕ إغلاق (بدون تطبيق على الجدول)</button>
     </div>
     <div class="print-controls">
       <button id="undoBtn" class="printBtn" onclick="undo()" style="border-color:var(--wd-cyan);color:var(--wd-cyan);background:var(--wd-cyan-dim);" disabled="">↩️ تراجع</button>
@@ -8064,12 +8220,12 @@ function savePersisted(){
 }
 
 function normalizeStructure(node){
-  if(node.kind === 'leaf') return { kind:'leaf' };
+  if(node.kind === 'leaf') return node.type === 'fold' ? { kind:'leaf', fold:true } : { kind:'leaf' };
   return { kind:'split', direction: node.direction,
     children: node.children.map(ch => ({ frac: Math.round(ch.frac*10)/10, node: normalizeStructure(ch.node) })) };
 }
 function buildFromStructure(struct){
-  if(struct.kind === 'leaf') return leaf('plain');
+  if(struct.kind === 'leaf') return leaf(struct.fold ? 'fold' : 'plain'); // 🛠️ 2026-10-05: نحافظ على درف الفولدينغ بالقوالب المحفوظة
   return makeSplit(struct.direction, struct.children.map(ch => ({ frac: ch.frac, node: buildFromStructure(ch.node) })));
 }
 function structureLeafCount(struct){
@@ -8135,6 +8291,15 @@ function applyTemplateEntry(shapeType, kind, id){
     const p = (pinnedTemplates[shapeType]||[]).find(x=>x.id===id);
     if(!p) return;
     it.layout = buildFromStructure(p.structure);
+  }
+  // 🛠️ 2026-10-05: الفولدينغ لازم يضل فيه درف فولدينغ - لو القالب (افتراضي/قديم) ما فيه أي 'fold' منحوّل أعمدة الصف الرئيسي لفولدينغ
+  if(it.shapeType === 'foldingDoor'){
+    const anyFold = n => n.kind==='leaf' ? n.type==='fold' : n.children.some(c=>anyFold(c.node));
+    if(!anyFold(it.layout)){
+      const mark = n => { if(n.kind==='leaf'){ n.type='fold'; } else n.children.forEach(c=>mark(c.node)); };
+      if(it.layout.kind==='split' && it.layout.direction==='row') it.layout.children.forEach(c=>mark(c.node)); else mark(it.layout);
+    }
+    try{ syncFoldingTransomRows(it); }catch(e){}
   }
   renderGallery();
   const card = document.getElementById('card-' + it.id);
@@ -8353,11 +8518,22 @@ window.addEventListener('beforeunload', function(){
   try{ window.__flushDesignSave__(); }catch(e){}
 });
 // 🆕 2026-10-04.13: تعديل العدد بجدول الكميات (أو الرقم المرجعي) لازم ينعكس بالحفظ التلقائي فورًا، حتى أداة المشتريات تشوف نفس العدد.
+// 🛠️ 2026-10-05: كيبورد الموبايل العربي بيكتب أرقام هندية (٢٦٠٧٠٠) فالرقم المرجعي ما كان يُعرف كرقم مرجعي (التصميم يصير "حر" وينحفظ بفرع غلط).
+// بنحوّلها لأرقام لاتينية لحظة الكتابة.
+document.addEventListener('input', function(e){
+  try{
+    const t = e.target;
+    if(t && t.id === 'm-ref'){
+      const v = t.value, n = v.replace(/[٠-٩]/g, d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+      if(n !== v) t.value = n;
+    }
+  }catch(err){}
+}, true);
 ['input','change','click'].forEach(function(evName){
   document.addEventListener(evName, function(e){
     try{
       const t = e.target;
-      if(t && t.closest && (t.closest('#qty-rows') || t.id === 'm-ref')) scheduleDesignSave();
+      if(t && t.closest && (t.closest('#qty-rows') || (t.id === 'm-ref' && e.type === 'change'))) scheduleDesignSave();
     }catch(err){}
   }, true);
 });
@@ -8531,11 +8707,20 @@ async function mergeInAnotherQuotation(){
   const otherRowCount = (function(){
     try{
       const tmp = document.createElement('tbody');
-      tmp.innerHTML = otherData.qtyRowsHtml || '';
+      tmp.innerHTML = mzSanitizeHtml(otherData.qtyRowsHtml || '');
       return tmp.querySelectorAll('tr').length;
     }catch(e){ return 0; }
   })();
   const otherClientName = (otherData.fields && otherData.fields['m-client']) || '';
+  const otherF = otherData.fields || {};
+  const otherCurKey = getBranchFromRef(otherRef) === 'syria' ? (otherF['m-currency'] === 'syp' ? 'syp' : 'usd') : 'aed';
+  if(otherCurKey !== getCurrentCurrencyKey()){
+    alert('❌ عرض السعر "' + otherRef + '" بعملة (' + otherCurKey.toUpperCase() + ') مختلفة عن عملة العرض الحالي (' + getCurrentCurrencyKey().toUpperCase() + ') - ما بينفع ندمجهم لأنو الأرقام ما رح تتحول.');
+    return;
+  }
+  if(parseMoney(otherF['discount-amount']) > 0 || parseMoney(otherF['discount-pct']) > 0){
+    if(!confirm('⚠️ عرض السعر "' + otherRef + '" فيه خصم (' + (otherF['discount-amount'] || (otherF['discount-pct'] + '%')) + ') - الخصم ما رح ينضم للعرض الحالي، لازم تضيفيه يدويًا بعد الدمج. تكملي؟')) return;
+  }
   // 🆕 2026-09-30 (طلب حمدي: "موضوع تكرار الشروط والاحكام بالإضافة الى ضمانات الإكسسوارات - برأيي
   // الحل يكون اعادة الضمانات بالشكل الستاندارد لحتى نشيل منها شي لو امكن") - قسمين "الإكسسوارات
   // والضمانات" (acc-rows) و"الشروط والأحكام" (notes-rows) كل عرض سعر جديد بيبلش بنفس القائمة
@@ -8549,7 +8734,7 @@ async function mergeInAnotherQuotation(){
   pushQuotationHistorySnapshotNow();
   try{
     QUOTATION_ROW_CONTAINERS.forEach(cid=>{
-      if(cid === 'acc-rows' || cid === 'notes-rows') return; // منصفّرهم للشكل القياسي تحت بدل ما نلزق فوقهم
+      if(cid === 'acc-rows' || cid === 'notes-rows' || cid === 'pay-rows') return; // منصفّرهم للشكل القياسي تحت بدل ما نلزق فوقهم
       const el = document.getElementById(cid);
       const html = otherData.rows && otherData.rows[cid];
       if(el && typeof html === 'string' && html.trim()) el.insertAdjacentHTML('beforeend', html);
@@ -9391,7 +9576,7 @@ function onHandrailLengthChange(){
 }
 function onHandrailCountChange(){
   const it = getSelected(); if(!it) return;
-  it.hrPanelCount = Math.max(1, Math.round(parseFloat(document.getElementById('inHrCount').value) || 1));
+  it.hrPanelCount = Math.min(500, Math.max(1, Math.round(parseFloat(document.getElementById('inHrCount').value) || 1)));
   syncHandrailDims(it);
   renderGallery();
 }
@@ -9428,7 +9613,7 @@ function editShowerSideWidth(id, side){
   const cur = side==='left' ? (it.showerLeftWidth||600) : (it.showerRightWidth||600);
   const val = prompt('عرض اللوح الثابت الجديد (مم):', Math.round(cur));
   if(val===null) return;
-  const n = evalMeasureExpr(val) ?? parseFloat(val); if(isNaN(n) || n<=0) return;
+  const n = evalMeasureExpr(val) ?? parseFloat(val); if(!Number.isFinite(n) || n<=0 || n>1e7) return;
   pushHistory();
   if(side==='left') it.showerLeftWidth = n; else it.showerRightWidth = n;
   loadSelectedIntoControls();
@@ -9572,7 +9757,7 @@ function loadSelectedIntoControls(){
     document.getElementById(id).disabled = disabled;
   });
   renderTemplateSections();
-  if(!it) return;
+  if(!it){ ['gableRoofBlock','roomBlock','handrailBlock'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }); return; }
 
   // 🆕 2026-09-24: "غرفة/مجلس" - لوحة تحكم مختلفة كليًا (أضلاع + زوايا)، منعزلة عن باقي أنواع البنود
   const room = isRoom(it);
@@ -9678,7 +9863,10 @@ function splitLeaf(itemId, nodeId, direction){
       const refEntry = rowAncestor.children[rowIdx];
       const hasTransom = refEntry.node.kind === 'split' && refEntry.node.direction === 'col';
       const newSlot = hasTransom
-        ? makeSplit('col', [ {frac:refEntry.node.children[0].frac, node:leaf('plain')}, {frac:refEntry.node.children[1].frac, node:leaf('fold')} ])
+        ? (function cloneTransom(n){ // 🛠️ 2026-10-05: نسخ هيكل الطاقة كامل (قبل كان بياخد أول ولدين بس فلو الطاقة 3 أجزاء ضاع ثلث الارتفاع)
+            if(n.kind==='leaf') return leaf(n.type==='fold' ? 'fold' : 'plain');
+            return makeSplit(n.direction, n.children.map(c=>({frac:c.frac, node:cloneTransom(c.node)})));
+          })(refEntry.node)
         : leaf('fold');
       rowAncestor.children.splice(rowIdx+1, 0, { frac:0, node:newSlot });
       const n = rowAncestor.children.length;
@@ -9932,7 +10120,7 @@ function editTotalDim(itemId, axis, currentMM){
   const input = prompt(`أدخل ${label} الجديد بالمليمتر (تقدر تكتب مثلاً 1200+350):`, Math.round(currentMM));
   if(input === null) return;
   const newMM = evalMeasureExpr(input) ?? parseFloat(input);
-  if(!newMM || newMM <= 0) return;
+  if(!Number.isFinite(newMM) || newMM <= 0 || newMM > 1e7) return;
   pushHistory();
   if(axis === 'w') it.width = newMM; else it.height = newMM;
   if(selectedId === itemId){
@@ -9953,7 +10141,7 @@ function editLeafDim(itemId, leafId, axis, currentMM){
   const input = prompt('أدخل القياس الجديد بالمليمتر (تقدر تكتب مثلاً 1200+350):', Math.round(currentMM));
   if(input === null) return;
   const newMM = evalMeasureExpr(input) ?? parseFloat(input);
-  if(!newMM || newMM <= 0) return;
+  if(!Number.isFinite(newMM) || newMM <= 0 || newMM > 1e7) return;
   const { splitNode, idx } = gov;
   const target = splitNode.children[idx];
   const others = splitNode.children.filter((_,i) => i !== idx);
@@ -9970,7 +10158,7 @@ function editRoomSegLengthFromSVG(itemId, sideId, segId, currentMM){
   const input = prompt('الطول الجديد بالمليمتر (من برا لبرا) - تقدر تكتب مثلاً 3000+250:', Math.round(currentMM));
   if(input === null) return;
   const newMM = evalMeasureExpr(input) ?? parseFloat(input);
-  if(!newMM || newMM <= 0) return;
+  if(!Number.isFinite(newMM) || newMM <= 0 || newMM > 1e7) return;
   onRoomSegField(itemId, sideId, segId, 'length', newMM);
 }
 window.editRoomSegLengthFromSVG = editRoomSegLengthFromSVG;
@@ -10788,7 +10976,7 @@ function editHandrailTotal(id){
   const val = prompt('الطول الإجمالي الجديد (مم) - تقدر تكتب مثلاً 4800+350:', cur);
   if(val===null) return;
   const n = evalMeasureExpr(val) ?? parseFloat(val);
-  if(isNaN(n) || n<=0) return;
+  if(!Number.isFinite(n) || n<=0 || n>1e7) return;
   pushHistory();
   if(it.hrDimMode === 'panel'){
     // بتحويل تلقائي: بيتحسب عرض اللوح الجديد بنفس عدد الألواح
@@ -12523,7 +12711,7 @@ function roomDrawCommitEdgeLength(){
   const inp = document.getElementById('roomDrawEdgeLenInput');
   const rawVal = inp ? inp.value.trim() : '';
   const newLen = evalMeasureExpr(rawVal) ?? parseFloat(rawVal);
-  if(!newLen || isNaN(newLen) || newLen <= 0){ alert('اكتب مقاس صحيح بالمليمتر (رقم أكبر من صفر).'); return; }
+  if(!Number.isFinite(newLen) || newLen <= 0 || newLen > 1e7){ alert('اكتب مقاس صحيح بالمليمتر (رقم أكبر من صفر).'); return; }
   const pts = roomDraw.points, n = pts.length, i = roomDraw.selectedSegIdx, j = (i+1)%n;
   const a = pts[i], b = pts[j];
   const len = Math.hypot(b.x-a.x, b.y-a.y);
@@ -12599,7 +12787,7 @@ function roomDrawCommitTypedLength(){
   // المستخدمين بيكتبوا رقم لحاله بدون جمع/طرح) كان دايمًا يطلع "اكتب طول صحيح" رغم إنو الرقم صحيح
   // 100%! نفس المنطق يلي مستخدم بباقي أماكن الأداة (evalMeasureExpr(x) ?? parseFloat(x)).
   const len = evalMeasureExpr(rawVal) ?? parseFloat(rawVal);
-  if(!len || isNaN(len) || len <= 0){
+  if(!Number.isFinite(len) || len <= 0 || len > 1e7){
     alert('اكتب طول صحيح بالمليمتر (رقم أكبر من صفر) - ممكن كمان تجمع/تطرح متل 3000+250.');
     return;
   }
@@ -17447,6 +17635,17 @@ function wdSaveAndClose(){
     };
   });
   if(window.wdApplyBack) window.wdApplyBack(results);
+  // 🛠️ 2026-10-04.14: الزر اسمه "احفظه" فلازم فعلًا يحفظ - لو التصميم مرتبط بمسودة/تصميم محفوظ أو إله رقم مرجعي منكتبه عالدرايف تلقائيًا.
+  try{
+    const refNow = ((document.getElementById('m-ref') && document.getElementById('m-ref').value) || '').trim();
+    const refm = refNow.match(/(\d+)\s*$/);
+    const completeRef = !!(refm && refm[1].length >= 5);
+    if(currentDesignId || currentDesignName || currentDraftId){
+      saveDesignToDrive({ silent: true });
+    } else if(completeRef){
+      showMerzonaToast('ℹ️ انطبق التصميم على عرض السعر. ما انحفظ كتصميم مستقل عالدرايف — إذا بدك، افتح المصمم واضغط "💾 حفظ التصميم".', false);
+    }
+  }catch(e){ console.warn('[حفظ تلقائي بعد استخدام التصميم] فشل:', e); }
 }
 
 function wdCloseOverlay(){
@@ -18205,7 +18404,7 @@ function build3DRenderSVG(it){
     sunGlow = `<ellipse cx="${drawW*0.74}" cy="${drawH*0.2}" rx="${drawW*0.32}" ry="${drawH*0.26}" fill="url(#sun-${gid})"/>`;
   }
 
-  const outerFrame = `<rect x="${frameW/2}" y="${frameW/2}" width="${drawW-frameW}" height="${drawH-frameW}" fill="none" stroke="url(#frame-${gid})" stroke-width="${frameW}"/>
+  const outerFrame = `<rect x="${frameW/2}" y="${frameW/2}" width="${Math.max(0,drawW-frameW)}" height="${Math.max(0,drawH-frameW)}" fill="none" stroke="url(#frame-${gid})" stroke-width="${frameW}"/>
     <rect x="0" y="0" width="${drawW}" height="${frameW}" fill="url(#bevel-${gid})"/>`;
   const extraFoldingCasing = it.shapeType === 'foldingDoor' ? (()=>{
     const GAP = 2.3, CW = 14, o = GAP+CW;
@@ -18613,6 +18812,7 @@ function renderPurchasingAll(){
 window.purchSetItemType = purchSetItemType;
 window.purchSetItemQty = purchSetItemQty;
 window.renderPurchasingBOM = renderPurchasingBOM;
+window.renderPurchasingAluminum = renderPurchasingAluminum;
 
 function openPurchasingOverlay(){
   renderPurchasingAll();

@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-09-30.1';
+  var CURRENT_VERSION = '2026-10-05.1';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1993,9 +1993,10 @@ function parseDate(dateStr){
   }
   const parts = dateStr.split('/');
   if(parts.length!==3) return null;
-  const [d,m,y] = parts.map(Number);
-  if(!d||!m||!y) return null;
-  return new Date(y, m-1, d);
+  const [a,b,y] = parts.map(Number);
+  if(!a||!b||!y) return null;
+  const dmy = a > 12; // DD/MM/YYYY only when first part cannot be a month; otherwise legacy M/D/YYYY
+  return new Date(y, (dmy?b:a)-1, dmy?a:b);
 }
 
 let chartRange = 'all';
@@ -2056,7 +2057,7 @@ function exportCSV(){
   const lines = [header.join(',')];
   rows.forEach(d=>{
     const wa = toWaLink(d.phone) || d.phone;
-    const line = [branchLabel(getEntryBranch(d)), d.year, d.ref, '"'+getClientName(d).replace(/"/g,'""')+'"', wa.replace('https://wa.me/',''), currencyLabel(getEntryCurrency(d)), d.total].join(',');
+    const line = [branchLabel(getEntryBranch(d)), d.year, d.ref, '"'+(/^[=+\-@\t\r]/.test(getClientName(d)) ? "'" : '')+getClientName(d).replace(/"/g,'""')+'"', wa.replace('https://wa.me/',''), currencyLabel(getEntryCurrency(d)), d.total].join(',');
     lines.push(line);
   });
   const csvContent = '\uFEFF' + lines.join('\n');
@@ -2241,25 +2242,25 @@ function render(){
     // خارجي. بيضل فيه href الأصلي لجوجل درايف كخط رجعة (كليك يمين -> فتح برابط جديد لو حبيت)، بس
     // الكبسة العادية ما عادت تفتح تبويب جديد.
     const refCell = d.url
-      ? '<a href="'+d.url+'" rel="noopener" class="ref-badge open-in-app-link" data-ref="'+d.ref+'" style="text-decoration:none;">'+d.ref+' ↗</a>'
-      : '<span class="ref-badge">'+d.ref+'</span>';
-    const openLatestBtn = '<button class="open-latest-btn" data-ref="'+d.ref+'" title="افتح هالعرض بآخر نسخة من الأداة (مع كل التصليحات الجديدة) - محتاج يكون مربوط بجوجل درايف" style="margin-inline-start:6px;font-size:11px;padding:2px 6px;border-radius:5px;border:1px solid var(--aux1);color:var(--aux1);background:#fff;cursor:pointer;">🔓 آخر نسخة</button>';
+      ? '<a href="'+escapeHtml(d.url)+'" rel="noopener" class="ref-badge open-in-app-link" data-ref="'+escapeHtml(d.ref)+'" style="text-decoration:none;">'+escapeHtml(d.ref)+' ↗</a>'
+      : '<span class="ref-badge">'+escapeHtml(d.ref)+'</span>';
+    const openLatestBtn = '<button class="open-latest-btn" data-ref="'+escapeHtml(d.ref)+'" title="افتح هالعرض بآخر نسخة من الأداة (مع كل التصليحات الجديدة) - محتاج يكون مربوط بجوجل درايف" style="margin-inline-start:6px;font-sizeg:2px 6px;border-radius:5px;border:1px solid var(--aux1);color:var(--aux1);background:#fff;cursor:pointer;">🔓 آخر نسخة</button>';
     // 🆕 زر "تحويل لعقد" - بيسجّل عرض السعر هاد كعقد بتبويب "العقود" (لو مش مسجّل أصلًا) وبيوديك
     // مباشرة لهيك، حتى تكمّل عليه جدول الدفعات و/أو تجيب رابط التوقيع الإلكتروني له.
-    const convertToContractBtn = '<button class="convert-to-contract-btn" data-ref="'+d.ref+'" title="حوّل عرض السعر هاد لعقد (بيسجّله بتبويب العقود وبيوديك لهناك)" style="margin-inline-start:6px;font-size:11px;padding:2px 6px;border-radius:5px;border:1px solid var(--main);color:var(--main);background:#fff;cursor:pointer;">📝 تحويل لعقد</button>';
+    const convertToContractBtn = '<button class="convert-to-contract-btn" data-ref="'+escapeHtml(d.ref)+'" title="حوّل عرض السعر هاد لعقد (بيسجّله بتبويب العقود وبيوديك لهناك)" style="margin-inline-start:6px;font-size:11px;padding:2px 6px;border-rader:1px solid var(--main);color:var(--main);background:#fff;cursor:pointer;">📝 تحويل لعقد</button>';
     const waLink = toWaLink(d.phone);
     const phoneCell = waLink
-      ? '<a href="'+waLink+'" target="_blank" rel="noopener" class="wa-link">'+d.phone+' <span class="wa-icon">💬</span></a>'
-      : '<span>'+d.phone+'</span>';
+      ? '<a href="'+waLink+'" target="_blank" rel="noopener" class="wa-link">'+escapeHtml(d.phone)+' <span class="wa-icon">💬</span></a>'
+      : '<span>'+escapeHtml(d.phone)+'</span>';
     const clientName = overrides[d.ref] || d.client;
     // 🗑️ زر حذف عرض السعر (2026-08-25) - عمود جديد بأقصى يمين الجدول (أول عمود بترتيب DOM، وبما
     // إنو الصفحة كلها RTL هيك بيطلع بأقصى اليمين فعليًا) - حتى يقدر حمدي يحذف عرض سعر من السجل
     // مباشرة بدون ما يضطر يفتحه أو يروح لجوجل درايف يدويًا.
-    const deleteBtn = '<button class="delete-quotation-btn" data-ref="'+d.ref+'" title="حذف عرض السعر هاد نهائيًا (بينقل مجلده لسلة المحذوفات بجوجل درايف)" style="font-size:14px;line-height:1;padding:4px 7px;border-radius:6px;border:1px solid var(--danger);color:var(--danger);background:#fff;cursor:pointer;">🗑️</button>';
+    const deleteBtn = '<button class="delete-quotation-btn" data-ref="'+escapeHtml(d.ref)+'" title="حذف عرض السعر هاد نهائيًا (بينقل مجلده لسلة المحذوفات بجوجل درايف)" style="font-size:14px;line-height:1;padding:4px 7px;border-radius:6px;border:r(--danger);color:var(--danger);background:#fff;cursor:pointer;">🗑️</button>';
     tr.innerHTML =
       '<td style="text-align:center;">'+deleteBtn+'</td>'+
-      '<td><span class="year-tag">'+d.year+'</span>'+refCell+openLatestBtn+convertToContractBtn+'</td>'+
-      '<td><span class="client-edit" data-ref="'+d.ref+'" title="اضغط لتعديل اسم الزبون" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+clientName+'</span></td>'+
+      '<td><span class="year-tag">'+escapeHtml(d.year)+'</span>'+refCell+openLatestBtn+convertToContractBtn+'</td>'+
+      '<td><span class="client-edit" data-ref="'+escapeHtml(d.ref)+'" title="اضغط لتعديل اسم الزبون" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+escapeHtml(clientName)+'</span></td>'+
       '<td dir="ltr" style="text-align:right">'+phoneCell+'</td>'+
       '<td class="num">'+fmt(d.total)+' <small style="color:var(--muted);font-size:10.5px;">'+currencyLabel(getEntryCurrency(d))+'</small></td>';
     tbody.appendChild(tr);
@@ -2347,7 +2348,7 @@ function drawChart(){
     return;
   }
 
-  const max = Math.max(...data.map(d=>d.total));
+  const max = Math.max(0, ...data.map(d=>Number(d.total)||0));
   const padL = 0, padB = 34, padT = 10;
   const barGap = chartFitToWidth ? Math.max(1, Math.min(4, (w/data.length)*0.15)) : 4;
   // بوضع "عرض الكل بدون تمرير" ما بنفرض حد أدنى لعرض العمود/النقطة - بنخلي كل شي يتقلّص وينضغط لحتى يلحق بعرض الصندوق بالضبط
@@ -2359,7 +2360,7 @@ function drawChart(){
 
   // مقياس لوغاريتمي بدل الخطي - عندنا عرض واحد ضخم جدًا (قريب ٣ مليون) وباقي العروض بالعشرات والمئات الآلاف،
   // فالمقياس الخطي كان يخلي كل شي تحت ٣٠٠ ألف يبين متل بعضه تمامًا. اللوغاريتمي بيحافظ على الفروقات النسبية للأرقام الصغيرة والمتوسطة.
-  const logMax = Math.log(max + 1);
+  const logMax = Math.log(max + 1) || 1;
   function scaledH(total){
     return (h - padB - padT) * Math.log(total + 1) / logMax;
   }
@@ -2535,7 +2536,7 @@ function setActiveTable(idx){
 }
 function renderPaymentTableSelect(){
   const sel = document.getElementById('paymentTableSelect');
-  sel.innerHTML = tempPaymentTables.map((t,i)=>'<option value="'+i+'">'+t.name+' ('+fmt(t.total||0)+' د.إ)</option>').join('');
+  sel.innerHTML = tempPaymentTables.map((t,i)=>'<option value="'+i+'">'+escapeHtml(t.name)+' ('+fmt(t.total||0)+' د.إ)</option>').join('');
   sel.value = activeTableIdx;
 }
 
@@ -2911,7 +2912,7 @@ function renderUsersRows(users){
       '<button class="mz-users-reset" style="margin-inline-end:6px;">تصفير كلمة السر</button>' +
       '<button class="mz-users-delete" style="color:#c0392b;">حذف</button>';
     return '<tr data-username="' + String(key).replace(/"/g,'&quot;') + '">' +
-      '<td style="padding:6px;font-weight:600;">' + (u.username || key) + (u.deviceName ? '<div style="font-size:11px;color:var(--muted);">' + u.deviceName + '</div>' : '') + '</td>' +
+      '<td style="padding:6px;font-weight:600;">' + escapeHtml(u.username || key) + (u.deviceName ? '<div style="font-size:11px;color:var(--muted);">' + escapeHtml(u.deviceName) + '</div>' : '') + '</td>' +
       cols +
       '<td style="text-align:center;padding:6px;"><input type="checkbox" class="mz-users-isadmin" ' + adminChecked + ' ' + adminDisabled + ' /></td>' +
       '<td style="padding:6px;white-space:nowrap;">' + actions + '</td>' +
@@ -4709,7 +4710,13 @@ async function dashFetchWithTimeout(url, options, timeoutMs){
   const timer = setTimeout(()=> controller.abort(), timeoutMs || 20000);
   try{
     const opts = Object.assign({}, options, { signal: controller.signal });
-    return await fetch(url, opts);
+    const r = await fetch(url, opts);
+    // 🛠️ 2026-10-05: توكن جوجل المخزّن انتهى/انرفض (401) - كان يضل يتكرر نفس التوكن الميت لحد ما تنتهي صلاحيته محليًا. هلق منمسحه حتى الطلب الجاي يجيب جديد.
+    if(r && r.status === 401 && typeof url === 'string' && url.indexOf('googleapis.com') !== -1){
+      dashGoogleAccessToken = null; dashGoogleAccessTokenExpiresAt = 0;
+      try{ localStorage.removeItem(DASH_TOKEN_CACHE_KEY); }catch(e){}
+    }
+    return r;
   } finally { clearTimeout(timer); }
 }
 
@@ -4764,7 +4771,7 @@ async function downloadSyncData(token){
   if(!res.ok) throw new Error('drive-download-failed-'+res.status);
   const text = await res.text();
   if(!text || !text.trim()) return {};
-  try{ return JSON.parse(text); }catch(e){ return {}; }
+  try{ return JSON.parse(text); }catch(e){ throw new Error('drive-sync-file-corrupt'); }
 }
 
 async function uploadSyncData(token, dataObj){
@@ -5269,6 +5276,7 @@ window.openQuotationWithLatestTool = openQuotationWithLatestTool;
 // جوجل درايف لعدد الطلبات المتزامنة (rate limit) لو تراكم عدد كبير جدًا من الملفات.
 async function scanDriveSubfolderAcrossBranches(token, subfolderName){
   const branches = Object.keys(DRIVE_ROOTS_BY_BRANCH_DASH);
+  const scanErrors = [];
   const perBranch = await Promise.all(branches.map(async (branch) => {
     const rootId = DRIVE_ROOTS_BY_BRANCH_DASH[branch];
     try{
@@ -5276,6 +5284,7 @@ async function scanDriveSubfolderAcrossBranches(token, subfolderName){
       const res = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
         headers: { Authorization: 'Bearer ' + token }
       }, 15000);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       const folderId = data.files && data.files[0] && data.files[0].id;
       if(!folderId) return [];
@@ -5298,8 +5307,10 @@ async function scanDriveSubfolderAcrossBranches(token, subfolderName){
       }
       await Promise.all(Array.from({ length: Math.min(CONCURRENCY, jsonFiles.length) }, worker));
       return branchResults;
-    }catch(e){ console.warn('[سجل المسودات/التصاميم] تعذّر فحص مجلد ' + subfolderName + ' لفرع ' + branch, e); return []; }
+    }catch(e){ console.warn('[سجل المسودات/التصاميم] تعذّر فحص مجلد ' + subfolderName + ' لفرع ' + branch, e); scanErrors.push(e); return []; }
   }));
+  // 🛠️ 2026-10-05: لو كل الفروع فشلت (أوفلاين/500/توكن مرفوض) ما منقول "ما في مسودات" - منرمي الخطأ حتى تطلع رسالة واضحة.
+  if(scanErrors.length && scanErrors.length === branches.length) throw scanErrors[0];
   return perBranch.flat();
 }
 
@@ -5407,6 +5418,7 @@ function renderDesignsList(designs){
 // من جوجل درايف مباشرة بلحظة الضغط (بنفس fileId) - هيك مضمون دايمًا آخر نسخة محفوظة، بغض النظر
 // عن قدم اللائحة المعروضة.
 async function openDraftFromLog(fileId, cachedList){
+  try{ const cw = document.getElementById('quotationFrame').contentWindow; if(cw && (cw.__mzIsDirty ? cw.__mzIsDirty() : cw.__mzDirty) && !confirm('في تعديلات غير محفوظة بعرض السعر المفتوح - إذا كمّلت رح تضيع. تكمّل؟')) return; }catch(e){}
   const btn = document.querySelector('.open-draft-btn[data-file-id="'+CSS.escape(fileId)+'"]');
   const originalLabel = btn ? btn.textContent : null;
   if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نجيب آخر نسخة...'; }
@@ -5431,6 +5443,7 @@ async function openDraftFromLog(fileId, cachedList){
 // 🔧 2026-09-25: نفس تصحيح openDraftFromLog فوق بالضبط - منجيب آخر نسخة محفوظة مباشرة من الدرايف
 // بلحظة الضغط، مش من لائحة قديمة ممكن تكون تجاوزها الزمن.
 async function openDesignFromLog(fileId, cachedList){
+  try{ const cw = document.getElementById('quotationFrame').contentWindow; if(cw && (cw.__mzIsDirty ? cw.__mzIsDirty() : cw.__mzDirty) && !confirm('في تعديلات غير محفوظة بعرض السعر المفتوح - إذا كمّلت رح تضيع. تكمّل؟')) return; }catch(e){}
   const btn = document.querySelector('.open-design-btn[data-file-id="'+CSS.escape(fileId)+'"]');
   const originalLabel = btn ? btn.textContent : null;
   if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نجيب آخر نسخة...'; }
@@ -5441,6 +5454,7 @@ async function openDesignFromLog(fileId, cachedList){
     if(!envelope) throw new Error('empty-design-data');
     localStorage.setItem('merzona-pending-design-load', JSON.stringify({
       designId: envelope.designId, name: envelope.name, ref: envelope.ref || null,
+      branch: envelope.branch || null, // 🛠️ 2026-10-04.14: فرع الملف الأصلي - حتى الحفظ يرجع لنفس المجلد (التصميم الحر ما إله رقم مرجعي نشتق منه الفرع)
       designItems: envelope.designItems, designNextId: envelope.designNextId
     }));
     localStorage.setItem('merzona_sync_connected', '1');
@@ -5457,11 +5471,12 @@ async function deleteDriveJsonFile(fileId, whatLabel, onDone){
   if(!confirm('متأكد بدك تحذف هاي ' + whatLabel + '؟ (بتنترحّل بجوجل درايف - بتقدر تسترجعها يدويًا من سلة المهملات فيه لو غيّرت رأيك)')) return;
   try{
     const token = await getDashGoogleAccessToken(false);
-    await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    const delRes = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
       method: 'PATCH',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       body: JSON.stringify({ trashed: true })
     }, 15000);
+    if(!delRes.ok) throw new Error('HTTP ' + delRes.status);
     if(onDone) onDone();
   }catch(e){
     console.error('[سجل المسودات/التصاميم] فشل الحذف:', e);
@@ -5905,7 +5920,7 @@ function populatePmpRefSelect(){
 function populateContractRefSelect(){
   const list = document.getElementById('contractRefList');
   const sorted = DATA.slice().sort((a,b)=> a.ref.localeCompare(b.ref));
-  list.innerHTML = sorted.map(d=>'<option value="'+d.ref+' — '+getClientName(d)+'">').join('');
+  list.innerHTML = sorted.map(d=>'<option value="'+escapeHtml(d.ref)+' — '+escapeHtml(getClientName(d))+'">').join('');
   const input = document.getElementById('contractRefInput');
   if(currentContractRef){
     const d = DATA.find(x=>x.ref===currentContractRef);
@@ -5947,7 +5962,7 @@ function renderContractSummary(){
   const rawClientName = getClientNameByRef(currentContractRef);
   const clientName = rawClientName === '—' ? 'بدون اسم زبون (اضغط للتعديل)' : rawClientName;
   const totalHtml = d ? (' — قيمة العرض الإجمالية: <b>'+fmt(d.total)+' د.إ</b>') : ' — <span style="color:var(--muted);">📝 عقد يدوي (مش مرتبط بعرض سعر مسجّل بالنظام)</span>';
-  summaryEl.innerHTML = '<span class="contract-client-edit" data-ref="'+currentContractRef+'" title="اضغط لتعديل اسم الزبون" style="cursor:pointer;font-weight:600;color:var(--main);border-bottom:1px dashed var(--line);">'+clientName+'</span>'+totalHtml;
+  summaryEl.innerHTML = '<span class="contract-client-edit" data-ref="'+escapeHtml(currentContractRef)+'" title="اضغط لتعديل اسم الزبون" style="cursor:pointer;font-weight:600;color:var(--main);border-bottom:1px dashed var(--line);">'+escapeHtml(clientName)+'</span>'+totalHtml;
   const span = summaryEl.querySelector('.contract-client-edit');
   span.addEventListener('click', function(){
     const ref = this.dataset.ref;
@@ -6779,7 +6794,8 @@ function renderPaymentRows(){
     });
   });
   tbody.querySelectorAll('[data-del]').forEach(el=>{
-    el.addEventListener('click', ()=>{
+    el.addEventListener('click', (ev)=>{
+      if(ev.detail > 1) return; // ignore 2nd click of a double-click (row below shifts under the cursor)
       tempPayments.splice(+el.dataset.del, 1);
       renderPaymentRows();
     });
@@ -6847,9 +6863,11 @@ document.getElementById('saveContractBtn').addEventListener('click', ()=>{
 
 document.getElementById('deleteContractBtn').addEventListener('click', ()=>{
   if(!currentContractRef) return;
+  if(!confirm('تأكيد حذف العقد "'+currentContractRef+'" نهائيًا؟')) return;
   const contracts = loadContracts();
   delete contracts[currentContractRef];
   saveContracts(contracts);
+  const ct = loadContractTombstones(); ct[currentContractRef] = Date.now(); saveContractTombstones(ct);
   tempPaymentTables = [];
   setActiveTable(0);
   renderPaymentTableSelect();
@@ -6872,14 +6890,14 @@ function renderContractsList(){
     const tables = getPaymentTables(c);
     const totalPayCount = tables.reduce((s,t)=>s+t.payments.length, 0);
     const countLabel = tables.length>1 ? (totalPayCount+' ('+tables.length+' جداول)') : String(totalPayCount);
-    return '<tr style="cursor:pointer;" data-ref="'+ref+'">'+
-      '<td><button type="button" class="copy-sign-link-btn" data-sign-ref="'+ref+'" title="انسخ رابط التوقيع الإلكتروني حتى تبعتيه للزبون - بيوقّع بأصبعه وبيتحط توقيعه عالملف تلقائيًا" style="font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--aux1);color:var(--aux1);background:#fff;cursor:pointer;white-space:nowrap;">✍️ توقيع إلكتروني</button></td>'+
-      '<td><span class="ref-badge">'+ref+'</span></td>'+
-      '<td>'+c.client+'</td>'+
+    return '<tr style="cursor:pointer;" data-ref="'+escapeHtml(ref)+'">'+
+      '<td><button type="button" class="copy-sign-link-btn" data-sign-ref="'+escapeHtml(ref)+'" title="انسخ رابط التوقيع الإلكتروني حتى تبعتيه للزبون - بيوقّع بأصبعه وبيتحط توقيعه عالملف تلقائيًا" style="font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--aux1);color:var(--aux1);background:#fff;cursor:pointer;white-space:nowrap;">✍️ توقيع إلكتروني</button></td>'+
+      '<td><span class="ref-badge">'+escapeHtml(ref)+'</span></td>'+
+      '<td>'+escapeHtml(c.client)+'</td>'+
       '<td>'+countLabel+'</td>'+
       '<td class="num">'+daysCell+'</td>'+
-      '<td style="white-space:nowrap;"><button type="button" class="export-btn" data-settlement-ref="'+ref+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة إنجاز وتسليم جاهزة للتعبئة والطباعة">🧾 إنشاء مخالصة للمشروع</button>'+
-      '<span data-del-contract="'+ref+'" title="حذف هالعقد نهائيًا" style="cursor:pointer;color:var(--danger);font-size:15px;">🗑</span></td>'+
+      '<td style="white-space:nowrap;"><button type="button" class="export-btn" data-settlement-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة إنجاز وتسليم جاهزة للتعبئة والطباعة">🧾 إنشاء مخالصة للمشروع</button>'+
+      '<span data-del-contract="'+escapeHtml(ref)+'" title="حذف هالعقد نهائيًا" style="cursor:pointer;color:var(--danger);font-size:15px;">🗑</span></td>'+
       '</tr>';
   }).join('');
   tbody.querySelectorAll('tr[data-ref]').forEach(tr=>{
@@ -7265,13 +7283,13 @@ function filterPaymentsByRange(list){
   if(payRange==='all') return list;
   return list.filter(p=>{
     if(!p.dueDate) return false;
-    const dt = parseDate(fmtDueDate(p.dueDate));
+    const dt = parseDate(p.dueDate);
     if(!dt) return false;
     if(payRange==='day'){
       if(!payPickedDay) return false;
       return p.dueDate === payPickedDay;
     }
-    const diffDays = (dt - now) / 86400000;
+    const diffDays = (dt - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000;
     if(payRange==='week') return diffDays >= 0 && diffDays < 7;
     if(payRange==='month') return dt.getFullYear()===now.getFullYear() && dt.getMonth()===now.getMonth();
     if(payRange==='year') return dt.getFullYear()===now.getFullYear();
@@ -7290,9 +7308,9 @@ function renderExpectedPayments(){
     return;
   }
   tbody.innerHTML = filtered.map(p=>
-    '<tr><td><span class="ref-badge">'+p.ref+'</span></td>'+
-    '<td>'+p.client+'</td>'+
-    '<td>'+p.desc+'</td>'+
+    '<tr><td><span class="ref-badge">'+escapeHtml(p.ref)+'</span></td>'+
+    '<td>'+escapeHtml(p.client)+'</td>'+
+    '<td>'+escapeHtml(p.desc)+'</td>'+
     '<td style="font-size:12px;color:var(--muted);">'+fmtDueDate(p.dueDate)+'</td>'+
     '<td class="num">'+fmt(p.aed)+'</td></tr>'
   ).join('');
@@ -7375,7 +7393,7 @@ document.getElementById('pmpRefSelect').addEventListener('change', (e)=>{
   if(!c){ summaryEl.textContent = ''; return; }
   const days = getQuoteDuration(currentPmpRef);
   const weeks = days ? Math.ceil(days/7) : 0;
-  summaryEl.innerHTML = '<b>'+c.client+'</b> — مدة التوريد/التنفيذ (من عرض السعر): <b>'+(days||'—')+' يوم</b>' +
+  summaryEl.innerHTML = '<b>'+escapeHtml(c.client)+'</b> — مدة التوريد/التنفيذ (من عرض السعر): <b>'+(days||'—')+' يوم</b>' +
     (days ? ' (≈ '+weeks+' أسبوع بالجدول)' : ' <span style="color:var(--danger);">(حدد المدة من تبويب العقود أول — إدخال مرة وحدة بيكفي)</span>');
   const pmps = loadPmpProjects();
   const saved = pmps[currentPmpRef];
@@ -7504,8 +7522,8 @@ function renderPmpTasks(){
   el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
     proj.tasks.map((t,i)=>
       '<tr style="border-bottom:1px solid var(--line);">'+
-      '<td style="padding:6px 8px;color:var(--muted);">'+t.phase+'</td>'+
-      '<td style="padding:6px 8px;">'+t.name+'</td>'+
+      '<td style="padding:6px 8px;color:var(--muted);">'+escapeHtml(t.phase)+'</td>'+
+      '<td style="padding:6px 8px;">'+escapeHtml(t.name)+'</td>'+
       '<td style="padding:6px 8px;">أسبوع '+t.startWeek+' — '+t.span+' أسابيع</td>'+
       '<td style="padding:6px 8px;text-align:left;"><span style="cursor:pointer;color:var(--danger);" data-ti="'+i+'">✕</span></td>'+
       '</tr>'
@@ -7539,9 +7557,9 @@ function renderPmpGantt(){
   const infoEl = document.getElementById('pmpPrintProjectInfo');
   if(infoEl){
     infoEl.innerHTML =
-      '<div style="font-weight:700;font-size:16px;color:var(--main);">'+(proj.client||'—')+'</div>'+
-      '<div style="color:var(--muted);">'+(proj.location ? 'الموقع: '+proj.location : '')+'</div>'+
-      '<div style="color:var(--muted);">الرقم المرجعي: '+currentPmpRef+'</div>'+
+      '<div style="font-weight:700;font-size:16px;color:var(--main);">'+escapeHtml(proj.client||'—')+'</div>'+
+      '<div style="color:var(--muted);">'+(proj.location ? 'الموقع: '+escapeHtml(proj.location) : '')+'</div>'+
+      '<div style="color:var(--muted);">الرقم المرجعي: '+escapeHtml(currentPmpRef)+'</div>'+
       '<div style="font-weight:700;font-size:1.15em;color:var(--main);">تاريخ اليوم: '+fmtDueDate(todayISO())+'</div>';
   }
 
