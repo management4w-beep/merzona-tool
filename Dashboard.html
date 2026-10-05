@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.1';
+  var CURRENT_VERSION = '2026-10-05.2';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1699,7 +1699,62 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
 </div>
 
 <script>
-const DATA = []
+// 🔒 2026-10-05 (فحص شامل - خصوصية): قائمة العروض القديمة (أسماء عملاء/أرقام هواتف/مبالغ) ما عادت مكتوبة جوا هالملف
+// (كانت ظاهرة لأي حدا بيفتح الملف حتى بدون ما يمر على بوابة الدخول). هلق السيرفر هو يلي بيحتفظ فيها وبيرسلها بس
+// للأجهزة المعتمدة (/dashboard-seed). نسخة مخزّنة بالجهاز المعتمد (localStorage) بتنعرض فورًا وبتتحدّث بالخلفية.
+const DATA = [];
+
+const MZ_SEED_CACHE_KEY = 'merzona_dash_seed_cache_v1';
+const __mzSeedRefs = new Set(); // أرقام العروض يلي إجت من القائمة المحمية (لنحدّثها بمكانها بدون تكرار)
+function mzApplySeed(rows){
+  let changed = false;
+  if(!Array.isArray(rows)) return false;
+  rows.forEach(function(r){
+    if(!r || typeof r.ref !== 'string') return;
+    const clean = r.ref.replace(/\s+/g,'');
+    const idx = DATA.findIndex(function(x){ return String(x.ref||'').replace(/\s+/g,'') === clean; });
+    if(idx === -1){ DATA.push(r); __mzSeedRefs.add(clean); changed = true; }
+    else if(__mzSeedRefs.has(clean) && JSON.stringify(DATA[idx]) !== JSON.stringify(r)){ DATA[idx] = r; changed = true; }
+  });
+  return changed;
+}
+(function mzLoadSeedFromCache(){
+  try{ mzApplySeed(JSON.parse(localStorage.getItem(MZ_SEED_CACHE_KEY) || 'null')); }catch(e){}
+})();
+function mzRefreshAfterSeed(){
+  try{ updateKpis(); }catch(e){}
+  try{ render(); }catch(e){}
+  try{ drawChart(); }catch(e){}
+  try{ renderExpectedPayments(); }catch(e){}
+  try{ renderClientsDirectory(); }catch(e){}
+  try{ renderQuotationsTracking(); }catch(e){}
+}
+// جلب القائمة من السيرفر (للأجهزة المعتمدة فقط). لو الجهاز لسا مو معتمد (403) بنعيد المحاولة كل 15 ثانية لحد ما تنوافق عليه.
+let __mzSeedTries = 0;
+async function mzFetchSeed(){
+  __mzSeedTries++;
+  let retryMs = 0;
+  try{
+    const dev = localStorage.getItem('merzona-device-token') || '';
+    if(!dev){ retryMs = 15000; }
+    else {
+      const url = 'https://merzona-server-production.up.railway.app/dashboard-seed?token=' + encodeURIComponent(DASH_SERVER_AUTH_TOKEN) + '&device=' + encodeURIComponent(dev);
+      const res = await fetch(url, { cache:'no-store' });
+      if(res.ok){
+        const rows = await res.json();
+        if(Array.isArray(rows)){
+          try{ localStorage.setItem(MZ_SEED_CACHE_KEY, JSON.stringify(rows)); }catch(e){}
+          if(mzApplySeed(rows)) mzRefreshAfterSeed();
+        }
+        return;
+      }
+      retryMs = (res.status === 403 || res.status === 401) ? 15000 : 60000;
+    }
+  }catch(e){ retryMs = 60000; }
+  if(retryMs && __mzSeedTries < 40) setTimeout(mzFetchSeed, retryMs);
+}
+setTimeout(mzFetchSeed, 0); // بعد ما يخلص تحميل السكربت (DASH_SERVER_AUTH_TOKEN معرّف تحت)
+
 
 // ---------- تصحيح قيمة العرض الإجمالية من ملف العقد المرفوع (لو انقرأت قيمة إجمالية من ملف
 // العقد لرقم مرجعي عنده عرض سعر مسجّل بالنظام، بنعتبرها الأصح - ممكن قيمة العرض الأصلية تكون
