@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="only light">
+<meta name="supported-color-schemes" content="light">
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
 <script>
@@ -27,7 +29,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-04.1';
+  var CURRENT_VERSION = '2026-10-05.1';
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -423,6 +425,12 @@
     --accent:#2563eb; --accent-dark:#1d4ed8; --danger:#dc2626; --ok:#16a34a;
     --leaf-bg:#eef4ff; --leaf-border:#93b7f5; --split-border:#c7cdd6;
   }
+  :root{color-scheme:only light;}
+  html{background:#f5f6f8;color:#1f2430;}
+  /* 🛠️ 2026-10-05: ألوان صريحة لكل الحقول حتى ما يغيّرها وضع الجهاز الداكن/الإجباري (كانت الخطوط ما بتنقرأ) */
+  input,select,textarea{background:#fff;color:#1f2430;}
+  input::placeholder{color:#8a93a3;opacity:1;}
+  select option{background:#fff;color:#1f2430;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:Tahoma,"Segoe UI",Arial,sans-serif;font-size:14px;}
   h1{font-size:19px;margin:0;}
@@ -512,6 +520,7 @@
       <button id="btnLoadProjectTrigger">📂 فتح مشروع</button>
       <input id="fileLoadProject" type="file" accept=".json" style="display:none">
       <button id="btnSyncDesign" class="primary">🔄 مزامنة من التصميم</button>
+      <button id="btnDriveDesigns" class="primary" style="background:#0f766e;border-color:#115e59">☁️ جلب تصميم من الدرايف</button>
       <button id="btnImportDesignTrigger">📐 استيراد يدوي من ملف (احتياطي)</button>
       <input id="fileImportDesign" type="file" accept=".json" style="display:none">
     </div>
@@ -1163,7 +1172,7 @@ if (typeof module !== 'undefined') {
     var statusEl = q('syncStatus');
     if (statusEl) {
       if (state.lastSyncAt == null) {
-        statusEl.textContent = 'ما في تصميم مربوط لهلق — افتح أداة التصميم وارسم، رح تظهر البنود هون أوتوماتيكياً.';
+        statusEl.textContent = 'ما في تصميم مربوط لهلق — اضغط «☁️ جلب تصميم من الدرايف» لتسحب تصميم محفوظ، أو افتح أداة التصميم وارسم (بتظهر البنود هون أوتوماتيكياً).';
       } else {
         var t = new Date(state.lastSyncAt);
         var hh = String(t.getHours()).padStart(2, '0'), mm = String(t.getMinutes()).padStart(2, '0');
@@ -1864,6 +1873,116 @@ if (typeof module !== 'undefined') {
     if (rest.indexOf('__noref__') === 0 || rest.indexOf('__no_ref__') === 0) return 'عرض سعر بدون رقم مرجعي';
     return rest;
   }
+
+  // ---------------- جلب التصاميم/المسودات من جوجل درايف (🆕 2026-10-05) ----------------
+  // السبب: الأداة كانت بتقرأ بس من تخزين المتصفح (نفس الجهاز/المتصفح يلي انرسم عليه التصميم). لو التصميم انحفظ على الدرايف أو انرسم
+  // على جهاز/متصفح تاني، المشتريات كانت تضل فاضية. هلق في زر "جلب تصميم من الدرايف" بيعرض كل التصاميم والمسودات المحفوظة بالفرعين.
+  var DRIVE_CACHE_KEY = 'merzona-proc-drive-sources';
+  var PROC_SERVER = 'https://merzona-server-production.up.railway.app';
+  var PROC_AUTH_TOKEN = 'SWkEojES13KEGpg0Rib3cfQrRUQI6Nky';
+  var PROC_DRIVE_ROOTS = { uae: '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', syria: '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS' };
+  var driveSources = [];
+  try { driveSources = JSON.parse(localStorage.getItem(DRIVE_CACHE_KEY) || '[]') || []; } catch (e) { driveSources = []; }
+  function saveDriveSources() {
+    try { localStorage.setItem(DRIVE_CACHE_KEY, JSON.stringify(driveSources.slice(0, 8))); } catch (e) {}
+  }
+  function procDriveToken() {
+    var dev = ''; try { dev = localStorage.getItem('merzona-device-token') || ''; } catch (e) {}
+    var url = PROC_SERVER + '/drive-token?token=' + encodeURIComponent(PROC_AUTH_TOKEN) + '&device=' + encodeURIComponent(dev);
+    return fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('تعذّر الحصول على إذن الدرايف من السيرفر (' + r.status + ')');
+      return r.json();
+    }).then(function (j) { if (!j || !j.access_token) throw new Error('السيرفر ما رجّع إذن درايف'); return j.access_token; });
+  }
+  function driveGet(url, token) {
+    return fetch(url, { headers: { Authorization: 'Bearer ' + token } }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r;
+    });
+  }
+  function scanDriveForDesigns(token, onProgress) {
+    var found = [];
+    var jobs = [];
+    Object.keys(PROC_DRIVE_ROOTS).forEach(function (branch) {
+      ['_Designs', '_Drafts'].forEach(function (sub) { jobs.push({ branch: branch, sub: sub }); });
+    });
+    var errors = 0;
+    return Promise.all(jobs.map(function (job) {
+      var q = encodeURIComponent("name = '" + job.sub + "' and '" + PROC_DRIVE_ROOTS[job.branch] + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false");
+      return driveGet('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id,name)', token).then(function (r) { return r.json(); }).then(function (d) {
+        var fid = d.files && d.files[0] && d.files[0].id;
+        if (!fid) return;
+        var q2 = encodeURIComponent("'" + fid + "' in parents and trashed = false");
+        return driveGet('https://www.googleapis.com/drive/v3/files?q=' + q2 + '&pageSize=1000&fields=files(id,name,mimeType,modifiedTime)', token).then(function (r) { return r.json(); }).then(function (l) {
+          var files = (l.files || []).filter(function (f) { return /\.json$/i.test(f.name); });
+          var idx = 0;
+          function worker() {
+            if (idx >= files.length) return Promise.resolve();
+            var f = files[idx++];
+            return driveGet('https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media', token).then(function (r) { return r.json(); }).then(function (obj) {
+              var items = null, savedAt = 0, ref = '', name = '';
+              if (obj && Array.isArray(obj.designItems)) { items = obj.designItems; ref = obj.ref || ''; name = obj.name || ''; savedAt = obj.savedAt; }
+              else if (obj && obj.data && Array.isArray(obj.data.designItems)) { items = obj.data.designItems; ref = (obj.data.refNumber || obj.ref || ''); name = obj.name || ''; savedAt = obj.savedAt || obj.data.quotationSavedAt; }
+              if (!items) return;
+              var real = items.filter(function (x) { return x && !x.isCameraTemp && !x.isInitialPlaceholder && x.shapeType !== 'room' && x.shapeType !== 'gableRoof'; });
+              if (!real.length) return;
+              var at = typeof savedAt === 'number' ? savedAt : Date.parse(savedAt || f.modifiedTime) || Date.parse(f.modifiedTime) || 0;
+              found.push({ key: 'drive:' + f.id, kind: job.sub === '_Designs' ? 'تصميم' : 'مسودة', ref: ref || name || f.name.replace(/\.json$/i, ''), name: name, savedAt: at, count: real.length, data: { items: items, savedAt: at, projectRef: ref || name, purchSummaries: obj.purchSummaries || null } });
+              if (onProgress) onProgress(found.length);
+            }).catch(function () { errors++; }).then(worker);
+          }
+          return Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);
+        });
+      }).catch(function () { errors++; });
+    })).then(function () {
+      if (errors && !found.length) throw new Error('تعذّر قراءة الدرايف (تأكد إن الجهاز معتمد والإنترنت شغّال)');
+      found.sort(function (a, b) { return b.savedAt - a.savedAt; });
+      return found;
+    });
+  }
+  function openDriveDesignsPicker() {
+    var old = document.getElementById('driveModal'); if (old) old.remove();
+    var ov = document.createElement('div'); ov.id = 'driveModal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#fff;color:#1f2430;border-radius:12px;max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;padding:16px;direction:rtl;font-family:inherit;';
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b style="font-size:16px">☁️ التصاميم والمسودات على الدرايف</b><button id="drvClose">✕</button></div>' +
+      '<input type="text" id="drvSearch" placeholder="ابحث برقم العرض أو الاسم..." style="width:100%;margin-bottom:8px">' +
+      '<div id="drvMsg" style="font-size:13px;color:#6b7280;margin-bottom:8px">⏳ عم نجيب القائمة من الدرايف...</div>' +
+      '<div id="drvList" style="overflow:auto;flex:1"></div>';
+    ov.appendChild(box); document.body.appendChild(ov);
+    ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+    box.querySelector('#drvClose').addEventListener('click', function () { ov.remove(); });
+    var all = [];
+    function renderList() {
+      var qv = (box.querySelector('#drvSearch').value || '').trim().toLowerCase();
+      var list = box.querySelector('#drvList'); list.innerHTML = '';
+      var shown = all.filter(function (x) { return !qv || (x.ref + ' ' + (x.name || '')).toLowerCase().indexOf(qv) >= 0; }).slice(0, 80);
+      shown.forEach(function (x) {
+        var d = new Date(x.savedAt || 0);
+        var b = document.createElement('button');
+        b.style.cssText = 'display:block;width:100%;text-align:right;margin-bottom:6px;padding:9px 11px;background:#fff;color:#1f2430;border:1px solid #dde1e6;border-radius:8px;';
+        b.textContent = x.kind + ' · ' + x.ref + (x.name && x.name !== x.ref ? ' — ' + x.name : '') + ' · ' + x.count + ' بند' + (x.savedAt ? ' · ' + d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear() : '');
+        b.addEventListener('click', function () {
+          driveSources = driveSources.filter(function (y) { return y.key !== x.key; });
+          driveSources.unshift(x); saveDriveSources();
+          state.designSourceKey = x.key;
+          var res = autoSyncFromDesigner(); renderApp(); ov.remove();
+          if (!res) alert('ما قدرت أسحب بنود من هالتصميم.');
+        });
+        list.appendChild(b);
+      });
+      if (!shown.length) list.innerHTML = '<div style="color:#6b7280;font-size:13px">ما في نتائج.</div>';
+    }
+    box.querySelector('#drvSearch').addEventListener('input', renderList);
+    procDriveToken().then(function (tok) {
+      return scanDriveForDesigns(tok, function (n) { var m = box.querySelector('#drvMsg'); if (m) m.textContent = '⏳ لقينا ' + n + ' لحد هلق...'; });
+    }).then(function (found) {
+      all = found; box.querySelector('#drvMsg').textContent = found.length ? ('لقينا ' + found.length + ' — اضغط على التصميم يلي بدك تسحب منه:') : 'ما لقينا أي تصميم أو مسودة فيها بنود على الدرايف.';
+      renderList();
+    }).catch(function (e) { var m = box.querySelector('#drvMsg'); if (m) { m.style.color = '#b91c1c'; m.textContent = '⚠️ ' + (e && e.message || e); } });
+  }
+
   function listDesignSources() {
     var out = [];
     try {
@@ -1878,7 +1997,8 @@ if (typeof module !== 'undefined') {
           out.push({ key: k, savedAt: isNaN(at) ? 0 : at, ref: data.projectRef || refFromDesignKey(k), count: real.length, data: data });
         } catch (e) { /* مفتاح تالف - تجاهل */ }
       }
-    } catch (e) { return []; }
+    } catch (e) { /* تخزين المتصفح غير متاح - منكمل بمصادر الدرايف */ }
+    driveSources.forEach(function (d) { out.push({ key: d.key, savedAt: d.savedAt || 0, ref: '☁️ ' + d.ref, count: d.count, data: d.data }); });
     out.sort(function (a, b) { return b.savedAt - a.savedAt; });
     return out;
   }
@@ -2016,6 +2136,7 @@ if (typeof module !== 'undefined') {
       autoSyncFromDesigner();
       renderApp();
     });
+    var drvBtn = q('btnDriveDesigns'); if (drvBtn) drvBtn.addEventListener('click', openDriveDesignsPicker);
     var syncBtn = q('btnSyncDesign');
     if (syncBtn) {
       syncBtn.addEventListener('click', function () {
