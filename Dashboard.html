@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.3';
+  var CURRENT_VERSION = '2026-10-05.4';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -856,6 +856,36 @@ td.num{text-align:left;font-weight:600;font-family:'Inter',sans-serif;direction:
   body.pmp-printing, body.pmp-printing *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
 }
 
+/* ---------- شهادة SEWA (هيئة كهرباء ومياه الشارقة) ---------- */
+#sewaView{ display:none; }
+.sewa-page{ max-width:780px; margin:0 auto; background:#fff; color:#111; border:1px solid var(--line); border-radius:10px; padding:30px 44px 34px; font-family:'Times New Roman',Times,serif; }
+.sewa-logo{ display:block; margin:0 auto 4px; width:120px; }
+.sewa-sub{ text-align:center; font-style:italic; color:#555; font-size:12px; margin:0 0 4px; }
+.sewa-contact{ text-align:center; color:#555; font-size:11px; border-bottom:2px solid var(--aux1); padding-bottom:9px; margin:0 0 18px; font-family:Arial,sans-serif; }
+.sewa-meta{ font-size:14px; line-height:1.7; margin:0 0 16px; }
+.sewa-title{ text-align:center; font-size:21px; font-weight:700; text-decoration:underline; margin:10px 0 18px; letter-spacing:.3px; }
+table.sewa-fields{ width:100%; border-collapse:collapse; margin-bottom:14px; }
+table.sewa-fields td{ padding:7px 4px; font-size:15px; vertical-align:top; }
+table.sewa-fields td.lbl{ width:150px; white-space:nowrap; }
+.sewa-field{ display:inline-block; min-width:140px; border-bottom:1px dashed var(--aux1); padding:0 4px; }
+.sewa-field:empty::before{ content:'.......................'; color:#bbb; }
+.sewa-body p{ font-size:14.5px; line-height:1.65; margin:0 0 10px; text-align:left; }
+.sewa-body ul{ margin:6px 0 16px 0; padding-left:34px; text-align:left; }
+.sewa-body li{ font-size:14.5px; line-height:1.9; }
+.sewa-sign{ margin-top:18px; text-align:left; font-size:14.5px; }
+.sewa-sign-imgs{ display:flex; align-items:flex-end; gap:14px; margin:6px 0 4px; min-height:80px; }
+.sewa-sig-img{ max-height:62px; max-width:160px; object-fit:contain; display:block; }
+.sewa-stamp-img{ width:92px; height:92px; object-fit:contain; display:block; opacity:.9; transform:rotate(-7deg); }
+@media print{
+  body.sewa-printing{ padding:0 !important; margin:0 !important; background:#fff !important; }
+  body.sewa-printing .wrap > *:not(#sewaView){ display:none !important; }
+  body.sewa-printing #sewaView > *:not(#sewaPage){ display:none !important; }
+  body.sewa-printing #sewaPage{ box-shadow:none !important; border:none !important; margin:0 !important; max-width:100% !important; padding:4mm 8mm !important; }
+  body.sewa-printing, body.sewa-printing *{ -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
+  body.sewa-printing .sewa-field{ border-bottom:none !important; }
+  body.sewa-printing .sewa-field:empty::before{ content:'' !important; }
+}
+
 /* ---------- شهادة إنجاز وتسليم الأعمال (مخالصة) ---------- */
 #settlementView{ display:none; }
 .settlement-page{ max-width:780px; margin:0 auto; background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:34px 40px; }
@@ -1654,6 +1684,55 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     </div>
   </div>
 
+  <div id="sewaView" style="display:none;">
+    <div class="controls" style="margin-bottom:6px;">
+      <span class="nav-pill" id="sewaBackBtn">⬅ رجوع للعقود</span>
+      <button type="button" class="export-btn" id="sewaPrintBtn">🖨 طباعة / حفظ PDF</button>
+      <button type="button" class="export-btn" id="sewaSaveDriveBtn" style="background:var(--aux1);color:#fff;">☁ حفظ نسخة على جوجل درايف</button>
+      <span style="font-size:11.5px;color:var(--muted);">✎ كل الحقول تحتها خط منقّط (وكمان فقرات النص) قابلة للتعديل مباشرة قبل الطباعة/الحفظ</span>
+    </div>
+    <div id="sewaDriveStatus" style="font-size:12px;color:var(--muted);margin:0 0 12px;min-height:16px;"></div>
+    <div class="sewa-page" id="sewaPage" dir="ltr">
+      <img class="sewa-logo" id="sewaLogo" src="" alt="Merzona logo">
+      <p class="sewa-sub">Aluminum &amp; Glass Works — Supply, Fabrication &amp; Installation</p>
+      <p class="sewa-contact">United Arab Emirates / Sharjah, Abu Dhabi &nbsp;|&nbsp; Tel: +971508471158 &nbsp;|&nbsp; Email: Info@Merzona.com &nbsp;|&nbsp; Web: www.Merzona.ae</p>
+
+      <p class="sewa-meta">Date: <span class="sewa-field" contenteditable="true" data-field="date"></span><br>
+      Ref: <span class="sewa-field" contenteditable="true" data-field="ref"></span></p>
+
+      <p class="sewa-title">SEWA CERTIFICATE</p>
+
+      <table class="sewa-fields">
+        <tr><td class="lbl">Project:</td><td><span class="sewa-field" contenteditable="true" data-field="project" dir="auto"></span></td></tr>
+        <tr><td class="lbl">Location</td><td>: <span class="sewa-field" contenteditable="true" data-field="location" dir="auto"></span></td></tr>
+        <tr><td class="lbl">Contractor</td><td>: <span class="sewa-field" contenteditable="true" data-field="contractor" dir="auto"></span></td></tr>
+        <tr><td class="lbl">Consultant</td><td>: <span class="sewa-field" contenteditable="true" data-field="consultant" dir="auto"></span></td></tr>
+        <tr><td class="lbl">Client</td><td>: <span class="sewa-field" contenteditable="true" data-field="client" dir="auto"></span></td></tr>
+        <tr><td class="lbl">Quotation No</td><td>: <span class="sewa-field" contenteditable="true" data-field="quotationNo"></span></td></tr>
+      </table>
+
+      <div class="sewa-body">
+        <p contenteditable="true" data-field="body1">With reference to the above mentioned project, we wish to inform you that, we have fabricated and installed windows / Doors work as per the requirement of SEWA (Sharjah Electrical &amp; Water Authority). Our Aluminium Profile is up to the SEWA standards and requirements and bearing following characteristics:</p>
+        <ul contenteditable="true" data-field="bullets">
+          <li>Zero Air permeability ensuring water tightness</li>
+          <li>Fire retardant</li>
+          <li>Thermal insulation</li>
+          <li>Energy saving</li>
+        </ul>
+      </div>
+
+      <div class="sewa-sign">
+        <div>Yours Sincerely,</div>
+        <div class="sewa-sign-imgs">
+          <img class="sewa-sig-img" id="sewaSigImg" src="" alt="Signature">
+          <img class="sewa-stamp-img" id="sewaStampImg" src="" alt="Stamp">
+        </div>
+        <div><span class="sewa-field" contenteditable="true" data-field="sigName"></span></div>
+        <div style="font-size:13px;color:#444;">Merzona — Aluminum &amp; Glass Works</div>
+      </div>
+    </div>
+  </div>
+
   <div id="quotationView" style="display:none;">
     <div class="quotation-frame-wrap">
       <div id="quotationToolbar">
@@ -2430,6 +2509,7 @@ function hideAllViews(){
   document.getElementById('designerView').style.display = 'none';
   document.getElementById('procurementView').style.display = 'none';
   document.getElementById('settlementView').style.display = 'none';
+  document.getElementById('sewaView').style.display = 'none';
   document.getElementById('usersView').style.display = 'none';
   document.getElementById('contractsTabBtn').classList.remove('active');
   document.getElementById('payrollTabBtn').classList.remove('active');
@@ -6774,6 +6854,7 @@ function renderContractsList(){
       '<td>'+countLabel+'</td>'+
       '<td class="num">'+daysCell+'</td>'+
       '<td style="white-space:nowrap;"><button type="button" class="export-btn" data-settlement-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة إنجاز وتسليم جاهزة للتعبئة والطباعة">🧾 إنشاء مخالصة للمشروع</button>'+
+      '<button type="button" class="export-btn" data-sewa-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة SEWA (هيئة كهرباء ومياه الشارقة) جاهزة للتعبئة والطباعة">⚡ شهادة SEWA</button>'+
       '<span data-del-contract="'+escapeHtml(ref)+'" title="حذف هالعقد نهائيًا" style="cursor:pointer;color:var(--danger);font-size:15px;">🗑</span></td>'+
       '</tr>';
   }).join('');
@@ -6822,6 +6903,9 @@ function renderContractsList(){
       // العادي يلي أصلاً بيصير تلقائيًا من saveContracts()).
       reconcileWithDrive(true);
     });
+  });
+  tbody.querySelectorAll('[data-sewa-ref]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); openSewaForContract(btn.dataset.sewaRef); });
   });
   tbody.querySelectorAll('[data-settlement-ref]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
@@ -7131,6 +7215,93 @@ async function saveSettlementToDrive(){
     btn.disabled = false;
     btn.textContent = originalLabel;
   }
+}
+
+/* ---------- شهادة SEWA (هيئة كهرباء ومياه الشارقة) لكل عقد ---------- */
+// نفس فكرة المخالصة: نموذج جاهز بترويسة ميرزونا، الحقول والنص قابلين للتعديل مباشرة، وبيتحط توقيع/ختم ميرزونا تلقائيًا.
+// ملاحظة: النموذج بدون قائمة البنود (عدد الشبابيك/الأبواب) بآخر الرسالة - بطلب حمدي.
+function setSewaField(name, val){
+  const el = document.querySelector('#sewaView [data-field="'+name+'"]');
+  if(el) el.textContent = val || '';
+}
+function formatSewaDate(d){
+  const M = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  return d.getDate() + ' – ' + M[d.getMonth()] + ' – ' + d.getFullYear();
+}
+const SEWA_DEFAULT_BODY1 = 'With reference to the above mentioned project, we wish to inform you that, we have fabricated and installed windows / Doors work as per the requirement of SEWA (Sharjah Electrical & Water Authority). Our Aluminium Profile is up to the SEWA standards and requirements and bearing following characteristics:';
+const SEWA_DEFAULT_BULLETS = ['Zero Air permeability ensuring water tightness','Fire retardant','Thermal insulation','Energy saving'];
+function openSewaForContract(ref){
+  hideAllViews();
+  document.getElementById('sewaView').style.display = 'block';
+  const mainLogo = document.querySelector('.header img[alt="Merzona logo"]');
+  const lg = document.getElementById('sewaLogo');
+  if(mainLogo && lg) lg.src = mainLogo.src;
+  const clientRaw = getClientNameByRef(ref);
+  const client = (clientRaw && clientRaw !== '—') ? clientRaw : '';
+  setSewaField('date', formatSewaDate(new Date()));
+  setSewaField('ref', ref + '-SEWA');
+  setSewaField('project', '');
+  setSewaField('location', '');
+  setSewaField('contractor', '');
+  setSewaField('consultant', '');
+  setSewaField('client', client);
+  setSewaField('quotationNo', ref);
+  setSewaField('body1', SEWA_DEFAULT_BODY1);
+  const ul = document.querySelector('#sewaView [data-field="bullets"]');
+  if(ul) ul.innerHTML = SEWA_DEFAULT_BULLETS.map(t=>'<li>'+escapeHtml(t)+'</li>').join('');
+  setSewaField('sigName', 'Hamdi Al Khani');
+  const sigImg = document.getElementById('sewaSigImg'), stampImg = document.getElementById('sewaStampImg');
+  if(sigImg) sigImg.src = SETTLEMENT_SIGNATURE_IMG;
+  if(stampImg) stampImg.src = SETTLEMENT_STAMP_IMG;
+  const st = document.getElementById('sewaDriveStatus'); if(st) st.textContent = '';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.getElementById('sewaBackBtn').addEventListener('click', ()=>{ showContractsView(); });
+function buildSewaDocTitle(){
+  const g = n => { const el = document.querySelector('#sewaView [data-field="'+n+'"]'); return (el ? el.textContent : '').trim(); };
+  let title = 'SEWA Certificate'; if(g('quotationNo')) title += ' - ' + g('quotationNo'); if(g('client')) title += ' - ' + g('client');
+  return title;
+}
+document.getElementById('sewaPrintBtn').addEventListener('click', ()=>{
+  document.body.classList.add('sewa-printing');
+  const originalTitle = document.title; document.title = buildSewaDocTitle();
+  const cleanup = ()=>{ document.body.classList.remove('sewa-printing'); document.title = originalTitle; };
+  window.addEventListener('afterprint', cleanup, {once:true});
+  setTimeout(()=>{ window.print(); }, 50);
+  setTimeout(cleanup, 4000);
+});
+document.getElementById('sewaSaveDriveBtn').addEventListener('click', saveSewaToDrive);
+async function saveSewaToDrive(){
+  const statusEl = document.getElementById('sewaDriveStatus');
+  const btn = document.getElementById('sewaSaveDriveBtn');
+  const setStatus = (t)=>{ if(statusEl) statusEl.textContent = t; };
+  if(typeof html2pdf === 'undefined'){ setStatus('⚠️ مكتبة توليد PDF ما تحمّلت (تأكد إنك متصل بالإنترنت) — جرب حدّث الصفحة وعيد المحاولة.'); return; }
+  const qEl = document.querySelector('#sewaView [data-field="quotationNo"]');
+  const ref = (qEl ? qEl.textContent : '').trim();
+  if(!ref){ setStatus('⚠️ عبّي رقم عرض السعر (Quotation No) أول قبل ما تحفظ.'); return; }
+  btn.disabled = true; const originalLabel = btn.textContent; btn.textContent = '⏳ عم نحفظ...';
+  setStatus('⏳ عم نحضّر نسخة PDF ونتأكد من الاتصال بجوجل درايف...');
+  try{
+    const token = await getDashGoogleAccessToken(false);
+    const year = getYearFromReferenceDash(ref);
+    const refSafe = sanitizeRefForFolderDash(ref);
+    const rootId = DRIVE_ROOTS_BY_BRANCH_DASH[getDashBranchFromRef(ref)] || DRIVE_ROOT_FOLDER_ID_DASH;
+    const yearFolderId = await findOrCreateDriveFolderDash(year, rootId, token);
+    const refFolderId = await findOrCreateDriveFolderDash(refSafe, yearFolderId, token);
+    const certFolderId = await findOrCreateDriveFolderDash('شهادات SEWA', refFolderId, token);
+    setStatus('⏳ عم نولّد ملف PDF من الشهادة...');
+    const pdfBlob = await html2pdf().from(document.getElementById('sewaPage')).set({
+      margin: 6, filename: refSafe + '-SEWA-Certificate.pdf', image: { type:'jpeg', quality:0.98 },
+      html2canvas: { scale:2, useCORS:true, scrollX:0, scrollY:0 }, jsPDF: { unit:'mm', format:'a4', orientation:'portrait' }, pagebreak: { mode: ['css','legacy'] }
+    }).outputPdf('blob');
+    setStatus('⏳ عم نرفع الملف لجوجل درايف...');
+    const uploaded = await uploadFileToDriveFolderDash(refSafe + '-SEWA-Certificate.pdf', 'application/pdf', pdfBlob, certFolderId, token);
+    const link = uploaded && uploaded.webViewLink ? uploaded.webViewLink : ('https://drive.google.com/file/d/'+(uploaded&&uploaded.id)+'/view');
+    statusEl.innerHTML = '✅ تم الحفظ بجوجل درايف بنجاح (مجلد: '+escapeHtml(year)+' / '+escapeHtml(refSafe)+' / شهادات SEWA) — <a href="'+escapeHtml(link)+'" target="_blank" rel="noopener" style="color:var(--aux1);">افتح الملف ↗</a>';
+  }catch(err){
+    console.error('[حفظ شهادة SEWA على درايف] فشل:', err);
+    setStatus('⚠️ ما قدرنا نحفظ على جوجل درايف: '+(err && err.message ? err.message : err)+' — تأكد إنك مربوط (زر "🔄 مزامنة الفريق" فوق) وجرب تاني.');
+  } finally { btn.disabled = false; btn.textContent = originalLabel; }
 }
 
 /* ---------- Expected payments panel (main dashboard) ---------- */
