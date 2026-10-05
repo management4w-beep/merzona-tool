@@ -28,7 +28,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.2';
+  var CURRENT_VERSION = '2026-10-05.3';
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -1731,6 +1731,19 @@ function mzRefreshAfterSeed(){
 }
 // جلب القائمة من السيرفر (للأجهزة المعتمدة فقط). لو الجهاز لسا مو معتمد (403) بنعيد المحاولة كل 15 ثانية لحد ما تنوافق عليه.
 let __mzSeedTries = 0;
+// شريط تنبيه واضح لو قائمة العروض القديمة ما نزلت (بدل ما يضل العدد ناقص بصمت)
+function mzSeedWarn(msg){
+  try{
+    let el = document.getElementById('mzSeedWarn');
+    if(!msg){ if(el) el.remove(); return; }
+    if(!el){
+      el = document.createElement('div'); el.id = 'mzSeedWarn';
+      el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;padding:8px 14px;font-size:13px;text-align:center;direction:rtl;font-family:inherit';
+      (document.body || document.documentElement).appendChild(el);
+    }
+    el.textContent = '⚠️ ' + msg;
+  }catch(e){}
+}
 async function mzFetchSeed(){
   __mzSeedTries++;
   let retryMs = 0;
@@ -1742,15 +1755,26 @@ async function mzFetchSeed(){
       const res = await fetch(url, { cache:'no-store' });
       if(res.ok){
         const rows = await res.json();
-        if(Array.isArray(rows)){
+        if(Array.isArray(rows) && rows.length){
           try{ localStorage.setItem(MZ_SEED_CACHE_KEY, JSON.stringify(rows)); }catch(e){}
           if(mzApplySeed(rows)) mzRefreshAfterSeed();
+          mzSeedWarn(null);
+          return;
         }
-        return;
+        // السيرفر رد بس القائمة فاضية = ملف القائمة (dashboard-seed.json) ما انرفع على السيرفر بعد
+        if(!__mzSeedRefs.size) mzSeedWarn('قائمة العروض القديمة فاضية على السيرفر - ارفع ملف dashboard-seed.json على السيرفر (العدد الظاهر ناقص).');
+        retryMs = 60000;
+      } else {
+        if(!__mzSeedRefs.size){
+          if(res.status === 404) mzSeedWarn('السيرفر لسا على النسخة القديمة - ارفع server.js الجديد وملف القائمة (العدد الظاهر ناقص).');
+          else if(res.status === 403) mzSeedWarn('هالجهاز مش معتمد عند السيرفر - القائمة القديمة ما نزلت.');
+          else if(res.status === 401) mzSeedWarn('رمز السيرفر غير مطابق - القائمة القديمة ما نزلت.');
+          else mzSeedWarn('تعذّر تنزيل القائمة القديمة من السيرفر (' + res.status + ').');
+        }
+        retryMs = (res.status === 403 || res.status === 401) ? 15000 : 60000;
       }
-      retryMs = (res.status === 403 || res.status === 401) ? 15000 : 60000;
     }
-  }catch(e){ retryMs = 60000; }
+  }catch(e){ if(!__mzSeedRefs.size) mzSeedWarn('تعذّر الاتصال بالسيرفر لتنزيل القائمة القديمة.'); retryMs = 60000; }
   if(retryMs && __mzSeedTries < 40) setTimeout(mzFetchSeed, retryMs);
 }
 setTimeout(mzFetchSeed, 0); // بعد ما يخلص تحميل السكربت (DASH_SERVER_AUTH_TOKEN معرّف تحت)
