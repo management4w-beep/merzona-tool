@@ -29,7 +29,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.2';
+  var CURRENT_VERSION = '2026-10-05.3';
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -539,6 +539,7 @@
       <input id="fileImportDesign" type="file" accept=".json" style="display:none">
     </div>
     <div id="syncStatus" class="sync-status"></div>
+    <div style="width:100%;font-size:12px;color:#0b1220;font-weight:600;margin-top:4px">رقم نسخة هذه الصفحة: 2026-10-05.3</div>
     <div id="syncSourceRow" class="sync-status" style="display:none"><label>التصميم المسحوب منه: <select id="designSource"></select></label></div>
     <div id="syncNotes" class="sync-notes" style="display:none"></div>
   </header>
@@ -1809,6 +1810,7 @@ if (typeof module !== 'undefined') {
   function convertDesignItem(it, summaries) {
     if (!it || it.isCameraTemp || it.isInitialPlaceholder) return null;
     if (it.shapeType === 'room' || it.shapeType === 'gableRoof') return null; // مسقط/سقف مو فتحة - مو بند مشتريات هون
+    if (it.isRoomWallElevation && !it.sourceRowUid) return null; // بند منظور حائط يتيم (ما إله صف بجدول الكميات) - مو بند مشتريات حقيقي (نفس منطق عرض السعر)
     var label = it.label || it.shapeType;
     var sum = summaries && summaries[it.id];
     var qty = (sum && sum.qty > 0) ? sum.qty : (parseFloat(it.purchQty) > 0 ? parseFloat(it.purchQty) : 1);
@@ -1941,7 +1943,7 @@ if (typeof module !== 'undefined') {
               var real = items.filter(function (x) { return x && !x.isCameraTemp && !x.isInitialPlaceholder && x.shapeType !== 'room' && x.shapeType !== 'gableRoof'; });
               if (!real.length) return;
               var at = typeof savedAt === 'number' ? savedAt : Date.parse(savedAt || f.modifiedTime) || Date.parse(f.modifiedTime) || 0;
-              found.push({ key: 'drive:' + f.id, kind: job.sub === '_Designs' ? 'تصميم' : 'مسودة', ref: ref || name || f.name.replace(/\.json$/i, ''), name: name, savedAt: at, count: real.length, data: { items: items, savedAt: at, projectRef: ref || name, purchSummaries: obj.purchSummaries || null } });
+              found.push({ key: 'drive:' + f.id, kind: job.sub === '_Designs' ? 'تصميم' : 'مسودة', ref: ref || name || f.name.replace(/\.json$/i, ''), name: name, savedAt: at, count: real.length, data: { items: items, savedAt: at, projectRef: ref || name, purchSummaries: obj.purchSummaries || (obj.data && obj.data.designPurchSummaries) || null } });
               if (onProgress) onProgress(found.length);
             }).catch(function () { errors++; }).then(worker);
           }
