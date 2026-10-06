@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.6';
+  var CURRENT_VERSION = '2026-10-06.1';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -5532,8 +5532,37 @@ async function findFileInFolder(name, parentId, token){
   return (data.files && data.files.length) ? data.files[0].id : null;
 }
 
+// 🛡️ حماية من الكتابة فوق تعديل أحدث (جهاز/تبويب تاني): منتذكّر وقت آخر تعديل شفناه لكل ملف بهالجلسة
+// (من أول فحص أو من آخر حفظ إلنا). قبل أي حفظ بنسأل درايف عن وقت التعديل الحالي، ولو تغيّر بدون ما نكون
+// إحنا السبب منحذّر ومنسأل قبل ما نكتب فوقه. لو الفحص نفسه فشل (شبكة) ما منعطّل الحفظ.
+const __mzDriveSeenTime = {};
+async function __mzCheckDriveConflict(fileId, token){
+  let remote = null;
+  try{
+    const r = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`, {
+      headers: { Authorization: 'Bearer ' + token }
+    }, 20000);
+    if(!r.ok) return;
+    const m = await r.json();
+    remote = m && m.modifiedTime;
+  }catch(e){ return; }
+  if(!remote) return;
+  const seen = __mzDriveSeenTime[fileId];
+  if(!seen){ __mzDriveSeenTime[fileId] = remote; return; }
+  if(seen !== remote){
+    const ok = window.confirm('⚠️ تنبيه: هالملف انعدّل على جوجل درايف من جهاز أو تبويب تاني بعد آخر مرة حفظت فيها.\n\nإذا كمّلت رح تنكتب نسختك فوق التعديل التاني.\n\nOK = اكتب فوقه\nCancel = ألغي الحفظ (افتح الملف من جديد وشوف التعديل التاني أول)');
+    if(!ok){
+      const err = new Error('تم إلغاء الحفظ حتى ما نكتب فوق تعديل أحدث انعمل على الملف من مكان تاني. افتحه من جديد وراجع التعديل.');
+      err.mzConflict = true;
+      throw err;
+    }
+  }
+}
+window.__mzCheckDriveConflict = __mzCheckDriveConflict;
+window.__mzDriveSeenTime = __mzDriveSeenTime;
 async function updateDriveFileContent(fileId, blob, token){
-  const res = await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,webViewLink`, {
+  await __mzCheckDriveConflict(fileId, token);
+  const res = await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,webViewLink,modifiedTime`, {
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type || 'application/octet-stream' },
     body: blob
@@ -5541,6 +5570,7 @@ async function updateDriveFileContent(fileId, blob, token){
   if(!res.ok) throw new Error('جوجل درايف رفض تحديث الملف (' + res.status + ').');
   const out = await res.json();
   if(!out || !out.id) throw new Error('جوجل درايف ما أكّد تحديث الملف (ما رجّع رقم الملف).');
+  if(out.modifiedTime) __mzDriveSeenTime[fileId] = out.modifiedTime;
   return out;
 }
 
