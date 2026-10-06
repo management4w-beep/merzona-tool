@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-06.2';
+  var CURRENT_VERSION = '2026-10-06.3';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -5829,6 +5829,10 @@ function mzMarkClean(){
 // 🛠️ 2026-10-05 (فحص شامل - أمان): أي HTML جاي من ملف محفوظ (مسودة/نسخة عرض سعر عالدرايف) كان يتحط بـinnerHTML مباشرة، فلو الملف فيه
 // <img onerror=...> أو <script> كان ينفّذ كود بجلسة حمدي. هلق بنمرّره بمنظّف: بنحلّله جوا <template> (خامل - ما بينفّذ شي) وبنشيل
 // السكربتات والإطارات وكل خاصية on* وأي رابط javascript:. ما بيأثر على جدول الكميات العادي (حقول إدخال + ستايل).
+// 🛠️ 2026-10-06: فلتر الأمان كان بيشيل *كل* أوامر on* من السطور المحفوظة، فالسطور المفتوحة من مسودة/درايف/تحديث
+// الصفحة كانت تفقد الإنتر وتعديل السعر وزر الحذف. هلق منسمح بس بنصوص الأوامر الحرفية يلي بنولّدها إحنا (قائمة بيضاء
+// بالضبط - أي أمر تاني أو معدّل بيتشال متل قبل).
+const MZ_SAFE_HANDLERS = new Set(["onblur=autoTranslateRow(this)", "onblur=autoTranslateRow(this); propagateRowEditToItems(this)", "onblur=evalSumExpression(this)", "onchange=onAlumColorChange()", "onchange=onElevationChange(this)", "onchange=onGlassTypeChange()", "onchange=toggleQuoteSection('alum-section', this.checked)", "onchange=toggleQuoteSection('glass-section', this.checked)", "onclick=addBiRow('acc-rows','Accessory / guarantee (English)','التفصيل بالعربي')", "onclick=addPayRow('Payment label (English)','نسبة الدفعة بالعربي','')", "onclick=addQtyRow()", "onclick=addSystemStatementRow()", "onclick=moveQtyRowDown(this)", "onclick=moveQtyRowUp(this)", "onclick=removeQtyRow(this)", "onclick=this.closest('.bi-row').remove()", "onclick=this.closest('.notes-item').remove()", "onclick=this.closest('.pay-row').remove()", "ondragend=onQtyRowDragEnd(event)", "ondragover=onQtyRowDragOver(event)", "ondragstart=onQtyRowDragStart(event)", "ondrop=onQtyRowDrop(event)", "oninput=onDimensionInput(this)", "oninput=onDiscountAmountInput(this)", "oninput=onDiscountPctInput(this)", "oninput=onItemTextInput(this)", "oninput=onManualTotalInput(this)", "oninput=onPriceInput(this)", "oninput=restrictToNumbersAndPlus(this); onDimensionInput(this)", "onkeydown=handleRowEnter(event)"]);
 function mzSanitizeHtml(html){
   try{
     const t = document.createElement('template');
@@ -5837,7 +5841,7 @@ function mzSanitizeHtml(html){
     t.content.querySelectorAll('*').forEach(el=>{
       Array.from(el.attributes).forEach(a=>{
         const nm = a.name.toLowerCase(), v = String(a.value||'').replace(/[\s\u0000-\u001f]+/g,'').toLowerCase();
-        if(nm.indexOf('on') === 0 || ((nm === 'href' || nm === 'src' || nm === 'xlink:href' || nm === 'action' || nm === 'formaction') && (v.indexOf('javascript:') === 0 || v.indexOf('data:text/html') === 0))) el.removeAttribute(a.name);
+        if((nm.indexOf('on') === 0 && !MZ_SAFE_HANDLERS.has(nm + '=' + String(a.value||'').trim())) || ((nm === 'href' || nm === 'src' || nm === 'xlink:href' || nm === 'action' || nm === 'formaction') && (v.indexOf('javascript:') === 0 || v.indexOf('data:text/html') === 0))) el.removeAttribute(a.name);
       });
     });
     return t.innerHTML;
