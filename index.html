@@ -25,7 +25,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-06.1';
+  var CURRENT_VERSION = '2026-10-06.2';
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -2188,6 +2188,13 @@ function saveItemsToStorage(){
 const DESIGN_ITEMS_DEFAULT = [];
 const DESIGN_NEXT_ID_DEFAULT = 1;
 const DESIGN_BAKED_AT_DEFAULT = 0; // 🆕 2026-10-04.9: وقت خبز التصميم بالملف المحفوظ (0 = ما انخبز)
+// 🆕 2026-10-06 (طلب حمدي): فرع سوريا فقط - مساحة كل بند بجدول الكميات = (طول × عرض بالمتر المربع) + ثلثها
+// (مثلاً 3م × 3م = 9 → 12 م²). القاعدة بتنطبق على العروض الجديدة بس: العرض المحفوظ من قبل بيضل بنفس أسعاره
+// لأنو ما عنده العلامة (areaExtraThird) فبتطلع false عند فتحه. null = عرض جديد (بيتبع الفرع تلقائيًا).
+const AREA_EXTRA_THIRD_BAKED = null;
+let __mzAreaExtraThird = AREA_EXTRA_THIRD_BAKED;
+let __mzAreaExtraApplied = false;
+const SYRIA_AREA_EXTRA_FRACTION = 1/3;
 
 /* ---------- Materials Catalog (shared database for Purchasing) ---------- */
 const MAT_CATALOG_KEY = 'merzona-materials-catalog';
@@ -3473,6 +3480,11 @@ function round2(n){
   return Math.round((n + Math.sign(n) * 1e-9) * 100) / 100;
 }
 
+function mzAreaExtraThirdActive(){
+  if(getCurrentBranch() !== 'syria') return false;
+  return __mzAreaExtraThird === null ? true : !!__mzAreaExtraThird;
+}
+window.mzAreaExtraThirdActive = mzAreaExtraThirdActive;
 function recalc(){
   document.querySelectorAll('#qty-rows tr').forEach(tr=>{
     const totalInput = tr.querySelector('.line-total');
@@ -3482,7 +3494,9 @@ function recalc(){
     const qty = parseMoney(tr.querySelector('.qty-input').value);
     const pricePerSqm = parseMoney(tr.querySelector('.price').value);
     const rawArea = (w * h) / 1000000;
-    const billableArea = (rawArea > 0 && rawArea < 1) ? 1 : rawArea;
+    // فرع سوريا (عروض جديدة): منضيف ثلث المساحة على المساحة قبل ما نطبّق حد الـ1 م² الأدنى.
+    const areaWithExtra = mzAreaExtraThirdActive() ? (rawArea + rawArea * SYRIA_AREA_EXTRA_FRACTION) : rawArea;
+    const billableArea = (areaWithExtra > 0 && areaWithExtra < 1) ? 1 : areaWithExtra;
     const lineTotalRaw = billableArea * pricePerSqm * qty;
     const lineTotal = Number.isFinite(lineTotalRaw) ? round2(lineTotalRaw) : 0;
     totalInput.value = fmtMoney(lineTotal);
@@ -4159,6 +4173,7 @@ function captureFullQuotationData(){
   const qtyBody = document.getElementById('qty-rows');
   if(qtyBody) data.qtyRowsHtml = qtyBody.innerHTML;
   data.discountManual = (document.getElementById('discount-amount')||{dataset:{}}).dataset.manual === '1';
+  data.areaExtraThird = mzAreaExtraThirdActive();
   try{
     if(window.__flushDesignSave__) window.__flushDesignSave__();
     const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
@@ -4265,6 +4280,7 @@ function applyFullQuotationData(data){
     }
     document.body.setAttribute('data-prefilled','1');
     try{ const __re=document.getElementById('m-ref'); if(__re && __re.value && !data.__noOwn) window.__mzOwnedRefSafe = __re.value.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-\u0600-\u06FF]+/g,'_'); }catch(e){}
+    __mzAreaExtraThird = (data.areaExtraThird === true); // قديم/بدون علامة = false (ما بتتغير أسعاره)
     renumber();
     recalc();
     syncPage2Header();
@@ -4591,6 +4607,7 @@ function buildBakedHtmlSnapshot(){
       html = html.replace(/const DESIGN_BAKED_AT_DEFAULT = \d+;/, () => 'const DESIGN_BAKED_AT_DEFAULT = ' + Date.now() + ';');
     }
   }catch(e){ console.warn('[حفظ نسخة مخبوزة] تعذّر خبز التصميم:', e); }
+  try{ html = html.replace(/const AREA_EXTRA_THIRD_BAKED = (null|true|false);/, () => 'const AREA_EXTRA_THIRD_BAKED = ' + (mzAreaExtraThirdActive() ? 'true' : 'false') + ';'); }catch(e){}
   return html;
 }
 
@@ -4798,6 +4815,11 @@ function applyBranchDependentUI(branch){
   const currencySelNow = document.getElementById('m-currency');
   if(branchSelNow) __mzLastBranchValue = branchSelNow.value;
   if(currencySelNow) __mzLastCurrencyValue = currencySelNow.value;
+  // قاعدة مساحة سوريا (+ثلث) بتعتمد على الفرع: لو حالتها تغيّرت (تبديل الفرع/الرقم المرجعي) منعيد حساب الأسعار.
+  try{
+    const act = mzAreaExtraThirdActive();
+    if(act !== __mzAreaExtraApplied){ __mzAreaExtraApplied = act; recalc(); }
+  }catch(e){}
 }
 // مستدعاة من جوا syncPage2Header() (يلي أصلًا بتشتغل مع كل تغيير بالرقم المرجعي - كتابة يدوية،
 // تحميل عرض سعر قديم، أو اقتراح تلقائي/يدوي) - بتكتشف الفرع من حرف الرقم المرجعي الحالي وبتحدّث
