@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-07.2';
+  var CURRENT_VERSION = '2026-10-08.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -6341,7 +6341,7 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe){
   // (مثلاً صاحب الأداة عن طريق رابط #owner=) - وقتها السيرفر بيتجاهل السطر بالكامل من رسالة الواتساب.
   let createdByName = '';
   try{ createdByName = localStorage.getItem('merzona-username') || ''; }catch(e){}
-  const bodyStr = JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal, pdfBase64, pdfFilename: (refSafe || ref || 'quotation') + '.pdf', createdBy: createdByName });
+  const bodyStr = JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal, pdfBase64, pdfFilename: (refSafe || ref || 'quotation') + '.pdf', createdBy: createdByName, currency: (function(){ try{ return getCurrentCurrencyConfig().code; }catch(e){ return ''; } })() });
   // 🔍 لوغ تشخيصي مؤقت (نسخة .15) - حتى نعرف بالضبط حجم البيانات يلي عم تنبعت وقت مشكلة "Failed to fetch"
   try{
     console.log('[WhatsApp] 📏 حجم ملف الـ PDF الأصلي:', pdfBlob ? (pdfBlob.size/1024).toFixed(0)+' KB' : 'لا يوجد PDF');
@@ -7897,6 +7897,16 @@ window.wdApplyBack = function(results){
         <div id="archHeightWrap" style="display:none;">
           <label>ارتفاع القوس (مم)</label>
           <input type="text" inputmode="decimal" id="inArchHeight" min="50" oninput="restrictMeasureChars(this);onDimsChange()" onblur="evalMeasureField(this);onDimsChange()" value="300">
+        </div>
+        <div id="fanBlock" style="margin-top:12px;">
+          <label>فتحة شفاط بالزجاج (القطر بالإنش)</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" inputmode="decimal" id="inFanDia" value="12" style="width:80px;">
+            <span>إنش</span>
+            <button type="button" class="small" onclick="addExhaustFan()">+ إضافة شفاط</button>
+          </div>
+          <div id="fanList"></div>
+          <p class="hint" style="margin-top:5px;">اسحب الدائرة بالرسمة لتحرّكها. بتلقط وسط الزجاجة لحالها لما تقرّبها منه (بتصير خضرا).</p>
         </div>
       </div>
 
@@ -9806,6 +9816,7 @@ function renderThicknessOptions(it){
 function loadSelectedIntoControls(){
   const it = getSelected();
   const disabled = !it;
+  try{ renderFanList(it); }catch(e){}
   ['inWidth','inHeight','inProfileThickness','inFrameThickness','inLeafThickness','inArch','inArchHeight','btnWindow','btnDoor','btnSlidingWindow','btnSlidingDoor','btnFoldingDoor','btnShowerDoor','btnHandrail'].forEach(id=>{
     document.getElementById(id).disabled = disabled;
   });
@@ -16584,9 +16595,172 @@ function buildItemSVG(it){
     ${out.dragHandles.join('')}
     ${out.splitBtns.join('')}
     ${out.mergeMarkers.join('')}
+    ${exhaustFansSVG(it, scale, false)}
   </svg>`;
   return svg;
 }
+
+/* ---------- فتحة شفاط بالزجاج (دائرة بقطر بالإنش) ---------- */
+// 🆕 2026-10-08 (طلب حمدي): زر "إضافة شفاط" بيرسم دائرة (فتحة بالزجاج لتركيب شفاط) بقطر بتختاره بالإنش. الدائرة بتنسحب
+// بالماوس جوّا النافذة، وبتلقط وسط القسم (الزجاجة) يلي هي فيه لحالها أول ما تقرّبها منه - أفقياً وعمودياً كل واحد لحاله.
+// التخزين: it.exhaustFans = [{ id, diaIn, fx, fy, cx, cy }] - fx/fy موقع نسبي (0..1) من عرض/ارتفاع البند، و cx/cy = "ملقوطة
+// بالوسط" (لو تغيّرت المقاسات أو انسحب فاصل بتضل بوسط قسمها). الإنش = 25.4 مم.
+const FAN_SNAP_PX = 22;
+function fanSupported(it){ return !!it && !isHandrail(it) && !isRoom(it) && !isGableRoof(it) && !isShowerDoor(it) && it.width > 0 && it.height > 0; }
+function fanRadiusMM(f){ const d = parseFloat(f && f.diaIn); return (isFinite(d) && d > 0 ? d : 12) * 25.4 / 2; }
+function fanLeafRectsMM(it){
+  const out = [];
+  (function walk(node, x, y, w, h){
+    if(!node) return;
+    if(node.kind === 'leaf' || !Array.isArray(node.children)){ out.push({ x, y, w, h, type: node.type }); return; }
+    const total = node.direction === 'row' ? w : h;
+    let cum = 0;
+    node.children.forEach(ch=>{
+      const size = (ch.frac || 0) / 100 * total;
+      if(node.direction === 'row') walk(ch.node, x + cum, y, size, h); else walk(ch.node, x, y + cum, w, size);
+      cum += size;
+    });
+  })(it.layout, 0, 0, it.width, it.height);
+  if(!out.length) out.push({ x:0, y:0, w:it.width, h:it.height, type:'plain' });
+  return out;
+}
+function fanLeafAt(it, x, y){
+  const rs = fanLeafRectsMM(it);
+  return rs.find(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) || rs[0];
+}
+function fanClamp(v, r, total){ return (2*r >= total) ? total/2 : Math.min(Math.max(v, r), total - r); }
+function fanPosMM(it, f){
+  const r = fanRadiusMM(f);
+  let x = (isFinite(f.fx) ? f.fx : 0.5) * it.width, y = (isFinite(f.fy) ? f.fy : 0.5) * it.height;
+  const L = fanLeafAt(it, x, y);
+  if(f.cx) x = L.x + L.w/2;
+  if(f.cy) y = L.y + L.h/2;
+  return { x: fanClamp(x, r, it.width), y: fanClamp(y, r, it.height), r };
+}
+function exhaustFansSVG(it, scale, print){
+  if(!fanSupported(it) || !Array.isArray(it.exhaustFans) || !it.exhaustFans.length) return '';
+  const ink = print ? '#000000' : 'var(--wd-ink)';
+  return it.exhaustFans.map(f=>{
+    const p = fanPosMM(it, f);
+    const r = Math.max(5, p.r * scale);
+    const hub = Math.max(2, r * 0.16);
+    let blades = '';
+    for(let k=0;k<4;k++){
+      const a = k * Math.PI / 2;
+      const x1 = Math.cos(a) * hub, y1 = Math.sin(a) * hub;
+      const x2 = Math.cos(a + 0.55) * r * 0.78, y2 = Math.sin(a + 0.55) * r * 0.78;
+      const x3 = Math.cos(a + 1.05) * r * 0.55, y3 = Math.sin(a + 1.05) * r * 0.55;
+      blades += `<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${x2.toFixed(1)} ${y2.toFixed(1)} ${x3.toFixed(1)} ${y3.toFixed(1)}" fill="none" stroke="${ink}" stroke-width="${print ? 1.6 : 1.3}" opacity="0.75"/>`;
+    }
+    const fs = Math.max(10, Math.min(16, r * 0.45));
+    const label = `Ø ${(+f.diaIn).toString()}"`;
+    const cls = print ? '' : ` class="fan-hole" data-item="${it.id}" data-fan="${f.id}" style="cursor:move;"`;
+    return `<g${cls} transform="translate(${(p.x*scale).toFixed(2)},${(p.y*scale).toFixed(2)})">
+      <circle class="fan-ring" r="${r.toFixed(2)}" fill="${print ? '#ffffff' : 'rgba(255,255,255,0.55)'}" stroke="${print ? '#000000' : 'var(--wd-amber)'}" stroke-width="${print ? 2.5 : 2.2}"/>
+      <circle r="${hub.toFixed(2)}" fill="${ink}" opacity="0.8"/>
+      ${blades}
+      <text y="${(r + fs + 2).toFixed(1)}" font-size="${fs.toFixed(1)}" font-weight="700" text-anchor="middle" fill="${print ? '#000000' : 'var(--wd-amber)'}" font-family="'JetBrains Mono',monospace" pointer-events="none">${label}</text>
+    </g>`;
+  }).join('');
+}
+function fanSvgPoint(svgEl, e){
+  const pt = svgEl.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  return pt.matrixTransform(svgEl.getScreenCTM().inverse());
+}
+let fanDrag = null;
+function onFanDragStart(e, g){
+  if(typeof e.button === 'number' && e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  const it = items.find(i => i.id === parseInt(g.dataset.item, 10));
+  const f = it && (it.exhaustFans || []).find(x => x.id === g.dataset.fan);
+  if(!f) return;
+  const svgEl = g.closest('svg');
+  const scale = getScreenMaxDimPx(it) / Math.max(it.width, it.height);
+  const p = fanPosMM(it, f);
+  const pt = fanSvgPoint(svgEl, e);
+  fanDrag = { it, f, g, svgEl, scale, r: p.r, offX: pt.x/scale - p.x, offY: pt.y/scale - p.y, res: null };
+}
+function onFanDragMove(e){
+  if(!fanDrag) return;
+  e.preventDefault();
+  const d = fanDrag, it = d.it;
+  const pt = fanSvgPoint(d.svgEl, e);
+  let x = fanClamp(pt.x/d.scale - d.offX, d.r, it.width);
+  let y = fanClamp(pt.y/d.scale - d.offY, d.r, it.height);
+  const L = fanLeafAt(it, x, y);
+  const tol = FAN_SNAP_PX / d.scale;
+  const lcx = L.x + L.w/2, lcy = L.y + L.h/2;
+  const sx = Math.abs(x - lcx) < tol, sy = Math.abs(y - lcy) < tol;
+  if(sx) x = fanClamp(lcx, d.r, it.width);
+  if(sy) y = fanClamp(lcy, d.r, it.height);
+  d.g.setAttribute('transform', `translate(${(x*d.scale).toFixed(2)},${(y*d.scale).toFixed(2)})`);
+  const ring = d.g.querySelector('.fan-ring');
+  if(ring) ring.setAttribute('stroke', (sx && sy) ? '#4ADE80' : (sx || sy) ? '#86EFAC' : 'var(--wd-amber)');
+  d.res = { x, y, sx, sy };
+}
+function onFanDragEnd(){
+  if(!fanDrag) return;
+  const d = fanDrag; fanDrag = null;
+  if(d.res){
+    pushHistory(true);
+    d.f.fx = d.res.x / d.it.width; d.f.fy = d.res.y / d.it.height;
+    d.f.cx = !!d.res.sx; d.f.cy = !!d.res.sy;
+  }
+  renderGallery();
+}
+document.addEventListener('pointermove', onFanDragMove, { passive:false });
+document.addEventListener('pointerup', onFanDragEnd);
+document.addEventListener('pointercancel', onFanDragEnd);
+
+function addExhaustFan(){
+  const it = getSelected();
+  if(!fanSupported(it)){ alert('فتحة الشفاط متاحة للشبابيك والأبواب (مو للهاندريل أو باب الشاور أو الغرف).'); return; }
+  const inp = document.getElementById('inFanDia');
+  const d = parseFloat(String(inp ? inp.value : '').replace(',', '.'));
+  if(!(d >= 2 && d <= 48)){ alert('اكتب قطر الشفاط بالإنش (بين 2 و 48).'); return; }
+  pushHistory(true);
+  if(!Array.isArray(it.exhaustFans)) it.exhaustFans = [];
+  const rs = fanLeafRectsMM(it);
+  const byArea = (a, b) => b.w*b.h - a.w*a.h;
+  const best = rs.filter(r => r.type === 'plain').sort(byArea)[0] || rs.slice().sort(byArea)[0];
+  it.exhaustFans.push({ id: 'f' + Date.now().toString(36) + Math.floor(Math.random()*1000), diaIn: d, fx: (best.x + best.w/2) / it.width, fy: (best.y + best.h/2) / it.height, cx: true, cy: true });
+  renderGallery();
+  renderFanList(it);
+}
+function setFanDia(itemId, fanId, v){
+  const it = items.find(i => i.id === itemId);
+  const f = it && (it.exhaustFans || []).find(x => x.id === fanId);
+  if(!f) return;
+  const d = parseFloat(String(v).replace(',', '.'));
+  if(!(d >= 2 && d <= 48)){ alert('اكتب قطر الشفاط بالإنش (بين 2 و 48).'); renderFanList(it); return; }
+  if(f.diaIn === d) return; // نفس القيمة (مثلاً حدث change تاني وقت خروج المؤشر) - ما في شي يتغير
+  pushHistory(true); f.diaIn = d; renderGallery(); setTimeout(()=>renderFanList(it), 0);
+}
+function removeExhaustFan(itemId, fanId){
+  const it = items.find(i => i.id === itemId); if(!it) return;
+  pushHistory(true);
+  it.exhaustFans = (it.exhaustFans || []).filter(x => x.id !== fanId);
+  renderGallery(); renderFanList(it);
+}
+function renderFanList(it){
+  const blk = document.getElementById('fanBlock'), box = document.getElementById('fanList');
+  if(!blk || !box) return;
+  const ok = fanSupported(it);
+  blk.style.display = ok ? '' : 'none';
+  if(!ok){ box.innerHTML = ''; return; }
+  const fans = it.exhaustFans || [];
+  box.innerHTML = fans.map((f, i) => `<div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+      <span style="min-width:62px;">شفاط ${i+1}</span>
+      <input type="text" inputmode="decimal" value="${(+f.diaIn)}" style="width:70px;" onchange="setFanDia(${it.id},'${f.id}',this.value)">
+      <span>إنش</span>
+      <span style="font-size:11px;opacity:.75;">${(f.cx && f.cy) ? 'بالوسط' : 'مزاح'}</span>
+      <button class="small danger" onclick="removeExhaustFan(${it.id},'${f.id}')">حذف</button>
+    </div>`).join('');
+}
+window.addExhaustFan = addExhaustFan;
+window.setFanDia = setFanDia;
+window.removeExhaustFan = removeExhaustFan;
+window.renderFanList = renderFanList;
 
 /* ---------- DRAG TO RESIZE ---------- */
 let dragState = null;
@@ -17198,6 +17372,7 @@ function buildPrintSVG(it, pageItemCount){
     ${frostLinesPrint}
     ${out.symbols.join('')}
     ${out.bars.join('')}
+    ${exhaustFansSVG(it, K, true)}
     ${frame}
     ${doorExtras}
     <rect x="0" y="0" width="${drawW}" height="${drawH}" fill="none" stroke="#000000" stroke-width="4.5"/>
@@ -17434,6 +17609,9 @@ function renderGallery(){
       svgEl.querySelectorAll('.drag-split').forEach(r=>{
         r.addEventListener('pointerdown', (e)=> onDragStart(e, r), { passive:false });
         r.addEventListener('dblclick', (e)=> onDividerDblClick(e, r));
+      });
+      svgEl.querySelectorAll('.fan-hole').forEach(g=>{
+        g.addEventListener('pointerdown', (e)=> onFanDragStart(e, g), { passive:false });
       });
     }
     const caption = document.createElement('div');
