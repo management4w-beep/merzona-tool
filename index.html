@@ -3,6 +3,57 @@
 <meta charset="UTF-8">
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
+<script id="mz-error-reporter">
+/* 🐞 تسجيل أخطاء تلقائي (2026-10-06): أي خطأ جافاسكربت بالصفحة بيتبعت للسيرفر (من جهاز معتمد بس) مع اسم الصفحة والنسخة ورقم العرض،
+   وبيتخزّن كمان نسخة بالمتصفح (localStorage: mz-err-log، آخر 30). ما بيعطّل أي شي لو فشل. */
+(function(){
+  if(window.__mzErrReporter) return; window.__mzErrReporter = true;
+  var PAGE = 'index';
+  var ENDPOINT = 'https://merzona-server-production.up.railway.app/client-error';
+  var seen = {}, sent = 0, winStart = Date.now();
+  var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to load resource|NetworkError|Load failed|Failed to fetch|AbortError|aborted|ERR_TUNNEL|net::ERR/i;
+  function dev(){ try{ return localStorage.getItem('merzona-device-token') || ''; }catch(e){ return ''; } }
+  function refVal(){ try{ var el = document.getElementById('m-ref'); return el ? (el.value || '') : ''; }catch(e){ return ''; } }
+  function keep(rec){
+    try{
+      var arr = JSON.parse(localStorage.getItem('mz-err-log') || '[]'); arr.push(rec);
+      localStorage.setItem('mz-err-log', JSON.stringify(arr.slice(-30)));
+    }catch(e){}
+  }
+  function report(kind, msg, stack, src){
+    try{
+      msg = String(msg == null ? '' : msg).slice(0, 500);
+      if(!msg || NOISE.test(msg)) return;
+      var key = kind + '|' + msg.slice(0, 120); if(seen[key]) return; seen[key] = 1;
+      var now = Date.now(); if(now - winStart > 600000){ winStart = now; sent = 0; } if(++sent > 10) return;
+      var rec = { kind: kind, msg: msg, stack: String(stack || '').slice(0, 1500), src: String(src || '').slice(0, 200), page: PAGE, v: window.__mzVersion || '', ref: refVal(), ua: (navigator.userAgent || '').slice(0, 160), t: new Date().toISOString() };
+      keep(rec);
+      var d = dev(); if(!d) return;
+      fetch(ENDPOINT + '?device=' + encodeURIComponent(d), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec), keepalive: true }).catch(function(){});
+    }catch(e){}
+  }
+  window.addEventListener('error', function(e){
+    if(!e || (e.target && e.target !== window)) return; // أخطاء تحميل ملفات/صور = ضجيج شبكة، منتجاهلها
+    report('error', e.message, e.error && e.error.stack, (e.filename || '') + ':' + (e.lineno || ''));
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e && e.reason; report('promise', (r && r.message) ? r.message : r, r && r.stack);
+  });
+  var origErr = console.error;
+  console.error = function(){
+    try{
+      var parts = [], st = '';
+      for(var i = 0; i < arguments.length; i++){
+        var x = arguments[i];
+        if(x && x.message){ parts.push(x.message); if(!st && x.stack) st = x.stack; }
+        else if(typeof x === 'string' || typeof x === 'number') parts.push(String(x));
+      }
+      report('console', parts.join(' '), st);
+    }catch(e){}
+    return origErr.apply(console, arguments);
+  };
+})();
+</script>
 <script>
 (function(){
   // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
@@ -25,7 +76,8 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-06.3';
+  var CURRENT_VERSION = '2026-10-07.1';
+  window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
   // إذا version.json ما تحدّث بنفس لحظة رفع index.html الجديد - شي وارد جدًا) يقرر إنو في نسخة مختلفة
@@ -1481,22 +1533,12 @@
   #gableRoof3DOverlay .threeD-topbar{ position:relative; }
   #gableRoof3DCanvasWrap{ width:100%; height:calc(100vh - 60px); touch-action:none; }
   #gableRoof3DCanvasWrap canvas{ display:block; width:100% !important; height:100% !important; }
-  #purchasingOverlay{
-    display:none;
-    position:fixed; inset:0; z-index:10600;
-    background:#eef1f4;
-    overflow-y:auto;
-  }
-  #purchasingOverlay, #mfgSizesOverlay{ color:#1c1c1c; }
-  #purchasingOverlay .threeD-topbar, #mfgSizesOverlay .threeD-topbar{ color:#fff; }
-  #purchasingOverlay select, #purchasingOverlay input, #mfgSizesOverlay select, #mfgSizesOverlay input{ color:#1c1c1c !important; background:#fff !important; }
-  #purchasingOverlay table, #purchasingOverlay td, #purchasingOverlay th, #purchasingOverlay h3, #purchasingOverlay h4, #purchasingOverlay label{ color:#1c1c1c; }
-  #purchasingOverlay th, #mfgSizesOverlay th{ background:#f4f5f7 !important; color:#1c1c1c !important; }
-  #purchasingOverlay td, #mfgSizesOverlay td{ background:transparent; color:#1c1c1c; }
-  #purchasingOverlay b[style*="0f88cd"], #purchasingOverlay [style*="color:#0f88cd"]{ color:#0a5f93 !important; }
-  #purchasingOverlay div[style*="color:#999"], #purchasingOverlay [style*="color:#999"]{ color:#555 !important; }
-  #purchasingOverlay button[style*="background:#0f88cd"]{ background:#0a5f93 !important; color:#fff !important; }
-  #purchasingOverlay p[style*="6d6d6d"], #mfgSizesOverlay p[style*="6d6d6d"]{ color:#4a4a4a !important; }
+  #mfgSizesOverlay{ color:#1c1c1c; }
+  #mfgSizesOverlay .threeD-topbar{ color:#fff; }
+  #mfgSizesOverlay select, #mfgSizesOverlay input{ color:#1c1c1c !important; background:#fff !important; }
+  #mfgSizesOverlay th{ background:#f4f5f7 !important; color:#1c1c1c !important; }
+  #mfgSizesOverlay td{ background:transparent; color:#1c1c1c; }
+  #mfgSizesOverlay p[style*="6d6d6d"]{ color:#4a4a4a !important; }
   #mfgSizesOverlay{
     display:none;
     position:fixed; inset:0; z-index:10600;
@@ -1594,7 +1636,6 @@
     body:not(.wd-printing) #wdOverlay{ display:none !important; }
     #cameraOverlay{ display:none !important; }
     body:not(.three-d-printing) #threeDOverlay{ display:none !important; }
-    #purchasingOverlay{ display:none !important; }
     #mfgSizesOverlay{ display:none !important; }
     body.wd-printing #wdOverlay{
       display:block !important; position:static !important; inset:auto !important; z-index:auto !important;
@@ -2196,30 +2237,6 @@ let __mzAreaExtraThird = AREA_EXTRA_THIRD_BAKED;
 let __mzAreaExtraApplied = false;
 const SYRIA_AREA_EXTRA_FRACTION = 1/3;
 
-/* ---------- Materials Catalog (shared database for Purchasing) ---------- */
-const MAT_CATALOG_KEY = 'merzona-materials-catalog';
-function loadMaterialsCatalog(){
-  try{ return JSON.parse(localStorage.getItem(MAT_CATALOG_KEY) || '[]'); }catch(e){ return []; }
-}
-function saveMaterialsCatalog(list){
-  try{ localStorage.setItem(MAT_CATALOG_KEY, JSON.stringify(list)); }catch(e){}
-}
-function addCatalogMaterial(name, calcType){
-  const list = loadMaterialsCatalog();
-  const id = 'mat_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-  list.push({id, name, calcType: calcType || 'count'});
-  saveMaterialsCatalog(list);
-  return id;
-}
-function removeCatalogMaterial(matId){
-  let list = loadMaterialsCatalog();
-  list = list.filter(m => m.id !== matId);
-  saveMaterialsCatalog(list);
-  // نظّف أي إشارة إليها من الأصناف والبنود المصمَّمة
-  ITEMS.forEach(it => { if(it.materialIds) it.materialIds = it.materialIds.filter(id => id !== matId); });
-  saveItemsToStorage();
-  ((window.__getDesignItemsForExport__ && window.__getDesignItemsForExport__().items) || []).forEach(it => { if(it.materialIds) it.materialIds = it.materialIds.filter(id => id !== matId); });
-}
 function saveAlumSpecArToStorage(){
   try{ localStorage.setItem('merzona-alum-spec-ar', JSON.stringify(ALUM_SPEC_AR)); }catch(e){}
 }
@@ -2286,7 +2303,6 @@ function toggleItemsManager(){
 // (buildItemMgrRowHtml) نقدر نستخدمها لبناء صف واحد بس بدل إعادة بناء كل شي، واستخدمناها بـ
 // addItemManagerRow تحت (إضافة سريعة - صف واحد فقط بدل القائمة كاملة).
 function buildItemMgrRowHtml(it, idx){
-  const catalog = loadMaterialsCatalog();
   return `
     <div class="item-mgr-row" data-idx="${idx}">
       <div><label>Item name (English)</label><input value="${escAttr(it.en)}" oninput="updateItemField(${idx},'en',this.value)"></div>
@@ -2294,21 +2310,6 @@ function buildItemMgrRowHtml(it, idx){
       <div class="full"><label>Aluminum spec (English)</label><textarea rows="1" oninput="updateItemField(${idx},'specEn',this.value)">${it.specEn || ''}</textarea></div>
       <div><label>Glass spec (English)</label><textarea rows="2" oninput="updateItemField(${idx},'glassEn',this.value)">${it.glassEn || ''}</textarea></div>
       <div><label>مواصفات الزجاج (عربي)</label><textarea rows="2" class="ar" oninput="updateItemField(${idx},'glassAr',this.value)">${it.glassAr || ''}</textarea></div>
-      <div class="full">
-        <label>🛒 المواد الافتراضية لهالصنف (من كتالوج المشتريات)</label>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
-          ${catalog.length===0
-            ? '<span style="font-size:12px;color:#999;">ما في مواد بالكتالوج بعد — أضفها من نافذة المشتريات أول.</span>'
-            : catalog.map(m => {
-                const checked = (it.materialIds||[]).includes(m.id) ? 'checked' : '';
-                return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:#f4f5f7;padding:4px 9px;border-radius:99px;cursor:pointer;">
-                  <input type="checkbox" ${checked} onchange="toggleItemTypeMaterial(${idx},'${m.id}',this.checked)" style="margin:0;">
-                  ${m.name}
-                </label>`;
-              }).join('')
-          }
-        </div>
-      </div>
       <div class="item-mgr-row-controls"><button class="small danger" onclick="removeItemManagerRow(${idx})">Remove item</button></div>
     </div>`;
 }
@@ -2316,17 +2317,6 @@ function buildItemMgrRowHtml(it, idx){
 function renderItemsManager(){
   const c = document.getElementById('items-manager-rows');
   c.innerHTML = ITEMS.map((it, idx) => buildItemMgrRowHtml(it, idx)).join('');
-}
-
-function toggleItemTypeMaterial(idx, matId, checked){
-  if(!ITEMS[idx]) return;
-  if(!ITEMS[idx].materialIds) ITEMS[idx].materialIds = [];
-  if(checked){
-    if(!ITEMS[idx].materialIds.includes(matId)) ITEMS[idx].materialIds.push(matId);
-  } else {
-    ITEMS[idx].materialIds = ITEMS[idx].materialIds.filter(id => id !== matId);
-  }
-  saveItemsToStorage();
 }
 
 function updateItemField(idx, field, value){
@@ -8059,55 +8049,6 @@ window.wdApplyBack = function(results){
   </div>
   <div id="gableRoof3DCanvasWrap"></div>
   <p class="hint" style="color:#cfd8e0;padding:6px 16px;">اسحب بالماوس لتدوير الكاميرا يدويًا وشوف السقف الجملوني من كل زاوية، أو دوس "🎥 سجّل وحمّل فيديو 360°" لتسجيل دورة كاملة تلقائية حوالين السقف وتنزيلها كملف فيديو جاهز ترسلو للزبون. دوس "▶️ افتح الوحدات" لتشوف الوحدات المتحركة (الجانب + الجملون فوقه سوا) تنزلق وتنفتح حيًا قدامك - الوحدات المعلّمة ثابتة (F) ما بتتحرك إطلاقًا. اختاري سرعة الحركة (🐢 بطيء / 🚶 متوسط / 🐇 سريع) من فوق لتجربي شو الأنسب وقت التصوير.</p>
-</div>
-
-<div id="purchasingOverlay">
-  <div class="threeD-topbar">
-    <span>🛒 المشتريات</span>
-    <div style="display:flex; gap:8px;">
-      <button class="camera-close-btn" onclick="closePurchasingOverlay()">✕ إغلاق</button>
-    </div>
-  </div>
-  <div style="max-width:1100px; margin:0 auto; padding:24px 20px 60px; direction:rtl;">
-
-    <div id="purchBomBox" style="background:#fff; border-radius:12px; padding:20px; margin-bottom:20px;"></div>
-
-    <div style="background:#fff; border-radius:12px; padding:20px; margin-bottom:20px;">
-      <h3 style="margin:0 0 14px; font-family:'DM Serif Text',serif; font-size:20px;">حساب الألمنيوم (تيوبات)</h3>
-      <p style="font-size:12.5px; color:#6d6d6d; margin:0 0 16px;">المحسوب = محيط كل بند + طول كل التقطيعات الداخلية (القواطع)، بناءً على التصميم الحالي لكل بند. لا يشمل قوس التصميم المنفصل ولا هيكل أبواب الطي الإضافي.</p>
-      <div style="display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
-        <label style="font-size:13px; color:#333;">طول التيوب القياسي (متر):</label>
-        <select id="purchTubeLenPreset" onchange="onPurchTubePresetChange()" style="padding:8px 10px; border:1px solid #ddd; border-radius:7px; font-size:13px;">
-          <option value="6">6.00 م</option>
-          <option value="6.6">6.60 م</option>
-          <option value="custom">مخصص...</option>
-        </select>
-        <input type="text" inputmode="decimal" id="purchTubeLenCustom" step="0.01" min="0.5" placeholder="مثلاً 5.8" oninput="restrictMeasureChars(this);renderPurchasingAluminum();renderPurchasingBOM()" onblur="evalMeasureField(this);renderPurchasingAluminum();renderPurchasingBOM()" style="display:none; width:110px; padding:8px 10px; border:1px solid #ddd; border-radius:7px; font-size:13px;" value="">
-      </div>
-      <div id="purchAluminumTable"></div>
-      <div id="purchAluminumTotals" style="margin-top:16px; padding-top:14px; border-top:1px dashed #ddd; font-size:15px;"></div>
-    </div>
-
-    <div style="background:#fff; border-radius:12px; padding:20px; margin-bottom:20px;">
-      <h3 style="margin:0 0 14px; font-family:'DM Serif Text',serif; font-size:20px;">كتالوج المواد</h3>
-      <p style="font-size:12.5px; color:#6d6d6d; margin:0 0 16px;">قاعدة بيانات مواد ثابتة. أضف المادة مرة وحدة، بعدين حدد أي بنود بتتشارك فيها (بضغطة) من أي مكان — Manage Items أو من هون.</p>
-      <div style="display:flex; gap:10px; align-items:center; margin-bottom:18px; flex-wrap:wrap;">
-        <input type="text" id="newMatName" placeholder="اسم المادة (مثلاً: سكة سحاب)" style="flex:1; min-width:180px; padding:8px 10px; border:1px solid #ddd; border-radius:7px; font-size:13px;" value="">
-        <select id="newMatCalcType" style="padding:8px 10px; border:1px solid #ddd; border-radius:7px; font-size:13px;">
-          <option value="count">تُحسب بعدد البنود</option>
-          <option value="aluminum_length">تُحسب بطول الألمنيوم (م)</option>
-        </select>
-        <button onclick="handleAddCatalogMaterial()" style="background:#0f88cd; color:#fff; border:none; border-radius:7px; padding:8px 16px; font-size:13px; cursor:pointer; font-weight:600;">+ إضافة للكتالوج</button>
-      </div>
-      <div id="purchMaterialsCatalog"></div>
-    </div>
-
-    <div style="background:#fff; border-radius:12px; padding:20px;">
-      <h3 style="margin:0 0 14px; font-family:'DM Serif Text',serif; font-size:20px;">جدول المواد المطلوبة</h3>
-      <div id="purchMaterialsTable"></div>
-    </div>
-
-  </div>
 </div>
 
 <div id="mfgSizesOverlay">
@@ -18614,143 +18555,12 @@ function computeItemAluminumLength(it){
   return outerPerimeter + internalDividers; // mm
 }
 
-function getPurchTubeLenM(){
-  const preset = document.getElementById('purchTubeLenPreset').value;
-  if(preset === 'custom'){
-    return parseFloat(document.getElementById('purchTubeLenCustom').value) || 6;
-  }
-  return parseFloat(preset);
-}
-function onPurchTubePresetChange(){
-  const preset = document.getElementById('purchTubeLenPreset').value;
-  document.getElementById('purchTubeLenCustom').style.display = preset==='custom' ? 'inline-block' : 'none';
-  renderPurchasingAluminum();
-  renderPurchasingBOM();
-}
-
-function renderPurchasingAluminum(){
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
-  const tableEl = document.getElementById('purchAluminumTable');
-  const totalsEl = document.getElementById('purchAluminumTotals');
-  if(!visibleItems.length){
-    tableEl.innerHTML = '<p style="color:#666;padding:10px 0;">ما في بنود بعد.</p>';
-    totalsEl.innerHTML = '';
-    return;
-  }
-  let grandTotalMm = 0;
-  tableEl.innerHTML = visibleItems.map(it=>{
-    const q = getPurchItemQty(it);
-    const lenMm = computeItemAluminumLength(it) * q;
-    grandTotalMm += lenMm;
-    const lenM = (lenMm/1000).toFixed(2);
-    return `<div class="purch-item-row">
-      <span class="purch-name">${it.label}${it.refCode ? ` <span style="opacity:.6;font-weight:400;">(${it.refCode})</span>` : ''}${q!==1 ? ` <span style="opacity:.7;font-weight:400;">× ${q}</span>` : ''}</span>
-      <span class="purch-len">${lenM} م</span>
-    </div>`;
-  }).join('');
-
-  const tubeLen = getPurchTubeLenM();
-  const grandTotalM = grandTotalMm/1000;
-  const tubesNeeded = tubeLen > 0 ? Math.ceil(grandTotalM / tubeLen) : 0;
-  totalsEl.innerHTML = `
-    <div>إجمالي الطول المطلوب: <b>${grandTotalM.toFixed(2)} م</b></div>
-    <div style="margin-top:4px;">بناءً على طول تيوب ${tubeLen.toFixed(2)} م: تحتاج تشتري <b style="color:#0f88cd;font-size:18px;">${tubesNeeded}</b> تيوب</div>
-    <div style="margin-top:4px;font-size:11.5px;color:#999;">ملاحظة: هاي قسمة بسيطة (إجمالي الطول ÷ طول التيوب) بدون تحسين تقطيع (cutting optimization) — الرقم الفعلي ممكن يقل شوي لو رتّبت القطع بذكاء أكتر.</div>
-  `;
-}
-
-function handleAddCatalogMaterial(){
-  const nameInput = document.getElementById('newMatName');
-  const typeSel = document.getElementById('newMatCalcType');
-  const name = (nameInput.value||'').trim();
-  if(!name) return;
-  addCatalogMaterial(name, typeSel.value);
-  nameInput.value = '';
-  renderPurchasingMaterialsCatalog();
-  renderPurchasingMaterialsTable();
-}
-
-function toggleDesignerItemMaterial(itemId, matId, checked){
-  const it = items.find(i=>i.id===itemId);
-  if(!it) return;
-  if(!it.materialIds) it.materialIds = [];
-  if(checked){
-    if(!it.materialIds.includes(matId)) it.materialIds.push(matId);
-  } else {
-    it.materialIds = it.materialIds.filter(id => id !== matId);
-  }
-  renderPurchasingMaterialsTable();
-}
-
-function handleRemoveCatalogMaterial(matId){
-  if(!confirm('حذف هالمادة من الكتالوج؟ رح تنشال من كل البنود المرتبطة فيها.')) return;
-  removeCatalogMaterial(matId);
-  renderPurchasingMaterialsCatalog();
-  renderPurchasingMaterialsTable();
-}
-
-function renderPurchasingMaterialsCatalog(){
-  const catalog = loadMaterialsCatalog();
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
-  const el = document.getElementById('purchMaterialsCatalog');
-  if(!catalog.length){
-    el.innerHTML = '<p style="color:#666;padding:6px 0;">ما في مواد بالكتالوج بعد — ضيف أول مادة فوق.</p>';
-    return;
-  }
-  el.innerHTML = catalog.map(m=>{
-    const typeLabel = m.calcType==='aluminum_length' ? 'طول ألمنيوم' : 'عدد';
-    const itemChecks = visibleItems.length
-      ? visibleItems.map(it=>{
-          const checked = (it.materialIds||[]).includes(m.id) ? 'checked' : '';
-          return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:#f4f5f7;padding:4px 9px;border-radius:99px;cursor:pointer;">
-            <input type="checkbox" ${checked} onchange="toggleDesignerItemMaterial(${it.id},'${m.id}',this.checked)" style="margin:0;">
-            ${it.label}${it.refCode ? ` (${it.refCode})` : ''}
-          </label>`;
-        }).join('')
-      : '<span style="color:#999;font-size:12px;">ما في بنود مصمَّمة بعد بهالجلسة</span>';
-    return `<div style="padding:12px 0; border-bottom:1px solid #eee;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-        <span style="font-weight:600; font-size:14px; color:#333;">${m.name} <span style="font-size:11px; color:#0f88cd; font-weight:400;">(${typeLabel})</span></span>
-        <span onclick="handleRemoveCatalogMaterial('${m.id}')" style="cursor:pointer; color:#c0392b; font-size:12px;">✕ حذف</span>
-      </div>
-      <div style="display:flex; flex-wrap:wrap; gap:6px;">${itemChecks}</div>
-    </div>`;
-  }).join('');
-}
-
-function renderPurchasingMaterialsTable(){
-  const catalog = loadMaterialsCatalog();
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
-  const el = document.getElementById('purchMaterialsTable');
-  if(!catalog.length){
-    el.innerHTML = '<p style="color:#666;padding:6px 0;">ضيف مواد للكتالوج فوق لتظهر هون.</p>';
-    return;
-  }
-  const rows = catalog.map(m=>{
-    const assigned = visibleItems.filter(it => (it.materialIds||[]).includes(m.id));
-    let qtyLabel;
-    if(m.calcType === 'aluminum_length'){
-      const totalMm = assigned.reduce((s,it)=> s + computeItemAluminumLength(it) * getPurchItemQty(it), 0);
-      qtyLabel = (totalMm/1000).toFixed(2) + ' م';
-    } else {
-      qtyLabel = assigned.length + ' بند';
-    }
-    const itemNames = assigned.map(it=>it.label).join('، ') || '—';
-    return `<div class="purch-item-row">
-      <span class="purch-name">${m.name}</span>
-      <span style="flex:2; font-size:12px; color:#777;">${itemNames}</span>
-      <span class="purch-len">${qtyLabel}</span>
-    </div>`;
-  }).join('');
-  el.innerHTML = rows;
-}
 
 
 // 🆕 2026-10-04.10 (بلاغ حمدي: "ضغطت على المشتريات وتفاجأت إنو المواد غير واضحة ومافي أي تفاصيل... خليني أختار نوع
 // الفتحة شباك أو باب حتى أعرف الكميات"): نافذة المشتريات كانت بتعرض بس أطوال ألمنيوم + كتالوج مواد يدوي (فاضي
 // غالبًا)، وبنود منظور الغرف ما إلها نوع واضح. هلق في قائمة شراء كاملة: لكل بند نوع الفتحة (بتختاره من قائمة)،
 // المقاس، العدد (من جدول الكميات)، طول الألمنيوم، مساحة الزجاج، وتجميع للإكسسوارات حسب أنواع الفتح.
-const PURCH_TYPE_OPTIONS = ['window','door','slidingWindow','slidingDoor','foldingDoor','showerGlassDoor'];
 function getPurchItemQty(it){
   try{
     if(it.sourceRowUid){
@@ -18792,120 +18602,22 @@ function purchHardwareForItem(it){
   });
   return hw;
 }
-function purchSetItemType(itemId, type){
-  const it = items.find(i=>i.id===itemId); if(!it) return;
-  if(PURCH_TYPE_OPTIONS.indexOf(type) < 0) return;
-  const prev = selectedId;
-  selectedId = itemId;
-  try{ setShape(type); }finally{ selectedId = (items.find(i=>i.id===prev) ? prev : itemId); }
-  try{ loadSelectedIntoControls(); }catch(e){}
-  renderPurchasingAll();
-}
-function purchSetItemQty(itemId, v){
-  const it = items.find(i=>i.id===itemId); if(!it) return;
-  const q = parseFloat(v);
-  it.purchQty = (isFinite(q) && q > 0) ? Math.min(q, 9999) : 1;
-  scheduleDesignSave();
-  renderPurchasingAluminum();
-  renderPurchasingBOM(true);
-}
-function renderPurchasingBOM(keepFocus){
-  const box = document.getElementById('purchBomBox'); if(!box) return;
-  const open = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
-  const rooms = items.filter(it => isRoom(it));
-  let totAlu = 0, totGlass = 0, totLeaves = 0;
-  const hwTot = { hinges:0, handles:0, locks:0, rollers:0, fixed:0, opening:0 };
-  const rowsHtml = open.map(it=>{
-    const q = getPurchItemQty(it);
-    const linked = !!(it.sourceRowUid && document.querySelector('#qty-rows tr[data-row-uid="'+it.sourceRowUid+'"]'));
-    const alu = computeItemAluminumLength(it) * q / 1000;
-    let glassM2 = 0, leaves = 0, hw = { hinges:0, handles:0, locks:0, rollers:0, fixed:0, opening:0 };
-    if(!isHandrail(it)){
-      const ll = purchLeafList(it);
-      leaves = ll.length;
-      glassM2 = ll.reduce((a,l)=> a + (l.w*l.h)/1e6, 0) * q;
-      hw = purchHardwareForItem(it);
-    }
-    totAlu += alu; totGlass += glassM2; totLeaves += leaves * q;
-    Object.keys(hwTot).forEach(k=> hwTot[k] += hw[k]*q);
-    let typeCell;
-    if(isHandrail(it)){
-      typeCell = '<span>هاندريل</span>';
-    } else {
-      const cur = PURCH_TYPE_OPTIONS.indexOf(it.shapeType) >= 0 ? it.shapeType : 'window';
-      typeCell = '<select onchange="purchSetItemType('+it.id+',this.value)" style="padding:5px 6px;border:1px solid #ccc;border-radius:6px;font-size:12.5px;">' +
-        PURCH_TYPE_OPTIONS.map(t=>'<option value="'+t+'"'+(t===cur?' selected':'')+'>'+(SHAPE_LABELS[t]||t)+'</option>').join('') + '</select>';
-    }
-    const qtyCell = linked
-      ? '<span title="العدد من جدول الكميات">'+q+'</span>'
-      : '<input type="number" min="1" step="1" value="'+q+'" onchange="purchSetItemQty('+it.id+',this.value)" style="width:56px;padding:4px;border:1px solid #ccc;border-radius:6px;">';
-    return '<tr style="border-bottom:1px solid #eee;">' +
-      '<td style="padding:7px 4px;">'+it.label+(it.refCode?' <span style="opacity:.6">('+it.refCode+')</span>':'')+'</td>' +
-      '<td style="padding:7px 4px;">'+typeCell+'</td>' +
-      '<td style="padding:7px 4px;white-space:nowrap;">'+Math.round(it.width)+' × '+Math.round(it.height)+'</td>' +
-      '<td style="padding:7px 4px;text-align:center;">'+qtyCell+'</td>' +
-      '<td style="padding:7px 4px;text-align:center;">'+leaves+'</td>' +
-      '<td style="padding:7px 4px;text-align:center;">'+alu.toFixed(2)+' م</td>' +
-      '<td style="padding:7px 4px;text-align:center;">'+(glassM2 ? glassM2.toFixed(2)+' م²' : '—')+'</td>' +
-      '</tr>';
-  }).join('');
-  const tubeLen = getPurchTubeLenM();
-  const tubes = tubeLen > 0 ? Math.ceil(totAlu / tubeLen) : 0;
-  let html = '<h3 style="margin:0 0 6px;font-family:\'DM Serif Text\',serif;font-size:20px;">🛒 قائمة الشراء (حسب التصميم الحالي)</h3>' +
-    '<p style="font-size:12.5px;color:#6d6d6d;margin:0 0 14px;">اختار نوع كل فتحة (شباك / باب / سحّاب...) من القائمة، والكميات بتنحسب تلقائيًا. العدد بيجي من جدول الكميات، وللبنود غير المربوطة بسطر بتكتبه بنفسك.</p>';
-  if(!open.length){
-    html += '<p style="color:#b45309;background:#fff7ed;border-radius:8px;padding:10px 12px;font-size:13px;">ما في أي شباك/باب مصمَّم بعد، فما في شي يتحسب. ' +
-      (rooms.length ? 'الغرفة نفسها ما بتنحسب كشباك — حوّل أضلاعها لـ"تصميم" وصمّم الفتحات، أو شوف مواد الغرفة تحت.' : 'أضف بند من المصمم أول.') + '</p>';
-  } else {
-    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:640px;">' +
-      '<thead><tr style="background:#f4f5f7;text-align:right;"><th style="padding:7px 4px;">البند</th><th style="padding:7px 4px;">نوع الفتحة</th><th style="padding:7px 4px;">المقاس (مم)</th><th style="padding:7px 4px;text-align:center;">العدد</th><th style="padding:7px 4px;text-align:center;">عدد الأجنحة/الألواح</th><th style="padding:7px 4px;text-align:center;">الألمنيوم</th><th style="padding:7px 4px;text-align:center;">الزجاج</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
-    html += '<div style="margin-top:16px;padding-top:14px;border-top:1px dashed #ddd;font-size:14px;line-height:1.9;">' +
-      '<div>🔩 <b>ألمنيوم:</b> '+totAlu.toFixed(2)+' م ≈ <b style="color:#0f88cd;">'+tubes+'</b> تيوب (طول التيوب '+tubeLen.toFixed(2)+' م)</div>' +
-      '<div>🪟 <b>زجاج:</b> '+totGlass.toFixed(2)+' م² ('+totLeaves+' لوح/جناح) — مساحة الأجنحة قبل خصم سماكة البروفايل</div>' +
-      '<div>🔧 <b>إكسسوارات (تقدير حسب نوع الفتح):</b> مفصلات '+hwTot.hinges+' • ماسكات '+hwTot.handles+' • أقفال '+hwTot.locks+' • رولات سحّاب '+hwTot.rollers+' • ألواح ثابتة '+hwTot.fixed+'</div>' +
-      '</div>';
-  }
-  if(rooms.length){
-    html += '<h4 style="margin:18px 0 8px;font-size:15px;">🏠 مواد الغرفة</h4>';
-    rooms.forEach(r=>{
-      try{
-        const floorA = polygonAreaAbsMM(computeSidesPolygonMM(r.roomSides||[])) / 1e6;
-        const cp = computeCeilingPolygonMM(r) || [];
-        const ceilA = cp.length >= 3 ? polygonAreaAbsMM(cp) / 1e6 : 0;
-        const ct = getCeilingType(r);
-        const ctLabel = ct === 'glass' ? 'زجاج ثابت' : (ct === 'slide' ? 'زجاج سحّاب' : 'ساندويتش بانل');
-        const walls = (r.roomSides||[]).reduce((a,sd)=> a + (sd.segments||[]).filter(g=>g.kind==='wall').reduce((b,g)=>b+(g.length||0),0), 0);
-        html += '<div style="font-size:13.5px;line-height:1.9;">'+(r.label||'غرفة')+': أرضية '+floorA.toFixed(2)+' م² • سقف ('+ctLabel+') '+ceilA.toFixed(2)+' م² • جدران بطول '+(walls/1000).toFixed(2)+' م</div>';
-      }catch(e){}
-    });
-  }
-  box.innerHTML = html;
-}
-function renderPurchasingAll(){
-  renderPurchasingBOM();
-  renderPurchasingAluminum();
-  renderPurchasingMaterialsCatalog();
-  renderPurchasingMaterialsTable();
-}
-window.purchSetItemType = purchSetItemType;
-window.purchSetItemQty = purchSetItemQty;
-window.renderPurchasingBOM = renderPurchasingBOM;
-window.renderPurchasingAluminum = renderPurchasingAluminum;
-
+// 🛠️ 2026-10-07 (طلب حمدي: أداة مشتريات وحدة بس): نافذة المشتريات المكررة اتشالت من هون. هالزر بيفتح أداة المشتريات الحقيقية
+// (procurement.html) بتاب مستقل، وبيمرّلها رقم العرض الحالي حتى تسحب تصميم هالعرض بالذات. القواعد والمواد الإضافية بتتعدل من
+// تبويب "الإعدادات" جوّاتها. بنحفظ التصميم أول بالتخزين المحلي حتى تلاقي أحدث نسخة.
+let __procWin = null;
 function openPurchasingOverlay(){
-  renderPurchasingAll();
-  document.getElementById('purchasingOverlay').style.display = 'block';
-}
-function closePurchasingOverlay(){
-  document.getElementById('purchasingOverlay').style.display = 'none';
+  try{ (window.__flushDesignSave__ || saveDesignItemsToStorage)(); }catch(e){}
+  let ref = '';
+  try{ const re = document.getElementById('m-ref'); ref = re ? (re.value || '').trim() : ''; }catch(e){}
+  if(__procWin && !__procWin.closed){
+    try{ __procWin.postMessage({ type:'mz-select-ref', ref: ref }, location.origin); __procWin.focus(); return; }catch(e){}
+  }
+  const url = 'procurement.html' + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+  __procWin = window.open(url, 'merzona-procurement');
+  if(!__procWin) alert('المتصفح منع فتح أداة المشتريات. اسمح للموقع بالنوافذ المنبثقة (Pop-ups) وجرب مرة ثانية.');
 }
 window.openPurchasingOverlay = openPurchasingOverlay;
-window.closePurchasingOverlay = closePurchasingOverlay;
-window.onPurchTubePresetChange = onPurchTubePresetChange;
-window.handleAddCatalogMaterial = handleAddCatalogMaterial;
-window.toggleDesignerItemMaterial = toggleDesignerItemMaterial;
-window.handleRemoveCatalogMaterial = handleRemoveCatalogMaterial;
-window.toggleItemTypeMaterial = toggleItemTypeMaterial;
 
 window.open3DPreview = open3DPreview;
 window.onThreeDControlsChange = onThreeDControlsChange;

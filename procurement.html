@@ -7,6 +7,57 @@
 <meta name="supported-color-schemes" content="light">
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
+<script id="mz-error-reporter">
+/* 🐞 تسجيل أخطاء تلقائي (2026-10-06): أي خطأ جافاسكربت بالصفحة بيتبعت للسيرفر (من جهاز معتمد بس) مع اسم الصفحة والنسخة ورقم العرض،
+   وبيتخزّن كمان نسخة بالمتصفح (localStorage: mz-err-log، آخر 30). ما بيعطّل أي شي لو فشل. */
+(function(){
+  if(window.__mzErrReporter) return; window.__mzErrReporter = true;
+  var PAGE = 'procurement';
+  var ENDPOINT = 'https://merzona-server-production.up.railway.app/client-error';
+  var seen = {}, sent = 0, winStart = Date.now();
+  var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to load resource|NetworkError|Load failed|Failed to fetch|AbortError|aborted|ERR_TUNNEL|net::ERR/i;
+  function dev(){ try{ return localStorage.getItem('merzona-device-token') || ''; }catch(e){ return ''; } }
+  function refVal(){ try{ var el = document.getElementById('m-ref'); return el ? (el.value || '') : ''; }catch(e){ return ''; } }
+  function keep(rec){
+    try{
+      var arr = JSON.parse(localStorage.getItem('mz-err-log') || '[]'); arr.push(rec);
+      localStorage.setItem('mz-err-log', JSON.stringify(arr.slice(-30)));
+    }catch(e){}
+  }
+  function report(kind, msg, stack, src){
+    try{
+      msg = String(msg == null ? '' : msg).slice(0, 500);
+      if(!msg || NOISE.test(msg)) return;
+      var key = kind + '|' + msg.slice(0, 120); if(seen[key]) return; seen[key] = 1;
+      var now = Date.now(); if(now - winStart > 600000){ winStart = now; sent = 0; } if(++sent > 10) return;
+      var rec = { kind: kind, msg: msg, stack: String(stack || '').slice(0, 1500), src: String(src || '').slice(0, 200), page: PAGE, v: window.__mzVersion || '', ref: refVal(), ua: (navigator.userAgent || '').slice(0, 160), t: new Date().toISOString() };
+      keep(rec);
+      var d = dev(); if(!d) return;
+      fetch(ENDPOINT + '?device=' + encodeURIComponent(d), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec), keepalive: true }).catch(function(){});
+    }catch(e){}
+  }
+  window.addEventListener('error', function(e){
+    if(!e || (e.target && e.target !== window)) return; // أخطاء تحميل ملفات/صور = ضجيج شبكة، منتجاهلها
+    report('error', e.message, e.error && e.error.stack, (e.filename || '') + ':' + (e.lineno || ''));
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e && e.reason; report('promise', (r && r.message) ? r.message : r, r && r.stack);
+  });
+  var origErr = console.error;
+  console.error = function(){
+    try{
+      var parts = [], st = '';
+      for(var i = 0; i < arguments.length; i++){
+        var x = arguments[i];
+        if(x && x.message){ parts.push(x.message); if(!st && x.stack) st = x.stack; }
+        else if(typeof x === 'string' || typeof x === 'number') parts.push(String(x));
+      }
+      report('console', parts.join(' '), st);
+    }catch(e){}
+    return origErr.apply(console, arguments);
+  };
+})();
+</script>
 <script>
 (function(){
   // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
@@ -29,7 +80,8 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.4';
+  var CURRENT_VERSION = '2026-10-07.1';
+  window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -521,6 +573,22 @@
   table td,table th{color:#0b1220;}
   table th{font-weight:700;}
   .cw-preview svg text{fill:#0b1220 !important;font-weight:700;}
+  /* ===== تبويب الإعدادات ===== */
+  .rules-section{margin:0 0 18px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:#fafbfc;}
+  .rules-grid{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;}
+  .rule-field{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 10px;}
+  .rule-field input[type=number]{width:80px;}
+  .unit-note{font-size:12px;color:#374151;}
+  .extra-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px;border:1px solid var(--border);border-radius:8px;background:#fff;margin:8px 0;}
+  .extra-row.disabled{opacity:.6;background:#f3f4f6;}
+  .extra-row input[type=number]{width:90px;}
+  .extra-row select{font-family:inherit;font-size:13px;padding:5px 6px;border:1px solid #9aa5b5;border-radius:6px;}
+  .extra-row .chk{font-size:12.5px;font-weight:600;gap:3px;}
+  .extra-row .types-box{display:inline-flex;flex-wrap:wrap;gap:8px;padding:2px 6px;border:1px dashed var(--border);border-radius:6px;}
+  .extra-note{width:100%;font-size:12px;color:#92400e;}
+  .label-row{display:flex;gap:10px;align-items:center;margin:4px 0;}
+  .label-row .label-def{flex:0 0 42%;font-size:12.5px;color:#374151;}
+  details.rules-section summary{cursor:pointer;font-weight:700;font-size:15px;}
 </style>
 </head>
 <body>
@@ -539,7 +607,7 @@
       <input id="fileImportDesign" type="file" accept=".json" style="display:none">
     </div>
     <div id="syncStatus" class="sync-status"></div>
-    <div style="width:100%;font-size:12px;color:#0b1220;font-weight:600;margin-top:4px">رقم نسخة هذه الصفحة: 2026-10-05.3</div>
+    <div style="width:100%;font-size:12px;color:#0b1220;font-weight:600;margin-top:4px">رقم نسخة هذه الصفحة: <span id="verLabel"></span></div>
     <div id="syncSourceRow" class="sync-status" style="display:none"><label>التصميم المسحوب منه: <select id="designSource"></select></label></div>
     <div id="syncNotes" class="sync-notes" style="display:none"></div>
   </header>
@@ -547,6 +615,7 @@
   <nav id="tabs">
     <button class="tab-btn active" data-tab="items">البنود</button>
     <button class="tab-btn" data-tab="boq">جدول المشتريات (BOQ)</button>
+    <button class="tab-btn" data-tab="settings">⚙️ الإعدادات</button>
   </nav>
 
   <main>
@@ -556,6 +625,9 @@
     </section>
     <section id="tab-boq" class="tab-panel">
       <div id="boq-container"></div>
+    </section>
+    <section id="tab-settings" class="tab-panel">
+      <div id="settings-container"></div>
     </section>
   </main>
 
@@ -1020,8 +1092,11 @@ if (typeof module !== 'undefined') {
     designSourceKey: 'auto', // 'auto' = أحدث تصميم محفوظ بالمتصفح، أو مفتاح تخزين محدد (عرض سعر معيّن)
     designSources: [],       // قائمة التصاميم المحفوظة بالمتصفح (للاختيار بينها)
     lastSyncSource: null,    // الرقم المرجعي/الاسم للتصميم اللي انسحبت منه آخر مزامنة
-    syncNotes: []            // تنبيهات آخر مزامنة (بنود تخطّيناها / ملاحظات)
+    syncNotes: [],           // تنبيهات آخر مزامنة (بنود تخطّيناها / ملاحظات)
+    barLengthTouched: false  // true لو غيّرت طول القضيب يدوياً لهالمشروع (وقتها ما منتبع الافتراضي من الإعدادات)
   };
+
+  var PROC_SERVER = 'https://merzona-server-production.up.railway.app';
 
   // Same-origin localStorage key the window/door designer (Quotation_Generator.html) autosaves
   // its drawn items to on every edit. Both tools live as sibling same-origin iframes inside
@@ -1030,6 +1105,210 @@ if (typeof module !== 'undefined') {
   // 2026-10-02، بدل المفتاح العالمي الواحد القديم. هاد الملف كان لسا بيقرأ المفتاح القديم بس فما كان يشوف أي تصميم جديد
   // (أو بيشوف نسخة قديمة عالقة). هلق بنفتش على كل المفاتيح اللي بتبدأ بهالبادئة وبناخد الأحدث (أو يلي بتختاره من القائمة).
   var DESIGN_STORAGE_KEY = 'merzona-design-items';
+
+  // ---------------- القواعد والإعدادات (قابلة للتعديل من تبويب "الإعدادات") ----------------
+  // كل رقم كان مكتوب ثابت بالكود (3 أذرع لكل فتحة، رولين لكل ورقة سحاب، 3 مفصلات لكل ضلفة...) صار هون كقيمة افتراضية
+  // وبتتعدل من تبويب الإعدادات. بتنحفظ بتخزين المتصفح وكمان على السيرفر (/procurement-rules) حتى تتشارك بين كل أجهزتك.
+  // الأسماء الافتراضية = نفس القيم القديمة بالضبط، فأي حساب قبل التعديل بيطلع نفس النتيجة بالضبط.
+  var RULES_KEY = 'merzona-proc-rules-v1';
+  var EXTRA_BASES = {
+    per_item: 'لكل بند (× عدد البند)',
+    per_sqm_glass: 'لكل م² زجاج',
+    per_meter_alu: 'لكل متر طولي ألمنيوم',
+    per_leaf: 'لكل ضلفة / جناح',
+    per_project: 'مرة وحدة للمشروع كله'
+  };
+  var EXTRA_TYPES = { curtainwall: 'كرتن وول', sliding: 'سحاب', hinged: 'أبواب مفصلية', generic: 'فولدينغ/شاور/هاندريل' };
+  var LABEL_DEFS = {
+    'curtainwall:main_tube': 'تيوب كرتن وول (رئيسي + تقسيمات)',
+    'curtainwall:open_frame': 'فريم فتحة متحركة',
+    'curtainwall:open_shutter': 'شتر فتحة متحركة',
+    'curtainwall:stay_arm': 'ذراع تحريك (Stay Arm)',
+    'curtainwall:handle': 'مسكة + إكسسواراتها',
+    'curtainwall:glass': 'زجاج (مساحة الأقسام قبل خصم البروفايل — تقدير)',
+    'sliding:outer_frame': 'فريم خارجي',
+    'sliding:shutter': 'شتر',
+    'sliding:interlock': 'انترلوك',
+    'sliding:lock': 'قفل',
+    'sliding:fix_frame': 'فكس فريم (أقسام ثابتة داخل الفريم)',
+    'sliding:bar_closer': 'بار كلوزر (أقسام ثابتة داخل الفريم)',
+    'sliding:other_divider': '⚠️ قواطع إضافية (تقسيمة معقّدة - راجع يدوياً)',
+    'sliding:rollers': function (R) { return 'رولات سحّاب (تقدير: ' + R.sliding.rollersPerLeaf + ' لكل ورقة)'; },
+    'sliding:slide_handle': function (R) { return 'مسكة سحّاب (تقدير: ' + R.sliding.handlesPerLeaf + ' لكل ورقة)'; },
+    'sliding:extra_fix_frame': 'فكس فريم إضافي (خارج الفريم)',
+    'sliding:extra_bar_closer': 'بار كلوزر إضافي (خارج الفريم)',
+    'sliding:glass': 'زجاج (مساحة الأقسام قبل خصم البروفايل — تقدير)',
+    'hinged:door_fix_frame': 'فكس فريم الباب (3 أطراف)',
+    'hinged:shutter_z': 'شتر Z',
+    'hinged:door_bar_closer': 'بار كلوزر الباب',
+    'hinged:hinges': 'مفصلات',
+    'hinged:lock': 'قفل',
+    'hinged:handle': 'مسكة',
+    'hinged:extra_fix_frame': 'فكس فريم إضافي (فوق/جنب الباب)',
+    'hinged:extra_bar_closer': 'بار كلوزر إضافي',
+    'hinged:glass': 'زجاج (مساحة الأقسام قبل خصم البروفايل — تقدير)',
+    'generic:alu': 'ألمنيوم (محيط + قواطع — تقدير إجمالي، مو تفنيد بروفايلات)',
+    'generic:glass': 'زجاج (مساحة الأقسام قبل خصم البروفايل — تقدير)',
+    'generic:hinges': 'مفصلات (تقدير)',
+    'generic:handle': 'مسكة (تقدير)',
+    'generic:lock': 'قفل (تقدير)',
+    'generic:rollers': 'رولات (تقدير)'
+  };
+  function ruleNum(v, def, min, max) {
+    var n = parseFloat(v);
+    if (!isFinite(n)) n = def;
+    return Math.max(min, Math.min(max, n));
+  }
+  function defaultRules() {
+    return {
+      barLength: 6.4, wasteLinearPct: 0, wasteGlassPct: 0,
+      curtain: { stayArmsPerOpenable: 3, handlesPerOpenable: 1 },
+      sliding: { rollersPerLeaf: 2, handlesPerLeaf: 1 },
+      hinged: { hingesPerLeaf: 3, locksPerLeaf: 1, handlesPerLeaf: 1 },
+      labels: {}, extras: []
+    };
+  }
+  function normalizeRules(o) {
+    var d = defaultRules(), r = defaultRules();
+    o = (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+    r.barLength = ruleNum(o.barLength, d.barLength, 1, 20);
+    r.wasteLinearPct = ruleNum(o.wasteLinearPct, 0, 0, 100);
+    r.wasteGlassPct = ruleNum(o.wasteGlassPct, 0, 0, 100);
+    ['curtain', 'sliding', 'hinged'].forEach(function (g) {
+      var src = (o[g] && typeof o[g] === 'object') ? o[g] : {};
+      Object.keys(d[g]).forEach(function (k) { r[g][k] = ruleNum(src[k], d[g][k], 0, 50); });
+    });
+    if (o.labels && typeof o.labels === 'object') {
+      Object.keys(o.labels).slice(0, 300).forEach(function (k) {
+        var v = String(o.labels[k] == null ? '' : o.labels[k]).trim().slice(0, 80);
+        if (v && /^[a-z]+:[a-z_]+$/.test(k)) r.labels[k] = v;
+      });
+    }
+    if (Array.isArray(o.extras)) {
+      o.extras.slice(0, 100).forEach(function (x) {
+        if (!x || typeof x !== 'object') return;
+        r.extras.push({
+          id: String(x.id || '').replace(/[^\w-]/g, '').slice(0, 40) || ('x' + Date.now().toString(36) + Math.floor(Math.random() * 1000)),
+          name: String(x.name == null ? '' : x.name).trim().slice(0, 80),
+          unit: String(x.unit == null ? '' : x.unit).trim().slice(0, 20) || 'قطعة',
+          qty: ruleNum(x.qty, 1, 0, 100000),
+          basis: EXTRA_BASES[x.basis] ? x.basis : 'per_item',
+          types: Array.isArray(x.types) ? x.types.filter(function (t) { return EXTRA_TYPES[t]; }) : [],
+          enabled: x.enabled !== false,
+          note: String(x.note == null ? '' : x.note).slice(0, 200)
+        });
+      });
+    }
+    return r;
+  }
+  var RULES = defaultRules();
+  var rulesMeta = { rev: 0, dirty: false, status: 'local', hadLocal: false };
+
+  function loadRulesLocal() {
+    try {
+      var o = JSON.parse(localStorage.getItem(RULES_KEY) || 'null');
+      if (o && o.rules) { RULES = normalizeRules(o.rules); rulesMeta.rev = parseInt(o.rev, 10) || 0; rulesMeta.dirty = !!o.dirty; rulesMeta.hadLocal = true; return true; }
+    } catch (e) { /* تخزين غير متاح/تالف - منكمل بالافتراضي */ }
+    return false;
+  }
+  function saveRulesLocal() {
+    try { localStorage.setItem(RULES_KEY, JSON.stringify({ rules: RULES, rev: rulesMeta.rev, dirty: rulesMeta.dirty })); } catch (e) {}
+  }
+  function rulesUrl() {
+    var dev = ''; try { dev = localStorage.getItem('merzona-device-token') || ''; } catch (e) {}
+    return PROC_SERVER + '/procurement-rules?device=' + encodeURIComponent(dev);
+  }
+  function rulesStatusText() {
+    if (rulesMeta.status === 'synced') return '✅ محفوظ على السيرفر (يظهر على كل أجهزتك)';
+    if (rulesMeta.status === 'pending') return '⏳ عم يتحفظ...';
+    if (rulesMeta.status === 'offline') return '⚠️ محفوظ على هالجهاز بس — السيرفر مو متاح هلق، رح يتحفظ تلقائياً أول ما يرجع';
+    if (rulesMeta.status === 'conflict') return '⚠️ حدا غيرك عدّل القواعد من جهاز تاني قبل تعديلك، فاعتمدنا النسخة الأحدث الموجودة على السيرفر. تعديلك انحفظ بنسخة احتياطية بالمتصفح.';
+    return 'محفوظ على هالجهاز';
+  }
+  function updateRulesStatus() { var s = q('rulesStatus'); if (s) s.textContent = rulesStatusText(); }
+  function applyRulesToUI() {
+    if (!state.barLengthTouched) state.barLength = RULES.barLength;
+    renderTopbar();
+    renderBOQTab();
+    var panel = q('tab-settings');
+    if (state.activeTab === 'settings' && !(panel && document.activeElement && panel.contains(document.activeElement))) renderSettingsTab();
+    updateRulesStatus();
+  }
+  var rulesPushTimer = null;
+  function rulesChanged() {
+    rulesMeta.dirty = true; rulesMeta.status = 'pending';
+    saveRulesLocal(); updateRulesStatus();
+    if (!state.barLengthTouched) { state.barLength = RULES.barLength; renderTopbar(); }
+    renderBOQTab();
+    clearTimeout(rulesPushTimer);
+    rulesPushTimer = setTimeout(pushRules, 900);
+  }
+  function handleRulesConflict(cur) {
+    try { localStorage.setItem(RULES_KEY + '-conflict', JSON.stringify({ at: Date.now(), rules: RULES })); } catch (e) {}
+    if (cur && cur.rules) {
+      RULES = normalizeRules(cur.rules); rulesMeta.rev = parseInt(cur.rev, 10) || 0; rulesMeta.dirty = false; rulesMeta.status = 'conflict';
+      saveRulesLocal(); applyRulesToUI();
+    }
+  }
+  function pushRules() {
+    if (!rulesMeta.dirty) return Promise.resolve();
+    var snapshot = JSON.stringify(RULES);
+    return fetch(rulesUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: RULES, baseRev: rulesMeta.rev }) })
+      .then(function (r) {
+        if (r.status === 409) return r.json().then(function (j) { handleRulesConflict(j && j.current); });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json().then(function (j) {
+          rulesMeta.rev = parseInt(j.rev, 10) || rulesMeta.rev;
+          if (JSON.stringify(RULES) === snapshot) { rulesMeta.dirty = false; rulesMeta.status = 'synced'; }
+          saveRulesLocal(); updateRulesStatus();
+          if (rulesMeta.dirty) { clearTimeout(rulesPushTimer); rulesPushTimer = setTimeout(pushRules, 300); }
+        });
+      })
+      .catch(function () { rulesMeta.status = 'offline'; updateRulesStatus(); });
+  }
+  function pullRules() {
+    return fetch(rulesUrl(), { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        if (!j || !j.rules) {
+          // السيرفر ما عنده قواعد بعد: لو عندنا قواعد محلية (مثلاً أول مرة) منرفعها.
+          if (rulesMeta.hadLocal) { rulesMeta.dirty = true; rulesMeta.rev = 0; saveRulesLocal(); return pushRules(); }
+          rulesMeta.status = 'synced'; return;
+        }
+        var srvRev = parseInt(j.rev, 10) || 0;
+        if (rulesMeta.dirty) {
+          if (srvRev === rulesMeta.rev) return pushRules();
+          return handleRulesConflict(j);
+        }
+        if (srvRev !== rulesMeta.rev || !rulesMeta.hadLocal) {
+          RULES = normalizeRules(j.rules); rulesMeta.rev = srvRev; rulesMeta.hadLocal = true; saveRulesLocal(); applyRulesToUI();
+        }
+        rulesMeta.status = 'synced';
+      })
+      .catch(function () { if (rulesMeta.status !== 'conflict') rulesMeta.status = rulesMeta.dirty ? 'offline' : 'local'; })
+      .then(updateRulesStatus);
+  }
+  // ترحيل كتالوج المواد القديم (كان بنافذة المشتريات بالمصمم) مرة وحدة: بتنضاف كمواد إضافية "معطّلة" حتى ما تتغير أي كمية
+  // بدون علمك؛ إنت بتفعّلها وبتحدد الكمية. (الكتالوج القديم كان بيربط المادة ببنود محددة يدوياً، وهاد الربط ما بينترحّل.)
+  function migrateOldCatalog() {
+    try {
+      var flag = RULES_KEY + '-catalog-migrated';
+      if (localStorage.getItem(flag)) return false;
+      localStorage.setItem(flag, '1');
+      var list = JSON.parse(localStorage.getItem('merzona-materials-catalog') || '[]');
+      if (!Array.isArray(list) || !list.length) return false;
+      var have = {}; RULES.extras.forEach(function (x) { have[x.name] = true; });
+      var added = 0;
+      list.forEach(function (m) {
+        if (!m || !m.name || have[String(m.name).trim()]) return;
+        var alu = m.calcType === 'aluminum_length';
+        RULES.extras.push(normalizeRules({ extras: [{ id: 'mig_' + String(m.id || '').replace(/[^\w-]/g, ''), name: m.name, unit: alu ? 'متر طولي' : 'قطعة', qty: 1, basis: alu ? 'per_meter_alu' : 'per_item', types: [], enabled: false, note: 'مرحّلة من كتالوج المصمم القديم — فعّلها وحدد الكمية' }] }).extras[0]);
+        added++;
+      });
+      if (added) { rulesMeta.hadLocal = true; rulesChanged(); }
+      return added > 0;
+    } catch (e) { return false; }
+  }
 
   // ---------------- Tree helpers (shared by curtain wall AND sliding items) ----------------
   // `flagField` is the leaf boolean that carries meaning per item type: 'openable' for
@@ -1179,6 +1458,9 @@ if (typeof module !== 'undefined') {
     renderSidebar();
     renderEditor();
     renderBOQTab();
+    // ما منعيد رسم الإعدادات وإنت عم تكتب فيها (حتى ما يضيع المؤشر) - بتنرسم لما تفتح التبويب أو تتغير القواعد من السيرفر.
+    var spanel = q('tab-settings');
+    if (state.activeTab === 'settings' && !(spanel && document.activeElement && spanel.contains(document.activeElement))) renderSettingsTab();
   }
 
   function renderTopbar() {
@@ -1227,6 +1509,7 @@ if (typeof module !== 'undefined') {
     });
     q('tab-items').classList.toggle('active', state.activeTab === 'items');
     q('tab-boq').classList.toggle('active', state.activeTab === 'boq');
+    q('tab-settings').classList.toggle('active', state.activeTab === 'settings');
   }
 
   // ---------------- Sidebar ----------------
@@ -1289,6 +1572,23 @@ if (typeof module !== 'undefined') {
     refInput.addEventListener('input', function (e) { item.refCode = e.target.value; renderSidebar(); renderBOQTab(); });
     refRow.appendChild(refInput);
     box.appendChild(refRow);
+    if (item.autoSynced && item.designShape && item.designShape !== 'handrail') {
+      var tRow = el('div', { class: 'editor-ref' });
+      tRow.appendChild(el('label', { text: 'نوع الفتحة (بيغيّر طريقة حساب هالبند هون بس، مو التصميم): ' }));
+      var tSel = el('select');
+      Object.keys(SHAPE_CHOICES).forEach(function (k) {
+        var o = el('option', { value: k, text: SHAPE_CHOICES[k] }); if (k === item.designShape) o.selected = true; tSel.appendChild(o);
+      });
+      tSel.addEventListener('change', function () {
+        itemOv.type[item.sourceDesignId] = tSel.value; saveItemOv();
+        var keepId = item.id;
+        autoSyncFromDesigner();
+        state.activeItemId = keepId;
+        renderApp();
+      });
+      tRow.appendChild(tSel);
+      box.appendChild(tRow);
+    }
     if (item.type === 'curtainwall') renderCurtainWallEditor(item, box);
     else if (item.type === 'sliding') renderSlidingEditor(item, box);
     else if (item.type === 'generic') renderGenericEditor(item, box);
@@ -1343,7 +1643,7 @@ if (typeof module !== 'undefined') {
     dims.appendChild(el('label', { text: 'العرض الكلي (م): ' }, [wInput]));
     dims.appendChild(el('label', { text: 'الارتفاع الكلي (م): ' }, [hInput]));
     var tqInput = el('input', { type: 'number', step: '1', min: '1', value: itemQty(item) });
-    tqInput.addEventListener('change', function (e) { var v = parseFloat(e.target.value); item.qty = (isFinite(v) && v > 0) ? v : 1; renderApp(); });
+    tqInput.addEventListener('change', function (e) { var v = parseFloat(e.target.value); item.qty = (isFinite(v) && v > 0) ? v : 1; noteQtyEdit(item); renderApp(); });
     dims.appendChild(el('label', { text: 'العدد (بنود مطابقة): ' }, [tqInput]));
     box.appendChild(dims);
 
@@ -1487,7 +1787,7 @@ if (typeof module !== 'undefined') {
   function renderGenericEditor(item, box) {
     var dims = el('div', { class: 'dims-row' });
     var gq = el('input', { type: 'number', step: '1', min: '1', value: itemQty(item) });
-    gq.addEventListener('change', function (e) { var v = parseFloat(e.target.value); item.qty = (isFinite(v) && v > 0) ? v : 1; renderApp(); });
+    gq.addEventListener('change', function (e) { var v = parseFloat(e.target.value); item.qty = (isFinite(v) && v > 0) ? v : 1; noteQtyEdit(item); renderApp(); });
     dims.appendChild(el('label', { text: 'العدد: ' }, [gq]));
     box.appendChild(dims);
     box.appendChild(el('p', {
@@ -1504,7 +1804,7 @@ if (typeof module !== 'undefined') {
     var qInput = el('input', { type: 'number', step: '1', min: '1', value: item.qty });
     wInput.addEventListener('change', function (e) { item.width = parseFloat(e.target.value) || item.width; renderApp(); });
     hInput.addEventListener('change', function (e) { item.height = parseFloat(e.target.value) || item.height; renderApp(); });
-    qInput.addEventListener('change', function (e) { item.qty = parseInt(e.target.value, 10) || 1; renderApp(); });
+    qInput.addEventListener('change', function (e) { item.qty = parseInt(e.target.value, 10) || 1; noteQtyEdit(item); renderApp(); });
     if (item.doorLeaves && item.doorLeaves.length) {
       // باب مستورد من التصميم فيه أكتر من قسم: الأقسام المفتوحة (مفصلية) بتتحسب أبواب، والباقي أجزاء فكس إضافية.
       dims.appendChild(el('span', { text: 'أبواب مفتوحة بالتصميم: ' + item.doorLeaves.map(function (l) { return l.w + '×' + l.h; }).join(' ، ') + ' م' }));
@@ -1556,79 +1856,113 @@ if (typeof module !== 'undefined') {
   }
 
   // ---------------- BOQ computation ----------------
+  // اسم المادة: لو عدّلته من تبويب الإعدادات بنستخدم اسمك، وإلا الاسم الافتراضي.
+  function matLabel(type, key) {
+    var ov = RULES.labels[type + ':' + key];
+    if (ov) return ov;
+    var d = LABEL_DEFS[type + ':' + key];
+    return typeof d === 'function' ? d(RULES) : (d || key);
+  }
   function computeItemBOQ(item) {
     var rows = [];
     var qty = itemQty(item);
+    var T = item.type;
+    var wl = 1 + RULES.wasteLinearPct / 100, wg = 1 + RULES.wasteGlassPct / 100;
+    var linPU = 0, glassPU = 0, leavesPU = 0; // للوحدة الواحدة (قبل الضرب بالعدد) - بتنستخدم لحساب المواد الإضافية
     // كل الأرقام هون محسوبة "للوحدة الواحدة" وبعدين بتنضرب بالعدد (نفس العدد اللي بجدول الكميات بعرض السعر).
-    function add(key, material, val, unit) { rows.push({ key: key, material: material, qty: round2(val * qty), unit: unit }); }
-    var GLASS_LABEL = 'زجاج (مساحة الأقسام قبل خصم البروفايل — تقدير)';
-    if (item.type === 'curtainwall') {
+    function add(key, val, unit) {
+      if (unit === 'متر طولي') linPU += val;
+      if (key === 'glass') glassPU = val;
+      var v = val;
+      if (unit === 'متر طولي') v = val * wl; else if (key === 'glass') v = val * wg;
+      rows.push({ key: key, material: matLabel(T, key), qty: round2(v * qty), unit: unit });
+    }
+    if (T === 'curtainwall') {
       var size = getNodeSize(item.tree);
       var r = computeCurtainWall(item.tree, size.w, size.h);
-      add('main_tube', 'تيوب كرتن وول (رئيسي + تقسيمات)', r.mainTubeLength, 'متر طولي');
+      leavesPU = r.openCount;
+      add('main_tube', r.mainTubeLength, 'متر طولي');
       if (r.openCount > 0) {
-        add('open_frame', 'فريم فتحة متحركة', r.openFrameLength, 'متر طولي');
-        add('open_shutter', 'شتر فتحة متحركة', r.openShutterLength, 'متر طولي');
-        add('stay_arm', 'ذراع تحريك (Stay Arm)', r.stayArms, 'قطعة');
-        add('handle', 'مسكة + إكسسواراتها', r.handles, 'طقم');
+        add('open_frame', r.openFrameLength, 'متر طولي');
+        add('open_shutter', r.openShutterLength, 'متر طولي');
+        var arms = r.openCount * RULES.curtain.stayArmsPerOpenable;
+        var hds = r.openCount * RULES.curtain.handlesPerOpenable;
+        if (arms > 0) add('stay_arm', arms, 'قطعة');
+        if (hds > 0) add('handle', hds, 'طقم');
       }
-      add('glass', GLASS_LABEL, treeGlassArea(item.tree), 'م²');
-    } else if (item.type === 'sliding') {
+      add('glass', treeGlassArea(item.tree), 'م²');
+    } else if (T === 'sliding') {
       var slSize = getNodeSize(item.tree);
       var rs = computeSlidingTree(item.tree, slSize.w, slSize.h);
-      add('outer_frame', 'فريم خارجي', rs.outerFrameLength, 'متر طولي');
-      if (rs.shutterLength > 0) add('shutter', 'شتر', rs.shutterLength, 'متر طولي');
-      if (rs.interlockLength > 0) add('interlock', 'انترلوك', rs.interlockLength, 'متر طولي');
-      if (rs.locks > 0) add('lock', 'قفل', rs.locks, 'قطعة');
-      if (rs.fixFrameLength > 0) add('fix_frame', 'فكس فريم (أقسام ثابتة داخل الفريم)', rs.fixFrameLength, 'متر طولي');
-      if (rs.barCloserLength > 0) add('bar_closer', 'بار كلوزر (أقسام ثابتة داخل الفريم)', rs.barCloserLength, 'متر طولي');
-      if (rs.otherDividerLength > 0) add('other_divider', '⚠️ قواطع إضافية (تقسيمة معقّدة - راجع يدوياً)', rs.otherDividerLength, 'متر طولي');
+      add('outer_frame', rs.outerFrameLength, 'متر طولي');
+      if (rs.shutterLength > 0) add('shutter', rs.shutterLength, 'متر طولي');
+      if (rs.interlockLength > 0) add('interlock', rs.interlockLength, 'متر طولي');
+      if (rs.locks > 0) add('lock', rs.locks, 'قطعة');
+      if (rs.fixFrameLength > 0) add('fix_frame', rs.fixFrameLength, 'متر طولي');
+      if (rs.barCloserLength > 0) add('bar_closer', rs.barCloserLength, 'متر طولي');
+      if (rs.otherDividerLength > 0) add('other_divider', rs.otherDividerLength, 'متر طولي');
       var slideLeaves = countLeaves(item.tree, function (l) { return !!l.sliding; });
+      leavesPU = slideLeaves;
       if (slideLeaves > 0) {
-        add('rollers', 'رولات سحّاب (تقدير: 2 لكل ورقة)', slideLeaves * 2, 'قطعة');
-        add('slide_handle', 'مسكة سحّاب (تقدير: 1 لكل ورقة)', slideLeaves, 'قطعة');
+        var rl = slideLeaves * RULES.sliding.rollersPerLeaf;
+        var sh = slideLeaves * RULES.sliding.handlesPerLeaf;
+        if (rl > 0) add('rollers', rl, 'قطعة');
+        if (sh > 0) add('slide_handle', sh, 'قطعة');
       }
       var slFixArea = 0;
       if (item.fixParts && item.fixParts.length) {
         var rsFix = computeFixParts(item.fixParts);
-        add('extra_fix_frame', 'فكس فريم إضافي (خارج الفريم)', rsFix.fixFrameLength, 'متر طولي');
-        add('extra_bar_closer', 'بار كلوزر إضافي (خارج الفريم)', rsFix.barCloserLength, 'متر طولي');
+        add('extra_fix_frame', rsFix.fixFrameLength, 'متر طولي');
+        add('extra_bar_closer', rsFix.barCloserLength, 'متر طولي');
         item.fixParts.forEach(function (f) { slFixArea += f.w * f.h; });
       }
-      add('glass', GLASS_LABEL, treeGlassArea(item.tree) + slFixArea, 'م²');
-    } else if (item.type === 'hinged') {
+      add('glass', treeGlassArea(item.tree) + slFixArea, 'م²');
+    } else if (T === 'hinged') {
       var legs = (item.doorLeaves && item.doorLeaves.length) ? item.doorLeaves : [{ w: item.width, h: item.height }];
-      var tot = { doorFixFrameLength: 0, shutterZLength: 0, doorBarCloserLength: 0, hinges: 0, locks: 0, handles: 0 };
+      var tot = { doorFixFrameLength: 0, shutterZLength: 0, doorBarCloserLength: 0 };
       var hgArea = 0;
       legs.forEach(function (l) {
         var one = computeHinged(l.w, l.h, 1, []);
         Object.keys(tot).forEach(function (k) { tot[k] += one[k]; });
         hgArea += l.w * l.h;
       });
+      leavesPU = legs.length;
       var rh = computeFixParts(item.fixParts);
-      add('door_fix_frame', 'فكس فريم الباب (3 أطراف)', tot.doorFixFrameLength, 'متر طولي');
-      add('shutter_z', 'شتر Z', tot.shutterZLength, 'متر طولي');
-      add('door_bar_closer', 'بار كلوزر الباب', tot.doorBarCloserLength, 'متر طولي');
-      add('hinges', 'مفصلات', tot.hinges, 'قطعة');
-      add('lock', 'قفل', tot.locks, 'قطعة');
-      add('handle', 'مسكة', tot.handles, 'قطعة');
+      add('door_fix_frame', tot.doorFixFrameLength, 'متر طولي');
+      add('shutter_z', tot.shutterZLength, 'متر طولي');
+      add('door_bar_closer', tot.doorBarCloserLength, 'متر طولي');
+      var hn = legs.length * RULES.hinged.hingesPerLeaf, lk = legs.length * RULES.hinged.locksPerLeaf, hd2 = legs.length * RULES.hinged.handlesPerLeaf;
+      if (hn > 0) add('hinges', hn, 'قطعة');
+      if (lk > 0) add('lock', lk, 'قطعة');
+      if (hd2 > 0) add('handle', hd2, 'قطعة');
       if (item.fixParts && item.fixParts.length) {
-        add('extra_fix_frame', 'فكس فريم إضافي (فوق/جنب الباب)', rh.fixFrameLength, 'متر طولي');
-        add('extra_bar_closer', 'بار كلوزر إضافي', rh.barCloserLength, 'متر طولي');
+        add('extra_fix_frame', rh.fixFrameLength, 'متر طولي');
+        add('extra_bar_closer', rh.barCloserLength, 'متر طولي');
         item.fixParts.forEach(function (f) { hgArea += f.w * f.h; });
       }
-      add('glass', GLASS_LABEL, hgArea, 'م²');
-    } else if (item.type === 'generic') {
+      add('glass', hgArea, 'م²');
+    } else if (T === 'generic') {
       var sm = item.summary || {};
-      if (sm.aluMm > 0) add('alu', 'ألمنيوم (محيط + قواطع — تقدير إجمالي، مو تفنيد بروفايلات)', sm.aluMm / 1000, 'متر طولي');
-      if (sm.glassM2 > 0) add('glass', GLASS_LABEL, sm.glassM2, 'م²');
+      leavesPU = sm.leaves || 0;
+      if (sm.aluMm > 0) add('alu', sm.aluMm / 1000, 'متر طولي');
+      if (sm.glassM2 > 0) add('glass', sm.glassM2, 'م²');
       var hw = sm.hw || {};
-      if (hw.hinges) add('hinges', 'مفصلات (تقدير)', hw.hinges, 'قطعة');
-      if (hw.handles) add('handle', 'مسكة (تقدير)', hw.handles, 'قطعة');
-      if (hw.locks) add('lock', 'قفل (تقدير)', hw.locks, 'قطعة');
-      if (hw.rollers) add('rollers', 'رولات (تقدير)', hw.rollers, 'قطعة');
-      if (!rows.length) add('note', '⚠️ ما وصلت أرقام لهاد البند — افتح أداة التصميم مرة وحدة وارجع زامن', 0, 'قطعة');
+      if (hw.hinges) add('hinges', hw.hinges, 'قطعة');
+      if (hw.handles) add('handle', hw.handles, 'قطعة');
+      if (hw.locks) add('lock', hw.locks, 'قطعة');
+      if (hw.rollers) add('rollers', hw.rollers, 'قطعة');
+      if (!rows.length) rows.push({ key: 'note', material: '⚠️ ما وصلت أرقام لهاد البند — افتح أداة التصميم مرة وحدة وارجع زامن', qty: 0, unit: 'قطعة' });
     }
+    // المواد الإضافية المعرّفة بالإعدادات (غير "مرة وحدة للمشروع" - هاديك بتنحسب مرة وحدة بـ computeProjectExtras)
+    RULES.extras.forEach(function (x) {
+      if (!x.enabled || !x.name || x.basis === 'per_project') return;
+      if (x.types.length && x.types.indexOf(T) < 0) return;
+      var pu = x.basis === 'per_item' ? x.qty
+        : x.basis === 'per_sqm_glass' ? x.qty * glassPU
+        : x.basis === 'per_meter_alu' ? x.qty * linPU
+        : x.basis === 'per_leaf' ? x.qty * leavesPU : 0;
+      if (pu > 0) rows.push({ key: 'x_' + x.id, material: x.name, qty: round2(pu * qty), unit: x.unit, extra: true });
+    });
     rows.forEach(function (row) {
       var ovKey = item.id + '|' + row.key;
       row.ovKey = ovKey;
@@ -1636,6 +1970,28 @@ if (typeof module !== 'undefined') {
       if (state.overrides[ovKey] !== undefined) { row.qty = state.overrides[ovKey]; row.overridden = true; }
     });
     return rows;
+  }
+  // مواد إضافية بأساس "مرة وحدة للمشروع كله" (مثلاً سيليكون، مسامير): بتظهر بصف مستقل مو مربوط ببند.
+  function computeProjectExtras() {
+    var rows = [];
+    if (!state.items.length) return rows;
+    RULES.extras.forEach(function (x) {
+      if (!x.enabled || !x.name || x.basis !== 'per_project' || !(x.qty > 0)) return;
+      if (x.types.length && !state.items.some(function (i) { return x.types.indexOf(i.type) >= 0; })) return;
+      var row = { key: 'x_' + x.id, material: x.name, qty: round2(x.qty), unit: x.unit, extra: true, ovKey: 'project|x_' + x.id };
+      row.autoQty = row.qty;
+      if (state.overrides[row.ovKey] !== undefined) { row.qty = state.overrides[row.ovKey]; row.overridden = true; }
+      rows.push(row);
+    });
+    return rows;
+  }
+  function collectBoqEntries() {
+    var out = [];
+    state.items.forEach(function (item) {
+      computeItemBOQ(item).forEach(function (row) { out.push({ ref: item.refCode || '', name: item.name, type: typeLabel(item), row: row }); });
+    });
+    computeProjectExtras().forEach(function (row) { out.push({ ref: '', name: '— للمشروع كامل —', type: 'مواد إضافية', row: row }); });
+    return out;
   }
 
   // ---------------- BOQ tab render ----------------
@@ -1649,7 +2005,7 @@ if (typeof module !== 'undefined') {
 
     box.appendChild(el('div', { class: 'boq-actions' }, [
       mkBtn('⬇️ تصدير Excel للمشتريات', exportToExcel, 'primary'),
-      el('span', { class: 'hint', text: 'عدد القضبان محسوب تلقائياً بناءً على طول القضيب القياسي في الأعلى. الخانات الصفراء = تم تعديلها يدوياً.' })
+      el('span', { class: 'hint', text: 'عدد القضبان محسوب تلقائياً بناءً على طول القضيب القياسي في الأعلى. الخانات الصفراء = تم تعديلها يدوياً. القواعد (عدد الأذرع، المفصلات، الهدر...) والمواد الإضافية بتتعدل من تبويب "الإعدادات".' })
     ]));
 
     var table = el('table', { class: 'boq-table' });
@@ -1660,32 +2016,29 @@ if (typeof module !== 'undefined') {
     table.appendChild(thead);
     var tbody = el('tbody');
 
-    var allDetailRows = [];
-    state.items.forEach(function (item) {
-      var rows = computeItemBOQ(item);
-      rows.forEach(function (row) {
-        allDetailRows.push({ item: item, row: row });
-        var tr = el('tr', { class: row.overridden ? 'overridden' : '' });
-        tr.appendChild(el('td', { text: item.refCode || '—' }));
-        tr.appendChild(el('td', { text: item.name }));
-        tr.appendChild(el('td', { text: typeLabel(item) }));
-        tr.appendChild(el('td', { text: row.material }));
-        var qtyTd = el('td');
-        var qtyInput = el('input', { type: 'number', step: '0.01', value: row.qty });
-        qtyInput.addEventListener('change', function (e) {
-          var v = parseFloat(e.target.value);
-          if (isNaN(v)) return;
-          if (v === row.autoQty) delete state.overrides[row.ovKey];
-          else state.overrides[row.ovKey] = v;
-          renderBOQTab();
-        });
-        qtyTd.appendChild(qtyInput);
-        tr.appendChild(qtyTd);
-        tr.appendChild(el('td', { text: row.unit }));
-        var bars = row.unit === 'متر طولي' ? Math.ceil(row.qty / state.barLength) : '';
-        tr.appendChild(el('td', { text: String(bars) }));
-        tbody.appendChild(tr);
+    var entries = collectBoqEntries();
+    entries.forEach(function (d) {
+      var row = d.row;
+      var tr = el('tr', { class: row.overridden ? 'overridden' : '' });
+      tr.appendChild(el('td', { text: d.ref || '—' }));
+      tr.appendChild(el('td', { text: d.name }));
+      tr.appendChild(el('td', { text: d.type }));
+      tr.appendChild(el('td', { text: row.material }));
+      var qtyTd = el('td');
+      var qtyInput = el('input', { type: 'number', step: '0.01', value: row.qty });
+      qtyInput.addEventListener('change', function (e) {
+        var v = parseFloat(e.target.value);
+        if (isNaN(v)) return;
+        if (v === row.autoQty) delete state.overrides[row.ovKey];
+        else state.overrides[row.ovKey] = v;
+        renderBOQTab();
       });
+      qtyTd.appendChild(qtyInput);
+      tr.appendChild(qtyTd);
+      tr.appendChild(el('td', { text: row.unit }));
+      var bars = row.unit === 'متر طولي' ? Math.ceil(row.qty / state.barLength) : '';
+      tr.appendChild(el('td', { text: String(bars) }));
+      tbody.appendChild(tr);
     });
     table.appendChild(tbody);
     box.appendChild(table);
@@ -1693,7 +2046,7 @@ if (typeof module !== 'undefined') {
     // Summary grouped by material
     var groups = {};
     var order = [];
-    allDetailRows.forEach(function (d) {
+    entries.forEach(function (d) {
       var key = d.row.material + '|' + d.row.unit;
       if (!groups[key]) { groups[key] = { material: d.row.material, unit: d.row.unit, qty: 0 }; order.push(key); }
       groups[key].qty += d.row.qty;
@@ -1725,15 +2078,13 @@ if (typeof module !== 'undefined') {
     var detailRows = [['المرجع', 'اسم البند', 'نوع البند', 'المادة', 'الكمية', 'الوحدة', 'عدد القضبان']];
 
     var groups = {}, order = [];
-    state.items.forEach(function (item) {
-      var rows = computeItemBOQ(item);
-      rows.forEach(function (row) {
-        var bars = row.unit === 'متر طولي' ? Math.ceil(row.qty / state.barLength) : '';
-        detailRows.push([item.refCode || '', item.name, typeLabel(item), row.material, row.qty, row.unit, bars]);
-        var key = row.material + '|' + row.unit;
-        if (!groups[key]) { groups[key] = { material: row.material, unit: row.unit, qty: 0 }; order.push(key); }
-        groups[key].qty += row.qty;
-      });
+    collectBoqEntries().forEach(function (d) {
+      var row = d.row;
+      var bars = row.unit === 'متر طولي' ? Math.ceil(row.qty / state.barLength) : '';
+      detailRows.push([d.ref, d.name, d.type, row.material, row.qty, row.unit, bars]);
+      var key = row.material + '|' + row.unit;
+      if (!groups[key]) { groups[key] = { material: row.material, unit: row.unit, qty: 0 }; order.push(key); }
+      groups[key].qty += row.qty;
     });
     order.forEach(function (key) {
       var g = groups[key];
@@ -1754,6 +2105,134 @@ if (typeof module !== 'undefined') {
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+
+  // ---------------- Settings tab (الإعدادات) ----------------
+  function renderSettingsTab() {
+    var box = q('settings-container');
+    if (!box) return;
+    box.innerHTML = '';
+    box.appendChild(el('div', { class: 'note', text: 'هون كل القواعد يلي بتبني عليها أداة المشتريات حساباتها. أي تعديل بيتحفظ لحاله وبيتطبق فوراً على جدول المشتريات وعلى ملف الإكسل. القيم الافتراضية = نفس الأرقام يلي كانت مبرمجة قبل. القواعد بتتشارك بين كل أجهزتك.' }));
+    box.appendChild(el('div', { id: 'rulesStatus', class: 'sync-status', text: rulesStatusText() }));
+
+    function numRow(label, getter, setter, o) {
+      o = o || {};
+      var inp = el('input', { type: 'number', step: String(o.step || 1), min: String(o.min == null ? 0 : o.min), max: String(o.max == null ? 50 : o.max), value: String(getter()) });
+      inp.addEventListener('change', function () {
+        var v = parseFloat(inp.value);
+        if (!isFinite(v) || v < (o.min == null ? 0 : o.min) || v > (o.max == null ? 50 : o.max)) { inp.value = String(getter()); return; }
+        setter(v); rulesChanged();
+      });
+      var lab = el('label', { class: 'rule-field' }, [el('span', { text: label }), inp]);
+      if (o.unit) lab.appendChild(el('span', { class: 'unit-note', text: o.unit }));
+      return lab;
+    }
+    function section(title, hint, fields) {
+      var s = el('div', { class: 'rules-section' }, [el('h3', { text: title })]);
+      if (hint) s.appendChild(el('div', { class: 'hint', text: hint }));
+      var g = el('div', { class: 'rules-grid' });
+      fields.forEach(function (f) { g.appendChild(f); });
+      s.appendChild(g);
+      box.appendChild(s);
+    }
+
+    section('عام', 'طول القضيب يلي منقسم عليه الأمتار الطولية لنحسب عدد القضبان. الهدر بيتضاف على الأمتار الطولية وعلى الزجاج بكل الجداول (0 = بدون هدر).', [
+      numRow('طول القضيب القياسي', function () { return RULES.barLength; }, function (v) { RULES.barLength = v; }, { step: 0.1, min: 1, max: 20, unit: 'متر' }),
+      numRow('هدر الأمتار الطولية', function () { return RULES.wasteLinearPct; }, function (v) { RULES.wasteLinearPct = v; }, { step: 0.5, min: 0, max: 100, unit: '%' }),
+      numRow('هدر الزجاج', function () { return RULES.wasteGlassPct; }, function (v) { RULES.wasteGlassPct = v; }, { step: 0.5, min: 0, max: 100, unit: '%' })
+    ]);
+    section('كرتن وول / شبابيك مفصلية', 'الأعداد لكل فتحة متحركة.', [
+      numRow('أذرع تحريك (Stay Arm) لكل فتحة', function () { return RULES.curtain.stayArmsPerOpenable; }, function (v) { RULES.curtain.stayArmsPerOpenable = v; }),
+      numRow('مسكات لكل فتحة', function () { return RULES.curtain.handlesPerOpenable; }, function (v) { RULES.curtain.handlesPerOpenable = v; })
+    ]);
+    section('أبواب ونوافذ السحاب', 'الأعداد لكل ورقة سحاب (القفل بين ورقتين متجاورتين بيتحسب لحاله من التصميم).', [
+      numRow('رولات لكل ورقة', function () { return RULES.sliding.rollersPerLeaf; }, function (v) { RULES.sliding.rollersPerLeaf = v; }),
+      numRow('مسكات لكل ورقة', function () { return RULES.sliding.handlesPerLeaf; }, function (v) { RULES.sliding.handlesPerLeaf = v; })
+    ]);
+    section('الأبواب المفصلية', 'الأعداد لكل ضلفة باب.', [
+      numRow('مفصلات لكل ضلفة', function () { return RULES.hinged.hingesPerLeaf; }, function (v) { RULES.hinged.hingesPerLeaf = v; }),
+      numRow('أقفال لكل ضلفة', function () { return RULES.hinged.locksPerLeaf; }, function (v) { RULES.hinged.locksPerLeaf = v; }),
+      numRow('مسكات لكل ضلفة', function () { return RULES.hinged.handlesPerLeaf; }, function (v) { RULES.hinged.handlesPerLeaf = v; })
+    ]);
+
+    var resetBtn = mkBtn('↩️ إرجاع الأرقام أعلاه للقيم الافتراضية', function () {
+      if (!confirm('بدك ترجّع كل الأرقام (طول القضيب، الهدر، الأذرع، الرولات، المفصلات...) للقيم الافتراضية؟ المواد الإضافية وأسماء المواد ما رح تتأثر.')) return;
+      var d = defaultRules();
+      RULES.barLength = d.barLength; RULES.wasteLinearPct = 0; RULES.wasteGlassPct = 0;
+      RULES.curtain = d.curtain; RULES.sliding = d.sliding; RULES.hinged = d.hinged;
+      rulesChanged(); renderSettingsTab();
+    }, 'small');
+    box.appendChild(el('div', { style: 'margin:6px 0 18px' }, [resetBtn]));
+
+    // ----- مواد إضافية -----
+    var exSec = el('div', { class: 'rules-section' }, [el('h3', { text: 'مواد إضافية' })]);
+    exSec.appendChild(el('div', { class: 'hint', text: 'أي مادة بدك تظهر بجدول المشتريات غير المواد المحسوبة تلقائياً (سيليكون، سكة سحاب، براغي...). اختار طريقة الحساب: لكل بند، أو لكل م² زجاج، أو لكل متر ألمنيوم، أو لكل ضلفة، أو مرة وحدة للمشروع. لو ما حددت نوع بند بتنطبق على كل الأنواع. المادة المعطّلة (غير مفعّلة) ما بتظهر بالجدول.' }));
+    var list = el('div', { class: 'extras-list' });
+    if (!RULES.extras.length) list.appendChild(el('div', { class: 'empty-state', text: 'ما في مواد إضافية بعد.' }));
+    RULES.extras.forEach(function (x) {
+      var row = el('div', { class: 'extra-row' + (x.enabled ? '' : ' disabled') });
+      var en = el('input', { type: 'checkbox' }); en.checked = !!x.enabled;
+      en.addEventListener('change', function () { x.enabled = en.checked; row.classList.toggle('disabled', !x.enabled); rulesChanged(); });
+      row.appendChild(el('label', { class: 'chk', title: 'تفعيل' }, [en, el('span', { text: 'فعّالة' })]));
+      var nm = el('input', { type: 'text', placeholder: 'اسم المادة', value: x.name }); nm.value = x.name; nm.style.minWidth = '170px';
+      nm.addEventListener('input', function () { x.name = nm.value.trim().slice(0, 80); rulesChanged(); });
+      row.appendChild(nm);
+      var qn = el('input', { type: 'number', step: '0.01', min: '0', value: String(x.qty) }); qn.title = 'الكمية';
+      qn.addEventListener('change', function () { var v = parseFloat(qn.value); if (!isFinite(v) || v < 0) { qn.value = String(x.qty); return; } x.qty = v; rulesChanged(); });
+      row.appendChild(qn);
+      var un = el('input', { type: 'text', placeholder: 'الوحدة', value: x.unit }); un.value = x.unit; un.style.width = '90px';
+      un.addEventListener('input', function () { x.unit = un.value.trim().slice(0, 20) || 'قطعة'; rulesChanged(); });
+      row.appendChild(un);
+      var bs = el('select');
+      Object.keys(EXTRA_BASES).forEach(function (k) { var o = el('option', { value: k, text: EXTRA_BASES[k] }); if (k === x.basis) o.selected = true; bs.appendChild(o); });
+      bs.addEventListener('change', function () { x.basis = bs.value; rulesChanged(); });
+      row.appendChild(bs);
+      var tp = el('span', { class: 'types-box' });
+      Object.keys(EXTRA_TYPES).forEach(function (k) {
+        var c = el('input', { type: 'checkbox' }); c.checked = x.types.indexOf(k) >= 0;
+        c.addEventListener('change', function () {
+          x.types = x.types.filter(function (t) { return t !== k; });
+          if (c.checked) x.types.push(k);
+          rulesChanged();
+        });
+        tp.appendChild(el('label', { class: 'chk' }, [c, el('span', { text: EXTRA_TYPES[k] })]));
+      });
+      row.appendChild(tp);
+      row.appendChild(mkBtn('🗑', function () {
+        if (!confirm('حذف المادة «' + (x.name || 'بدون اسم') + '»؟')) return;
+        RULES.extras = RULES.extras.filter(function (y) { return y.id !== x.id; });
+        rulesChanged(); renderSettingsTab();
+      }, 'small danger'));
+      if (x.note) row.appendChild(el('div', { class: 'extra-note', text: x.note }));
+      list.appendChild(row);
+    });
+    exSec.appendChild(list);
+    exSec.appendChild(mkBtn('+ إضافة مادة', function () {
+      RULES.extras.push({ id: 'x' + Date.now().toString(36) + Math.floor(Math.random() * 1000), name: '', unit: 'قطعة', qty: 1, basis: 'per_item', types: [], enabled: true, note: '' });
+      rulesChanged(); renderSettingsTab();
+    }, 'primary'));
+    box.appendChild(exSec);
+
+    // ----- أسماء المواد -----
+    var det = el('details', { class: 'rules-section' });
+    det.appendChild(el('summary', { text: 'أسماء المواد بالجداول (اختياري)' }));
+    det.appendChild(el('div', { class: 'hint', text: 'لو بدك اسم مادة يظهر بشكل مختلف بجدول المشتريات وبالإكسل، اكتب الاسم الجديد جنبها. اترك الخانة فاضية لاستخدام الاسم الافتراضي.' }));
+    var groupsNames = { curtainwall: 'كرتن وول', sliding: 'سحاب', hinged: 'أبواب مفصلية', generic: 'فولدينغ/شاور/هاندريل' };
+    Object.keys(groupsNames).forEach(function (t) {
+      det.appendChild(el('h3', { text: groupsNames[t] }));
+      Object.keys(LABEL_DEFS).filter(function (k) { return k.indexOf(t + ':') === 0; }).forEach(function (k) {
+        var d = LABEL_DEFS[k]; var defTxt = typeof d === 'function' ? d(RULES) : d;
+        var inp = el('input', { type: 'text', placeholder: defTxt, value: RULES.labels[k] || '' });
+        inp.value = RULES.labels[k] || ''; inp.style.width = '100%';
+        inp.addEventListener('input', function () {
+          var v = inp.value.trim().slice(0, 80);
+          if (v) RULES.labels[k] = v; else delete RULES.labels[k];
+          rulesChanged();
+        });
+        det.appendChild(el('div', { class: 'label-row' }, [el('div', { class: 'label-def', text: defTxt }), inp]));
+      });
+    });
+    box.appendChild(det);
   }
 
   // ---------------- Import from the window/door designer's exported JSON ----------------
@@ -1894,7 +2373,6 @@ if (typeof module !== 'undefined') {
   // السبب: الأداة كانت بتقرأ بس من تخزين المتصفح (نفس الجهاز/المتصفح يلي انرسم عليه التصميم). لو التصميم انحفظ على الدرايف أو انرسم
   // على جهاز/متصفح تاني، المشتريات كانت تضل فاضية. هلق في زر "جلب تصميم من الدرايف" بيعرض كل التصاميم والمسودات المحفوظة بالفرعين.
   var DRIVE_CACHE_KEY = 'merzona-proc-drive-sources';
-  var PROC_SERVER = 'https://merzona-server-production.up.railway.app';
   var PROC_DRIVE_ROOTS = { uae: '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', syria: '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS' };
   var driveSources = [];
   try { driveSources = JSON.parse(localStorage.getItem(DRIVE_CACHE_KEY) || '[]') || []; } catch (e) { driveSources = []; }
@@ -2018,6 +2496,32 @@ if (typeof module !== 'undefined') {
     return out;
   }
 
+  // ---------------- تعديلات لكل بند مسحوب من التصميم (نوع الفتحة + العدد) ----------------
+  // بالمصمم القديم كان بنافذة المشتريات قائمة لاختيار نوع الفتحة (شباك/باب/سحّاب...) وخانة عدد للبنود غير المربوطة بجدول الكميات.
+  // هلق نفس الشي هون: بنحفظ اختيارك لكل بند (مفتاح التصميم + رقم البند) حتى ما يضيع مع كل مزامنة.
+  // العدد: لو غيّرت عدد البند، بنتذكره طالما العدد القادم من التصميم ما تغيّر؛ ولو انغيّر بالتصميم بننسى تعديلك ونعتمد الجديد.
+  var ITEMOV_KEY = 'merzona-proc-itemov-v1';
+  var SHAPE_CHOICES = { window: 'شباك', door: 'باب', slidingWindow: 'شباك سحّاب', slidingDoor: 'باب سحّاب', foldingDoor: 'باب فولدينغ', showerGlassDoor: 'باب زجاج بدون إطار' };
+  var itemOv = { type: {}, qty: {} };
+  try { var _iov = JSON.parse(localStorage.getItem(ITEMOV_KEY) || 'null'); if (_iov && _iov.type && _iov.qty) itemOv = _iov; } catch (e) {}
+  function saveItemOv() { try { localStorage.setItem(ITEMOV_KEY, JSON.stringify(itemOv)); } catch (e) {} }
+  function noteQtyEdit(item) {
+    if (!item || !item.autoSynced || item.sourceDesignId == null) return;
+    if (item.qty === item.designQty) delete itemOv.qty[item.sourceDesignId];
+    else itemOv.qty[item.sourceDesignId] = { qty: item.qty, base: item.designQty };
+    saveItemOv();
+  }
+
+  // اختيار تصميم عرض سعر بعينه (بالرقم المرجعي) من التصاميم المحفوظة بهالمتصفح؛ بترجع true لو لقيته.
+  function selectSourceByRef(ref) {
+    var found = false;
+    listDesignSources().forEach(function (sx) {
+      if (found) return;
+      if (sx.ref === ref || (sx.data && sx.data.projectRef === ref) || sx.key === DESIGN_STORAGE_KEY + '::' + ref) { state.designSourceKey = sx.key; found = true; }
+    });
+    return found;
+  }
+
   function autoSyncFromDesigner() {
     var sources = listDesignSources();
     state.designSources = sources.map(function (x) { return { key: x.key, ref: x.ref, count: x.count, savedAt: x.savedAt }; });
@@ -2039,11 +2543,19 @@ if (typeof module !== 'undefined') {
     var newAutoItems = [];
     var skipped = [];
     srcItems.forEach(function (it) {
-      var r = convertDesignItem(it, summaries);
+      var designId = chosen.key + '|' + it.id;
+      var eff = it;
+      var tov = itemOv.type[designId];
+      if (tov && SHAPE_CHOICES[tov] && it.shapeType !== 'handrail' && tov !== it.shapeType) { eff = {}; Object.keys(it).forEach(function (k) { eff[k] = it[k]; }); eff.shapeType = tov; }
+      var r = convertDesignItem(eff, summaries);
       if (!r) return;
       if (r.skip) { skipped.push(r.skip); return; }
       var converted = r.item;
-      var designId = chosen.key + '|' + it.id;
+      converted.designShape = eff.shapeType;
+      converted.designQty = converted.qty;
+      var qov = itemOv.qty[designId];
+      if (qov && qov.base === converted.designQty) converted.qty = qov.qty;
+      else if (qov) { delete itemOv.qty[designId]; saveItemOv(); }
       var existing = existingByDesignId[designId];
       if (existing) converted.id = existing.id; // نفس رقم البند -> تعديلات الكميات اليدوية بتضل
       converted.autoSynced = true;
@@ -2116,7 +2628,8 @@ if (typeof module !== 'undefined') {
       try {
         var data = JSON.parse(e.target.result);
         state.projectName = data.projectName || '';
-        state.barLength = data.barLength || 6.4;
+        state.barLength = data.barLength || RULES.barLength;
+        state.barLengthTouched = !!data.barLength;
         state.overrides = data.overrides || {};
         state.items = data.items || [];
         state.activeItemId = state.items.length ? state.items[0].id : null;
@@ -2130,9 +2643,14 @@ if (typeof module !== 'undefined') {
 
   // ---------------- Init ----------------
   document.addEventListener('DOMContentLoaded', function () {
+    // القواعد أول شي (من تخزين المتصفح فوراً، وبعدين من السيرفر بالخلفية)
+    loadRulesLocal();
+    state.barLength = RULES.barLength;
+    var verEl = q('verLabel'); if (verEl) verEl.textContent = window.__mzVersion || '';
     q('projectName').addEventListener('input', function (e) { state.projectName = e.target.value; });
     q('barLength').addEventListener('change', function (e) {
-      state.barLength = parseFloat(e.target.value) || 6.4;
+      state.barLength = parseFloat(e.target.value) || RULES.barLength;
+      state.barLengthTouched = true;
       renderBOQTab();
     });
     q('btnSaveProject').addEventListener('click', saveProject);
@@ -2166,7 +2684,14 @@ if (typeof module !== 'undefined') {
 
     // Automatic, file-upload-free sync: pull in whatever's currently drawn in the designer
     // (same-origin localStorage, autosaved continuously by Quotation_Generator.html).
+    // لو انفتحت الأداة من زر "المشتريات" بالمصمم (?ref=رقم العرض) منختار تصميم هالعرض بالذات بدل "الأحدث".
+    var wantRef = '';
+    try { wantRef = (new URLSearchParams(location.search).get('ref') || '').trim(); } catch (e) {}
+    var wantRefFound = wantRef ? selectSourceByRef(wantRef) : true;
     var initialSync = autoSyncFromDesigner();
+    if (wantRef && !wantRefFound) {
+      state.syncNotes = ['⚠️ ما لقيت تصميم محفوظ بهالمتصفح للعرض «' + wantRef + '» — اضغط «☁️ جلب تصميم من الدرايف» لتسحبه.'].concat(state.syncNotes || []);
+    }
     if (!initialSync || initialSync.count === 0) {
       // Nothing to pull in yet (fresh browser / nothing drawn) - seed one example so the tool
       // still opens non-empty, matching the user's own worked example. This placeholder gets
@@ -2201,6 +2726,25 @@ if (typeof module !== 'undefined') {
     window.addEventListener('focus', function () { autoSyncFromDesigner(); renderApp(); });
 
     renderApp();
+
+    // لما المصمم يضغط زر "المشتريات" والأداة مفتوحة أصلاً بتاب تاني، بيبعتلها رقم العرض الحالي بدل ما نعيد تحميلها (حتى ما تضيع تعديلاتك اليدوية).
+    window.addEventListener('message', function (e) {
+      if (e.origin !== location.origin) return;
+      var d = e.data;
+      if (!d || d.type !== 'mz-select-ref') return;
+      var ref = String(d.ref || '').trim();
+      if (ref) { var ok = selectSourceByRef(ref); autoSyncFromDesigner(); if (!ok) state.syncNotes = ['⚠️ ما لقيت تصميم محفوظ بهالمتصفح للعرض «' + ref + '» — اضغط «☁️ جلب تصميم من الدرايف» لتسحبه.'].concat(state.syncNotes || []); }
+      else autoSyncFromDesigner();
+      renderApp();
+    });
+
+    // مزامنة القواعد مع السيرفر (بالخلفية). بعد أول مزامنة بنرحّل الكتالوج القديم مرة وحدة.
+    var lastRulesPull = 0;
+    function syncRules() { lastRulesPull = Date.now(); return pullRules(); }
+    syncRules().then(function () { if (migrateOldCatalog()) { applyRulesToUI(); } });
+    window.addEventListener('focus', function () { if (Date.now() - lastRulesPull > 30000) syncRules(); });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - lastRulesPull > 30000) syncRules(); });
+    window.addEventListener('beforeunload', function () { if (rulesMeta.dirty) { try { saveRulesLocal(); } catch (e) {} } });
   });
 })();
 
