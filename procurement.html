@@ -80,7 +80,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-07.1';
+  var CURRENT_VERSION = '2026-10-08.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
@@ -2628,7 +2628,7 @@ if (typeof module !== 'undefined') {
       try {
         var data = JSON.parse(e.target.result);
         state.projectName = data.projectName || '';
-        state.barLength = data.barLength || RULES.barLength;
+        state.barLength = (isFinite(data.barLength) && data.barLength >= 1 && data.barLength <= 20) ? data.barLength : RULES.barLength;
         state.barLengthTouched = !!data.barLength;
         state.overrides = data.overrides || {};
         state.items = data.items || [];
@@ -2649,7 +2649,11 @@ if (typeof module !== 'undefined') {
     var verEl = q('verLabel'); if (verEl) verEl.textContent = window.__mzVersion || '';
     q('projectName').addEventListener('input', function (e) { state.projectName = e.target.value; });
     q('barLength').addEventListener('change', function (e) {
-      state.barLength = parseFloat(e.target.value) || RULES.barLength;
+      // 🛠️ 2026-10-08 (فحص عملي): طول قضيب صفر/سالب/حروف كان يمرّ (min بالـHTML ما بيمنع الكتابة) - منحصره 1..20
+      var bl = parseFloat(e.target.value);
+      if (!isFinite(bl) || bl < 1) bl = RULES.barLength;
+      if (bl > 20) bl = 20;
+      state.barLength = bl; e.target.value = bl;
       state.barLengthTouched = true;
       renderBOQTab();
     });

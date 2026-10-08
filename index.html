@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-08.2';
+  var CURRENT_VERSION = '2026-10-08.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -3677,6 +3677,14 @@ function resetAllNoConfirm(){
   // 🆕 2026-09-22: seedDefaults() فوق بيزرع فقرة الاختصاص القضائي دايمًا بنص "الشارقة" الافتراضي
   // (شوف addNoteRow جوا seedDefaults) - إذا الفرع الحالي دمشق/سوريا، لازم نصححها فورًا لنص دمشق.
   applyBranchJurisdictionClause(getCurrentBranch());
+  // 🛠️ 2026-10-08 (بلاغ حمدي: "عرض سعر جديد بضل معلق على آخر عرض"): العرض الجديد كان يفضّي الجداول بس
+  // ويضل اسم الزبون/المشروع/الموقع/الرقم من العرض القديم. هلق بنفضّيهم كمان وبنحط تاريخ اليوم.
+  ['m-client','m-number','m-project','m-location'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  try{
+    const d=new Date(), pad=n=>String(n).padStart(2,'0');
+    const de=document.getElementById('m-date'); if(de) de.value = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }catch(e){}
+  try{ if(typeof syncPage2Header==='function') syncPage2Header(); }catch(e){}
   // 🔧 2026-08-24: لقينا السبب الحقيقي لمشكلة "الرقم المرجعي ما بيتحدث": autoSuggestNextReference()
   // كانت بتنفّذ مرة وحدة بس، 300ms بعد ما تفتح الصفحة لأول مرة - وما كانت تنعاد أبدًا بعد كبسة
   // "إعادة تعيين النموذج" لعمل عرض سعر جديد. فكانت النتيجة: أول عرض سعر بالجلسة ياخد رقم صح
@@ -6239,6 +6247,15 @@ async function saveToGoogleDrive(evt){
     cancelGoogleDriveSave();
     return;
   }
+  // 🛠️ 2026-10-08 (فحص عملي): رقم مرجعي ناقص (متل "M-Q-260" الافتراضي بدون التسلسل) كان يتحفظ على الدرايف
+  // بمجلد اسمه "M-Q-260" ويستبدل/يخلط مع عروض تانية. منسأل قبل ما نبلّش.
+  try{
+    const refChk = ((document.getElementById('m-ref')||{}).value || '').trim();
+    const mm = refChk.match(/(\d+)\s*$/);
+    if(!(mm && mm[1].length >= 5)){
+      if(!confirm('⚠️ الرقم المرجعي "' + (refChk || 'فاضي') + '" ناقص (ما فيه رقم التسلسل كامل).\n\nالحفظ هيك رح ينشئ/يستبدل مجلد بهالاسم بالدرايف.\nبدك تكمل الحفظ فعلًا؟ (إلغاء = ارجع كمّل الرقم)')) return;
+    }
+  }catch(e){}
   console.log('[Drive Save] بلّشت -', new Date().toLocaleTimeString());
   driveSaveCancelled = false;
   driveSaveInProgress = true;
@@ -7215,6 +7232,17 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
     resyncRowUidCounter();
     renumber();
     recalc();
+    // 🛠️ 2026-10-08 (فحص عملي): الملف نفسه محفوظ بـdata-prefilled فبيفوّت seedDefaults ويضل التاريخ
+    // تاريخ آخر مرة انخبز فيها القالب (2026-08-07) حتى لو العرض فاضي تمامًا. لو العرض فاضي (بدون زبون/مشروع/
+    // إجمالي) منحط تاريخ اليوم؛ العروض الحقيقية المحفوظة بتحافظ على تاريخها.
+    try{
+      const v = id => ((document.getElementById(id)||{}).value||'').trim();
+      const totalTxt = ((document.getElementById('sum-total')||{}).textContent||'0').replace(/[^0-9.]/g,'');
+      if(!v('m-client') && !v('m-project') && !v('m-number') && !(parseFloat(totalTxt) > 0)){
+        const d=new Date(), pad=n=>String(n).padStart(2,'0');
+        document.getElementById('m-date').value = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      }
+    }catch(e){}
     syncPage2Header();
     setTimeout(()=>{ offerNewerSavedDesign(); }, 1500); // 🆕 2026-10-04.7: عرض سعر محفوظ كملف HTML - نفحص لو في تصميم أحدث
   } else {
@@ -7399,6 +7427,15 @@ window.wdApplyBack = function(results){
       if(!tr) return;
       ensureRowUid(tr);
     }
+    // 🛠️ 2026-10-08 (فحص عملي - باغ حرج): البند اللي انرسم بالمصمم وتحوّل لصف جديد كان يضل بدون ربط
+    // (sourceRowUid فاضي) - فبكل فتحة تصميم بعدها كان ينعمل منه نسخة جديدة من الصف + البند الأصلي
+    // اليتيم يضل = تكرار بكل "حفظ وإغلاق". هلق منكتب معرّف الصف على البند نفسه فور إنشاء الصف.
+    try{
+      if(r.itemId != null && window.__getDesignItemsForExport__){
+        const linkIt = window.__getDesignItemsForExport__().items.find(i => i.id === r.itemId);
+        if(linkIt && !linkIt.sourceRowUid) linkIt.sourceRowUid = ensureRowUid(tr);
+      }
+    }catch(e){ console.warn('[ربط البند بالصف] فشل:', e); }
     const wInput = tr.querySelector('.w-input'), hInput = tr.querySelector('.h-input');
     // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حرج): wdSaveAndClose بيبعت نتائج *كل* بنود عرض السعر
     // (مش بس البند يلي فتحته فعليًا بأداة التصميم وعدّلته) - فكانت onDimensionInput تنّادى هون لكل
@@ -7416,7 +7453,13 @@ window.wdApplyBack = function(results){
     let linkedIdx = findItemIndexByName(itemInput ? itemInput.value : '');
     if(linkedIdx < 0 && itemInput && !itemInput.value.trim()){
       // ما في اسم بند بعد - نجرب نطابق تلقائيًا حسب تصنيف التصميم (نفس آلية findBestItemMatch الموجودة أصلاً)
-      const guess = findBestItemMatch(r.classEn);
+      // 🛠️ 2026-10-08 (فحص عملي): "Hinged Door"/"Sliding Door" كانت تتطابق بالاحتواء مع بنود المواتير
+      // "(Automatic Motor) For ..." فالباب العادي كان ينسمّى "موتور أوتوماتيك" بعرض السعر. خريطة صريحة أول.
+      const PREFERRED = { 'Hinged Door':'Aluminum Door', 'Sliding Door':"Aluminum's Sliding Doors", 'Sliding Window':"Aluminum's Sliding Window", 'Folding Door':'Folding Door EU Profile', 'Frameless Glass Door':'Shower Glass Door' };
+      let guess = -1;
+      if(PREFERRED[r.classEn]) guess = ITEMS.findIndex(x => x.en === PREFERRED[r.classEn]);
+      if(guess < 0) guess = findBestItemMatch(r.classEn);
+      if(guess >= 0 && /^\(Automatic Motor\)/i.test(ITEMS[guess].en) && !/motor/i.test(r.classEn)) guess = -1;
       if(guess >= 0){
         applyItemChoice(tr, guess);
         linkedIdx = guess;
@@ -17917,6 +17960,7 @@ function wdSaveAndClose(){
     const cls = classifyItem(it);
     return {
       uid: it.sourceRowUid || null,
+      itemId: it.id,
       w: it.width, h: it.height,
       classEn: cls.en, classAr: cls.ar,
       design: {
