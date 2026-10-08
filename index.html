@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-07.1';
+  var CURRENT_VERSION = '2026-10-07.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -5834,8 +5834,45 @@ function mzSanitizeHtml(html){
         if((nm.indexOf('on') === 0 && !MZ_SAFE_HANDLERS.has(nm + '=' + String(a.value||'').trim())) || ((nm === 'href' || nm === 'src' || nm === 'xlink:href' || nm === 'action' || nm === 'formaction') && (v.indexOf('javascript:') === 0 || v.indexOf('data:text/html') === 0))) el.removeAttribute(a.name);
       });
     });
+    mzRestoreHandlers(t.content);
     return t.innerHTML;
   }catch(e){ return ''; }
+}
+// 🛠️ 2026-10-07 (إصلاح ذاتي): عروض انحفظت بين 5 و6 أكتوبر وقت كان الفلتر يشيل أوامر on* انحفظت وهي "ميتة" (زر X بالدفعات، الإنتر،
+// تعديل السعر، تحريك السطر...). هلق عند الفتح بنرجّع الأوامر الأصلية (نفس النصوص الحرفية بالقائمة البيضاء بس) على الأسطر يلي ناقصها،
+// ولا بنلمس أي أمر موجود. أول حفظ بعدها بيثبّت الأوامر بالملف.
+const MZ_HANDLER_RULES = [
+  ['#qty-rows tr, tr', { ondragover:'onQtyRowDragOver(event)', ondrop:'onQtyRowDrop(event)' }, 'tr'],
+  ['select.elevation-select', { onchange:'onElevationChange(this)' }],
+  ['input.item-input', { oninput:'onItemTextInput(this)', onkeydown:'handleRowEnter(event)' }],
+  ['input.w-input, input.h-input', { oninput:'restrictToNumbersAndPlus(this); onDimensionInput(this)', onkeydown:'handleRowEnter(event)', onblur:'evalSumExpression(this)' }],
+  ['input.qty-input', { oninput:'onDimensionInput(this)', onkeydown:'handleRowEnter(event)' }],
+  ['input.price', { oninput:'onPriceInput(this)', onkeydown:'handleRowEnter(event)' }],
+  ['input.line-total', { oninput:'onManualTotalInput(this)', onkeydown:'handleRowEnter(event)' }],
+  ['button.row-drag-handle', { ondragstart:'onQtyRowDragStart(event)', ondragend:'onQtyRowDragEnd(event)' }],
+  ['button.row-move-up', { onclick:'moveQtyRowUp(this)' }],
+  ['button.row-move-down', { onclick:'moveQtyRowDown(this)' }],
+  ['tr button.row-remove', { onclick:'removeQtyRow(this)' }],
+  ['.pay-row > input', { onblur:'autoTranslateRow(this)' }],
+  ['.pay-row button.row-remove', { onclick:"this.closest('.pay-row').remove()" }],
+  ['.bi-row textarea', { onblur:'autoTranslateRow(this); propagateRowEditToItems(this)' }],
+  ['.bi-row button.row-remove', { onclick:"this.closest('.bi-row').remove()" }],
+  ['.notes-item textarea', { onblur:'autoTranslateRow(this)' }],
+  ['.notes-item button.row-remove', { onclick:"this.closest('.notes-item').remove()" }]
+];
+function mzRestoreHandlers(root){
+  MZ_HANDLER_RULES.forEach(rule=>{
+    let sel = rule[0];
+    if(sel === '#qty-rows tr, tr') sel = 'tr';
+    root.querySelectorAll(sel).forEach(el=>{
+      Object.keys(rule[1]).forEach(name=>{
+        if(!el.hasAttribute(name)){
+          const v = rule[1][name];
+          if(MZ_SAFE_HANDLERS.has(name + '=' + v)) el.setAttribute(name, v);
+        }
+      });
+    });
+  });
 }
 window.mzSanitizeHtml = mzSanitizeHtml;
 
