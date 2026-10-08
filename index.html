@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-08.1';
+  var CURRENT_VERSION = '2026-10-08.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -2289,6 +2289,7 @@ function escAttr(s){
 function toggleItemsManager(){
   const panel = document.getElementById('items-manager');
   const opening = panel.style.display === 'none';
+  if(!opening) flushItemFieldUpdates();
   panel.style.display = opening ? 'flex' : 'none';
   if(opening) renderItemsManager();
 }
@@ -2307,7 +2308,8 @@ function buildItemMgrRowHtml(it, idx){
     <div class="item-mgr-row" data-idx="${idx}">
       <div><label>Item name (English)</label><input value="${escAttr(it.en)}" oninput="updateItemField(${idx},'en',this.value)"></div>
       <div><label>اسم البند (عربي)</label><input class="ar" value="${escAttr(it.ar)}" oninput="updateItemField(${idx},'ar',this.value)"></div>
-      <div class="full"><label>Aluminum spec (English)</label><textarea rows="1" oninput="updateItemField(${idx},'specEn',this.value)">${it.specEn || ''}</textarea></div>
+      <div><label>Aluminum spec (English)</label><textarea rows="2" oninput="updateItemField(${idx},'specEn',this.value)">${it.specEn || ''}</textarea></div>
+      <div><label>مواصفات الألمنيوم (عربي)</label><textarea rows="2" class="ar" oninput="updateItemField(${idx},'specAr',this.value)">${escAttr(itemSpecAr(it))}</textarea></div>
       <div><label>Glass spec (English)</label><textarea rows="2" oninput="updateItemField(${idx},'glassEn',this.value)">${it.glassEn || ''}</textarea></div>
       <div><label>مواصفات الزجاج (عربي)</label><textarea rows="2" class="ar" oninput="updateItemField(${idx},'glassAr',this.value)">${it.glassAr || ''}</textarea></div>
       <div class="item-mgr-row-controls"><button class="small danger" onclick="removeItemManagerRow(${idx})">Remove item</button></div>
@@ -2319,31 +2321,82 @@ function renderItemsManager(){
   c.innerHTML = ITEMS.map((it, idx) => buildItemMgrRowHtml(it, idx)).join('');
 }
 
-function updateItemField(idx, field, value){
-  if(!ITEMS[idx]) return;
-  if(field === 'en' && value && value !== ITEMS[idx].en){
-    const oldName = ITEMS[idx].en;
-    // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢ - #32): renameItemEverywhere تحت (وترحيل مفاتيح itemPriceMemory
-    // المرتبط فيها) بتشتغل بالاسم النصي بس (مش برقم/id مميز للبند) - فلو صار (بالغلط) بندين مختلفين
-    // بالكتالوج نفس الاسم بالضبط، إعادة تسمية واحد منهم بتخلط/تسرق سطور جدول عرض سعر مفتوحة حاليًا وذاكرة
-    // أسعار محفوظة كانت تخص البند التاني (يلي المستخدم ما قصد يعدّل عليه أصلًا). هلق منتحقق قبل أي إعادة
-    // تسمية إذا الاسم الجديد رح يطابق بند تاني موجود، ومنحذّر بوضوح مع فرصة للإلغاء.
-    const trimmedNew = String(value).trim();
-    const dupIdx = trimmedNew ? ITEMS.findIndex((o,i)=> i!==idx && String(o.en||'').trim() === trimmedNew) : -1;
-    if(dupIdx !== -1){
-      if(!confirm('⚠️ في بند تاني بالكتالوج (إدارة الأصناف) عندو نفس الاسم بالضبط: "' + trimmedNew + '".\n\nلو كملتي، الربط بين سطور عروض الأسعار/الأسعار المحفوظة وأسماء البنود بيصير بالنص بس - يعني ممكن يصير خلط بين هاد البند والبند التاني (تسمية سطر غلط، أو سرقة سعر محفوظ). الأفضل تختاري اسم مختلف.\n\nبدك تكملي فعليًا بنفس الاسم؟')) return;
-    }
-    ITEMS[idx].en = value;
-    renameItemEverywhere(oldName, value);
-  } else {
-    ITEMS[idx][field] = value;
-  }
+// ⚡ 2026-10-08 (بلاغ حمدي: المتصفح بيعلق لما بكتب بالإنكليزي بإدارة البنود): كل ضغطة زر كانت تعمل
+// JSON.stringify للقائمة كاملة + إعادة بناء datalist كاملة + (للاسم) تفتيش كل صفوف عرض السعر وذاكرة الأسعار.
+// هلق: حفظ التخزين وبناء القائمة بيتأجلوا 500ms بعد آخر ضغطة، وإعادة تسمية البند (الأثقل) بتتأجل 800ms.
+let __itemSaveTimer = null;
+const __itemEnTimers = {};
+function itemSpecAr(it){
+  if(!it) return '';
+  if(it.specAr != null && it.specAr !== '') return it.specAr;
+  return (it.specEn && ALUM_SPEC_AR && ALUM_SPEC_AR[it.specEn]) || '';
+}
+function scheduleItemsPersist(){
+  clearTimeout(__itemSaveTimer);
+  __itemSaveTimer = setTimeout(flushItemsPersist, 500);
+}
+function flushItemsPersist(){
+  if(__itemSaveTimer === null) return;
+  clearTimeout(__itemSaveTimer); __itemSaveTimer = null;
   saveItemsToStorage();
   populateItemsDatalist();
 }
+function flushItemFieldUpdates(){
+  Object.keys(__itemEnTimers).forEach(k=>{
+    const t = __itemEnTimers[k];
+    clearTimeout(t.timer); delete __itemEnTimers[k];
+    applyItemEnRename(t.idx, t.value);
+  });
+  flushItemsPersist();
+}
+function applyItemEnRename(idx, value){
+  if(!ITEMS[idx]) return;
+  if(value && value !== ITEMS[idx].en){
+    const oldName = ITEMS[idx].en;
+    const trimmedNew = String(value).trim();
+    const dupIdx = trimmedNew ? ITEMS.findIndex((o,i)=> i!==idx && String(o.en||'').trim() === trimmedNew) : -1;
+    if(dupIdx !== -1){
+      if(!confirm('⚠️ في بند تاني بالكتالوج (إدارة الأصناف) عندو نفس الاسم بالضبط: "' + trimmedNew + '".\n\nلو كملتي، الربط بين سطور عروض الأسعار/الأسعار المحفوظة وأسماء البنود بيصير بالاسم النصي فقط، يعني ممكن يختلطوا. بدك تكمل؟')) {
+        const row = document.querySelector('#items-manager-rows .item-mgr-row[data-idx="'+idx+'"] input');
+        if(row) row.value = oldName;
+        return;
+      }
+    }
+    ITEMS[idx].en = value;
+    renameItemEverywhere(oldName, value);
+  } else if(!value){
+    ITEMS[idx].en = value;
+  }
+  scheduleItemsPersist();
+}
+
+function updateItemField(idx, field, value){
+  if(!ITEMS[idx]) return;
+  if(field === 'en'){
+    const key = String(idx);
+    if(__itemEnTimers[key]) clearTimeout(__itemEnTimers[key].timer);
+    __itemEnTimers[key] = { idx, value, timer: setTimeout(()=>{ const t = __itemEnTimers[key]; delete __itemEnTimers[key]; if(t) applyItemEnRename(t.idx, t.value); }, 800) };
+    return;
+  }
+  if(field === 'specEn'){
+    const oldSpec = ITEMS[idx].specEn;
+    if(oldSpec && oldSpec !== value && ALUM_SPEC_AR[oldSpec] !== undefined && !ITEMS[idx].specAr && value){
+      ALUM_SPEC_AR[value] = ALUM_SPEC_AR[oldSpec];
+      saveAlumSpecArToStorage();
+    }
+    ITEMS[idx].specEn = value;
+  } else if(field === 'specAr'){
+    ITEMS[idx].specAr = value;
+    if(ITEMS[idx].specEn){ ALUM_SPEC_AR[ITEMS[idx].specEn] = value; saveAlumSpecArToStorage(); }
+  } else {
+    ITEMS[idx][field] = value;
+  }
+  scheduleItemsPersist();
+}
 
 function addItemManagerRow(){
-  const newItem = {en:'', ar:'', specEn:'', glassEn:'', glassAr:'', materialIds:[]};
+  flushItemFieldUpdates();
+  const newItem = {en:'', ar:'', specEn:'', specAr:'', glassEn:'', glassAr:'', materialIds:[]};
   ITEMS.push(newItem);
   const newIdx = ITEMS.length - 1;
   saveItemsToStorage();
@@ -2365,6 +2418,7 @@ function addItemManagerRow(){
 }
 
 function removeItemManagerRow(idx){
+  flushItemFieldUpdates();
   ITEMS.splice(idx, 1);
   saveItemsToStorage();
   renderItemsManager();
@@ -2572,6 +2626,17 @@ function specRowExists(containerId, enText){
   return Array.from(c.querySelectorAll('.bi-row textarea:not(.ar)')).some(t => t.value.trim() === enText.trim());
 }
 
+function specRowExistsAny(containerId, enText, arText){
+  const c = document.getElementById(containerId);
+  if(!c) return false;
+  const en = (enText||'').trim(), ar = (arText||'').trim();
+  return Array.from(c.querySelectorAll('.bi-row')).some(row=>{
+    const e = row.querySelector('textarea:not(.ar)'), a = row.querySelector('textarea.ar');
+    if(en) return e && e.value.trim() === en;
+    return ar && a && a.value.trim() === ar;
+  });
+}
+
 function applyLinkedSpecs(item){
   if(!item) return;
   if(item.en && !specRowExists('supply-rows', item.en)){
@@ -2579,13 +2644,13 @@ function applyLinkedSpecs(item){
   } else if(item.en){
     tagExistingLinkedRow('supply-rows', item.en, item.en);
   }
-  if(item.specEn && !specRowExists('alum-spec-rows', item.specEn)){
-    const specAr = ALUM_SPEC_AR[item.specEn] || '';
-    addBiRow('alum-spec-rows','Aluminum section spec (English)','مواصفة المقطع بالعربي', item.specEn, specAr, item.en);
+  const specAr = itemSpecAr(item);
+  if((item.specEn || specAr) && !specRowExistsAny('alum-spec-rows', item.specEn, specAr)){
+    addBiRow('alum-spec-rows','Aluminum section spec (English)','مواصفة المقطع بالعربي', item.specEn || '', specAr, item.en);
   } else if(item.specEn){
     tagExistingLinkedRow('alum-spec-rows', item.specEn, item.en);
   }
-  if((item.glassEn || item.glassAr) && !specRowExists('specs-rows', item.glassEn)){
+  if((item.glassEn || item.glassAr) && !specRowExistsAny('specs-rows', item.glassEn, item.glassAr)){
     addBiRow('specs-rows','Specification (English)','المواصفة بالعربي', item.glassEn || '', item.glassAr || '', item.en);
   } else if(item.glassEn){
     tagExistingLinkedRow('specs-rows', item.glassEn, item.en);
@@ -2784,6 +2849,8 @@ function propagateRowEditToItems(el){
       }
     } else if(containerId === 'alum-spec-rows'){
       if(isAr){
+        ITEMS[idx].specAr = value;
+        changed = true;
         if(ITEMS[idx].specEn){
           ALUM_SPEC_AR[ITEMS[idx].specEn] = value;
           saveAlumSpecArToStorage();
@@ -2836,7 +2903,7 @@ async function autoTranslateRow(el){
     const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`);
     const data = await resp.json();
     const translated = data && data.responseData && data.responseData.translatedText;
-    if(translated && !/^PLEASE SELECT/i.test(translated)){
+    if(translated && !/^PLEASE SELECT/i.test(translated) && !target.value.trim()){
       target.value = translated;
     }
   }catch(err){
