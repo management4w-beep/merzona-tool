@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-08.4';
+  var CURRENT_VERSION = '2026-10-08.8';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -1750,6 +1750,8 @@
     <button onclick="resetAll()">Reset form</button>
     <button class="mode-switch-btn" onclick="showModeChooser()">📱💻 Switch layout</button>
     <button onclick="toggleItemsManager()">🗂️ Manage Items</button>
+    <button onclick="mzRestoreLocalDraft()" title="شبكة أمان: بيرجّع آخر نسخة انحفظت تلقائيًا بهالمتصفح (لو الصفحة تسكرت أو تعلقت قبل ما تحفظ) - بدون أي نافذة مزعجة تظهر لحالها">🛟 استرجاع آخر مسودة محلية</button>
+    <button onclick="mzRunSelfCheck()" title="فحص ذاتي للعرض المفتوح: بيتأكد من الحسابات والأزرار والمواصفات والدفعات والتكرار - قراءة فقط، ما بيغيّر ولا شي">🩺 فحص النظام</button>
     <button onclick="mergeInAnotherQuotation()" title="بيجيب بيانات عرض سعر تاني محفوظ بجوجل درايف (برقمه المرجعي) وبيضيف كل بنوده ومواصفاته فوق هاد العرض المفتوح حاليًا، ليصير مجموع واحد للاثنين سوا">🔗 دمج عرض سعر تاني بهاد العرض</button>
     <button onclick="openVersionHistoryPanel()" title="بيعرض كل النسخ القديمة المحفوظة تلقائيًا لهاد العرض (من كل مرة ضغطتي فيها ☁️ حفظ لجوجل درايف) - فيك تشوفي شو تغيّر بين نسخة ونسخة وترجعي لأي وحدة منهم">🕘 سجل النسخ السابقة</button>
     <button class="primary" onclick="window.openCameraOverlay()">📷 كاميرا</button>
@@ -2331,6 +2333,8 @@ function itemSpecAr(it){
   if(it.specAr != null && it.specAr !== '') return it.specAr;
   return (it.specEn && ALUM_SPEC_AR && ALUM_SPEC_AR[it.specEn]) || '';
 }
+window.addEventListener('beforeunload', function(){ try{ flushItemFieldUpdates(); }catch(e){} });
+window.addEventListener('pagehide', function(){ try{ flushItemFieldUpdates(); }catch(e){} });
 function scheduleItemsPersist(){
   clearTimeout(__itemSaveTimer);
   __itemSaveTimer = setTimeout(flushItemsPersist, 500);
@@ -3542,6 +3546,100 @@ function mzAreaExtraThirdActive(){
   return __mzAreaExtraThird === null ? true : !!__mzAreaExtraThird;
 }
 window.mzAreaExtraThirdActive = mzAreaExtraThirdActive;
+
+/* ================= 🩺 فحص ذاتي (قراءة فقط) =================
+   2026-10-08 (طلب حمدي: "كيف أتأكد بنفسي؟"): بيشتغل على جهازك وعلى عرض السعر المفتوح فعليًا، وما بيغيّر أي شي.
+   بيطلّع قائمة ✅/⚠️/❌ بكل فحص حتى تشوف بعينك. ❌ = مشكلة حقيقية، ⚠️ = انتبه. */
+async function mzRunSelfCheck(){
+  const res = [];
+  const add = (st, name, detail) => res.push({ st, name, detail: detail || '' });
+  const num = v => parseFloat(String(v||'').replace(/,/g,'')) || 0;
+  const rows = Array.from(document.querySelectorAll('#qty-rows tr'));
+  // 1) النسخة
+  try{
+    const r = await fetch('version.json?_=' + Date.now(), { cache:'no-store' });
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j = await r.json();
+    if(j.index && j.index !== window.__mzVersion) add('bad','النسخة المحمّلة قديمة','المحمّلة: '+window.__mzVersion+' والمنشورة: '+j.index+' - حدّث الصفحة (Ctrl+F5)');
+    else add('ok','النسخة محدّثة', window.__mzVersion);
+  }catch(e){ add('warn','ما قدرت أتأكد من آخر نسخة', 'ما في اتصال بالسيرفر أو الملف مفتوح محليًا: '+e.message); }
+  // 2) الحقول والأزرار حية
+  const dead = [];
+  rows.forEach((tr,i)=>{
+    [['.item-input','oninput'],['.w-input','oninput'],['.h-input','oninput'],['.qty-input','oninput'],['.price','oninput'],['.row-remove','onclick'],['.row-move-up','onclick'],['.row-move-down','onclick']].forEach(([sel,at])=>{ const e = tr.querySelector(sel); if(e && !e.getAttribute(at)) dead.push('سطر '+(i+1)+' '+sel); });
+  });
+  ['pay-rows','notes-rows','supply-rows','alum-spec-rows','specs-rows','acc-rows'].forEach(id=>{ document.querySelectorAll('#'+id+' .row-remove').forEach((b,i)=>{ if(!b.getAttribute('onclick')) dead.push(id+' #'+(i+1)); }); });
+  if(dead.length) add('bad','في حقول/أزرار ميتة ('+dead.length+')', dead.slice(0,6).join('، ')+(dead.length>6?' ...':'')+' - احفظ وافتح العرض من جديد، أو بلّغني'); else add('ok','كل حقول وأزرار الجدول حية', rows.length+' سطر');
+  // 3) حساب كل سطر
+  const mism = [];
+  rows.forEach((tr,i)=>{
+    const lt = tr.querySelector('.line-total'); if(!lt || lt.dataset.manual === '1') return;
+    const w = parseFloat(tr.querySelector('.w-input').value)||0, h = parseFloat(tr.querySelector('.h-input').value)||0;
+    const q = num(tr.querySelector('.qty-input').value), pr = num(tr.querySelector('.price').value);
+    let area = (w*h)/1e6; if(mzAreaExtraThirdActive()) area = area + area*SYRIA_AREA_EXTRA_FRACTION; if(area > 0 && area < 1) area = 1;
+    const exp = round2(area*pr*q), got = num(lt.value);
+    if(Math.abs(exp-got) > 0.02) mism.push('سطر '+(i+1)+': المتوقع '+fmtMoney(exp)+' والظاهر '+fmtMoney(got));
+  });
+  if(mism.length) add('bad','مجموع سطر لا يطابق (مقاس × سعر × كمية)', mism.slice(0,5).join(' | ')); else add('ok','كل مجاميع السطور صحيحة');
+  // 4) المجموع الكلي
+  let sum = 0; rows.forEach(tr=>{ sum += num((tr.querySelector('.line-total')||{}).value); });
+  const tot = num(document.getElementById('sum-total').textContent);
+  if(Math.abs(sum-tot) > 0.05) add('bad','إجمالي السعر لا يساوي مجموع السطور', 'السطور='+fmtMoney(sum)+' والإجمالي='+fmtMoney(tot)); else add('ok','إجمالي السعر = مجموع السطور', fmtMoney(tot));
+  const disc = Math.max(0, Math.min(num((document.getElementById('sum-discount').textContent||'').replace('-','')), tot));
+  const vat = getBranchConfig(getCurrentBranch()).hasVat ? round2((tot-disc)*0.05) : 0;
+  const grandExp = round2(tot-disc+vat), grand = num(document.getElementById('sum-grand').textContent);
+  if(Math.abs(grandExp-grand) > 0.02) add('bad','المجموع النهائي غلط', 'المتوقع '+fmtMoney(grandExp)+' والظاهر '+fmtMoney(grand)); else add('ok','المجموع النهائي (مع الخصم والضريبة) صحيح', fmtMoney(grand)+' '+getCurrentCurrencyConfig().code);
+  // 5) أسعار/مقاسات فاضية أو غريبة
+  const empt = []; rows.forEach((tr,i)=>{ const w=num(tr.querySelector('.w-input').value), h=num(tr.querySelector('.h-input').value), pr=num(tr.querySelector('.price').value), nm=(tr.querySelector('.item-input').value||'').trim(); if(!nm) empt.push('سطر '+(i+1)+' بدون اسم'); else if(!(w>0&&h>0)) empt.push('سطر '+(i+1)+' بدون مقاس'); else if(!(pr>0)) empt.push('سطر '+(i+1)+' بدون سعر'); });
+  if(empt.length) add('warn','سطور ناقصة', empt.slice(0,6).join('، ')); else add('ok','كل السطور فيها اسم ومقاس وسعر');
+  // 6) المواصفات بالعربي
+  const noAr = [];
+  [['alum-spec-rows','مواصفات الألمنيوم'],['specs-rows','مواصفات الزجاج'],['supply-rows','أسماء البنود']].forEach(([id,lbl])=>{ document.querySelectorAll('#'+id+' .bi-row').forEach((r,i)=>{ const e=r.querySelector('textarea:not(.ar)'), a=r.querySelector('textarea.ar'); if(e && e.value.trim() && a && !a.value.trim()) noAr.push(lbl+' #'+(i+1)); }); });
+  if(noAr.length) add('warn','مواصفات بدون ترجمة عربية', noAr.slice(0,6).join('، ')); else add('ok','كل المواصفات إلها نص عربي');
+  // 7) الدفعات
+  const pcts = Array.from(document.querySelectorAll('#pay-rows .pay-row .pay-pct-box input')).map(i=>num(i.value));
+  if(pcts.length){ const ps = pcts.reduce((a,b)=>a+b,0); if(Math.abs(ps-100) > 0.01) add('bad','نسب الدفعات مجموعها '+ps+'% (لازم 100%)', pcts.join(' + ')); else add('ok','نسب الدفعات = 100%', pcts.join(' + ')); } else add('warn','ما في دفعات');
+  // 8) الرقم المرجعي والعملة
+  const ref = (document.getElementById('m-ref').value||'').trim(), rm = ref.match(/(\d+)\s*$/);
+  if(!(rm && rm[1].length >= 5)) add('bad','الرقم المرجعي ناقص', ref||'فاضي'); else add('ok','الرقم المرجعي كامل', ref);
+  if(/^S-?Q-/i.test(ref) && getCurrentBranch() !== 'syria') add('bad','الرقم المرجعي لسوريا بس الفرع المختار مو سوريا'); else if(/^M-?Q-/i.test(ref) && getCurrentBranch() === 'syria') add('bad','الرقم المرجعي للإمارات بس الفرع المختار سوريا'); else add('ok','الفرع يطابق الرقم المرجعي');
+  if(!(document.getElementById('m-client').value||'').trim()) add('warn','اسم الزبون فاضي');
+  // 9) تكرار بالتصميم
+  try{
+    const di = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__().items : [];
+    const uids = new Set(rows.map(tr=>tr.dataset.rowUid).filter(Boolean));
+    const orphan = di.filter(it => it.sourceRowUid && !uids.has(it.sourceRowUid) && it.shapeType !== 'room' && !it.isRoomWallElevation);
+    const seen = {}, dup = []; di.forEach(it=>{ if(it.sourceRowUid){ if(seen[it.sourceRowUid]) dup.push(it.label||it.shapeType); seen[it.sourceRowUid]=1; } });
+    if(dup.length) add('bad','بنود تصميم مكررة على نفس السطر', dup.slice(0,5).join('، '));
+    else if(orphan.length) add('warn','بنود تصميم مربوطة بسطور محذوفة ('+orphan.length+')', 'بتتحول لسطور جديدة عند "حفظ وإغلاق" بالمصمم');
+    else add('ok','ما في تكرار ببنود التصميم', di.length+' بند تصميم');
+  }catch(e){ add('warn','تعذّر فحص التصميم', e.message); }
+  // 10) التخزين المحلي
+  try{ let used=0; for(let i=0;i<localStorage.length;i++){ used += (localStorage.getItem(localStorage.key(i))||'').length; } const mb = used/1048576; if(mb > 4) add('warn','التخزين المحلي شبه ممتلئ', mb.toFixed(1)+' MB من ~5 MB - ممكن يفشل الحفظ التلقائي'); else add('ok','التخزين المحلي مرتاح', mb.toFixed(1)+' MB'); }catch(e){ add('warn','التخزين المحلي غير متاح', e.message); }
+  // 11) أخطاء JS سابقة بهالجلسة
+  const jsErrs = window.__mzSelfErrors || [];
+  if(jsErrs.length) add('bad','في أخطاء برمجية صارت بهالجلسة ('+jsErrs.length+')', jsErrs.slice(-3).join(' | ')); else add('ok','ما صار أي خطأ برمجي بهالجلسة');
+  // عرض
+  const bad = res.filter(r=>r.st==='bad').length, warn = res.filter(r=>r.st==='warn').length;
+  const old = document.getElementById('mz-selfcheck'); if(old) old.remove();
+  const ov = document.createElement('div'); ov.id = 'mz-selfcheck';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2147483000;display:flex;align-items:center;justify-content:center;direction:rtl;font-family:inherit;';
+  const icon = {ok:'✅',warn:'⚠️',bad:'❌'};
+  const esc = t => String(t).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  ov.innerHTML = '<div style="background:#fff;color:#111;max-width:760px;width:94%;max-height:86vh;overflow:auto;border-radius:12px;padding:18px 20px;box-shadow:0 10px 40px rgba(0,0,0,.4)">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h2 style="margin:0;font-size:18px">🩺 نتيجة فحص النظام</h2><button onclick="document.getElementById(\'mz-selfcheck\').remove()" style="padding:4px 12px">إغلاق ✕</button></div>'
+    + '<div style="font-weight:700;margin-bottom:10px;color:'+(bad?'#b00020':(warn?'#9a6700':'#0a7a2f'))+'">'+(bad? ('❌ '+bad+' مشكلة حقيقية'): '✅ ما لقيت مشاكل')+(warn?(' — ⚠️ '+warn+' تنبيه'):'')+' (من '+res.length+' فحص، على العرض المفتوح هلق)</div>'
+    + res.map(r=>'<div style="padding:7px 0;border-top:1px solid #eee"><span>'+icon[r.st]+'</span> <b>'+esc(r.name)+'</b>'+(r.detail?'<div style="font-size:12.5px;color:#555;margin-top:2px;margin-right:24px">'+esc(r.detail)+'</div>':'')+'</div>').join('')
+    + '<div style="margin-top:12px;font-size:12px;color:#666">الفحص قراءة فقط ولا يغيّر شي بالعرض. إذا ظهر ❌ صوّر الشاشة وابعتها.</div></div>';
+  ov.addEventListener('click', e=>{ if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  return res;
+}
+window.mzRunSelfCheck = mzRunSelfCheck;
+window.__mzSelfErrors = window.__mzSelfErrors || [];
+window.addEventListener('error', function(e){ try{ window.__mzSelfErrors.push((e.message||'error')+' @'+((e.lineno)||'')); }catch(x){} });
+window.addEventListener('unhandledrejection', function(e){ try{ window.__mzSelfErrors.push('promise: '+((e.reason&&e.reason.message)||e.reason)); }catch(x){} });
+
 function recalc(){
   document.querySelectorAll('#qty-rows tr').forEach(tr=>{
     const totalInput = tr.querySelector('.line-total');
@@ -3645,6 +3743,7 @@ function resetAllNoConfirm(){
   // 🛠️ 2026-10-04.9 (فحص شامل - فقدان بيانات): عرض سعر جديد كان يرث هوية المسودة/التصميم القديم (draftId/
   // designId/وقت الحفظ) فأول "حفظ" كان يكتب فوق ملف العرض القديم عالدرايف. هلق هوية جديدة تمامًا.
   currentDraftId = null; currentDesignId = null; currentDesignName = null; currentDesignBranch = null; currentDesignSavedAt = 0;
+  window.__mzOpenedAsDesign = false; window.__mzDesignBoundRef = null; // 🛠️ 2026-10-08 (مراجعة مستقلة): العرض الجديد ما لازم يرث وضع "مفتوح كتصميم"
   window.__quotationSavedAtBaseline = 0;
   window.__mzMergedFromRefs = [];
   // 🛠️ إصلاح جذري 2026-09-30.14 (فحص شامل - بلاغ حمدي: "عم تنزل بنود غريبة... مقاساتها غريبة
@@ -3693,6 +3792,7 @@ function resetAllNoConfirm(){
   // فوق نفس المجلد بالغلط بدون ما حدا ينتبه). هلق منعيد استدعاء الاقتراح التلقائي كل مرة تنعمل
   // "إعادة تعيين" لعرض سعر جديد، هيك بيتحدث صح بكل مرة بدون ما تحتاجي تحدّثي الصفحة كل مرة.
   autoSuggestNextReference();
+  window.__mzDirty = false; window.__mzCleanAt = Date.now();
 }
 
 // 🆕 2026-09-30 (طلب حمدي: دمج عرضين سعر كان عم يكرر صفوف "الإكسسوارات والضمانات" - كل عرض أصلًا
@@ -4388,12 +4488,32 @@ const DRAFT_STORAGE_KEY = 'merzona-quotation-draft-v1';
 function saveDraftFromSnapshot(snapJson){
   try{
     const withTimestamp = '{"savedAt":' + Date.now() + ',' + snapJson.slice(1);
+    // 🛠️ 2026-10-08 (اختبار غريب): بعد ريلود/انهيار الصفحة الفاضية الجديدة كانت تكتب لقطتها الفاضية فوق
+    // المسودة الحقيقية خلال ثواني - فتضيع نهائيًا. هلق ما منكتب لقطة فاضية فوق مسودة فيها شغل فعلي.
+    try{
+      const prevRaw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if(prevRaw && !isDraftMeaningful(JSON.parse(snapJson)) && isDraftMeaningful(JSON.parse(prevRaw))) return;
+    }catch(e){}
     localStorage.setItem(DRAFT_STORAGE_KEY, withTimestamp);
   }catch(e){ console.warn('[مسودة محلية] تعذّر الحفظ:', e); }
 }
 function clearDraft(){
   try{ localStorage.removeItem(DRAFT_STORAGE_KEY); }catch(e){}
 }
+
+// 🛟 2026-10-08: نافذة الاسترجاع التلقائي معطّلة بطلب حمدي (مزعجة)، بس المسودة المحلية لسا بتنحفظ بالخلفية
+// ومحد كان يقراها. هاد زر يدوي (بدون أي ظهور تلقائي) يرجّعها لو انسكرت/تعلّقت الصفحة قبل الحفظ.
+function mzRestoreLocalDraft(){
+  let d = null;
+  try{ d = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || 'null'); }catch(e){}
+  if(!d || !isDraftMeaningful(d)){ alert('ما في مسودة محلية محفوظة بهالمتصفح (أو فاضية).'); return; }
+  const when = d.savedAt ? new Date(d.savedAt).toLocaleString('ar') : 'غير معروف';
+  const who = ((d.fields||{})['m-client'] || '').trim() || 'بدون اسم زبون';
+  const ref = ((d.fields||{})['m-ref'] || '').trim();
+  if(!confirm('آخر مسودة محلية:\nالزبون: ' + who + (ref ? ('\nالمرجع: ' + ref) : '') + '\nالوقت: ' + when + '\n\nالاسترجاع بيستبدل العرض المفتوح هلق. بدك تكمل؟')) return;
+  try{ const copy = JSON.parse(JSON.stringify(d)); delete copy.savedAt; applyFullQuotationData(copy); }catch(e){ alert('تعذّر الاسترجاع: ' + e.message); }
+}
+window.mzRestoreLocalDraft = mzRestoreLocalDraft;
 function isDraftMeaningful(d){
   // مهم: seedDefaults() بحط أصلًا صف بند واحد فاضي (بدون اسم)، وقسم "تصميم النوافذ والأبواب" بحط
   // بند تصميم افتراضي وحيد إشارتو isInitialPlaceholder:true ("شباك 1") - فمجرد وجود صف/بند تصميم
@@ -5950,6 +6070,7 @@ function mzRestoreHandlers(root){
   });
 }
 window.mzSanitizeHtml = mzSanitizeHtml;
+window.mzRestoreHandlers = mzRestoreHandlers;
 
 async function saveDraftToDrive(evt, opts){
   const silent = !!(opts && opts.silent === true);
@@ -7229,6 +7350,9 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
     // 🛠️ إصلاح جذري 2026-09-30.21 (شوف شرح resyncRowUidCounter فوق): صفحة عرض سعر جاهزة من قبل
     // (HTML ثابت فيه صفوف جدول كمية أصلًا) لازم تزامن rowUidCounter كمان، نفس مسار pendingQuotationLoad
     // فوق بالضبط - وإلا أي صف جديد ينضاف بهالجلسة ممكن ياخد معرّف يصادف صف قديم موجود فعليًا بالصفحة.
+    // 🛠️ 2026-10-08 (فحص عملي): ملفات HTML المحفوظة وقت ما كانت المعالجات مشطوبة (5-7 تشرين) كانت تنفتح
+    // مباشرة بصفوف ميتة (السعر/× ما بيشتغلوا). منرجّع المعالجات القياسية على الصفحة كلها فور الفتح.
+    try{ if(window.mzRestoreHandlers) window.mzRestoreHandlers(document.getElementById('page') || document); }catch(e){ console.warn('[ترميم المعالجات] فشل:', e); }
     resyncRowUidCounter();
     renumber();
     recalc();
@@ -7853,7 +7977,7 @@ window.wdApplyBack = function(results){
                المتحركة بتظهر بس لما يختار "زجاج سحّاب". -->
           <label style="margin-top:14px;">🏷️ نوع السقف</label>
           <div class="add-row" style="margin-top:6px;">
-            <select id="inCeilingType" onchange="onCeilingTypeField(getSelected().id,this.value)" style="flex:1;" title="اختر نوع السقف: ساندويتش بانل ثابت، زجاج ثابت، أو زجاج سحّاب متحرك">
+            <select id="inCeilingType" onchange="onCeilingTypeField((getSelected()||{}).id,this.value)" style="flex:1;" title="اختر نوع السقف: ساندويتش بانل ثابت، زجاج ثابت، أو زجاج سحّاب متحرك">
               <option value="sandwich">🧱 ساندويتش بانل (ثابت)</option>
               <option value="glass">🪟 زجاج ثابت</option>
               <option value="slide">🎬 زجاج سحّاب (ألواح متحركة)</option>
@@ -7864,7 +7988,7 @@ window.wdApplyBack = function(results){
           <p class="hint">قسّمي السقف لعدة ألواح تنزلق جانبًا (نص عليمين ونص عالشمال، متل سقف سيارة سحّاب) - دوسي على أي لوح بالمسقط تحت لتحديد جهة انزلاقه (⟵ شمال / ⟶ يمين)، وبعدين من داخل الثري دي دوسي زر "▶️ افتح السقف" لتشوفي السقف يفتح وينسكر فعليًا قدامك بحركة حية.</p>
           <div class="add-row" style="margin-top:6px;">
             <span style="font-size:12px;">عدد الألواح:</span>
-            <input type="number" min="2" max="12" step="1" id="inCeilingSlidePanelCount" style="width:70px;" onchange="onCeilingSlidePanelCountField(getSelected().id,this.value)" title="عدد ألواح السقف المتحركة (من 2 لـ12)">
+            <input type="number" min="2" max="12" step="1" id="inCeilingSlidePanelCount" style="width:70px;" onchange="onCeilingSlidePanelCountField((getSelected()||{}).id,this.value)" title="عدد ألواح السقف المتحركة (من 2 لـ12)">
           </div>
           </div>
           <label style="margin-top:10px;">مسقط السقف Ceiling Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
@@ -7880,42 +8004,42 @@ window.wdApplyBack = function(results){
           <div class="row2">
             <div>
               <label>الطول الإجمالي (مم) <span class="wd-ar">محور الوحدات/الانزلاق</span></label>
-              <input type="text" inputmode="decimal" id="inGableLength" min="200" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableLengthMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableLengthMm',this.value)" value="6000">
+              <input type="text" inputmode="decimal" id="inGableLength" min="200" oninput="restrictMeasureChars(this);onGableDimsField((getSelected()||{}).id,'gableLengthMm',this.value)" onblur="evalMeasureField(this);onGableDimsField((getSelected()||{}).id,'gableLengthMm',this.value)" value="6000">
             </div>
             <div>
               <label>العرض/العمق الإجمالي (مم)</label>
-              <input type="text" inputmode="decimal" id="inGableWidth" min="200" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableWidthMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableWidthMm',this.value)" value="3000">
+              <input type="text" inputmode="decimal" id="inGableWidth" min="200" oninput="restrictMeasureChars(this);onGableDimsField((getSelected()||{}).id,'gableWidthMm',this.value)" onblur="evalMeasureField(this);onGableDimsField((getSelected()||{}).id,'gableWidthMm',this.value)" value="3000">
             </div>
           </div>
           <p class="hint" id="gableSizeAutoHint" style="margin-top:6px; display:none;">📐 المقاس فوق مربوط تلقائيًا بمقاس صندوق أرضية الغرفة المختارة تحت (بيتحدث لحاله أول ما شكل الغرفة يتغيّر) - ما بتحتاجي تكتبيه يدويًا. فعّلي "تعديل يدوي استثنائي" تحت لو بدك تكتبي مقاس مختلف بحالة خاصة جدًا.</p>
           <div class="row2" style="margin-top:10px;">
             <div>
               <label>ارتفاع القوائم الجانبية الحاملة (مم)</label>
-              <input type="text" inputmode="decimal" id="inGableLegHeight" min="300" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableLegHeightMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableLegHeightMm',this.value)" value="1000">
+              <input type="text" inputmode="decimal" id="inGableLegHeight" min="300" oninput="restrictMeasureChars(this);onGableDimsField((getSelected()||{}).id,'gableLegHeightMm',this.value)" onblur="evalMeasureField(this);onGableDimsField((getSelected()||{}).id,'gableLegHeightMm',this.value)" value="1000">
             </div>
             <div>
               <label>ارتفاع قمة الجملون فوق القوائم (مم)</label>
-              <input type="text" inputmode="decimal" id="inGableRidgeHeight" min="100" oninput="restrictMeasureChars(this);onGableDimsField(getSelected().id,'gableRidgeHeightMm',this.value)" onblur="evalMeasureField(this);onGableDimsField(getSelected().id,'gableRidgeHeightMm',this.value)" value="800">
+              <input type="text" inputmode="decimal" id="inGableRidgeHeight" min="100" oninput="restrictMeasureChars(this);onGableDimsField((getSelected()||{}).id,'gableRidgeHeightMm',this.value)" onblur="evalMeasureField(this);onGableDimsField((getSelected()||{}).id,'gableRidgeHeightMm',this.value)" value="800">
             </div>
           </div>
           <div class="row2" style="margin-top:10px;">
             <div>
               <label>تقسيمات زجاج السقف بالعرض <span class="wd-ar">لكل ميل (من الحافة للقمة)</span></label>
-              <input type="number" min="1" max="8" step="1" id="inGableRoofCols" onchange="onGableDimsField(getSelected().id,'gableRoofGlassCols',this.value)" value="3">
+              <input type="number" min="1" max="8" step="1" id="inGableRoofCols" onchange="onGableDimsField((getSelected()||{}).id,'gableRoofGlassCols',this.value)" value="3">
             </div>
             <div>
               <label>تقسيمات زجاج القوائم الجانبية <span class="wd-ar">أفقيًا بالارتفاع</span></label>
-              <input type="number" min="1" max="6" step="1" id="inGableLegRows" onchange="onGableDimsField(getSelected().id,'gableLegGlassRows',this.value)" value="2">
+              <input type="number" min="1" max="6" step="1" id="inGableLegRows" onchange="onGableDimsField((getSelected()||{}).id,'gableLegGlassRows',this.value)" value="2">
             </div>
           </div>
           <div style="margin-top:10px;">
             <label>🔗 دمج مع غرفة/مجلس بالثري دي <span class="wd-ar">(اختياري)</span></label>
-            <select id="inGableLinkedRoom" onchange="onGableLinkedRoomChange(getSelected().id,this.value)" style="width:100%;">
+            <select id="inGableLinkedRoom" onchange="onGableLinkedRoomChange((getSelected()||{}).id,this.value)" style="width:100%;">
               <option value="">بدون - سقف مستقل لحاله</option>
             </select>
             <p class="hint" style="margin-top:4px;">لو اخترت غرفة، المشهد الثلاثي الأبعاد رح يبيّن الغرفة (حيطانها وشبابيكها/أبوابها الحقيقية) مع السقف الجملوني فوقها سوا بمشهد واحد - القوائم بتبلش فوق سقف الغرفة مباشرة. ولو الغرفة شكلها غير منتظم (فيها بروز/زاوية)، السقف تلقائيًا بياخد مقاس الصندوق المستطيل المحيط بكامل أرضية الغرفة - وهاد ممكن "يطلع" عن حدود الجدران الحقيقية بأي جزء بارز/نوتش مش مستطيل بسيط. الحل: فعّلي "تعديل يدوي استثنائي للمقاس" تحت وحطي مقاس الجزء المستطيل الحقيقي بس، واستخدمي حقول "إزاحة الموقع" تحت لتحطيه بمكانه الصح - وضيفي سقف جملون ثاني (أو أكتر) مربوط بنفس الغرفة لتغطية أي جزء بارز إضافي (خليه "ثابت F بالكامل" لو بدك ياه سقف فكس مش متحرك).</p>
             <label style="display:flex; align-items:center; gap:6px; margin-top:8px; font-weight:normal;">
-              <input type="checkbox" id="inGableManualSizeOverride" onchange="onGableManualSizeOverrideToggle(getSelected().id,this.checked)">
+              <input type="checkbox" id="inGableManualSizeOverride" onchange="onGableManualSizeOverrideToggle((getSelected()||{}).id,this.checked)">
               📐 تعديل يدوي استثنائي للمقاس <span class="wd-ar">(حالات خاصة جدًا بس - غير هيك المقاس دايمًا تلقائي من الغرفة)</span>
             </label>
             <!-- 🆕 2026-10-02 (طلب حمدي: "لازم السقف يعتبر كأنه بند من البنود بالنسبة للرسم... بختار
@@ -7941,18 +8065,18 @@ window.wdApplyBack = function(results){
             <div class="row2" style="margin-top:10px;">
               <div>
                 <label>إزاحة الموقع أفقيًا X <span class="wd-ar">(مم - نسبة لصندوق أرضية الغرفة)</span></label>
-                <input type="text" inputmode="decimal" id="inGableOffsetX" min="0" oninput="restrictMeasureChars(this);onGableOffsetField(getSelected().id,'x',this.value)" onblur="evalMeasureField(this);onGableOffsetField(getSelected().id,'x',this.value)" value="0">
+                <input type="text" inputmode="decimal" id="inGableOffsetX" min="0" oninput="restrictMeasureChars(this);onGableOffsetField((getSelected()||{}).id,'x',this.value)" onblur="evalMeasureField(this);onGableOffsetField((getSelected()||{}).id,'x',this.value)" value="0">
               </div>
               <div>
                 <label>إزاحة الموقع بالعمق Z <span class="wd-ar">(مم - نسبة لصندوق أرضية الغرفة)</span></label>
-                <input type="text" inputmode="decimal" id="inGableOffsetZ" min="0" oninput="restrictMeasureChars(this);onGableOffsetField(getSelected().id,'z',this.value)" onblur="evalMeasureField(this);onGableOffsetField(getSelected().id,'z',this.value)" value="0">
+                <input type="text" inputmode="decimal" id="inGableOffsetZ" min="0" oninput="restrictMeasureChars(this);onGableOffsetField((getSelected()||{}).id,'z',this.value)" onblur="evalMeasureField(this);onGableOffsetField((getSelected()||{}).id,'z',this.value)" value="0">
               </div>
             </div>
             <p class="hint" style="margin-top:4px;">لو شكل الغرفة فيه بروز/نوتش والسقف الجملوني الواحد مش رح يغطي كل شيء صح، ضيفي سقف جملون ثاني (أو أكتر) مربوط بنفس الغرفة، فعّلي "تعديل يدوي استثنائي للمقاس" وحطي مقاس الجزء يلي بدك تغطيه بالظبط، وبعدين استخدمي الإزاحة هون لتحطيه بموقعه الصح جوا صندوق الغرفة (بدل ما يضل كل سقف ملتصق بنفس زاوية صندوق الغرفة الكامل). خليه "كل وحداته ثابتة F" من قائمة الوحدات تحت لو بدك ياه يكون سقف ثابت (مش متحرك).</p>
           </div>
           <div style="margin-top:10px;">
             <label>🎥 سرعة فتح/سكر الوحدات بالثري دي <span class="wd-ar">(لتجربة أنسب سرعة وقت التصوير)</span></label>
-            <select id="inGableSlideSpeed" onchange="onGableSlideSpeedChange(getSelected().id,this.value)" style="width:100%;">
+            <select id="inGableSlideSpeed" onchange="onGableSlideSpeedChange((getSelected()||{}).id,this.value)" style="width:100%;">
               <option value="slow">🐢 بطيء</option>
               <option value="medium" selected>🚶 متوسط</option>
               <option value="fast">🐇 سريع</option>
@@ -7963,7 +8087,7 @@ window.wdApplyBack = function(results){
           <p class="hint">دوس على أي وحدة بالمسقط تحت لتدوير حالتها: متحركة شمال ⟵ ← متحركة يمين ⟶ ← ثابتة F (ما بتتحرك إطلاقًا) - وهيك دواليك. الوحدة المتحركة بتتحرك بالثري دي (الجانب + الجملون فوقه سوا كوحدة واحدة) باتجاهها لما تدوس زر فتح السقف.</p>
           <div class="add-row" style="margin-top:6px;">
             <span style="font-size:12px;">عدد الوحدات/البوابات:</span>
-            <input type="number" min="1" max="12" step="1" id="inGableBayCount" style="width:70px;" onchange="onGableBayCountField(getSelected().id,this.value)" title="عدد وحدات/بوابات السقف الجملوني (من 1 لـ12)">
+            <input type="number" min="1" max="12" step="1" id="inGableBayCount" style="width:70px;" onchange="onGableBayCountField((getSelected()||{}).id,this.value)" title="عدد وحدات/بوابات السقف الجملوني (من 1 لـ12)">
           </div>
           <label style="margin-top:10px;">مسقط السقف الجملوني Plan <span class="wd-ar">(تخطيطي - من فوق)</span></label>
           <div id="gableBaysPreview" style="border:1px solid var(--wd-line,#333);border-radius:8px;padding:8px;display:flex;justify-content:center;"></div>
@@ -9213,7 +9337,11 @@ window.scheduleGableControlsRerender = scheduleGableControlsRerender;
 function onGableDimsField(itemId, field, value){
   const it = items.find(i=>i.id===itemId); if(!it || !isGableRoof(it)) return;
   pushHistory();
-  const v = Math.max(1, parseFloat(value) || 0);
+  let v = Math.max(1, parseFloat(value) || 0);
+  // 🛠️ 2026-10-08: أعداد/أبعاد ضخمة (من كتابة غلط) كانت تجمّد/تعطّل المتصفح - سقوف معقولة
+  if(/Cols$/.test(field)) v = Math.min(8, Math.round(v));
+  else if(/Rows$/.test(field)) v = Math.min(6, Math.round(v));
+  else v = Math.min(100000, v);
   it[field] = v;
   scheduleGableControlsRerender(itemId);
 }
@@ -9703,7 +9831,7 @@ function onHandrailMountChange(mount){
 }
 function onHrStandoffPairsChange(){
   const it = getSelected(); if(!it) return;
-  it.hrStandoffPairs = Math.max(1, Math.round(parseFloat(document.getElementById('inHrStandoffPairs').value)) || 2);
+  it.hrStandoffPairs = Math.min(6, Math.max(1, Math.round(parseFloat(document.getElementById('inHrStandoffPairs').value)) || 2)); // 🛠️ 2026-10-08: كتابة 99999 كانت تعطّل المتصفح كلياً - السقف 6 (نفس max بالخانة)
   renderGallery();
 }
 window.onHrStandoffPairsChange = onHrStandoffPairsChange;
@@ -9846,11 +9974,19 @@ window.onFrostZoneChange = onFrostZoneChange;
 function onDimsChange(){
   const it = getSelected();
   if(!it) return;
-  it.width = parseFloat(document.getElementById('inWidth').value) || 0;
-  it.height = parseFloat(document.getElementById('inHeight').value) || 0;
+  // 🛠️ 2026-10-08 (اختبار عشوائي): مسح الخانة أو كتابة 0/حروف كان يحوّل مقاس البند لصفر وبيضل هيك (بند 0×2200
+  // بالطباعة والمشتريات). هلق القيمة غير الصالحة (≤0 أو مش رقم) بتتجاهل وبيضل المقاس السابق؛ والخانة بترجع للمقاس الفعلي عند الخروج منها.
+  const _w = parseFloat(document.getElementById('inWidth').value), _h = parseFloat(document.getElementById('inHeight').value);
+  if(isFinite(_w) && _w > 0) it.width = _w;
+  if(isFinite(_h) && _h > 0) it.height = _h;
   it.archHeight = parseFloat(document.getElementById('inArchHeight').value) || 0;
   scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
+
+document.addEventListener('focusout', function(e){
+  const t = e.target; if(!t || (t.id !== 'inWidth' && t.id !== 'inHeight')) return;
+  setTimeout(function(){ try{ const it = getSelected(); if(!it) return; const key = t.id === 'inWidth' ? 'width' : 'height'; const v = parseFloat(t.value); if(!(isFinite(v) && v > 0)) t.value = it[key]; }catch(err){} }, 0);
+});
 
 function onProfileThicknessChange(){
   const it = getSelected();
@@ -17817,6 +17953,15 @@ WD.loadFromRows = function(rowData){
   const newItems = [];
   rowData.forEach(rd => {
     let it = existingByUid[rd.uid];
+    // 🛠️ 2026-10-08 (فحص غريب - عروض قديمة): بند تصميم قديم بدون sourceRowUid وبنفس مقاس صف غير مربوط
+    // كان يضل "مستقل" ويتولّد للصف بند جديد = تكرار صفين عند "حفظ وإغلاق". هلق منتبنّى البند القديم
+    // ونربطه بالصف (نفس المقاس بالضبط، مو غرفة/منظور حائط، ومو مأخوذ من صف تاني).
+    if(!it && rd.uid && (rd.w || rd.h)){
+      const adopt = items.find(c => !c.sourceRowUid && !c.isInitialPlaceholder && c.shapeType !== 'room' && !c.isRoomWallElevation
+        && !(window.__mzOpenedAsDesign) && Math.round(c.width)===Math.round(rd.w) && Math.round(c.height)===Math.round(rd.h)
+        && !Object.values(existingByUid).includes(c) && !newItems.includes(c));
+      if(adopt){ adopt.sourceRowUid = rd.uid; existingByUid[rd.uid] = adopt; it = adopt; }
+    }
     if(it){
       if(rd.w) it.width = rd.w;
       if(rd.h) it.height = rd.h;
