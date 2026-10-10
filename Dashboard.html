@@ -3,6 +3,57 @@
 <html lang="ar" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
+<script id="mz-error-reporter">
+/* 🐞 تسجيل أخطاء تلقائي (2026-10-06): أي خطأ جافاسكربت بالصفحة بيتبعت للسيرفر (من جهاز معتمد بس) مع اسم الصفحة والنسخة ورقم العرض،
+   وبيتخزّن كمان نسخة بالمتصفح (localStorage: mz-err-log، آخر 30). ما بيعطّل أي شي لو فشل. */
+(function(){
+  if(window.__mzErrReporter) return; window.__mzErrReporter = true;
+  var PAGE = 'Dashboard';
+  var ENDPOINT = 'https://merzona-server-production.up.railway.app/client-error';
+  var seen = {}, sent = 0, winStart = Date.now();
+  var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to load resource|NetworkError|Load failed|Failed to fetch|AbortError|aborted|ERR_TUNNEL|net::ERR/i;
+  function dev(){ try{ return localStorage.getItem('merzona-device-token') || ''; }catch(e){ return ''; } }
+  function refVal(){ try{ var el = document.getElementById('m-ref'); return el ? (el.value || '') : ''; }catch(e){ return ''; } }
+  function keep(rec){
+    try{
+      var arr = JSON.parse(localStorage.getItem('mz-err-log') || '[]'); arr.push(rec);
+      localStorage.setItem('mz-err-log', JSON.stringify(arr.slice(-30)));
+    }catch(e){}
+  }
+  function report(kind, msg, stack, src){
+    try{
+      msg = String(msg == null ? '' : msg).slice(0, 500);
+      if(!msg || NOISE.test(msg)) return;
+      var key = kind + '|' + msg.slice(0, 120); if(seen[key]) return; seen[key] = 1;
+      var now = Date.now(); if(now - winStart > 600000){ winStart = now; sent = 0; } if(++sent > 10) return;
+      var rec = { kind: kind, msg: msg, stack: String(stack || '').slice(0, 1500), src: String(src || '').slice(0, 200), page: PAGE, v: window.__mzVersion || '', ref: refVal(), ua: (navigator.userAgent || '').slice(0, 160), t: new Date().toISOString() };
+      keep(rec);
+      var d = dev(); if(!d) return;
+      fetch(ENDPOINT + '?device=' + encodeURIComponent(d), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec), keepalive: true }).catch(function(){});
+    }catch(e){}
+  }
+  window.addEventListener('error', function(e){
+    if(!e || (e.target && e.target !== window)) return; // أخطاء تحميل ملفات/صور = ضجيج شبكة، منتجاهلها
+    report('error', e.message, e.error && e.error.stack, (e.filename || '') + ':' + (e.lineno || ''));
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e && e.reason; report('promise', (r && r.message) ? r.message : r, r && r.stack);
+  });
+  var origErr = console.error;
+  console.error = function(){
+    try{
+      var parts = [], st = '';
+      for(var i = 0; i < arguments.length; i++){
+        var x = arguments[i];
+        if(x && x.message){ parts.push(x.message); if(!st && x.stack) st = x.stack; }
+        else if(typeof x === 'string' || typeof x === 'number') parts.push(String(x));
+      }
+      report('console', parts.join(' '), st);
+    }catch(e){}
+    return origErr.apply(console, arguments);
+  };
+})();
+</script>
 <script>
 (function(){
   // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
@@ -28,7 +79,8 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-05.5';
+  var CURRENT_VERSION = '2026-10-10.1';
+  window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
   var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
@@ -2742,8 +2794,43 @@ document.getElementById('catalogsTabBtn').addEventListener('click', ()=>{
   if(inCatalogs) showDashboardView(); else showCatalogsView();
 });
 document.getElementById('quotationTabBtn').addEventListener('click', ()=>{
-  const inQuotation = document.getElementById('quotationView').style.display !== 'none';
-  if(inQuotation) showDashboardView(); else showQuotationView();
+  // 🛠️ 2026-10-10 (بلاغ حمدي: "بفتح عرض قديم وبرجع بكبس عرض سعر جديد بعلق ولا بيفتح جديد"): الزر كان يشتغل
+  // كمفتاح تبديل - لو كنت داخل عرض السعر بالفعل (متل ما بتكون بعد فتح عرض قديم) الكبسة كانت ترجّعك
+  // للوحة الرئيسية بدل ما تفتح عرض جديد. هلق الزر دايمًا = عرض سعر جديد فاضي (والرجوع للوحة من تبويب اللوحة).
+  // 🛠️ 2026-10-08 (بلاغ حمدي: "بكبس عرض سعر جديد وبضل معلق على آخر عرض سعر"): الـiframe كان يتحمّل مرة
+  // وبعدها كل كبسة ترجّع نفس العرض المفتوح. هلق: إذا الأداة محمّلة من قبل، الكبسة = عرض سعر جديد فاضي.
+  // لو في تعديلات غير محفوظة بنسأل أول (الأمان من ضياع الشغل).
+  const fr = document.getElementById('quotationFrame');
+  let startBlank = false, declined = false;
+  try{
+    const cw = fr && fr.getAttribute('data-loaded') && !fr.dataset.loading ? fr.contentWindow : null;
+    if(cw && typeof cw.resetAllNoConfirm === 'function'){
+      let dirty = !!(cw.__mzIsDirty ? cw.__mzIsDirty() : cw.__mzDirty) || !!cw.__mzDirty || !!cw.__mzOpenedAsDesign;
+      try{ // 🛠️ 2026-10-08 (مراجعة مستقلة): تصميم مفتوح من المسودات أو بنود تصميم غير محفوظة = شغل حقيقي، لازم نسأل
+        const di = cw.__getDesignItemsForExport__ ? cw.__getDesignItemsForExport__().items : [];
+        if(cw.__mzOpenedAsDesign && di.length) dirty = true;
+        // كشف "الشغل" مباشرة من محتوى الصفحة (مش بس علامة dirty المتأخرة): زبون/مشروع/بند مكتوب/بنود تصميم
+        const dv = id => ((cw.document.getElementById(id)||{}).value||'').trim();
+        const hasRows = Array.from(cw.document.querySelectorAll('#qty-rows tr .item-input, #qty-rows tr .w-input')).some(i=>i.value.trim());
+        if(dv('m-client') || dv('m-project') || hasRows || di.length) dirty = true;
+      }catch(e){}
+      if(!dirty || confirm('في عرض سعر مفتوح فيه بيانات (يمكن غير محفوظ).\n\nموافق = ابدأ عرض سعر جديد فاضي (أي تعديل غير محفوظ بيضيع)\nإلغاء = كمّل على العرض المفتوح')){
+        // لو عرض قديم لسا مستني يتطبّق (الأداة بتنتظر فحص النسخة لحد 10 ثواني) منلغيه قبل التصفير، وإلا بيطلع فوق الفاضي
+        try{ localStorage.removeItem('merzona-pending-load'); localStorage.removeItem('merzona-pending-design-load'); }catch(e){}
+        cw.resetAllNoConfirm();
+        startBlank = true;
+      } else declined = true;
+    }
+  }catch(e){ console.warn('[عرض سعر جديد] فشل التصفير، منعيد التحميل:', e); }
+  if(declined){ showQuotationView(); return; }
+  if(!startBlank && fr && fr.getAttribute('data-loaded')){
+    // الأداة انفتحت من قبل (غالبًا عرض قديم) بس ما قدرنا نصفّرها (لسا عم تتحمّل أو فشل التصفير): منعيد تحميلها
+    // من الصفر بدون أي بيانات معلّقة، حتى ما نرجع لنفس العرض القديم.
+    try{ localStorage.removeItem('merzona-pending-load'); localStorage.removeItem('merzona-pending-design-load'); }catch(e){}
+    openQuotationWithFreshLoad();
+    return;
+  }
+  showQuotationView();
 });
 document.getElementById('designerTabBtn').addEventListener('click', ()=>{
   const inDesigner = document.getElementById('designerView').style.display !== 'none';
@@ -5170,10 +5257,12 @@ function openQuotationWithFreshLoad(){
   loading.style.display = '';
   failMsg.style.display = 'none';
   const failTimer = setTimeout(()=>{ loading.style.display='none'; failMsg.style.display='block'; }, 10000);
+  frame.dataset.loading = '1';
   frame.addEventListener('load', ()=>{
     clearTimeout(failTimer);
     loading.style.display = 'none';
     frame.style.display = 'block';
+    frame.dataset.loading = '';
   }, {once:true});
   frame.setAttribute('data-loaded', '1');
   frame.src = QUOTATION_TOOL_URL + '?reopen=' + Date.now();
