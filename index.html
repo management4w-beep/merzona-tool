@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-10.5';
+  var CURRENT_VERSION = '2026-10-10.6';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -3577,6 +3577,19 @@ function mzAreaExtraThirdForSave(){
   if(__mzAreaExtraThird === null) return getCurrentBranch() === 'syria' ? true : null;
   return !!__mzAreaExtraThird;
 }
+function mzShowNotice(html){
+  let el = document.getElementById('mz-notice');
+  if(!el){
+    el = document.createElement('div'); el.id = 'mz-notice'; el.className = 'branch-row-noprint';
+    el.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:99998;max-width:760px;width:calc(100% - 24px);background:#fff3cd;color:#5c3d00;border:2px solid #e0a800;border-radius:10px;padding:10px 40px 10px 14px;font:14px/1.6 Tahoma,Arial,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25);direction:rtl;text-align:right;';
+    const x = document.createElement('button'); x.textContent = '×'; x.style.cssText = 'position:absolute;top:4px;left:8px;border:0;background:transparent;font-size:20px;cursor:pointer;color:#5c3d00;';
+    x.onclick = ()=>el.remove(); el.appendChild(x);
+    const t = document.createElement('div'); t.className = 'mz-notice-text'; el.appendChild(t);
+    document.body.appendChild(el);
+  }
+  el.querySelector('.mz-notice-text').innerHTML = html;
+}
+window.mzShowNotice = mzShowNotice;
 function mzUpdateThirdBox(){
   const row = document.getElementById('third-row'); if(!row) return;
   const syria = getCurrentBranch() === 'syria';
@@ -4495,10 +4508,27 @@ function applyFullQuotationData(data){
     document.body.setAttribute('data-prefilled','1');
     try{ const __re=document.getElementById('m-ref'); if(__re && __re.value && !data.__noOwn) window.__mzOwnedRefSafe = __re.value.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-\u0600-\u06FF]+/g,'_'); }catch(e){}
     __mzAreaExtraThird = (data.areaExtraThird === true) ? true : (data.areaExtraThird === null ? null : false); // قديم/بدون علامة = false (ما بتتغير أسعاره)، null = بيتبع الفرع
+    // 🛠️ 2026-10-10 (بلاغ حمدي - S-Q-260005): عرض سوريا بتاريخ 7/10 أو بعده ومعلّم صراحة "بدون ثلث" = ضياع بصمت بسبب الخلل
+    // القديم (ما كان في أي طريقة لإطفائه أصلًا) - منفعّل الثلث تلقائيًا ومنطلّع تنبيه واضح بالمجموع قبل/بعد.
+    let __healedThird = false;
+    try{
+      if(data.areaExtraThird === false){
+        const refV = (data.fields && data.fields['m-ref']) || '', dtV = (data.fields && data.fields['m-date']) || '';
+        if(getBranchFromRef(refV) === 'syria' && dtV >= '2026-10-07'){ __mzAreaExtraThird = null; __healedThird = true; }
+      }
+    }catch(e){}
     renumber();
     recalc();
     syncPage2Header();
     try{ mzUpdateThirdBox(); }catch(e){}
+    // مقارنة المجموع المحفوظ بالمحسوب: أي فرق = تنبيه ظاهر فورًا (مو بصمت)
+    try{
+      const savedG = parseFloat(data.grandTotal), nowG = parseMoney(document.getElementById('sum-grand').textContent);
+      if(savedG > 0 && Math.abs(savedG - nowG) > 0.05){
+        mzShowNotice('⚠️ <b>المجموع تغيّر عند الفتح:</b> المحفوظ <b>' + fmtMoney(savedG) + '</b> ← الآن <b>' + fmtMoney(nowG) + '</b>.'
+          + (__healedThird ? '<br>السبب: ثلث المساحة (قاعدة فرع سوريا) كان مفقودًا من هالعرض فتم تفعيله تلقائيًا. تقدر تطفيه من خانة "إضافة ثلث المساحة" إذا كان مقصودًا.' : '<br>راجع الأسعار والمقاسات قبل الإرسال.'));
+      }
+    }catch(e){}
   }catch(e){ console.error('applyFullQuotationData failed', e); }
 }
 
