@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-10.4';
+  var CURRENT_VERSION = '2026-10-10.5';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -1827,6 +1827,7 @@
           <option value="usd">💵 USD — دولار أمريكي</option>
           <option value="syp">💷 SYP — ليرة سورية</option>
         </select></div></div>
+        <div class="meta-row branch-row-noprint" id="third-row" style="display:none"><label>Area +1/3</label><div class="val"><label style="display:flex;gap:6px;align-items:center;font-weight:600;cursor:pointer;"><input type="checkbox" id="third-chk" onchange="onThirdToggle(this)"> إضافة ثلث المساحة (قاعدة فرع سوريا)</label></div></div>
         <div class="meta-row"><label>Date</label><div class="val"><input type="date" id="m-date" oninput="syncPage2Header()" value="2026-08-07"></div></div>
         <div class="meta-row"><label>Client</label><div class="val"><input id="m-client" placeholder="Client company name" oninput="syncPage2Header()" value=""></div></div>
         <div class="meta-row"><label>Number</label><div class="val"><input id="m-number" placeholder="-" oninput="syncPage2Header()" value=""></div></div>
@@ -3569,6 +3570,31 @@ function mzAreaExtraThirdActive(){
   return __mzAreaExtraThird === null ? true : !!__mzAreaExtraThird;
 }
 window.mzAreaExtraThirdActive = mzAreaExtraThirdActive;
+// 🛠️ 2026-10-10 (بلاغ حمدي - عرض S-Q-260005: المجموع نزل من 4,037.12 إلى 3,027.84 بصمت): علامة "ثلث المساحة"
+// كانت تتحوّل لـfalse لو انلقطت لقطة (تراجع/مسودة) والفرع وقتها إمارات، ولما تنرجع (تراجع/فتح) بتضل false حتى لو
+// الرقم المرجعي صار سوريا. هلق بنخزّن null = "لسا بيتبع الفرع" (مو false)، وfalse بس لما حدا يطفيها فعلًا.
+function mzAreaExtraThirdForSave(){
+  if(__mzAreaExtraThird === null) return getCurrentBranch() === 'syria' ? true : null;
+  return !!__mzAreaExtraThird;
+}
+function mzUpdateThirdBox(){
+  const row = document.getElementById('third-row'); if(!row) return;
+  const syria = getCurrentBranch() === 'syria';
+  row.style.display = syria ? '' : 'none';
+  const cb = document.getElementById('third-chk'); if(cb) cb.checked = mzAreaExtraThirdActive();
+}
+function onThirdToggle(cb){
+  const want = !!cb.checked;
+  if(want === mzAreaExtraThirdActive()) return;
+  if(hasAnyQuotationPrices && typeof hasAnyQuotationPrices === 'function' && hasAnyQuotationPrices()){
+    if(!confirm((want ? 'تفعيل' : 'إلغاء') + ' قاعدة "إضافة ثلث المساحة" بيغيّر مجاميع كل البنود المسعّرة. متأكد؟')){ cb.checked = !want; return; }
+  }
+  __mzAreaExtraThird = want;
+  __mzAreaExtraApplied = want;
+  recalc();
+  try{ window.__mzDirty = true; }catch(e){}
+}
+window.onThirdToggle = onThirdToggle; window.mzUpdateThirdBox = mzUpdateThirdBox;
 
 /* ================= 🩺 فحص ذاتي (قراءة فقط) =================
    2026-10-08 (طلب حمدي: "كيف أتأكد بنفسي؟"): بيشتغل على جهازك وعلى عرض السعر المفتوح فعليًا، وما بيغيّر أي شي.
@@ -4361,7 +4387,7 @@ function captureFullQuotationData(){
   const qtyBody = document.getElementById('qty-rows');
   if(qtyBody) data.qtyRowsHtml = qtyBody.innerHTML;
   data.discountManual = (document.getElementById('discount-amount')||{dataset:{}}).dataset.manual === '1';
-  data.areaExtraThird = mzAreaExtraThirdActive();
+  data.areaExtraThird = mzAreaExtraThirdForSave();
   try{
     if(window.__flushDesignSave__) window.__flushDesignSave__();
     const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : null;
@@ -4468,10 +4494,11 @@ function applyFullQuotationData(data){
     }
     document.body.setAttribute('data-prefilled','1');
     try{ const __re=document.getElementById('m-ref'); if(__re && __re.value && !data.__noOwn) window.__mzOwnedRefSafe = __re.value.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-\u0600-\u06FF]+/g,'_'); }catch(e){}
-    __mzAreaExtraThird = (data.areaExtraThird === true); // قديم/بدون علامة = false (ما بتتغير أسعاره)
+    __mzAreaExtraThird = (data.areaExtraThird === true) ? true : (data.areaExtraThird === null ? null : false); // قديم/بدون علامة = false (ما بتتغير أسعاره)، null = بيتبع الفرع
     renumber();
     recalc();
     syncPage2Header();
+    try{ mzUpdateThirdBox(); }catch(e){}
   }catch(e){ console.error('applyFullQuotationData failed', e); }
 }
 
@@ -4815,7 +4842,7 @@ function buildBakedHtmlSnapshot(){
       html = html.replace(/const DESIGN_BAKED_AT_DEFAULT = \d+;/, () => 'const DESIGN_BAKED_AT_DEFAULT = ' + Date.now() + ';');
     }
   }catch(e){ console.warn('[حفظ نسخة مخبوزة] تعذّر خبز التصميم:', e); }
-  try{ html = html.replace(/const AREA_EXTRA_THIRD_BAKED = (null|true|false);/, () => 'const AREA_EXTRA_THIRD_BAKED = ' + (mzAreaExtraThirdActive() ? 'true' : 'false') + ';'); }catch(e){}
+  try{ html = html.replace(/const AREA_EXTRA_THIRD_BAKED = (null|true|false);/, () => 'const AREA_EXTRA_THIRD_BAKED = ' + (function(){ const v = mzAreaExtraThirdForSave(); return v === null ? 'null' : (v ? 'true' : 'false'); })() + ';'); }catch(e){}
   return html;
 }
 
@@ -5028,6 +5055,7 @@ function applyBranchDependentUI(branch){
     const act = mzAreaExtraThirdActive();
     if(act !== __mzAreaExtraApplied){ __mzAreaExtraApplied = act; recalc(); }
   }catch(e){}
+  try{ mzUpdateThirdBox(); }catch(e){}
 }
 // مستدعاة من جوا syncPage2Header() (يلي أصلًا بتشتغل مع كل تغيير بالرقم المرجعي - كتابة يدوية،
 // تحميل عرض سعر قديم، أو اقتراح تلقائي/يدوي) - بتكتشف الفرع من حرف الرقم المرجعي الحالي وبتحدّث
