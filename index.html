@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-08.8';
+  var CURRENT_VERSION = '2026-10-10.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -2781,12 +2781,6 @@ function getExtractEndpoint(){
   return url ? url.trim() : '';
 }
 
-function getTranslateEndpoint(){
-  const extractUrl = localStorage.getItem('merzona-extract-endpoint');
-  if(!extractUrl) return '';
-  return extractUrl.trim().replace(/extract-quotation\/?$/, 'translate');
-}
-
 function renameItemEverywhere(oldName, newName){
   if(!oldName || !newName || oldName === newName) return;
   document.querySelectorAll('#qty-rows tr').forEach(tr=>{
@@ -2819,11 +2813,6 @@ function renameItemEverywhere(oldName, newName){
     }
   });
   try{ localStorage.setItem('merzona-price-memory', JSON.stringify(itemPriceMemory)); }catch(e){}
-}
-
-function autoTranslateRow(el){
-  // ملاحظة: ترجمة تلقائية حقيقية محتاجة خدمة ترجمة خارجية (متل Google Translate API) - نفس فكرة ربط جوجل درايف يلي عملناه.
-  // هاي دالة آمنة بديلة مؤقتًا لحد ما نقرر إذا بدنا نربط خدمة ترجمة حقيقية - حاليًا ما بتعمل شي، بس بتمنع الخطأ الصامت يلي كان عم يصير.
 }
 
 function propagateRowEditToItems(el){
@@ -2882,9 +2871,13 @@ function propagateRowEditToItems(el){
   }
 }
 
+document.addEventListener('input', function(e){ const t=e.target; if(e.isTrusted && t && t.matches && t.matches('.bi-row textarea, .bi-row input, .notes-item textarea, .notes-item input, .pay-row input')) t.dataset.userTyped='1'; }, true);
+document.addEventListener('focusin', function(e){ const t=e.target; if(t && t.matches && t.matches('.bi-row textarea, .bi-row input, .notes-item textarea, .notes-item input, .pay-row input')) t.dataset.focusVal=t.value; }, true);
 async function autoTranslateRow(el){
   const text = el.value.trim();
   if(!text) return;
+  // ما منترجم إلا إذا النص فعلًا تغيّر من وقت ما انتقل المؤشر عليه (بدون هيك مجرد المرور بالخانة كان يكتب فوق المقابل)
+  if(el.dataset.focusVal !== undefined && el.dataset.focusVal === el.value) return;
 
   const container = el.closest('.bi-row') || el.closest('.notes-item') || el.closest('.pay-row');
   if(!container) return;
@@ -2900,6 +2893,7 @@ async function autoTranslateRow(el){
   }
   if(!target || target === el) return;
 
+  el.dataset.userTyped = '';
   const langpair = isArSource ? 'ar|en' : 'en|ar';
   const originalPlaceholder = target.placeholder;
   target.placeholder = 'جارٍ الترجمة… Translating';
@@ -2907,8 +2901,18 @@ async function autoTranslateRow(el){
     const resp = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langpair}`);
     const data = await resp.json();
     const translated = data && data.responseData && data.responseData.translatedText;
-    if(translated && !/^PLEASE SELECT/i.test(translated) && !target.value.trim()){
-      target.value = translated;
+    // 🛠️ 2026-10-10 (بلاغ حمدي): الترجمة كانت تنكتب بس لو الخانة المقابلة فاضية، فتعديل النص بعد أول
+    // ترجمة ما كان ينعكس إلا إذا حذفت المقابل. هلق: إذا المقابل فاضي، أو لسا هو بالظبط نص ترجمة تلقائية
+    // قديمة (ما لمسه المستخدم يدويًا) منحدّثه. وإذا المستخدم كتب/عدّل المقابل بإيده منتركه متل ما هو.
+    if(translated && !/^PLEASE SELECT/i.test(translated)){
+      const cur = target.value.trim();
+      // المقابل بيتحدّث إذا: فاضي، أو لسا نص ترجمة تلقائية، أو ما كتب فيه المستخدم بإيده (محتوى جاهز/محفوظ)
+      if(!cur || (target.dataset.autoTr && cur === target.dataset.autoTr) || target.dataset.userTyped !== '1'){
+        target.value = translated;
+        target.dataset.autoTr = translated.trim();
+        target.dataset.userTyped = ''; target.dataset.focusVal = target.value;
+        try{ target.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){}
+      }
     }
   }catch(err){
     // فشل صامت - الترجمة التلقائية ميزة مساعدة، مش خطوة إجبارية
@@ -3217,7 +3221,7 @@ function handleRowEnter(e){
      حقيقي - رقم عادي لحاله، حتى لو سالب، بيرجع null قصدًا عشان يضل يتعامل معه العادي كرقم مش كتعبير).
    - evalMeasureField(el): بتاخد أي حقل، تحسب قيمته لو كانت تعبير، وتحط الناتج مكان النص. */
 function restrictMeasureChars(el){
-  const cleaned = normDigits(el.value).replace(/[^0-9+\-.\s]/g, '');
+  const cleaned = normDigitsStrip(el.value).replace(/[^0-9+\-.\s]/g, '');
   if(cleaned !== el.value){
     const pos = (el.selectionStart==null ? cleaned.length : el.selectionStart) - (el.value.length - cleaned.length);
     el.value = cleaned;
@@ -3257,6 +3261,7 @@ function evalMeasureExpr(raw){
 
 function evalMeasureField(el){
   if(!el) return;
+  if(/^\s*\d{1,3}(\s\d{3})+\s*$/.test(el.value)) el.value = el.value.replace(/\s+/g,'');
   const result = evalMeasureExpr(el.value);
   if(result !== null) el.value = Number.isInteger(result) ? String(result) : result.toFixed(2);
 }
@@ -3527,8 +3532,26 @@ function numToWordsAr(num){
   return resultParts.join(' و');
 }
 
-function normDigits(str){
+function normDigitsStrip(str){
   return String(str == null ? '' : str).replace(/[\u0660-\u0669]/g, d=>d.charCodeAt(0)-0x660).replace(/[\u06F0-\u06F9]/g, d=>d.charCodeAt(0)-0x6F0).replace(/\u066B/g,'.').replace(/[,\u066C]/g,'');
+}
+// 🛠️ 2026-10-09 (فحص غريب): "1 200" كان ينقرأ 1، و"1,5" ينقرأ 15، و"1.200,50" ينقرأ 1.2. هلق منفهم
+// فواصل الآلاف (فراغ/فاصلة/نقطة) والفاصلة العشرية الأوروبية/العربية بشكل ذكي.
+function normDigits(str){
+  let s = String(str == null ? '' : str).replace(/[\u0660-\u0669]/g, d=>d.charCodeAt(0)-0x660).replace(/[\u06F0-\u06F9]/g, d=>d.charCodeAt(0)-0x6F0).replace(/\u066B/g,'.').replace(/\u066C/g,',');
+  s = s.trim().replace(/[\s\u00A0\u202F\u2009]+(?=\d{3}(\D|$))/g,'').replace(/(\d)[\s\u00A0\u202F]+(?=\d)/g,'$1');
+  const hasC = s.indexOf(',')>=0, hasD = s.indexOf('.')>=0;
+  if(hasC && hasD){
+    if(s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g,'').replace(',','.');
+    else s = s.replace(/,/g,'');
+  } else if(hasC){
+    if(/^[-+]?\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g,'');
+    else if(/^[-+]?\d+,\d{1,2}$/.test(s)) s = s.replace(',','.');
+    else s = s.replace(/,/g,'');
+  } else if(hasD){
+    if(/^[-+]?\d{1,3}(\.\d{3}){2,}$/.test(s)) s = s.replace(/\./g,'');
+  }
+  return s;
 }
 function fmtMoney(n){
   return n.toLocaleString('en-US',{minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits:2});
@@ -3644,8 +3667,8 @@ function recalc(){
   document.querySelectorAll('#qty-rows tr').forEach(tr=>{
     const totalInput = tr.querySelector('.line-total');
     if(totalInput.dataset.manual === '1') return;
-    const w = parseFloat(tr.querySelector('.w-input').value) || 0;
-    const h = parseFloat(tr.querySelector('.h-input').value) || 0;
+    const w = parseFloat(String(tr.querySelector('.w-input').value).replace(/\s+/g,'')) || 0;
+    const h = parseFloat(String(tr.querySelector('.h-input').value).replace(/\s+/g,'')) || 0;
     const qty = parseMoney(tr.querySelector('.qty-input').value);
     const pricePerSqm = parseMoney(tr.querySelector('.price').value);
     const rawArea = (w * h) / 1000000;
@@ -5415,7 +5438,6 @@ const GOOGLE_TOKEN_CACHE_KEY = 'merzona_index_gtoken_v1';
 let googleAccessToken = null;
 let googleAccessTokenExpiresAt = 0;
 let googleTokenClient = null;
-let googleTokenInFlight = null; // 🛠️ لم يعد يُستخدم مباشرة (شوف googleTokenInFlightSilent/Interactive تحت) - مُبقى فقط لتفادي أي مرجع قديم لاسمه.
 // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): قبل هيك كان في slot واحد مشترك (googleTokenInFlight) لكل
 // طلبات التوكن بغض النظر عن قيمة silent - يعني طلب صامت شغال أصلًا بالخلفية (autoSuggestNextReference
 // مثلًا) كان "يخطف" كبسة زر يدوي حقيقي (🔄) لاحقة ويرجّعلها نفس نتيجة المحاولة الصامتة (فشل صامت بعد
@@ -6987,307 +7009,6 @@ async function saveToGoogleDriveInner(){
     return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe };
 }
 
-// ===== أداة تشخيص مؤقتة (مو جزء من الميزة نفسها) =====
-// بتاخد نفس لقطة html2canvas يلي بتستخدمها عملية الحفظ، بس بدون تحويلها لـ PDF - وبتفتحها
-// كصورة بتاب جديد، حتى نشوف بالظبط شو الصورة الملتقطة قبل ما تنحط جوا صفحة الـ PDF. هيك منعرف
-// هل المشكلة بالالتقاط نفسه (html2canvas) ولا بتحويلها لصفحة A4 (jsPDF) - افتحي الكونسول (F12)
-// واكتبي: __debugPdfCapture()  وبعتيلي سكرين شوت من التاب الجديد يلي رح يفتح + أي أرقام تطلع بالكونسول.
-// فيك كمان تكتبي __debugPdfCapture(false) لتجربة وضع الالتقاط العادي (بدون foreignObjectRendering)،
-// أو __debugPdfCapture({scale:1}) أو أي خيارات تانية عشوائية حتى نجرب حلول بسرعة بدون ما ننتظر
-// ملف جديد كل مرة - شوفي الملاحظة 3 تحت لتفاصيل كيف بتشتغل.
-window.__debugPdfCapture = async function(opts){
-  let overrides;
-  if(opts === undefined) overrides = {};
-  else if(typeof opts === 'boolean') overrides = { foreignObjectRendering: opts };
-  else overrides = Object.assign({}, opts);
-  // forceViewportWidth مش خيار من خيارات html2canvas - هاد خيار خاص فينا: بيفرض عرض معين مباشرة
-  // على عنصري html وbody أنفسهم (مش بس meta viewport، لأنو جربنا هيك قبل وما أثر - المتصفح ما بيعيد
-  // قراءة الـ meta tag بعد ما الصفحة تحمّل أصلاً) - تجربة لمعرفة هل هيدا هو سبب القص الحقيقي.
-  const forceViewportWidth = overrides.forceViewportWidth;
-  delete overrides.forceViewportWidth;
-  const wasMobileMode = document.body.classList.contains('mode-mobile');
-  document.body.classList.remove('mode-mobile');
-  document.body.classList.add('pdf-capturing');
-  const htmlEl = document.documentElement;
-  const origHtmlWidth = htmlEl.style.width, origHtmlOverflowX = htmlEl.style.overflowX;
-  const origBodyWidth = document.body.style.width, origBodyOverflowX = document.body.style.overflowX;
-  if(forceViewportWidth){
-    htmlEl.style.width = forceViewportWidth + 'px';
-    htmlEl.style.overflowX = 'visible';
-    document.body.style.width = forceViewportWidth + 'px';
-    document.body.style.overflowX = 'visible';
-  }
-  if(document.fonts && document.fonts.ready) await document.fonts.ready;
-  await new Promise(r => setTimeout(r, 150));
-  // 🛠️ 2026-09-27 (فحص شامل): نفس تصليح autosizeTextareasForPrint يلي انضاف لـsaveToGoogleDriveInner -
-  // أداة تشخيص بس هاي (مش مستخدمة من الواجهة العادية)، بس منضيفها هون كمان حتى تعكس تمامًا نفس مسار
-  // الالتقاط الحقيقي ولا تضلل أي تشخيص مستقبلي بمشكلة نص مقصوص غير حقيقية.
-  if(typeof autosizeTextareasForPrint === 'function') autosizeTextareasForPrint();
-  await new Promise(r => requestAnimationFrame(r));
-  window.scrollTo(0, 0);
-  if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
-  const pageEl = document.querySelector('.page');
-  const rect = pageEl.getBoundingClientRect();
-  console.log('[Debug] بعد فرض العرض - innerWidth:', window.innerWidth, '| html.clientWidth:', htmlEl.clientWidth, '| body.clientWidth:', document.body.clientWidth, '| body.scrollWidth:', document.body.scrollWidth);
-  // ملاحظة 3: على شاشة موبايل ضيقة (مثلاً 399px) والصفحة .page عرضها 900px (أوسع من الشاشة
-  // الحقيقية)، لاحظنا إنو الالتقاط عم يقص جزء من عرض الصفحة. windowWidth/windowHeight هون
-  // كديفولت (فيك تلغيهم بتمرير windowWidth:undefined ضمن opts لو بدك تجربي بدونهم)، وفيك تعدلي أي
-  // خيار تاني (scale, foreignObjectRendering, windowWidth...) بتمرير object، مثلاً:
-  // __debugPdfCapture({scale:1})  أو  __debugPdfCapture({windowWidth:1800})  أو
-  // __debugPdfCapture({forceViewportWidth:900})
-  const defaults = {
-    scale: 2, useCORS: true, foreignObjectRendering: true,
-    scrollX: 0, scrollY: 0,
-    windowWidth: Math.ceil(pageEl.scrollWidth || rect.width || 900),
-    windowHeight: Math.ceil(pageEl.scrollHeight || rect.height || 1200)
-  };
-  const html2canvasOpts = Object.assign({}, defaults, overrides);
-  console.log('[Debug] .page rect:', rect, '| devicePixelRatio:', window.devicePixelRatio, '| innerWidth:', window.innerWidth, '| scrollX/Y:', window.scrollX, window.scrollY, '| html2canvas options:', html2canvasOpts);
-  let canvas;
-  try{
-    // ملاحظة 1: html2canvas مش متوفرة كمتغير عام (global) لحالها جوا حزمة html2pdf.bundle.min.js -
-    // هيدا سبب خطأ "html2canvas is not defined" يلي طلع أول مرة. الطريقة الصح نستخدم نفس
-    // سلسلة html2pdf() الرسمية ونوقف عند خطوة toCanvas() قبل ما تتحول لصفحة PDF - هيك منضمن
-    // نفس بالظبط الكود يلي عملية الحفظ الحقيقية بتستخدمه.
-    // ملاحظة 2: .then(c => canvas = c) طلع ما بيشتغل - مكتبة html2pdf.js داخليًا بتخزن نتيجة toCanvas()
-    // بـ worker.prop.canvas (تأثير جانبي) وما بترجعها كقيمة للـ .then() العادي، فكانت canvas دايمًا
-    // undefined بصمت بدون أي خطأ. الطريقة الصح موثقة رسميًا: ننتظر الـ worker نفسه، وبعدين نقرأ
-    // worker.prop.canvas مباشرة.
-    // ملاحظة 4: لاحظنا إنو تغيير scale/windowWidth/foreignObjectRendering ما كان له أي تأثير إطلاقًا
-    // على نتيجة الالتقاط (نفس canvas size بالظبط بكل تجربة) - السبب: كنا عم نستدعي .set() قبل
-    // .from()، بينما عملية الحفظ الحقيقية (saveToGoogleDriveInner) بتستدعي .from() قبل .set() -
-    // ترتيب الاستدعاء هون بيأثر على مكتبة html2pdf.js. صلحنا الترتيب هون ليطابق تمامًا العملية الحقيقية.
-    const worker = html2pdf().from(pageEl).set({
-      margin: 0,
-      image: { type:'jpeg', quality:0.98 },
-      html2canvas: html2canvasOpts,
-      jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
-      pagebreak: { mode: ['css','legacy'] }
-    }).toCanvas();
-    await worker;
-    canvas = worker.prop && worker.prop.canvas;
-  } finally {
-    if(typeof restoreTextareaHeights === 'function') restoreTextareaHeights();
-    document.body.classList.remove('pdf-capturing');
-    if(wasMobileMode) document.body.classList.add('mode-mobile');
-    if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
-    if(forceViewportWidth){
-      htmlEl.style.width = origHtmlWidth;
-      htmlEl.style.overflowX = origHtmlOverflowX;
-      document.body.style.width = origBodyWidth;
-      document.body.style.overflowX = origBodyOverflowX;
-    }
-  }
-  if(!canvas){ console.error('[Debug] ما نجحنا ناخد canvas إطلاقاً - شوفي فوق إذا في خطأ تاني بالكونسول.'); return null; }
-  console.log('[Debug] canvas size:', canvas.width, 'x', canvas.height, '| width ratio:', (canvas.width / rect.width).toFixed(2), '| height ratio:', (canvas.height / rect.height).toFixed(2));
-  const dataUrl = canvas.toDataURL('image/png');
-  const w = window.open();
-  if(w){ w.document.write('<title>PDF capture debug</title><body style="margin:0;background:#888"><img src="' + dataUrl + '" style="max-width:100%;display:block;margin:0 auto;background:#fff"></body>'); }
-  else { console.warn('[Debug] المتصفح منع فتح تاب جديد (popup) - اسمحيلو من إعدادات المتصفح وجربي تاني.'); }
-  return { rect, canvasWidth: canvas.width, canvasHeight: canvas.height, devicePixelRatio: window.devicePixelRatio, innerWidth: window.innerWidth };
-};
-
-// ===== أداة تشخيص إضافية مؤقتة: __debugPdfContainer() =====
-// كل التجارب السابقة (تغيير scale/windowWidth/foreignObjectRendering/فرض عرض html و body) ما أثرت
-// إطلاقًا على نتيجة الالتقاط - نفس canvas size بالظبط كل مرة. هاد بيرجّح إنو المشكلة مش بعرض
-// الصفحة الحية (.page) يلي دايمًا طالع 900px بالقياس، وإنما بالـ "container" الداخلي يلي مكتبة
-// html2pdf.js نفسها بتعمل استنساخ (clone) للعنصر جواه قبل ما تستدعي html2canvas عليه - إذا هاد
-// الـ container المستنسخ عرضه أضيق من 900px لأي سبب (مثلاً لأنو منحط بمكان تاني بالصفحة وما وارثلوش
-// نفس قواعد العرض المفروضة)، هيك بيفسر ليش كل التعديلات يلي عملناها على الصفحة الأصلية ما أثرت -
-// لأنها ببساطة مش نفس العنصر يلي html2canvas عم يلتقط صورته فعليًا.
-// افتحي الكونسول واكتبي: __debugPdfContainer()  وابعتيلي بالظبط شو طلع بسطر [Debug] container info
-window.__debugPdfContainer = async function(opts){
-  const overrides = Object.assign({}, opts || {});
-  const wasMobileMode = document.body.classList.contains('mode-mobile');
-  document.body.classList.remove('mode-mobile');
-  document.body.classList.add('pdf-capturing');
-  if(document.fonts && document.fonts.ready) await document.fonts.ready;
-  await new Promise(r => setTimeout(r, 150));
-  // 🛠️ 2026-09-27 (فحص شامل): نفس تصليح autosizeTextareasForPrint يلي انضاف لـsaveToGoogleDriveInner.
-  if(typeof autosizeTextareasForPrint === 'function') autosizeTextareasForPrint();
-  await new Promise(r => requestAnimationFrame(r));
-  window.scrollTo(0, 0);
-  if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
-  const pageEl = document.querySelector('.page');
-  const liveRect = pageEl.getBoundingClientRect();
-  const html2canvasOpts = Object.assign({
-    scale: 2, useCORS: true, foreignObjectRendering: true, scrollX: 0, scrollY: 0
-  }, overrides);
-  let worker, container, clonedPage, containerInfo = null, canvas;
-  try{
-    worker = html2pdf().from(pageEl).set({
-      margin: 0,
-      image: { type:'jpeg', quality:0.98 },
-      html2canvas: html2canvasOpts,
-      jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
-      pagebreak: { mode: ['css','legacy'] }
-    });
-    await worker.toContainer();
-    container = worker.prop && worker.prop.container;
-    if(container){
-      clonedPage = container.querySelector('.page');
-      containerInfo = {
-        containerClientWidth: container.clientWidth,
-        containerScrollWidth: container.scrollWidth,
-        containerStyleWidth: container.style.width,
-        containerPositionLeft: container.style.left,
-        containerCssText: container.style.cssText,
-        clonedPageFound: !!clonedPage,
-        clonedPageRect: clonedPage ? clonedPage.getBoundingClientRect() : null,
-        clonedPageComputedWidth: clonedPage ? getComputedStyle(clonedPage).width : null
-      };
-      console.log('[Debug] container info:', containerInfo);
-    } else {
-      console.warn('[Debug] ما لقينا container على worker.prop - يمكن نسخة html2pdf هون ما بتدعم toContainer() بنفس الأسلوب.');
-    }
-    await worker.toCanvas();
-    canvas = worker.prop && worker.prop.canvas;
-  } finally {
-    if(typeof restoreTextareaHeights === 'function') restoreTextareaHeights();
-    document.body.classList.remove('pdf-capturing');
-    if(wasMobileMode) document.body.classList.add('mode-mobile');
-    if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
-  }
-  if(canvas){
-    console.log('[Debug] canvas size:', canvas.width, 'x', canvas.height, '| مقارنة مع liveRect.width:', liveRect.width, '| width ratio:', (canvas.width / liveRect.width).toFixed(2));
-  } else {
-    console.error('[Debug] ما نجحنا ناخد canvas.');
-  }
-  return { liveRect, containerInfo, canvas: canvas ? { width: canvas.width, height: canvas.height } : null };
-};
-
-// ===== لقينا السبب! __debugPdfFix() =====
-// containerStyleWidth طلعت '210.002mm' - هاد عرض صفحة A4 القياسي (210 مم) يلي مكتبة html2pdf.js نفسها
-// بتفرضه على الـ container الداخلي (خطوة toContainer()) لأنو حطينا jsPDF format:'a4' - يعني المكتبة
-// عم تحدد عرض الحاوية حسب عرض صفحة الـ PDF المطلوبة (210مم = حوالي 794px بدقة الشاشة العادية) بدل
-// ما تحددها حسب عرض المحتوى الحقيقي (.page يلي عرضه 900px بتصميمنا، أوسع من A4 القياسي). فالمحتوى
-// يلي عرضه 900px عم ينحط جوا حاوية عرضها الفعلي 794px بس - يعني تلقائيًا عم يصير قص/التفاف من غير
-// أي علاقة بعرض الشاشة أو أي حاجة جربناها قبل هيك. هاي الدالة بتختبر الحل: بعد ما توصل توconTainer()
-// (يعني بعد ما مكتبة html2pdf تعمل الحاوية وتحط فيها عرض A4 الخاطئ)، منعدّل عرض الحاوية يدويًا لعرض
-// المحتوى الحقيقي (900px) قبل ما نكمل لخطوة الالتقاط toCanvas() - وبعدين jsPDF بمرحلة لاحقة (مش هون)
-// هي يلي بتصغّر الصورة الملتقطة الكاملة لتناسب صفحة A4 عالنهاية، مش إحنا.
-window.__debugPdfFix = async function(opts){
-  const overrides = Object.assign({}, opts || {});
-  const wasMobileMode = document.body.classList.contains('mode-mobile');
-  document.body.classList.remove('mode-mobile');
-  document.body.classList.add('pdf-capturing');
-  if(document.fonts && document.fonts.ready) await document.fonts.ready;
-  await new Promise(r => setTimeout(r, 150));
-  // 🛠️ 2026-09-27 (فحص شامل): نفس تصليح autosizeTextareasForPrint يلي انضاف لـsaveToGoogleDriveInner.
-  if(typeof autosizeTextareasForPrint === 'function') autosizeTextareasForPrint();
-  await new Promise(r => requestAnimationFrame(r));
-  window.scrollTo(0, 0);
-  if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
-  const pageEl = document.querySelector('.page');
-  const liveRect = pageEl.getBoundingClientRect();
-  const targetWidth = Math.ceil(pageEl.scrollWidth || liveRect.width || 900);
-  const html2canvasOpts = Object.assign({
-    scale: 2, useCORS: true, foreignObjectRendering: true, scrollX: 0, scrollY: 0
-  }, overrides);
-  let worker, container, canvas;
-  try{
-    worker = html2pdf().from(pageEl).set({
-      margin: 0,
-      image: { type:'jpeg', quality:0.98 },
-      html2canvas: html2canvasOpts,
-      jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
-      pagebreak: { mode: ['css','legacy'] }
-    });
-    await worker.toContainer();
-    container = worker.prop && worker.prop.container;
-    if(container){
-      console.log('[Debug] عرض الحاوية قبل التصحيح:', container.style.width, '| clientWidth:', container.clientWidth);
-      container.style.width = targetWidth + 'px';
-      container.style.maxWidth = 'none';
-      const clonedPage = container.querySelector('.page');
-      if(clonedPage){
-        clonedPage.style.width = targetWidth + 'px';
-        clonedPage.style.maxWidth = 'none';
-      }
-      console.log('[Debug] عرض الحاوية بعد التصحيح:', container.style.width, '| clientWidth:', container.clientWidth);
-    } else {
-      console.warn('[Debug] ما لقينا container - رح نكمل بدون تصحيح.');
-    }
-    await worker.toCanvas();
-    canvas = worker.prop && worker.prop.canvas;
-  } finally {
-    if(typeof restoreTextareaHeights === 'function') restoreTextareaHeights();
-    document.body.classList.remove('pdf-capturing');
-    if(wasMobileMode) document.body.classList.add('mode-mobile');
-    if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
-  }
-  if(!canvas){ console.error('[Debug] ما نجحنا ناخد canvas.'); return null; }
-  console.log('[Debug] canvas size (بعد التصحيح):', canvas.width, 'x', canvas.height, '| width ratio:', (canvas.width / liveRect.width).toFixed(2), '| height ratio:', (canvas.height / liveRect.height).toFixed(2));
-  const dataUrl = canvas.toDataURL('image/png');
-  const w = window.open();
-  if(w){ w.document.write('<title>PDF fix test</title><body style="margin:0;background:#888"><img src="' + dataUrl + '" style="max-width:100%;display:block;margin:0 auto;background:#fff"></body>'); }
-  else { console.warn('[Debug] المتصفح منع فتح تاب جديد (popup) - اسمحيلو من إعدادات المتصفح وجربي تاني.'); }
-  return { liveRect, canvasWidth: canvas.width, canvasHeight: canvas.height };
-};
-
-// ===== __debugPdfFull() - اختبار PDF حقيقي كامل (مش مجرد صورة) =====
-// لاحظنا إنو الصورة يلي فتحت من __debugPdfFix() طلعت كاملة وصح - بس لما حولتيها إنتِ يدويًا لـ PDF
-// (على الأغلب عبر "طباعة/حفظ كـ PDF" من المتصفح نفسه)، صار تداخل بين الصفحات. هاد على الأغلب مش
-// مشكلة بكودنا - هو تحديدًا لأنو المتصفح لما بيطبع صورة طويلة جدًا لملف PDF بنفسه (مش عن طريق
-// html2pdf.js) بيقسمها بطريقته الخاصة يلي ما بتراعي حدود المحتوى. هاي الدالة بتعمل الاختبار الصح:
-// بتكمل نفس مسار المكتبة html2pdf.js بالكامل (لحد إنتاج ملف PDF حقيقي عبر outputPdf('blob'))، بس
-// بعد ما نصحح عرض الحاوية - وهالمرة منستخدم "مم" مش "بكسل" حتى تضل نسبة بكسل-لكل-مم يلي المكتبة
-// بتحسب عليها تقسيم الصفحات ثابتة وصحيحة (كانت العلاقة قبل التصحيح: 794px = 210mm، فلو غيرنا العرض
-// لبكسلات بس بدون تحويلها لنفس وحدة "مم"، ممكن حسبة توزيع الصفحات تختل).
-window.__debugPdfFull = async function(opts){
-  const overrides = Object.assign({}, opts || {});
-  const wasMobileMode = document.body.classList.contains('mode-mobile');
-  document.body.classList.remove('mode-mobile');
-  document.body.classList.add('pdf-capturing');
-  if(document.fonts && document.fonts.ready) await document.fonts.ready;
-  await new Promise(r => setTimeout(r, 150));
-  // 🛠️ 2026-09-27 (فحص شامل): نفس تصليح autosizeTextareasForPrint يلي انضاف لـsaveToGoogleDriveInner.
-  if(typeof autosizeTextareasForPrint === 'function') autosizeTextareasForPrint();
-  await new Promise(r => requestAnimationFrame(r));
-  window.scrollTo(0, 0);
-  if(typeof applyElevationPrintGrouping === 'function') applyElevationPrintGrouping();
-  const pageEl = document.querySelector('.page');
-  const liveRect = pageEl.getBoundingClientRect();
-  const targetWidthPx = Math.ceil(pageEl.scrollWidth || liveRect.width || 900);
-  const targetWidthMm = (targetWidthPx * 25.4 / 96).toFixed(3) + 'mm';
-  const html2canvasOpts = Object.assign({
-    scale: 2, useCORS: true, foreignObjectRendering: true, scrollX: 0, scrollY: 0
-  }, overrides);
-  let worker, container, pdfBlob;
-  try{
-    worker = html2pdf().from(pageEl).set({
-      margin: 0,
-      filename: 'debug-test.pdf',
-      image: { type:'jpeg', quality:0.98 },
-      html2canvas: html2canvasOpts,
-      jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
-      pagebreak: { mode: ['css','legacy'] }
-    });
-    await worker.toContainer();
-    container = worker.prop && worker.prop.container;
-    if(container){
-      console.log('[Debug] عرض الحاوية قبل التصحيح:', container.style.width);
-      container.style.width = targetWidthMm;
-      container.style.maxWidth = 'none';
-      console.log('[Debug] عرض الحاوية بعد التصحيح (بوحدة مم حتى تضل نسبة بكسل-لكل-مم صحيحة):', container.style.width, '| clientWidth:', container.clientWidth);
-    } else {
-      console.warn('[Debug] ما لقينا container - رح نكمل بدون تصحيح.');
-    }
-    pdfBlob = await worker.toCanvas().toPdf().outputPdf('blob');
-  } finally {
-    if(typeof restoreTextareaHeights === 'function') restoreTextareaHeights();
-    document.body.classList.remove('pdf-capturing');
-    if(wasMobileMode) document.body.classList.add('mode-mobile');
-    if(typeof revertElevationPrintGrouping === 'function') revertElevationPrintGrouping();
-  }
-  if(!pdfBlob){ console.error('[Debug] ما نجحنا ناخد PDF.'); return null; }
-  console.log('[Debug] PDF جاهز - رح يفتح بتاب جديد (مش صورة هالمرة، ملف PDF حقيقي فيه تقسيم صفحات حقيقي). حجم الملف:', (pdfBlob.size/1024).toFixed(0) + 'KB');
-  const blobUrl = URL.createObjectURL(pdfBlob);
-  const w = window.open(blobUrl, '_blank');
-  if(!w){ console.warn('[Debug] المتصفح منع فتح تاب جديد (popup) - اسمحيلو من إعدادات المتصفح وجربي تاني.'); }
-  return { liveRect, pdfSizeKB: (pdfBlob.size/1024).toFixed(0) };
-};
-
 populateItemsDatalist();
 populateAlumColorOptions();
 // إذا لوحة التحكم طلبت تحميل عرض سعر قديم بالنسخة الحالية من الأداة (زر "🔓 افتح بآخر نسخة")، البيانات
@@ -7799,9 +7520,29 @@ window.wdApplyBack = function(results){
               </div>
             </div>
           </div>
+          <div id="hrFlatTaperWrap" style="display:none;margin-top:8px;">
+            <label>نهاية مثلثة (لما الجدار مائل)</label>
+            <div class="shape-toggle">
+              <button id="btnHrTaperNone" onclick="onHrTaperChange('')" class="active">بدون</button>
+              <button id="btnHrTaperEnd" onclick="onHrTaperChange('end')">بالنهاية</button>
+              <button id="btnHrTaperStart" onclick="onHrTaperChange('start')">بالبداية</button>
+            </div>
+            <div id="hrTaperHBox" style="display:none;margin-top:6px;">
+              <label>ارتفاع الطرف المائل (مم) - 0 = مثلث كامل</label>
+              <input type="text" inputmode="decimal" id="inHrTaperH" oninput="restrictMeasureChars(this);onHrTaperHChange()" onblur="evalMeasureField(this);onHrTaperHChange()" value="0">
+              <label style="margin-top:6px;">طول الجزء المستقيم (العلوي) قبل بداية الميلان (مم) - 0 = ميلان على كامل اللوح</label>
+              <input type="text" inputmode="decimal" id="inHrTaperFlat" oninput="restrictMeasureChars(this);onHrTaperHChange()" onblur="evalMeasureField(this);onHrTaperHChange()" value="0">
+            </div>
+          </div>
+          <div id="hrFlatAddInclineWrap" style="display:none;margin-top:6px;">
+            <button onclick="enableHandrailFlatSegments()" class="small" style="width:100%;">+ إضافة جزء مائل (للمسبح / المستقيم)</button>
+          </div>
+          <div id="hrFlatBackWrap" style="display:none;margin-top:6px;">
+            <button onclick="disableHandrailFlatSegments()" class="small" style="width:100%;">↩ رجوع للمسطح البسيط (بدون أجزاء)</button>
+          </div>
 
           <div id="hrStairInputs" style="display:none;">
-            <label style="margin-top:8px;">أجزاء الدرج (مائل / استراحة)</label>
+            <label id="hrSegTitle" style="margin-top:8px;">أجزاء الدرج (مائل / استراحة)</label>
             <p class="hint">ضيف جزء "استراحة" لتمثيل المسطح اللي بيجي عند دوران الدرج أو الوصول للطابق يلي بعده - كل جزء إله عدد ألواح وطول إجمالي لحاله.</p>
             <div id="hrSegmentsList"></div>
             <div class="add-row" style="margin-top:6px;">
@@ -9460,8 +9201,11 @@ function getHandrailPanelWidth(it){
   const n = Math.max(1, it.hrPanelCount || 1);
   return Math.max(1, ((it.hrTotalLength || 4800) - (n-1)*HANDRAIL_GAP_MM) / n);
 }
+// 🆕 2026-10-10 (طلب حمدي): الهاندريل المسطح (بلكونة/مسبح/مستقيم) صار يقدر ياخد "جزء مائل" كمان متل الدرج.
+// لما يتفعّل (hrFlatSegs) بنستخدم نفس نظام الأجزاء (مائل/استراحة) بالرسم والطباعة والـ3D والقياسات.
+function hrSegMode(it){ return !!it && (it.hrKind === 'staircase' || !!it.hrFlatSegs); }
 function getHandrailTotalLength(it){
-  if(it.hrKind === 'staircase'){
+  if(hrSegMode(it)){
     return ensureHandrailSegments(it).reduce((s,seg)=> s + Math.max(1, seg.totalLength||0), 0);
   }
   if(it.hrDimMode === 'panel'){
@@ -9539,7 +9283,7 @@ function renderHandrailSegmentsUI(it){
   wrap.innerHTML = segs.map((seg,idx)=>{
     const row = `
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;padding:6px;background:#f4f5f7;border-radius:4px;">
-      <span style="font-size:12px;font-weight:600;min-width:64px;">${seg.type==='flight'?'🪜 مائل':'▬ استراحة'} ${idx+1}</span>
+      <span style="font-size:12px;font-weight:600;min-width:64px;">${seg.type==='flight'?'🪜 مائل':(it.hrKind==='flat'?'▬ مستقيم':'▬ استراحة')} ${idx+1}</span>
       <input type="number" min="1" step="1" style="width:56px;" value="${seg.panelCount}" onchange="onHrSegField(${it.id},'${seg.id}','panelCount',this.value)" title="عدد الألواح">
       <input type="text" inputmode="decimal" min="1" style="width:84px;" value="${Math.round(seg.totalLength)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegField(${it.id},'${seg.id}','totalLength',this.value)" title="الطول الإجمالي (مم) - تقدر تكتب مثلاً 4800+350">
       <button class="small danger" style="margin-right:auto;" onclick="removeHandrailSegment(${it.id},'${seg.id}')" ${segs.length<=1?'disabled':''}>×</button>
@@ -9555,6 +9299,15 @@ function renderHandrailSegmentsUI(it){
       <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">سم</span>
       <button class="small${seg.inclined?' active':''}" style="font-size:10.5px;${seg.inclined?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentIncline(${it.id},'${seg.id}')" title="بالوضعين، فرق الارتفاع بيصير قفزة كاملة قبل الاستراحة (هي نفسها بترتفع عن الأرض بشكل كامل، مو نص وطرف). الفرق بينهم بس شكل القطعة: مستوية = مسطحة، مائلة = شكلها ميلان متل الدرج بالزبط">${seg.inclined ? '🔀 مائلة' : '▬ مستوية'}</button>
     </div>` : '';
+    const taperRow = (seg.type === 'landing' && !seg.inclined) ? `
+    <div style="display:flex;gap:6px;align-items:center;margin:-2px 0 6px;padding:0 6px 6px 6px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);min-width:64px;">◢ نهاية مثلثة</span>
+      <select style="font-size:11px;" onchange="onHrSegTaper(${it.id},'${seg.id}',this.value)">
+        <option value=""${!seg.taper?' selected':''}>بدون</option><option value="end"${seg.taper==='end'?' selected':''}>بنهاية الجزء</option><option value="start"${seg.taper==='start'?' selected':''}>ببداية الجزء</option>
+      </select>
+      ${seg.taper ? `<input type="text" inputmode="decimal" style="width:64px;" value="${Math.round(seg.taperH||0)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegTaperH(${it.id},'${seg.id}',this.value)" title="ارتفاع الطرف المائل (مم) - 0 = مثلث كامل"><span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم عند الطرف</span>
+      <input type="text" inputmode="decimal" style="width:64px;" value="${Math.round(seg.taperFlat||0)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegTaperFlat(${it.id},'${seg.id}',this.value)" title="طول الجزء المستقيم العلوي قبل الميلان (مم) - 0 = ميلان على كامل اللوح"><span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم مستقيم قبل الميلان</span>` : ''}
+    </div>` : '';
     // 🆕 2026-09-23: زر "دمج مع القطعة التالية" - بيظهر بس بين كل جزئين متتاليين (مش بعد آخر جزء
     // بالقائمة، لأنو ما في "قطعة تالية" إلها). لما يكون مفعّل (🔗 مدموج) بيصير الجزءان لوح زجاج
     // واحد متواصل بدون فاصل بينهم بالرسمة وبالطباعة.
@@ -9562,9 +9315,29 @@ function renderHandrailSegmentsUI(it){
     <div style="display:flex;justify-content:center;margin:-2px 0 6px;">
       <button class="small${seg.mergedWithNext?' active':''}" style="font-size:10.5px;${seg.mergedWithNext?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentMerge(${it.id},'${seg.id}')" title="ادمج هالقطعة مع اللي بعدها كلوح زجاج واحد متواصل بدون فاصل">${seg.mergedWithNext ? '🔗 مدموجة مع اللي بعدها (بدون فاصل)' : '⛓️‍💥 دمج مع القطعة التالية'}</button>
     </div>` : '';
-    return row + riseRow + mergeRow;
+    return row + riseRow + taperRow + mergeRow;
   }).join('');
 }
+function onHrSegTaper(itemId, segId, v){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const seg = ensureHandrailSegments(it).find(s=>s.id===segId); if(!seg) return;
+  pushHistory(); seg.taper = v || ''; if(seg.taperH==null) seg.taperH = 0;
+  renderHandrailSegmentsUI(it); renderGallery();
+}
+function onHrSegTaperH(itemId, segId, v){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const seg = ensureHandrailSegments(it).find(s=>s.id===segId); if(!seg) return;
+  pushHistory(); seg.taperH = Math.max(0, Math.min(it.hrGlassHeight||1200, parseFloat(v)||0));
+  renderGallery();
+}
+function onHrSegTaperFlat(itemId, segId, v){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const seg = ensureHandrailSegments(it).find(s=>s.id===segId); if(!seg) return;
+  pushHistory(); seg.taperFlat = Math.max(0, parseFloat(v)||0);
+  renderGallery();
+}
+window.onHrSegTaperFlat = onHrSegTaperFlat;
+window.onHrSegTaper = onHrSegTaper; window.onHrSegTaperH = onHrSegTaperH;
 window.addHandrailSegment = addHandrailSegment;
 window.removeHandrailSegment = removeHandrailSegment;
 window.onHrSegField = onHrSegField;
@@ -9806,15 +9579,73 @@ function syncHandrailDims(it){
   it.height = Math.round(it.hrGlassHeight || 1200);
 }
 
+function hrApplyModeUI(it){
+  const seg = hrSegMode(it), flat = it.hrKind === 'flat';
+  document.getElementById('hrFlatInputs').style.display = (flat && !seg) ? 'block' : 'none';
+  document.getElementById('hrStairInputs').style.display = seg ? 'block' : 'none';
+  const addInc = document.getElementById('hrFlatAddInclineWrap'); if(addInc) addInc.style.display = (flat && !seg) ? 'block' : 'none';
+  const back = document.getElementById('hrFlatBackWrap'); if(back) back.style.display = (flat && seg) ? 'block' : 'none';
+  const tw = document.getElementById('hrFlatTaperWrap'); if(tw){ tw.style.display = (flat && !seg) ? 'block' : 'none';
+    const t = it.hrTaper||''; document.getElementById('btnHrTaperNone').classList.toggle('active', !t); document.getElementById('btnHrTaperEnd').classList.toggle('active', t==='end'); document.getElementById('btnHrTaperStart').classList.toggle('active', t==='start');
+    document.getElementById('hrTaperHBox').style.display = t ? 'block' : 'none'; document.getElementById('inHrTaperH').value = it.hrTaperH||0; document.getElementById('inHrTaperFlat').value = it.hrTaperFlat||0; }
+  const ttl = document.getElementById('hrSegTitle'); if(ttl) ttl.textContent = flat ? 'أجزاء الهاندريل (مستقيم / مائل)' : 'أجزاء الدرج (مائل / استراحة)';
+}
+// تفعيل الأجزاء للهاندريل المسطح: الجزء المستقيم الحالي بيصير "استراحة" (مسطحة) + بنضيف جزء مائل
+function onHrTaperChange(v){
+  const it = getSelected(); if(!it || !isHandrail(it)) return;
+  pushHistory();
+  it.hrTaper = v || ''; if(it.hrTaperH==null) it.hrTaperH = 0;
+  hrApplyModeUI(it); renderGallery();
+}
+function onHrTaperHChange(){
+  const it = getSelected(); if(!it || !isHandrail(it)) return;
+  pushHistory();
+  it.hrTaperH = Math.max(0, Math.min(it.hrGlassHeight||1200, parseFloat(document.getElementById('inHrTaperH').value)||0));
+  it.hrTaperFlat = Math.max(0, parseFloat(document.getElementById('inHrTaperFlat').value)||0);
+  renderGallery();
+}
+window.onHrTaperChange = onHrTaperChange; window.onHrTaperHChange = onHrTaperHChange;
+function enableHandrailFlatSegments(){
+  const it = getSelected(); if(!it || !isHandrail(it) || it.hrKind !== 'flat') return;
+  pushHistory(true);
+  const total = Math.round(getHandrailTotalLength(it));
+  const n = Math.max(1, it.hrPanelCount || 1);
+  it.hrFlatBackup = { dimMode: it.hrDimMode, total: it.hrTotalLength, count: it.hrPanelCount, pw: it.hrPanelWidth };
+  it.hrFlatSegs = true;
+  it.hrSegments = [
+    { id:'s'+(hrSegIdCounter++), type:'landing', panelCount:n, totalLength:total, mergedWithNext:false, riseCm:0, inclined:false },
+    { id:'s'+(hrSegIdCounter++), type:'flight', panelCount:2, totalLength:2400, mergedWithNext:false, riseCm:0, inclined:false }
+  ];
+  hrApplyModeUI(it);
+  renderHandrailSegmentsUI(it);
+  syncHandrailDims(it);
+  renderGallery();
+}
+function disableHandrailFlatSegments(){
+  const it = getSelected(); if(!it || !isHandrail(it)) return;
+  if(it.hrSegments && it.hrSegments.length>1 && !confirm('الرجوع للمسطح البسيط بيشيل الأجزاء المائلة. متأكد؟')) return;
+  pushHistory(true);
+  it.hrFlatSegs = false;
+  const b = it.hrFlatBackup;
+  if(b){ it.hrDimMode = b.dimMode||'total'; it.hrTotalLength = b.total||it.hrTotalLength; it.hrPanelCount = b.count||it.hrPanelCount; if(b.pw) it.hrPanelWidth = b.pw; }
+  it.hrSegments = null;
+  hrApplyModeUI(it);
+  loadSelectedIntoControls();
+  syncHandrailDims(it);
+  renderGallery();
+}
+window.enableHandrailFlatSegments = enableHandrailFlatSegments;
+window.disableHandrailFlatSegments = disableHandrailFlatSegments;
+
 function onHandrailKindChange(kind){
   const it = getSelected(); if(!it) return;
   pushHistory();
   it.hrKind = kind;
   document.getElementById('btnHrKindStair').classList.toggle('active', kind==='staircase');
   document.getElementById('btnHrKindFlat').classList.toggle('active', kind==='flat');
-  document.getElementById('hrFlatInputs').style.display = kind==='flat' ? 'block' : 'none';
-  document.getElementById('hrStairInputs').style.display = kind==='staircase' ? 'block' : 'none';
-  if(kind==='staircase'){ ensureHandrailSegments(it); renderHandrailSegmentsUI(it); }
+  if(kind==='staircase') it.hrFlatSegs = false;
+  hrApplyModeUI(it);
+  if(hrSegMode(it)){ ensureHandrailSegments(it); renderHandrailSegmentsUI(it); }
   syncHandrailDims(it);
   renderGallery();
 }
@@ -10109,8 +9940,7 @@ function loadSelectedIntoControls(){
     document.getElementById('btnHrMountSpigot').classList.toggle('active', it.hrMount==='spigot');
     document.getElementById('hrStandoffPairsBlock').style.display = it.hrMount==='standoff' ? 'block' : 'none';
     document.getElementById('inHrStandoffPairs').value = it.hrStandoffPairs || 2;
-    document.getElementById('hrFlatInputs').style.display = it.hrKind==='flat' ? 'block' : 'none';
-    document.getElementById('hrStairInputs').style.display = it.hrKind==='staircase' ? 'block' : 'none';
+    hrApplyModeUI(it);
     document.getElementById('btnHrDimTotal').classList.toggle('active', it.hrDimMode==='total');
     document.getElementById('btnHrDimPanel').classList.toggle('active', it.hrDimMode==='panel');
     document.getElementById('hrLenLabel').textContent = it.hrDimMode==='total' ? 'الطول الإجمالي (مم)' : 'عرض اللوح الواحد (مم)';
@@ -10118,7 +9948,7 @@ function loadSelectedIntoControls(){
     document.getElementById('inHrCount').value = it.hrPanelCount;
     document.getElementById('inHrHeight').value = it.hrGlassHeight;
     updateHrMountHint(it);
-    if(it.hrKind==='staircase'){ ensureHandrailSegments(it); renderHandrailSegmentsUI(it); }
+    if(hrSegMode(it)){ ensureHandrailSegments(it); renderHandrailSegmentsUI(it); }
   } else {
     document.getElementById('inWidth').value = it.width;
     document.getElementById('inHeight').value = it.height;
@@ -10476,12 +10306,6 @@ window.editRoomSegLengthFromSVG = editRoomSegLengthFromSVG;
 /* ---------- SVG RENDERING ---------- */
 let frostedCounter = 0;
 
-function archDividerXs(leafGeoms){
-  const topLeaves = (leafGeoms||[]).filter(g => Math.abs(g.y) < 0.5).sort((a,b)=>a.x-b.x);
-  const xs = [];
-  for(let i=0;i<topLeaves.length-1;i++) xs.push(topLeaves[i].x + topLeaves[i].w);
-  return xs;
-}
 function archYAt(x, drawW, archHpx){
   const a = drawW/2, b = archHpx;
   const ratio = Math.max(-1, Math.min(1, (x-a)/a));
@@ -11048,8 +10872,13 @@ function showerDoorHardwareSVG(it, drawW, drawH, handleColor){
 // buildHandrailSVG وbuildHandrailPrintSVG - بتبني قائمة الألواح المسطّحة، وكل لوح معه mergeWithNext
 // (صحيح لو آخر لوح بقطعة معلّمة "مدموجة" وفي قطعة بعدها - يعني ما في فاصل ولا خط تقسيم بينه وبين
 // أول لوح بالقطعة التالية).
+function hrTaperRatio(it, h){
+  const g = Math.max(50, it.hrGlassHeight || 1200);
+  const v = Math.max(0, Math.min(g, parseFloat(h)||0));
+  return v / g;
+}
 function buildHandrailPanelsMm(it){
-  const isStair = it.hrKind === 'staircase';
+  const isStair = hrSegMode(it);
   let panelsMm = [];
   if(isStair){
     const segs = ensureHandrailSegments(it);
@@ -11067,13 +10896,21 @@ function buildHandrailPanelsMm(it){
       for(let i=0;i<n;i++){
         const isLastPanelOfSeg = (i === n-1);
         const jumpMm = (i === 0 && riseCm > 0) ? riseCm*10 : 0;
-        panelsMm.push({ w: pw, type: seg.type, segId: seg.id, riseCm, jumpMm, inclined, mergeWithNext: (isLastPanelOfSeg && !isLastSeg) ? !!seg.mergedWithNext : false });
+        const pm = { w: pw, type: seg.type, segId: seg.id, riseCm, jumpMm, inclined, mergeWithNext: (isLastPanelOfSeg && !isLastSeg) ? !!seg.mergedWithNext : false };
+        if(seg.type === 'landing' && !inclined && seg.taper){
+          if(seg.taper === 'end' && isLastPanelOfSeg){ pm.tR = hrTaperRatio(it, seg.taperH); pm.tF = Math.max(0, seg.taperFlat||0); }
+          if(seg.taper === 'start' && i === 0){ pm.tL = hrTaperRatio(it, seg.taperH); pm.tF = Math.max(0, seg.taperFlat||0); }
+        }
+        panelsMm.push(pm);
       }
     });
   } else {
     const n = Math.max(1, it.hrPanelCount || 1);
     const pw = getHandrailPanelWidth(it);
     for(let i=0;i<n;i++) panelsMm.push({ w: pw, type:'flat', mergeWithNext:false });
+    // 🆕 2026-10-10 (طلب حمدي): نهاية مثلثة (الجدار مائل) - آخر/أول لوح سطحه العلوي ينزل لارتفاع الطرف (0 = مثلث كامل)
+    if(it.hrTaper === 'end' && panelsMm.length){ const q=panelsMm[panelsMm.length-1]; q.tR = hrTaperRatio(it, it.hrTaperH); q.tF = Math.max(0, it.hrTaperFlat||0); }
+    if(it.hrTaper === 'start' && panelsMm.length){ const q=panelsMm[0]; q.tL = hrTaperRatio(it, it.hrTaperH); q.tF = Math.max(0, it.hrTaperFlat||0); }
   }
   return panelsMm;
 }
@@ -11081,7 +10918,7 @@ function buildHandrailPanelsMm(it){
 function buildHandrailSVG(it){
   const glassH = Math.max(50, it.hrGlassHeight || 1200);
   const gap = HANDRAIL_GAP_MM;
-  const isStair = it.hrKind === 'staircase';
+  const isStair = hrSegMode(it);
 
   // ابني قائمة الألواح المسطّحة (بالمليمتر) - من أجزاء الدرج (مائل/استراحة) أو من الجزء المسطح الواحد
   let panelsMm = buildHandrailPanelsMm(it);
@@ -11126,13 +10963,15 @@ function buildHandrailSVG(it){
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
     const riseEnd = (isStair && (p.type==='flight' || p.inclined)) ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
-    const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
+    const yT0 = yB0 - drawH*(p.tL==null?1:p.tL), yT1 = yB1 - drawH*(p.tR==null?1:p.tR);
     if(isStair){
       if(!segRanges[p.segId]) segRanges[p.segId] = { start:x, end:x+pw };
       else segRanges[p.segId].end = x+pw;
     }
     pieceBottomPts.push([x,yB0], [x+pw,yB1]);
-    pieceTopPts.push([x,yT0], [x+pw,yT1]);
+    pieceTopPts.push([x,yT0]);
+    if(p.tF > 0 && p.tF*hScale < pw - 2){ if(p.tR != null) pieceTopPts.push([x+p.tF*hScale, yT0]); else if(p.tL != null) pieceTopPts.push([x+pw-p.tF*hScale, yT1]); }
+    pieceTopPts.push([x+pw,yT1]);
     if(p.type !== 'landing' || p.inclined) pieceHasNonLanding = true;
     if(!p.mergeWithNext){
       // آخر لوح بالقطعة (أو قطعة من لوح واحد بدون دمج) - نرسم القطعة كلها كمضلع واحد
@@ -11174,7 +11013,8 @@ function buildHandrailSVG(it){
       // المائل فوق (الخط الأحمر)، حتى يبين بوضوح تمامًا متل باقي قياسات الدرج.
       const cx = x+pw/2, cy = (yT0+yT1+yB0+yB1)/4;
       const riseLabel = (p.type==='landing' && p.riseCm > 0) ? (p.inclined ? ` (+${p.riseCm}سم↗ مائلة)` : ` (+${p.riseCm}سم⬆)`) : '';
-      const flatLabelText = `${Math.round(p.w)}×${Math.round(glassH)}${riseLabel}`;
+      const taperLbl = (p.tL!=null||p.tR!=null) ? ` ◢ ${Math.round(glassH*(p.tL!=null?p.tL:p.tR))}` : '';
+      const flatLabelText = `${Math.round(p.w)}×${Math.round(glassH)}${taperLbl}${riseLabel}`;
       const flatBadgeW = Math.max(56, flatLabelText.length*6.4 + 16);
       panelLabelsSvg += `<rect x="${cx-flatBadgeW/2}" y="${cy-11}" width="${flatBadgeW}" height="18" rx="4" fill="var(--wd-bg-deep, #0b1220)" opacity="0.88"/>
       <text x="${cx}" y="${cy+3}" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="var(--wd-font-mono)" style="pointer-events:none;">${flatLabelText}</text>`;
@@ -11248,7 +11088,7 @@ function buildHandrailSVG(it){
         <line x1="${range.start}" y1="${segDimY-5}" x2="${range.start}" y2="${segDimY+5}" stroke="${dimColor}" stroke-width="1"/>
         <line x1="${range.end}" y1="${segDimY-5}" x2="${range.end}" y2="${segDimY+5}" stroke="${dimColor}" stroke-width="1"/>
         <text x="${midX}" y="${segDimY+18}" fill="${dimColor}" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(seg.totalLength)} mm</text>
-        ${seg.type==='landing' ? `<text x="${midX}" y="${segDimY+31}" fill="${dimColor}" font-size="9.5" text-anchor="middle">استراحة</text>` : ''}`;
+        ${seg.type==='landing' ? `<text x="${midX}" y="${segDimY+31}" fill="${dimColor}" font-size="9.5" text-anchor="middle">${it.hrKind==='flat' ? 'مستقيم' : 'استراحة'}</text>` : ''}`;
     });
   }
 
@@ -11278,7 +11118,7 @@ function buildHandrailSVG(it){
 }
 function editHandrailTotal(id){
   const it = items.find(i=>i.id===id); if(!it) return;
-  if(it.hrKind === 'staircase'){
+  if(hrSegMode(it)){
     alert('بالدرج، عدّل طول كل جزء (مائل/استراحة) لحاله من قائمة الأجزاء بالقائمة الجانبية.');
     return;
   }
@@ -13828,36 +13668,6 @@ function room3DResolveSegmentItem(seg){
 // بالضبط يلي طالع، بدل ما يعتمد بس عالانطباع البصري (يلي ممكن ياخد فكرة غلط بسبب منظور الكاميرا -
 // الأشياء الأبعد عن الكاميرا بتبين أصغر بأي مشهد ثلاثي الأبعاد حقيقي، تمامًا متل الصورة الفوتوغرافية،
 // وهاد طبيعي وليس خطأ بالمقاس).
-function makeMMLabelSprite3D(text, scale){
-  const canvas = document.createElement('canvas');
-  const padX = 22;
-  canvas.width = 256; canvas.height = 96;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.font = 'bold 44px monospace';
-  const textW = ctx.measureText(text).width;
-  const boxW = Math.min(canvas.width, textW + padX*2);
-  const boxX = (canvas.width-boxW)/2;
-  ctx.fillStyle = 'rgba(20,20,22,0.82)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(boxX, 18, boxW, 60, 12); else ctx.rect(boxX, 18, boxW, 60);
-  ctx.fill();
-  ctx.fillStyle = '#ffe08a';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, canvas.width/2, 48);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
-  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:true });
-  const sprite = new THREE.Sprite(mat);
-  // ارتفاع أساسي ثابت بالمتر بالعالم الحقيقي - عريضة كفاية تنقرا وقريبة كفاية ما تصير مزعجة. 🆕
-  // 2026-09-25: بيقبل "scale" اختياري (افتراضي 1) لتصغير البطاقة تلقائيًا بالأجزاء القصيرة وتقليل
-  // فرصة تراكبها مع اللي جنبها - شوف مكان الاستدعاء بـbuildRoom3DScene.
-  const worldH = 0.32 * (scale||1);
-  sprite.scale.set(worldH * (canvas.width/canvas.height), worldH, 1);
-  return sprite;
-}
-
 // 🆕 2026-09-26 (طلب/ملاحظة حمدي: "البنود عند النظر للثري دي مقلوبة الخارج داخل...بمكان وضعت الباب
 // عليسار فطلع عليمين، وبمكان تاني عالعكس") - تحققنا رياضيًا (محاكاة كاملة لكل جدار بغرف مختلفة، حتى
 // غرفة L غير محدبة) إنو مطابقة يسار/يمين كل بند مع جداره صحيحة ومتّسقة 100% لكل جدران الغرفة (مافي
@@ -17332,7 +17142,7 @@ function buildHandrailPrintSVG(it, pageItemCount){
   const { availW, availH } = getPrintAvailPx(pageItemCount, true);
   const glassH = Math.max(50, it.hrGlassHeight || 1200);
   const gap = HANDRAIL_GAP_MM;
-  const isStair = it.hrKind === 'staircase';
+  const isStair = hrSegMode(it);
   let panelsMm = buildHandrailPanelsMm(it);
   if(!panelsMm.length || panelsMm.some(p=>!p.w||p.w<=0)) return '';
   const numGaps = panelsMm.slice(0,-1).filter(p=>!p.mergeWithNext).length;
@@ -17367,9 +17177,11 @@ function buildHandrailPrintSVG(it, pageItemCount){
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
     const riseEnd = (isStair && (p.type==='flight' || p.inclined)) ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
-    const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
+    const yT0 = yB0 - drawH*(p.tL==null?1:p.tL), yT1 = yB1 - drawH*(p.tR==null?1:p.tR);
     pieceBottomPts.push([x,yB0], [x+pw,yB1]);
-    pieceTopPts.push([x,yT0], [x+pw,yT1]);
+    pieceTopPts.push([x,yT0]);
+    if(p.tF > 0 && p.tF*hScale < pw - 2){ if(p.tR != null) pieceTopPts.push([x+p.tF*hScale, yT0]); else if(p.tL != null) pieceTopPts.push([x+pw-p.tF*hScale, yT1]); }
+    pieceTopPts.push([x+pw,yT1]);
     if(!p.mergeWithNext){
       const piecePts = pieceBottomPts.concat(pieceTopPts.slice().reverse());
       panelsSvg += `<polygon points="${piecePts.map(pt=>pt.join(',')).join(' ')}" fill="#E4F3FA" stroke="#000000" stroke-width="2"/>`;
@@ -17377,7 +17189,7 @@ function buildHandrailPrintSVG(it, pageItemCount){
     }
     const cx = x+pw/2, cy = (yT0+yT1+yB0+yB1)/4;
     const riseLabel = (p.type==='landing' && p.riseCm > 0) ? (p.inclined ? ` (+${p.riseCm}سم↗ مائلة)` : ` (+${p.riseCm}سم⬆)`) : '';
-    if(pw > 26) panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="11" fill="#2b6f93" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(p.w)}×${Math.round(glassH)}${riseLabel}</text>`;
+    if(pw > 26) panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="11" fill="#2b6f93" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(p.w)}×${Math.round(glassH)}${(p.tL!=null||p.tR!=null) ? ' ◢ '+Math.round(glassH*(p.tL!=null?p.tL:p.tR)) : ''}${riseLabel}</text>`;
     bottomPts.push([x,yB0], [x+pw,yB1]);
     const legExtra = it.hrMount === 'spigot' ? (baseH+8) : baseH;
     allYs.push(yT0, yT1, yB0+legExtra, yB1+legExtra);
@@ -18656,7 +18468,7 @@ function build3DShowerDoorSVG(it){
 function build3DHandrailSVG(it){
   const glassH = Math.max(50, it.hrGlassHeight || 1200);
   const gap = HANDRAIL_GAP_MM;
-  const isStair = it.hrKind === 'staircase';
+  const isStair = hrSegMode(it);
   let panelsMm = buildHandrailPanelsMm(it);
   if(!panelsMm.length || panelsMm.some(p=>!p.w || p.w<=0)) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">أدخل أبعاد صحيحة</div>';
   const numGaps = panelsMm.slice(0,-1).filter(p=>!p.mergeWithNext).length;
@@ -18686,9 +18498,11 @@ function build3DHandrailSVG(it){
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
     const riseEnd = (isStair && (p.type==='flight' || p.inclined)) ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
-    const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
+    const yT0 = yB0 - drawH*(p.tL==null?1:p.tL), yT1 = yB1 - drawH*(p.tR==null?1:p.tR);
     pieceBottomPts.push([x,yB0], [x+pw,yB1]);
-    pieceTopPts.push([x,yT0], [x+pw,yT1]);
+    pieceTopPts.push([x,yT0]);
+    if(p.tF > 0 && p.tF*hScale < pw - 2){ if(p.tR != null) pieceTopPts.push([x+p.tF*hScale, yT0]); else if(p.tL != null) pieceTopPts.push([x+pw-p.tF*hScale, yT1]); }
+    pieceTopPts.push([x+pw,yT1]);
     if(!p.mergeWithNext){
       const piecePts = pieceBottomPts.concat(pieceTopPts.slice().reverse());
       glass += `<polygon points="${piecePts.map(pt=>pt.join(',')).join(' ')}" fill="url(#glass-${gid})" stroke="#14181c" stroke-width="1"/>`;
