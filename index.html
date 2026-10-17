@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-10.6';
+  var CURRENT_VERSION = '2026-10-17.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7361,7 +7361,7 @@ window.wdApplyBack = function(results){
       const PREFERRED = { 'Hinged Door':'Aluminum Door', 'Sliding Door':"Aluminum's Sliding Doors", 'Sliding Window':"Aluminum's Sliding Window", 'Folding Door':'Folding Door EU Profile', 'Frameless Glass Door':'Shower Glass Door' };
       let guess = -1;
       if(PREFERRED[r.classEn]) guess = ITEMS.findIndex(x => x.en === PREFERRED[r.classEn]);
-      if(guess < 0) guess = findBestItemMatch(r.classEn);
+      if(guess < 0 && !/^Mirror/i.test(r.classEn)) guess = findBestItemMatch(r.classEn);
       if(guess >= 0 && /^\(Automatic Motor\)/i.test(ITEMS[guess].en) && !/motor/i.test(r.classEn)) guess = -1;
       if(guess >= 0){
         applyItemChoice(tr, guess);
@@ -7462,6 +7462,9 @@ window.wdApplyBack = function(results){
           <button onclick="addItem('handrail')" style="flex:1;">🛡️ + هاندريل (درابزين) جديد</button>
         </div>
         <div class="add-row" style="margin-top:6px;">
+          <button onclick="addItem('mirror')" style="flex:1;">🪞 + مرآة جديدة</button>
+        </div>
+        <div class="add-row" style="margin-top:6px;">
           <button onclick="addItem('room')" style="flex:1;">🏛️ + غرفة/مجلس جديد</button>
           <button onclick="addItem('gableRoof')" style="flex:1;">🏕️ + سقف جملون متحرك جديد</button>
         </div>
@@ -7493,6 +7496,9 @@ window.wdApplyBack = function(results){
         </div>
         <div class="shape-toggle">
           <button id="btnHandrail" onclick="setShape('handrail')" style="flex:1;">🛡️ هاندريل (درابزين)</button>
+        </div>
+        <div class="shape-toggle">
+          <button id="btnMirror" onclick="setShape('mirror')" style="flex:1;">🪞 مرآة</button>
         </div>
         <div style="margin-top:10px; display:none;" id="showerDoorBlock">
           <p class="hint">باب زجاج كامل بدون فريم ألمنيوم - اختار عدد المفصلات تحت.<br><br>
@@ -7543,6 +7549,64 @@ window.wdApplyBack = function(results){
           </div>
         </div>
 
+        <div style="margin-top:10px; display:none;" id="mirrorBlock">
+          <label>شكل المرآة</label>
+          <select id="mrShape" onchange="onMirrorField('mrShape',this.value)">
+            <option value="rect">مستطيل</option>
+            <option value="rounded">مستطيل بزوايا مدوّرة</option>
+            <option value="oval">بيضاوي</option>
+            <option value="circle">دائرة</option>
+            <option value="arch">قوس (نصف دائرة بالأعلى)</option>
+            <option value="rhombus">معيّن</option>
+            <option value="organic">شكل حر (عضوي)</option>
+            <option value="rhombusGrid">جدار معيّنات متكررة</option>
+          </select>
+          <p class="hint" id="mrCircleWarn" style="display:none;color:#e53935;">الدائرة: ساوِ العرض والارتفاع (بتنرسم بقطر أصغر القيمتين).</p>
+          <div id="mrRoundedWrap" style="display:none;margin-top:6px;">
+            <label>نصف قطر الزوايا (مم)</label>
+            <input type="text" inputmode="decimal" id="mrRadius" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrRadius',this.value)" value="100">
+          </div>
+          <div id="mrOrganicWrap" style="display:none;margin-top:6px;">
+            <label>الشكل الحر</label>
+            <select id="mrOrganic" onchange="onMirrorField('mrOrganic',this.value)">
+              <option value="wave">موجة (طويلة)</option>
+              <option value="pebble">حصوة ناعمة</option>
+              <option value="cloud">سحابة</option>
+            </select>
+            <div class="check-row" style="margin-top:6px;"><input type="checkbox" id="mrFlipX" onchange="onMirrorField('mrFlipX',this.checked)"><label for="mrFlipX">قلب الشكل (مرآة أفقية)</label></div>
+          </div>
+          <div id="mrGridWrap" style="display:none;margin-top:6px;">
+            <div class="row2">
+              <div><label>عرض المعيّن (مم)</label><input type="text" inputmode="decimal" id="mrTileW" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrTileW',this.value)" value="300"></div>
+              <div><label>ارتفاع المعيّن (مم)</label><input type="text" inputmode="decimal" id="mrTileH" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrTileH',this.value)" value="500"></div>
+            </div>
+            <label style="margin-top:6px;">الفاصل بين القطع (مم)</label>
+            <input type="text" inputmode="decimal" id="mrTileGap" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrTileGap',this.value)" value="3">
+            <p class="hint" style="margin-top:5px;">القطع عند أطراف الجدار بتنقص (مقصوصة) وبتنحسب بالعدد.</p>
+          </div>
+          <label style="margin-top:8px;">حافة المرآة</label>
+          <select id="mrEdge" onchange="onMirrorField('mrEdge',this.value)">
+            <option value="polish">حافة مصقولة (عادية)</option>
+            <option value="bevel">حافة مشطوفة (Bevel)</option>
+          </select>
+          <div id="mrBevelWrap" style="display:none;margin-top:6px;">
+            <label>عرض الشطف (مم)</label>
+            <input type="text" inputmode="decimal" id="mrBevel" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrBevel',this.value)" value="20">
+          </div>
+          <div class="row2" style="margin-top:8px;">
+            <div><label>سماكة المرآة</label>
+              <select id="mrThick" onchange="onMirrorField('mrThick',this.value)"><option value="3">3 مم</option><option value="4">4 مم</option><option value="5">5 مم</option><option value="6">6 مم</option><option value="8">8 مم</option></select></div>
+            <div><label>لون الزجاج</label>
+              <select id="mrTint" onchange="onMirrorField('mrTint',this.value)"><option value="clear">شفاف (عادي)</option><option value="bronze">برونزي</option><option value="grey">رمادي</option></select></div>
+          </div>
+          <div class="check-row" style="margin-top:8px;"><input type="checkbox" id="mrLed" onchange="onMirrorField('mrLed',this.checked)"><label for="mrLed">💡 إضاءة LED خلفية حول المرآة</label></div>
+          <div id="mrLedWrap" style="display:none;margin-top:4px;">
+            <label>لون الإضاءة</label>
+            <select id="mrLedColor" onchange="onMirrorField('mrLedColor',this.value)"><option value="warm">دافئ</option><option value="neutral">محايد</option><option value="cool">بارد</option></select>
+          </div>
+          <div id="mrStats" class="hint" style="margin-top:10px;line-height:1.8;"></div>
+          <p class="hint" style="margin-top:6px;">العرض والارتفاع من الخانات العادية فوق. سعر الشطف والـLED بيتحسب من الأطوال المعروضة هون (بتضيفهم كبنود مستقلة بعرض السعر إذا بدك).</p>
+        </div>
         <div style="margin-top:10px; display:none;" id="handrailBlock">
           <label>نوع الهاندريل</label>
           <div class="shape-toggle">
@@ -7576,20 +7640,6 @@ window.wdApplyBack = function(results){
                 <label>عدد الألواح</label>
                 <input type="number" id="inHrCount" min="1" step="1" oninput="onHandrailCountChange()" value="4">
               </div>
-            </div>
-          </div>
-          <div id="hrFlatTaperWrap" style="display:none;margin-top:8px;">
-            <label>نهاية مثلثة (لما الجدار مائل)</label>
-            <div class="shape-toggle">
-              <button id="btnHrTaperNone" onclick="onHrTaperChange('')" class="active">بدون</button>
-              <button id="btnHrTaperEnd" onclick="onHrTaperChange('end')">بالنهاية</button>
-              <button id="btnHrTaperStart" onclick="onHrTaperChange('start')">بالبداية</button>
-            </div>
-            <div id="hrTaperHBox" style="display:none;margin-top:6px;">
-              <label>ارتفاع الطرف المائل (مم) - 0 = مثلث كامل</label>
-              <input type="text" inputmode="decimal" id="inHrTaperH" oninput="restrictMeasureChars(this);onHrTaperHChange()" onblur="evalMeasureField(this);onHrTaperHChange()" value="0">
-              <label style="margin-top:6px;">طول الجزء المستقيم (العلوي) قبل بداية الميلان (مم) - 0 = ميلان على كامل اللوح</label>
-              <input type="text" inputmode="decimal" id="inHrTaperFlat" oninput="restrictMeasureChars(this);onHrTaperHChange()" onblur="evalMeasureField(this);onHrTaperHChange()" value="0">
             </div>
           </div>
           <div id="hrFlatAddInclineWrap" style="display:none;margin-top:6px;">
@@ -8579,8 +8629,8 @@ function buildPurchSummaries(){
       try{
         if(!it || it.isCameraTemp || isRoom(it) || isGableRoof(it)) return;
         if(it.isRoomWallElevation && !it.sourceRowUid) return; // بند "منظور حائط" يتيم (بدون صف بجدول الكميات) - مو بند مشتريات حقيقي
-        const handrail = isHandrail(it);
-        const ll = handrail ? [] : purchLeafList(it);
+        const handrail = isHandrail(it) || isMirror(it);
+        const ll = isMirror(it) ? [{ type:'plain', w:it.width, h:it.height }] : (handrail ? [] : purchLeafList(it));
         out[it.id] = {
           type: it.shapeType,
           qty: getPurchItemQty(it),
@@ -8997,7 +9047,7 @@ function getPrintAvailPx(pageItemCount, forceFullFill){
   return { availW: Math.max(150, cellW), availH: Math.max(120, cellH) };
 }
 
-const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل', room:'غرفة/مجلس', gableRoof:'سقف جملون متحرك' };
+const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل', mirror:'مرآة', room:'غرفة/مجلس', gableRoof:'سقف جملون متحرك' };
 const HANDRAIL_GAP_MM = 5;
 // مواقع أزواج مسامير Stand Off أفقيًا داخل عرض اللوح - كل زوج بيصير عنده مسمارين (فوق وتحت) - قابل للتوسيع لأكتر من زوجين للألواح الكبيرة
 function getStandoffPairPositions(pairs){
@@ -9357,14 +9407,12 @@ function renderHandrailSegmentsUI(it){
       <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">سم</span>
       <button class="small${seg.inclined?' active':''}" style="font-size:10.5px;${seg.inclined?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentIncline(${it.id},'${seg.id}')" title="بالوضعين، فرق الارتفاع بيصير قفزة كاملة قبل الاستراحة (هي نفسها بترتفع عن الأرض بشكل كامل، مو نص وطرف). الفرق بينهم بس شكل القطعة: مستوية = مسطحة، مائلة = شكلها ميلان متل الدرج بالزبط">${seg.inclined ? '🔀 مائلة' : '▬ مستوية'}</button>
     </div>` : '';
-    const taperRow = (seg.type === 'landing' && !seg.inclined) ? `
+    // 🆕 2026-10-10 (طلب حمدي): خيار "مثلث فقط" للجزء المائل - الزجاج بس فوق القطر (الأرض تحته إسمنت/جدار مرتفع)
+    const triRow = (seg.type === 'flight' || seg.inclined) ? `
     <div style="display:flex;gap:6px;align-items:center;margin:-2px 0 6px;padding:0 6px 6px 6px;flex-wrap:wrap;">
-      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);min-width:64px;">◢ نهاية مثلثة</span>
-      <select style="font-size:11px;" onchange="onHrSegTaper(${it.id},'${seg.id}',this.value)">
-        <option value=""${!seg.taper?' selected':''}>بدون</option><option value="end"${seg.taper==='end'?' selected':''}>بنهاية الجزء</option><option value="start"${seg.taper==='start'?' selected':''}>ببداية الجزء</option>
-      </select>
-      ${seg.taper ? `<input type="text" inputmode="decimal" style="width:64px;" value="${Math.round(seg.taperH||0)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegTaperH(${it.id},'${seg.id}',this.value)" title="ارتفاع الطرف المائل (مم) - 0 = مثلث كامل"><span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم عند الطرف</span>
-      <input type="text" inputmode="decimal" style="width:64px;" value="${Math.round(seg.taperFlat||0)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegTaperFlat(${it.id},'${seg.id}',this.value)" title="طول الجزء المستقيم العلوي قبل الميلان (مم) - 0 = ميلان على كامل اللوح"><span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم مستقيم قبل الميلان</span>` : ''}
+      <span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);min-width:64px;">◥ شكل الزجاج</span>
+      <button class="small${seg.tri?' active':''}" style="font-size:10.5px;${seg.tri?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentTri(${it.id},'${seg.id}')" title="مثلث: الزجاج فوق القطر فقط (الضلع العمودي + الحافة العلوية المائلة + القطر) والجزء تحت القطر ما بينعمل لأنو تحته إسمنت">${seg.tri ? '◥ مثلث (فوق القطر فقط)' : '▱ متوازي كامل'}</button>
+      ${seg.tri ? `<span style="font-size:11px;color:#e53935;">قطر</span><input type="text" inputmode="decimal" style="width:76px;" value="${seg.triDiag>0?Math.round(seg.triDiag):''}" placeholder="${Math.round(hrTriAutoDiag(it,seg))}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegTriDiag(${it.id},'${seg.id}',this.value)" title="قياس القطر الأحمر (مم). اتركه فاضي = يتحسب تلقائي. إذا كتبت رقم، بيظهر هالرقم بالرسمة والطباعة بدل المحسوب"><span style="font-size:11px;color:var(--wd-ink-dim,#6b7280);">مم</span>` : ''}
     </div>` : '';
     // 🆕 2026-09-23: زر "دمج مع القطعة التالية" - بيظهر بس بين كل جزئين متتاليين (مش بعد آخر جزء
     // بالقائمة، لأنو ما في "قطعة تالية" إلها). لما يكون مفعّل (🔗 مدموج) بيصير الجزءان لوح زجاج
@@ -9373,29 +9421,28 @@ function renderHandrailSegmentsUI(it){
     <div style="display:flex;justify-content:center;margin:-2px 0 6px;">
       <button class="small${seg.mergedWithNext?' active':''}" style="font-size:10.5px;${seg.mergedWithNext?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentMerge(${it.id},'${seg.id}')" title="ادمج هالقطعة مع اللي بعدها كلوح زجاج واحد متواصل بدون فاصل">${seg.mergedWithNext ? '🔗 مدموجة مع اللي بعدها (بدون فاصل)' : '⛓️‍💥 دمج مع القطعة التالية'}</button>
     </div>` : '';
-    return row + riseRow + taperRow + mergeRow;
+    return row + riseRow + triRow + mergeRow;
   }).join('');
 }
-function onHrSegTaper(itemId, segId, v){
+function toggleHandrailSegmentTri(itemId, segId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const seg = ensureHandrailSegments(it).find(s=>s.id===segId); if(!seg) return;
-  pushHistory(); seg.taper = v || ''; if(seg.taperH==null) seg.taperH = 0;
+  pushHistory(); seg.tri = !seg.tri;
   renderHandrailSegmentsUI(it); renderGallery();
 }
-function onHrSegTaperH(itemId, segId, v){
+function hrTriAutoDiag(it, seg){
+  const w = Math.max(1, (seg.panelCount||1) * hrSegPanelWidth(seg)), g = Math.max(50, it.hrGlassHeight || 1200);
+  const rs = Math.tan(28*Math.PI/180);
+  return Math.sqrt(w*w + (w*rs+g)*(w*rs+g));
+}
+function onHrSegTriDiag(itemId, segId, v){
   const it = items.find(i=>i.id===itemId); if(!it) return;
   const seg = ensureHandrailSegments(it).find(s=>s.id===segId); if(!seg) return;
-  pushHistory(); seg.taperH = Math.max(0, Math.min(it.hrGlassHeight||1200, parseFloat(v)||0));
-  renderGallery();
+  pushHistory(); const n = parseFloat(v); seg.triDiag = (n>0) ? n : 0;
+  renderHandrailSegmentsUI(it); renderGallery();
 }
-function onHrSegTaperFlat(itemId, segId, v){
-  const it = items.find(i=>i.id===itemId); if(!it) return;
-  const seg = ensureHandrailSegments(it).find(s=>s.id===segId); if(!seg) return;
-  pushHistory(); seg.taperFlat = Math.max(0, parseFloat(v)||0);
-  renderGallery();
-}
-window.onHrSegTaperFlat = onHrSegTaperFlat;
-window.onHrSegTaper = onHrSegTaper; window.onHrSegTaperH = onHrSegTaperH;
+window.onHrSegTriDiag = onHrSegTriDiag;
+window.toggleHandrailSegmentTri = toggleHandrailSegmentTri;
 window.addHandrailSegment = addHandrailSegment;
 window.removeHandrailSegment = removeHandrailSegment;
 window.onHrSegField = onHrSegField;
@@ -9416,6 +9463,8 @@ function makeItem(type){
     layout = makeSplit('row', eqParts(4).map(p=>({frac:p.frac, node:leaf('fold')}))); // folding doors: several equal folding leaves
   } else if(isDoorish){
     layout = leaf(isShower ? 'shwr_lv' : 'plain');
+  } else if(type === 'mirror'){
+    layout = leaf('plain');
   } else {
     layout = makeSplit('col', [{frac:70,node:leaf()},{frac:30,node:leaf()}]);
   }
@@ -9423,8 +9472,8 @@ function makeItem(type){
     id: nextId++,
     label: label + ' ' + (items.filter(i=>i.shapeType===type).length + 1),
     shapeType: type,
-    width: isFolding ? 3000 : (isSliding ? 1800 : (isShower ? 800 : (isDoorish ? 900 : 1200))),
-    height: isDoorish ? 2200 : 1400,
+    width: type==='mirror' ? 700 : (isFolding ? 3000 : (isSliding ? 1800 : (isShower ? 800 : (isDoorish ? 900 : 1200)))),
+    height: type==='mirror' ? 1700 : (isDoorish ? 2200 : 1400),
     showerHingeSide: 'left',
     showerHandleType: 'vertical_both',
     showerHingeCount: 3,
@@ -9462,6 +9511,7 @@ function makeItem(type){
     hrGlassHeight: 1200,
     layout
   };
+  if(type === 'mirror') mirrorEnsure(it);
   // 🆕 2026-09-24: طلب حمدي - "غرفة/مجلس" (مخطط أرضية بعدة أضلاع، طول+زاوية داخلية لكل ضلع). هاد
   // البند تنظيمي فقط (ما إله عرض/ارتفاع/سعر لحاله وما بيدخل جدول عرض السعر) - كل ضلع فيه لما ينصمم
   // ("🎨 صمم") بيصير بند تصميم عادي مستقل (نافذة/باب/هاندريل) بسطره الخاص بجدول عرض السعر.
@@ -9627,6 +9677,11 @@ function setShape(type){
   if(type === 'handrail'){
     syncHandrailDims(it);
   }
+  if(type === 'mirror'){
+    mirrorEnsure(it);
+    if(!it.layout || it.layout.kind !== 'leaf') it.layout = leaf('plain');
+    it.archTop = false;
+  }
   loadSelectedIntoControls();
   renderGallery();
 }
@@ -9643,26 +9698,9 @@ function hrApplyModeUI(it){
   document.getElementById('hrStairInputs').style.display = seg ? 'block' : 'none';
   const addInc = document.getElementById('hrFlatAddInclineWrap'); if(addInc) addInc.style.display = (flat && !seg) ? 'block' : 'none';
   const back = document.getElementById('hrFlatBackWrap'); if(back) back.style.display = (flat && seg) ? 'block' : 'none';
-  const tw = document.getElementById('hrFlatTaperWrap'); if(tw){ tw.style.display = (flat && !seg) ? 'block' : 'none';
-    const t = it.hrTaper||''; document.getElementById('btnHrTaperNone').classList.toggle('active', !t); document.getElementById('btnHrTaperEnd').classList.toggle('active', t==='end'); document.getElementById('btnHrTaperStart').classList.toggle('active', t==='start');
-    document.getElementById('hrTaperHBox').style.display = t ? 'block' : 'none'; document.getElementById('inHrTaperH').value = it.hrTaperH||0; document.getElementById('inHrTaperFlat').value = it.hrTaperFlat||0; }
   const ttl = document.getElementById('hrSegTitle'); if(ttl) ttl.textContent = flat ? 'أجزاء الهاندريل (مستقيم / مائل)' : 'أجزاء الدرج (مائل / استراحة)';
 }
 // تفعيل الأجزاء للهاندريل المسطح: الجزء المستقيم الحالي بيصير "استراحة" (مسطحة) + بنضيف جزء مائل
-function onHrTaperChange(v){
-  const it = getSelected(); if(!it || !isHandrail(it)) return;
-  pushHistory();
-  it.hrTaper = v || ''; if(it.hrTaperH==null) it.hrTaperH = 0;
-  hrApplyModeUI(it); renderGallery();
-}
-function onHrTaperHChange(){
-  const it = getSelected(); if(!it || !isHandrail(it)) return;
-  pushHistory();
-  it.hrTaperH = Math.max(0, Math.min(it.hrGlassHeight||1200, parseFloat(document.getElementById('inHrTaperH').value)||0));
-  it.hrTaperFlat = Math.max(0, parseFloat(document.getElementById('inHrTaperFlat').value)||0);
-  renderGallery();
-}
-window.onHrTaperChange = onHrTaperChange; window.onHrTaperHChange = onHrTaperHChange;
 function enableHandrailFlatSegments(){
   const it = getSelected(); if(!it || !isHandrail(it) || it.hrKind !== 'flat') return;
   pushHistory(true);
@@ -9869,6 +9907,7 @@ function onDimsChange(){
   if(isFinite(_w) && _w > 0) it.width = _w;
   if(isFinite(_h) && _h > 0) it.height = _h;
   it.archHeight = parseFloat(document.getElementById('inArchHeight').value) || 0;
+  if(isMirror(it)) mirrorApplyVisibility(it);
   scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 
@@ -9909,7 +9948,7 @@ function renderThicknessOptions(it){
   const slideBlock = document.getElementById('slidingThicknessBlock');
   const showerBlock = document.getElementById('showerDoorBlock');
   const slidingLeafBlock = document.getElementById('slidingDoorLeafBlock');
-  if(isHandrail(it)){
+  if(isHandrail(it) || isMirror(it)){
     hingeBlock.style.display = 'none';
     slideBlock.style.display = 'none';
     showerBlock.style.display = 'none';
@@ -9952,11 +9991,11 @@ function loadSelectedIntoControls(){
   const it = getSelected();
   const disabled = !it;
   try{ renderFanList(it); }catch(e){}
-  ['inWidth','inHeight','inProfileThickness','inFrameThickness','inLeafThickness','inArch','inArchHeight','btnWindow','btnDoor','btnSlidingWindow','btnSlidingDoor','btnFoldingDoor','btnShowerDoor','btnHandrail'].forEach(id=>{
+  ['inWidth','inHeight','inProfileThickness','inFrameThickness','inLeafThickness','inArch','inArchHeight','btnWindow','btnDoor','btnSlidingWindow','btnSlidingDoor','btnFoldingDoor','btnShowerDoor','btnHandrail','btnMirror'].forEach(id=>{
     document.getElementById(id).disabled = disabled;
   });
   renderTemplateSections();
-  if(!it){ ['gableRoofBlock','roomBlock','handrailBlock'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }); return; }
+  if(!it){ ['gableRoofBlock','roomBlock','handrailBlock','mirrorBlock'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }); return; }
 
   // 🆕 2026-09-24: "غرفة/مجلس" - لوحة تحكم مختلفة كليًا (أضلاع + زوايا)، منعزلة عن باقي أنواع البنود
   const room = isRoom(it);
@@ -9964,6 +10003,7 @@ function loadSelectedIntoControls(){
   document.getElementById('roomBlock').style.display = room ? 'block' : 'none';
   if(room){
     document.getElementById('handrailBlock').style.display = 'none';
+    document.getElementById('mirrorBlock').style.display = 'none';
     document.getElementById('normalDimsRow').style.display = 'none';
     document.getElementById('inArch').closest('.check-row').style.display = 'none';
     document.getElementById('inRoomHeight').value = it.roomHeight || 2500;
@@ -9979,6 +10019,7 @@ function loadSelectedIntoControls(){
   document.getElementById('gableRoofBlock').style.display = gable ? 'block' : 'none';
   if(gable){
     document.getElementById('handrailBlock').style.display = 'none';
+    document.getElementById('mirrorBlock').style.display = 'none';
     document.getElementById('normalDimsRow').style.display = 'none';
     document.getElementById('inArch').closest('.check-row').style.display = 'none';
     renderGableRoofControlsUI(it);
@@ -9987,9 +10028,12 @@ function loadSelectedIntoControls(){
 
   const hr = isHandrail(it);
   const isShower = isShowerDoor(it);
+  const isMir = isMirror(it);
+  document.getElementById('mirrorBlock').style.display = isMir ? 'block' : 'none';
+  if(isMir) mirrorLoadControls(it);
   document.getElementById('handrailBlock').style.display = hr ? 'block' : 'none';
   document.getElementById('normalDimsRow').style.display = hr ? 'none' : 'grid';
-  document.getElementById('inArch').closest('.check-row').style.display = (hr || isShower) ? 'none' : 'flex';
+  document.getElementById('inArch').closest('.check-row').style.display = (hr || isShower || isMir) ? 'none' : 'flex';
   if(hr){
     document.getElementById('btnHrKindStair').classList.toggle('active', it.hrKind==='staircase');
     document.getElementById('btnHrKindFlat').classList.toggle('active', it.hrKind==='flat');
@@ -10028,7 +10072,7 @@ function loadSelectedIntoControls(){
   renderThicknessOptions(it);
   document.getElementById('inArch').checked = it.archTop;
   document.getElementById('inArchHeight').value = it.archHeight;
-  document.getElementById('archHeightWrap').style.display = (!hr && !isShower && it.archTop) ? 'block' : 'none';
+  document.getElementById('archHeightWrap').style.display = (!hr && !isShower && !isMir && it.archTop) ? 'block' : 'none';
   document.getElementById('btnWindow').classList.toggle('active', it.shapeType==='window');
   document.getElementById('btnDoor').classList.toggle('active', it.shapeType==='door');
   document.getElementById('btnSlidingWindow').classList.toggle('active', it.shapeType==='slidingWindow');
@@ -10036,6 +10080,7 @@ function loadSelectedIntoControls(){
   document.getElementById('btnFoldingDoor').classList.toggle('active', it.shapeType==='foldingDoor');
   document.getElementById('btnShowerDoor').classList.toggle('active', it.shapeType==='showerGlassDoor');
   document.getElementById('btnHandrail').classList.toggle('active', it.shapeType==='handrail');
+  document.getElementById('btnMirror').classList.toggle('active', it.shapeType==='mirror');
 }
 
 /* ---------- SPLIT / MERGE / CYCLE ---------- */
@@ -10261,7 +10306,7 @@ function getCycleForLeaf(it, leafId){
 
 function toggleFrostedOverlay(itemId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
-  if(isHandrail(it)) return; // التضبيب مو خيار متاح للهاندريل نهائيًا
+  if(isHandrail(it) || isMirror(it)) return; // التضبيب مو خيار متاح للهاندريل/المرآة نهائيًا
   pushHistory();
   it.frostedOverlay = !it.frostedOverlay;
   renderGallery();
@@ -10834,6 +10879,7 @@ function classifyItem(it){
   if(it.shapeType === 'slidingWindow') return { en:'Sliding Window', ar:'شباك سحّاب' };
   if(it.shapeType === 'door') return { en:'Hinged Door', ar:'باب مفصلي' };
   if(it.shapeType === 'showerGlassDoor') return { en:'Frameless Glass Door', ar:'باب زجاج بدون إطار' };
+  if(it.shapeType === 'mirror') return { en: mirrorTitleEn(it), ar: mirrorTitleAr(it) };
   if(it.shapeType === 'handrail'){
     const kindEn = it.hrKind === 'staircase' ? 'Staircase' : 'Flat Surface';
     const kindAr = it.hrKind === 'staircase' ? 'درج' : 'مسطح';
@@ -10930,11 +10976,6 @@ function showerDoorHardwareSVG(it, drawW, drawH, handleColor){
 // buildHandrailSVG وbuildHandrailPrintSVG - بتبني قائمة الألواح المسطّحة، وكل لوح معه mergeWithNext
 // (صحيح لو آخر لوح بقطعة معلّمة "مدموجة" وفي قطعة بعدها - يعني ما في فاصل ولا خط تقسيم بينه وبين
 // أول لوح بالقطعة التالية).
-function hrTaperRatio(it, h){
-  const g = Math.max(50, it.hrGlassHeight || 1200);
-  const v = Math.max(0, Math.min(g, parseFloat(h)||0));
-  return v / g;
-}
 function buildHandrailPanelsMm(it){
   const isStair = hrSegMode(it);
   let panelsMm = [];
@@ -10955,10 +10996,8 @@ function buildHandrailPanelsMm(it){
         const isLastPanelOfSeg = (i === n-1);
         const jumpMm = (i === 0 && riseCm > 0) ? riseCm*10 : 0;
         const pm = { w: pw, type: seg.type, segId: seg.id, riseCm, jumpMm, inclined, mergeWithNext: (isLastPanelOfSeg && !isLastSeg) ? !!seg.mergedWithNext : false };
-        if(seg.type === 'landing' && !inclined && seg.taper){
-          if(seg.taper === 'end' && isLastPanelOfSeg){ pm.tR = hrTaperRatio(it, seg.taperH); pm.tF = Math.max(0, seg.taperFlat||0); }
-          if(seg.taper === 'start' && i === 0){ pm.tL = hrTaperRatio(it, seg.taperH); pm.tF = Math.max(0, seg.taperFlat||0); }
-        }
+        // 🆕 2026-10-10: "مثلث فقط" - الزجاج فوق القطر بس. s0/s1 = نسبة بداية/نهاية اللوح من عرض الجزء (بدون الفواصل)
+        if((seg.type === 'flight' || inclined) && seg.tri){ pm.tri = true; pm.triS0 = (i*pw)/(n*pw); pm.triS1 = ((i+1)*pw)/(n*pw); pm.triTotW = n*pw; pm.triDiag = Math.max(0, seg.triDiag||0); }
         panelsMm.push(pm);
       }
     });
@@ -10966,9 +11005,6 @@ function buildHandrailPanelsMm(it){
     const n = Math.max(1, it.hrPanelCount || 1);
     const pw = getHandrailPanelWidth(it);
     for(let i=0;i<n;i++) panelsMm.push({ w: pw, type:'flat', mergeWithNext:false });
-    // 🆕 2026-10-10 (طلب حمدي): نهاية مثلثة (الجدار مائل) - آخر/أول لوح سطحه العلوي ينزل لارتفاع الطرف (0 = مثلث كامل)
-    if(it.hrTaper === 'end' && panelsMm.length){ const q=panelsMm[panelsMm.length-1]; q.tR = hrTaperRatio(it, it.hrTaperH); q.tF = Math.max(0, it.hrTaperFlat||0); }
-    if(it.hrTaper === 'start' && panelsMm.length){ const q=panelsMm[0]; q.tL = hrTaperRatio(it, it.hrTaperH); q.tF = Math.max(0, it.hrTaperFlat||0); }
   }
   return panelsMm;
 }
@@ -11009,6 +11045,7 @@ function buildHandrailSVG(it){
   const allYs = [0];
   // تجميع نقاط "القطعة" الواحدة (لوح أو أكثر مدموجين) لرسم مضلع واحد متواصل بدون فاصل بينهم
   let pieceBottomPts = [], pieceTopPts = [], pieceHasNonLanding = false;
+  const triCtx = {};
   // 🆕 2026-09-23: طلب حمدي - قياس طول كل "جزء" (مائل/استراحة) لحاله أسفل التصميم، بالرقم يلي هو
   // بالضبط سجّله (seg.totalLength) - مستقل تمامًا عن دمج القطع البصري (مساحة المضلع)، حتى لو جزءين
   // مدموجين بصريًا بمضلع واحد (بدون خط فاصل) بيضلوا كل واحد فيهم إله سطر قياس طول لحاله تحت الرسمة
@@ -11021,14 +11058,19 @@ function buildHandrailSVG(it){
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
     const riseEnd = (isStair && (p.type==='flight' || p.inclined)) ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
-    const yT0 = yB0 - drawH*(p.tL==null?1:p.tL), yT1 = yB1 - drawH*(p.tR==null?1:p.tR);
+    const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
+    // "مثلث فقط": حدّ الزجاج السفلي = القطر (من أسفل بداية الجزء لأعلى نهايته) بدل الأرض
+    let yD0 = yB0, yD1 = yB1;
+    if(p.tri){
+      if(!triCtx[p.segId] || p.triS0 === 0) triCtx[p.segId] = { xs:x, ys:yB0, ye: -(baseline + p.triTotW*hScale*rakeSlope) - drawH, w:p.triTotW };
+      const tc = triCtx[p.segId]; yD0 = tc.ys + (tc.ye-tc.ys)*p.triS0; yD1 = tc.ys + (tc.ye-tc.ys)*p.triS1;
+    }
     if(isStair){
       if(!segRanges[p.segId]) segRanges[p.segId] = { start:x, end:x+pw };
       else segRanges[p.segId].end = x+pw;
     }
-    pieceBottomPts.push([x,yB0], [x+pw,yB1]);
+    pieceBottomPts.push([x,yD0], [x+pw,yD1]);
     pieceTopPts.push([x,yT0]);
-    if(p.tF > 0 && p.tF*hScale < pw - 2){ if(p.tR != null) pieceTopPts.push([x+p.tF*hScale, yT0]); else if(p.tL != null) pieceTopPts.push([x+pw-p.tF*hScale, yT1]); }
     pieceTopPts.push([x+pw,yT1]);
     if(p.type !== 'landing' || p.inclined) pieceHasNonLanding = true;
     if(!p.mergeWithNext){
@@ -11043,7 +11085,25 @@ function buildHandrailSVG(it){
     // (p.inclined) هلق بتاخد بالضبط نفس معاملة اللوح المائل (خط القطر الأحمر + قياس الحافة العلوي) -
     // مو بس صندوق مقاس بسيط بالنص. الاستراحة المستوية (غير مائلة) بتضل عالصندوق البسيط تحت (مافي
     // قطر أصلاً لأنها مسطحة 100%، ما إلها معنى هندسي).
-    if(p.type==='flight' || p.inclined){
+    if(p.tri){
+      // مثلث فقط: خط القطر الأحمر يمثّل حدّ الزجاج السفلي (تحته إسمنت). القياس الكلي للقطر مرة وحدة بآخر لوح بالجزء
+      const tc = triCtx[p.segId];
+      const eAng = Math.atan2(yT1-yT0, pw)*180/Math.PI;
+      const edgeRiseSuffix2 = (p.type==='landing' && p.riseCm > 0) ? ` (+${p.riseCm}سم)` : '';
+      diagonalSvg += `<line x1="${x}" y1="${yD0}" x2="${x+pw}" y2="${yD1}" stroke="#e53935" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+        <g transform="translate(${x+pw/2},${(yT0+yT1)/2}) rotate(${eAng})"><text x="0" y="-8" font-size="11" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.w)} mm${edgeRiseSuffix2}</text></g>`;
+      if(p.triS1 >= 0.9999){
+        const dAng = Math.atan2(yD1-tc.ys, (x+pw)-tc.xs)*180/Math.PI;
+        const dLen = Math.sqrt(tc.w*tc.w + (tc.w*rakeSlope+glassH)*(tc.w*rakeSlope+glassH));
+        diagonalSvg += `<g transform="translate(${(tc.xs+x+pw)/2},${(tc.ys+yD1)/2}) rotate(${dAng})"><rect x="-30" y="-19" width="60" height="14" fill="var(--wd-bg-deep, #0b1220)" opacity="0.85" rx="3"/><text x="0" y="-8" font-size="11" font-weight="700" fill="#ff6659" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.triDiag>0 ? p.triDiag : dLen)} mm</text></g>`;
+      }
+      if(pw > 26){
+        const tcx = x+pw/2, tcy = (yT0+yT1+yD0+yD1)/4;
+        const tLbl = `${Math.round(p.w)}×${Math.round(glassH*(1-p.triS0))}${p.triS1<0.9999 ? '→'+Math.round(glassH*(1-p.triS1)) : ' ◥'}`;
+        const tBw = Math.max(56, tLbl.length*6.4 + 16);
+        panelLabelsSvg += `<rect x="${tcx-tBw/2}" y="${tcy-11}" width="${tBw}" height="18" rx="4" fill="var(--wd-bg-deep, #0b1220)" opacity="0.88"/><text x="${tcx}" y="${tcy+3}" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="var(--wd-font-mono)" style="pointer-events:none;">${tLbl}</text>`;
+      }
+    } else if(p.type==='flight' || p.inclined){
       const riseMm = p.w*rakeSlope;
       const diagMm = Math.sqrt(p.w*p.w + (riseMm+glassH)*(riseMm+glassH)); // طول القطر (الخط الأحمر) من زاوية لزاوية مقابلة
       const topDx = pw, topDy = (yT1-yT0);
@@ -11071,8 +11131,7 @@ function buildHandrailSVG(it){
       // المائل فوق (الخط الأحمر)، حتى يبين بوضوح تمامًا متل باقي قياسات الدرج.
       const cx = x+pw/2, cy = (yT0+yT1+yB0+yB1)/4;
       const riseLabel = (p.type==='landing' && p.riseCm > 0) ? (p.inclined ? ` (+${p.riseCm}سم↗ مائلة)` : ` (+${p.riseCm}سم⬆)`) : '';
-      const taperLbl = (p.tL!=null||p.tR!=null) ? ` ◢ ${Math.round(glassH*(p.tL!=null?p.tL:p.tR))}` : '';
-      const flatLabelText = `${Math.round(p.w)}×${Math.round(glassH)}${taperLbl}${riseLabel}`;
+      const flatLabelText = `${Math.round(p.w)}×${Math.round(glassH)}${riseLabel}`;
       const flatBadgeW = Math.max(56, flatLabelText.length*6.4 + 16);
       panelLabelsSvg += `<rect x="${cx-flatBadgeW/2}" y="${cy-11}" width="${flatBadgeW}" height="18" rx="4" fill="var(--wd-bg-deep, #0b1220)" opacity="0.88"/>
       <text x="${cx}" y="${cy+3}" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="var(--wd-font-mono)" style="pointer-events:none;">${flatLabelText}</text>`;
@@ -11084,7 +11143,7 @@ function buildHandrailSVG(it){
       // أرجل Spigot اسطوانية الشكل وتحتها قاعدة دائرية (مو مربعات) - متل صور المرجع
       const postH = baseH + 8, postW = 8, baseRx = 10, baseRy = 4.5;
       [0.15, 0.85].forEach(f=>{
-        const lx = x + pw*f, ly = yB0 + (yB1-yB0)*f;
+        const lx = x + pw*f, ly = yD0 + (yD1-yD0)*f;
         legsSvg += `<ellipse cx="${lx}" cy="${ly+postH}" rx="${baseRx}" ry="${baseRy}" fill="#9aa0a6" stroke="#4a4e52" stroke-width="1"/>
           <rect x="${lx-postW/2}" y="${ly}" width="${postW}" height="${postH}" rx="${postW/2.2}" fill="#8b9096" stroke="#4a4e52" stroke-width="1"/>
           <rect x="${lx-3}" y="${ly-2}" width="6" height="6" fill="#5a5f63"/>`;
@@ -11092,10 +11151,11 @@ function buildHandrailSVG(it){
     }
     if(it.hrMount === 'standoff'){
       // 4 مسامير Stand Off لكل لوح زجاج (صفين × عمودين) قرب الطرف السفلي - متل صور المرجع
-      const bottomAtX = f => yB0 + (yB1-yB0)*f;
+      const bottomAtX = f => yD0 + (yD1-yD0)*f;
       const topAtX = f => yT0 + (yT1-yT0)*f;
       getStandoffPairPositions(it.hrStandoffPairs).forEach(hf=>{
         const lx = x + pw*hf;
+        if(p.tri && (bottomAtX(hf) - topAtX(hf)) < 220*hScale) return; // مثلث: ما في مسامير عند الرأس الضيق
         [0.18, 0.35].forEach(vf=>{
           const ly = bottomAtX(hf) + (topAtX(hf) - bottomAtX(hf))*vf;
           legsSvg += `<circle cx="${lx}" cy="${ly}" r="3" fill="#2b2f33" stroke="#111" stroke-width="0.4"/><circle cx="${lx-0.8}" cy="${ly-0.8}" r="1.05" fill="#8a9096" opacity="0.85"/>`;
@@ -11198,6 +11258,379 @@ function editHandrailTotal(id){
   renderGallery();
 }
 window.editHandrailTotal = editHandrailTotal;
+
+/* ---------- MIRROR (مرآة) ---------- */
+// 🆕 2026-10-17 (طلب حمدي): تصميم مرايا بالمصمم - أشكال (مستطيل/مدوّر الزوايا/بيضاوي/دائرة/قوس/معيّن/شكل حر عضوي)
+// + جدار مرايا معيّنات متكررة (مقاس القطعة والفاصل) + حواف مشطوفة (Bevel) بعرض يحدده المستخدم + إضاءة LED خلفية.
+// كل الأشكال بتتحوّل لمضلع (قائمة نقاط بالمليمتر) - هيك المساحة والمحيط (طول الشطف/الـLED) بيتحسبوا بنفس الطريقة لكل الأشكال.
+const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBevel','mrLed','mrLedColor','mrThick','mrTint','mrTileW','mrTileH','mrTileGap'];
+const MIRROR_SHAPES = { rect:'مستطيل', rounded:'مستطيل بزوايا مدوّرة', oval:'بيضاوي', circle:'دائرة', arch:'قوس (نصف دائرة بالأعلى)', rhombus:'معيّن', organic:'شكل حر (عضوي)', rhombusGrid:'جدار معيّنات متكررة' };
+const MIRROR_ORGANIC = {
+  wave:   [[0.55,0],[0.85,0.06],[0.97,0.2],[0.9,0.38],[0.8,0.5],[0.88,0.65],[0.95,0.82],[0.75,0.97],[0.45,1],[0.2,0.93],[0.1,0.78],[0.18,0.6],[0.25,0.48],[0.12,0.33],[0.05,0.15],[0.25,0.03]],
+  pebble: [[0.5,0],[0.85,0.08],[1,0.4],[0.9,0.75],[0.6,1],[0.25,0.92],[0,0.6],[0.08,0.25],[0.28,0.05]],
+  cloud:  [[0.2,0.1],[0.5,0],[0.8,0.1],[1,0.35],[0.85,0.55],[1,0.8],[0.7,1],[0.4,0.92],[0.15,1],[0,0.7],[0.12,0.45],[0,0.25]]
+};
+const MIRROR_ORGANIC_LABELS = { wave:'موجة (طويلة)', pebble:'حصوة ناعمة', cloud:'سحابة' };
+const MIRROR_LED = { warm:'#ffcf70', neutral:'#fff3d6', cool:'#bfe6ff' };
+const MIRROR_LED_LABELS = { warm:'دافئ', neutral:'محايد', cool:'بارد' };
+const MIRROR_TINTS = {
+  clear:  { ar:'شفاف (عادي)',  en:'Clear',  stops:['#eaf6fb','#a9c7d3','#f2fafc','#8fb2c1'] },
+  bronze: { ar:'برونزي',       en:'Bronze', stops:['#f1dfc4','#b99568','#f5e8d3','#9b7647'] },
+  grey:   { ar:'رمادي',        en:'Grey',   stops:['#e4e8ea','#8d969b','#eef1f2','#737c82'] }
+};
+let mirrorUid = 0;
+function isMirror(it){ return !!it && it.shapeType === 'mirror'; }
+function mirrorEnsure(it){
+  if(it.mrShape == null) it.mrShape = 'rect';
+  if(it.mrRadius == null) it.mrRadius = 100;
+  if(it.mrOrganic == null) it.mrOrganic = 'wave';
+  if(it.mrFlipX == null) it.mrFlipX = false;
+  if(it.mrEdge == null) it.mrEdge = 'polish';
+  if(it.mrBevel == null) it.mrBevel = 20;
+  if(it.mrLed == null) it.mrLed = false;
+  if(it.mrLedColor == null) it.mrLedColor = 'warm';
+  if(it.mrThick == null) it.mrThick = 5;
+  if(it.mrTint == null) it.mrTint = 'clear';
+  if(it.mrTileW == null) it.mrTileW = 300;
+  if(it.mrTileH == null) it.mrTileH = 500;
+  if(it.mrTileGap == null) it.mrTileGap = 3;
+  return it;
+}
+function mirrorSplinePoly(pts, steps){
+  const n = pts.length, out = [];
+  for(let i=0;i<n;i++){
+    const p0=pts[(i-1+n)%n], p1=pts[i], p2=pts[(i+1)%n], p3=pts[(i+2)%n];
+    for(let k=0;k<steps;k++){
+      const t=k/steps, t2=t*t, t3=t2*t;
+      const f=(a,b,c,d)=>0.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);
+      out.push([f(p0[0],p1[0],p2[0],p3[0]), f(p0[1],p1[1],p2[1],p3[1])]);
+    }
+  }
+  return out;
+}
+function mirrorFitPoly(poly, W, H){
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  poly.forEach(p=>{ if(p[0]<x0)x0=p[0]; if(p[0]>x1)x1=p[0]; if(p[1]<y0)y0=p[1]; if(p[1]>y1)y1=p[1]; });
+  const sx = W/Math.max(1e-9,x1-x0), sy = H/Math.max(1e-9,y1-y0);
+  return poly.map(p=>[(p[0]-x0)*sx, (p[1]-y0)*sy]);
+}
+function mirrorArcPts(cx, cy, rx, ry, a0, a1, n){
+  const out = [];
+  for(let i=0;i<=n;i++){ const a = a0 + (a1-a0)*i/n; out.push([cx+rx*Math.cos(a), cy+ry*Math.sin(a)]); }
+  return out;
+}
+// مضلع المرآة (غير جدار المعيّنات) بالمليمتر، الأصل أعلى-يسار، ضمن [0..W]×[0..H]
+function mirrorPolygon(it){
+  mirrorEnsure(it);
+  const W = Math.max(1, it.width), H = Math.max(1, it.height);
+  switch(it.mrShape){
+    case 'rounded': {
+      const r = Math.max(0, Math.min(it.mrRadius||0, W/2, H/2));
+      if(r <= 0) return [[0,0],[W,0],[W,H],[0,H]];
+      const PI = Math.PI;
+      return [].concat(
+        mirrorArcPts(r, r, r, r, PI, 1.5*PI, 10),
+        mirrorArcPts(W-r, r, r, r, 1.5*PI, 2*PI, 10),
+        mirrorArcPts(W-r, H-r, r, r, 0, 0.5*PI, 10),
+        mirrorArcPts(r, H-r, r, r, 0.5*PI, PI, 10));
+    }
+    case 'oval': return mirrorArcPts(W/2, H/2, W/2, H/2, 0, 2*Math.PI, 120).slice(0,-1);
+    case 'circle': { const r = Math.min(W,H)/2; return mirrorArcPts(W/2, H/2, r, r, 0, 2*Math.PI, 120).slice(0,-1); }
+    case 'arch': {
+      const R = Math.min(W/2, H);
+      return [].concat(mirrorArcPts(W/2, R, R, R, Math.PI, 2*Math.PI, 48), [[W/2+R,H],[W/2-R,H]]);
+    }
+    case 'rhombus': return [[W/2,0],[W,H/2],[W/2,H],[0,H/2]];
+    case 'organic': {
+      let pts = (MIRROR_ORGANIC[it.mrOrganic] || MIRROR_ORGANIC.wave).map(p=>[p[0],p[1]]);
+      if(it.mrFlipX) pts = pts.map(p=>[1-p[0], p[1]]);
+      return mirrorFitPoly(mirrorSplinePoly(pts, 14), W, H);
+    }
+    default: return [[0,0],[W,0],[W,H],[0,H]];
+  }
+}
+function mirrorPolyArea(poly){ let a=0; for(let i=0;i<poly.length;i++){ const p=poly[i], q=poly[(i+1)%poly.length]; a += p[0]*q[1]-q[0]*p[1]; } return Math.abs(a)/2; }
+function mirrorPolyPerim(poly){ let l=0; for(let i=0;i<poly.length;i++){ const p=poly[i], q=poly[(i+1)%poly.length]; l += Math.hypot(q[0]-p[0], q[1]-p[1]); } return l; }
+function mirrorClipRect(poly, W, H){
+  const edges = [
+    { in:p=>p[0]>=0, cut:(a,b)=>{ const t=(0-a[0])/(b[0]-a[0]); return [0, a[1]+t*(b[1]-a[1])]; } },
+    { in:p=>p[0]<=W, cut:(a,b)=>{ const t=(W-a[0])/(b[0]-a[0]); return [W, a[1]+t*(b[1]-a[1])]; } },
+    { in:p=>p[1]>=0, cut:(a,b)=>{ const t=(0-a[1])/(b[1]-a[1]); return [a[0]+t*(b[0]-a[0]), 0]; } },
+    { in:p=>p[1]<=H, cut:(a,b)=>{ const t=(H-a[1])/(b[1]-a[1]); return [a[0]+t*(b[0]-a[0]), H]; } }
+  ];
+  let out = poly;
+  for(const e of edges){
+    const inp = out; out = [];
+    if(!inp.length) break;
+    for(let i=0;i<inp.length;i++){
+      const cur = inp[i], prev = inp[(i-1+inp.length)%inp.length];
+      const ci = e.in(cur), pi = e.in(prev);
+      if(ci){ if(!pi) out.push(e.cut(prev,cur)); out.push(cur); }
+      else if(pi) out.push(e.cut(prev,cur));
+    }
+  }
+  return out;
+}
+// جدار معيّنات: قطع معيّنة (قطر أفقي tw وعمودي th) متراصة، مركز الشبكة بنص الجدار، والقطع على الأطراف بتنقص (مقصوصة)
+function mirrorGridPieces(it){
+  mirrorEnsure(it);
+  const W = Math.max(1, it.width), H = Math.max(1, it.height);
+  const tw = Math.max(20, it.mrTileW||300), th = Math.max(20, it.mrTileH||500), g = Math.max(0, it.mrTileGap||0);
+  const est = (W/(tw/2)) * (H/(th/2)) / 2;
+  if(est > 3000) return { pieces:[], tooMany:true, est:Math.round(est) };
+  const L = Math.hypot(tw/2, th/2), d = (tw/2)*(th/2)/L;
+  const sc = Math.max(0.05, (d - g/2)/d);
+  const cx0 = W/2, cy0 = H/2;
+  const amax = Math.ceil((W/2)/(tw/2)) + 2, bmax = Math.ceil((H/2)/(th/2)) + 2;
+  const full = tw*th/2*sc*sc;
+  const pieces = [];
+  for(let a=-amax;a<=amax;a++){
+    for(let b=-bmax;b<=bmax;b++){
+      if((((a+b)%2)+2)%2 !== 0) continue;
+      const cx = cx0 + a*tw/2, cy = cy0 + b*th/2;
+      if(cx+tw/2 < 0 || cx-tw/2 > W || cy+th/2 < 0 || cy-th/2 > H) continue;
+      const poly = [[cx,cy-th/2*sc],[cx+tw/2*sc,cy],[cx,cy+th/2*sc],[cx-tw/2*sc,cy]];
+      const clipped = mirrorClipRect(poly, W, H);
+      if(clipped.length < 3) continue;
+      const ar = mirrorPolyArea(clipped);
+      if(ar < 0.02*full) continue;
+      pieces.push({ poly: clipped, area: ar, full: ar >= 0.999*full });
+    }
+  }
+  return { pieces, tooMany:false };
+}
+function mirrorStats(it){
+  mirrorEnsure(it);
+  const W = it.width, H = it.height;
+  const res = { bboxM2: W*H/1e6, glassM2: 0, edgeM: 0, ledM: 0, pieces: 1, full: 1, partial: 0, tooMany: false };
+  if(it.mrShape === 'rhombusGrid'){
+    const g = mirrorGridPieces(it);
+    res.tooMany = g.tooMany;
+    res.pieces = g.pieces.length;
+    res.full = g.pieces.filter(p=>p.full).length;
+    res.partial = res.pieces - res.full;
+    res.glassM2 = g.pieces.reduce((s,p)=>s+p.area,0)/1e6;
+    res.edgeM = g.pieces.reduce((s,p)=>s+mirrorPolyPerim(p.poly),0)/1000;
+    res.ledM = it.mrLed ? 2*(W+H)/1000 : 0;
+  } else {
+    const poly = mirrorPolygon(it);
+    res.glassM2 = mirrorPolyArea(poly)/1e6;
+    res.edgeM = mirrorPolyPerim(poly)/1000;
+    res.ledM = it.mrLed ? res.edgeM : 0;
+  }
+  return res;
+}
+function mirrorTitleEn(it){
+  mirrorEnsure(it);
+  const shp = { rect:'Rectangular', rounded:'Rounded', oval:'Oval', circle:'Round', arch:'Arch', rhombus:'Diamond', organic:'Organic Shape', rhombusGrid:'Diamond Tiles Wall' }[it.mrShape] || 'Decorative';
+  const ex = [];
+  if(it.mrEdge === 'bevel') ex.push('Beveled');
+  if(it.mrLed) ex.push('LED Backlit');
+  return `Mirror - ${shp}${ex.length ? ', ' + ex.join(', ') : ''}`;
+}
+function mirrorTitleAr(it){
+  mirrorEnsure(it);
+  const ex = [];
+  if(it.mrEdge === 'bevel') ex.push('حواف مشطوفة');
+  if(it.mrLed) ex.push('إضاءة LED');
+  return `مرآة ${MIRROR_SHAPES[it.mrShape] || ''}${ex.length ? ' - ' + ex.join(' + ') : ''}`;
+}
+// رسم المرآة (للشاشة print=false، وللطباعة print=true) - s = بكسل لكل مم
+function mirrorRender(it, print, s){
+  mirrorEnsure(it);
+  const W = Math.max(1, it.width), H = Math.max(1, it.height);
+  const gid = 'mr' + (++mirrorUid);
+  const dw = W*s, dh = H*s;
+  const grid = it.mrShape === 'rhombusGrid';
+  const C = print
+    ? { ink:'#000000', dim:'#A15C1E', dimTxt:'#A15C1E', sub:'#444444', font:"'JetBrains Mono',monospace", line:'#000000' }
+    : { ink:'var(--wd-ink)', dim:'var(--wd-amber)', dimTxt:'var(--wd-amber)', sub:'var(--wd-ink-dim)', font:'var(--wd-font-mono)', line:'var(--wd-ink)' };
+  const tint = MIRROR_TINTS[it.mrTint] || MIRROR_TINTS.clear;
+  const bevel = it.mrEdge === 'bevel' ? Math.max(1, it.mrBevel||20) : 0;
+  const bpx = Math.max(2, bevel*s);
+  const pts = poly => poly.map(p=>(p[0]*s).toFixed(1)+','+(p[1]*s).toFixed(1)).join(' ');
+  let defs = '', body = '';
+  // تعبئة الزجاج (انعكاس) - userSpaceOnUse حتى يكمّل الانعكاس عبر كل القطع
+  const fillMain = print ? (it.mrTint === 'clear' ? '#E4F3FA' : tint.stops[1]) : `url(#g-${gid})`;
+  if(!print){
+    defs += `<linearGradient id="g-${gid}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${dw.toFixed(1)}" y2="${dh.toFixed(1)}"><stop offset="0%" stop-color="${tint.stops[0]}"/><stop offset="38%" stop-color="${tint.stops[1]}"/><stop offset="62%" stop-color="${tint.stops[2]}"/><stop offset="100%" stop-color="${tint.stops[3]}"/></linearGradient>`;
+    defs += `<linearGradient id="b-${gid}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${dw.toFixed(1)}" y2="${dh.toFixed(1)}"><stop offset="0%" stop-color="#ffffff"/><stop offset="50%" stop-color="#cfe3ea"/><stop offset="100%" stop-color="#ffffff"/></linearGradient>`;
+  }
+  const bandFill = print ? '#FFFFFF' : `url(#b-${gid})`;
+  // LED: هالة خلف المرآة (شاشة) أو خط متقطع برّا الحافة (طباعة)
+  const ledCol = MIRROR_LED[it.mrLedColor] || MIRROR_LED.warm;
+  const outlinePts = grid ? pts([[0,0],[W,0],[W,H],[0,H]]) : pts(mirrorPolygon(it));
+  if(it.mrLed){
+    if(print){
+      body += `<polygon points="${outlinePts}" fill="none" stroke="#c77d00" stroke-width="3" stroke-dasharray="9 6" stroke-linejoin="round" transform="translate(${dw/2},${dh/2}) scale(${(1+16/Math.max(40,Math.min(dw,dh))).toFixed(4)}) translate(${-dw/2},${-dh/2})"/>`;
+    } else {
+      defs += `<filter id="gl-${gid}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="9"/></filter><filter id="gs-${gid}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3"/></filter>`;
+      body += `<g filter="url(#gl-${gid})"><polygon points="${outlinePts}" fill="none" stroke="${ledCol}" stroke-width="26" stroke-linejoin="round" opacity="0.85"/></g><g filter="url(#gs-${gid})"><polygon points="${outlinePts}" fill="none" stroke="${ledCol}" stroke-width="7" stroke-linejoin="round"/></g>`;
+    }
+  }
+  if(grid){
+    const g = mirrorGridPieces(it);
+    if(g.tooMany){
+      body += `<rect x="0" y="0" width="${dw}" height="${dh}" fill="none" stroke="${C.ink}" stroke-dasharray="6 4"/><text x="${dw/2}" y="${dh/2}" font-size="12" fill="${C.sub}" text-anchor="middle">القطع كتير جدًا (حوالي ${g.est}) - كبّر مقاس القطعة</text>`;
+    } else {
+      g.pieces.forEach(p=>{
+        const sw = bevel ? Math.max(1.2, Math.min(bpx, 5)) : 1;
+        body += `<polygon points="${pts(p.poly)}" fill="${fillMain}" stroke="${bevel ? (print ? '#555' : '#ffffff') : C.ink}" stroke-width="${sw.toFixed(1)}" stroke-linejoin="round"/>`;
+      });
+      body += `<rect x="0" y="0" width="${dw}" height="${dh}" fill="none" stroke="${C.line}" stroke-width="1.4" stroke-dasharray="${print ? '' : '4 3'}" opacity="0.7"/>`;
+    }
+  } else {
+    const P = pts(mirrorPolygon(it));
+    if(bevel){
+      const lw = print ? 1.4 : 1.2;
+      const m1 = `mi-${gid}`, m2 = `mj-${gid}`;
+      defs += `<mask id="${m1}" maskUnits="userSpaceOnUse" x="-20" y="-20" width="${dw+40}" height="${dh+40}"><polygon points="${P}" fill="#fff"/><polygon points="${P}" fill="none" stroke="#000" stroke-width="${(2*bpx).toFixed(1)}" stroke-linejoin="round"/></mask>`;
+      defs += `<mask id="${m2}" maskUnits="userSpaceOnUse" x="-20" y="-20" width="${dw+40}" height="${dh+40}"><polygon points="${P}" fill="#fff"/><polygon points="${P}" fill="none" stroke="#000" stroke-width="${(2*(bpx+lw)).toFixed(1)}" stroke-linejoin="round"/></mask>`;
+      body += `<polygon points="${P}" fill="${bandFill}" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
+      body += `<rect x="-20" y="-20" width="${dw+40}" height="${dh+40}" fill="${print ? '#666' : '#4a5d69'}" mask="url(#${m1})"/>`;
+      body += `<rect x="-20" y="-20" width="${dw+40}" height="${dh+40}" fill="${fillMain}" mask="url(#${m2})"/>`;
+    } else {
+      body += `<polygon points="${P}" fill="${fillMain}" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
+    }
+    if(!print){
+      defs += `<clipPath id="c-${gid}"><polygon points="${P}"/></clipPath>`;
+      body += `<g clip-path="url(#c-${gid})" opacity="0.38"><polygon points="${dw*0.18},0 ${dw*0.34},0 ${dw*0.06},${dh} ${-dw*0.1},${dh}" fill="#ffffff"/><polygon points="${dw*0.5},0 ${dw*0.56},0 ${dw*0.28},${dh} ${dw*0.22},${dh}" fill="#ffffff"/></g>`;
+    }
+  }
+  // قياسات
+  const dimTop = -26;
+  let dims = `<line x1="0" y1="${dimTop}" x2="${dw}" y2="${dimTop}" stroke="${C.dim}" stroke-width="1"/>
+    <line x1="0" y1="${dimTop-5}" x2="0" y2="${dimTop+5}" stroke="${C.dim}" stroke-width="1"/>
+    <line x1="${dw}" y1="${dimTop-5}" x2="${dw}" y2="${dimTop+5}" stroke="${C.dim}" stroke-width="1"/>
+    <text x="${dw/2}" y="${dimTop-8}" fill="${C.dimTxt}" font-size="${print?13:14}" font-weight="700" font-family="${C.font}" text-anchor="middle" direction="ltr">${Math.round(W)} mm</text>
+    <line x1="${dw+26}" y1="0" x2="${dw+26}" y2="${dh}" stroke="${C.dim}" stroke-width="1"/>
+    <line x1="${dw+21}" y1="0" x2="${dw+31}" y2="0" stroke="${C.dim}" stroke-width="1"/>
+    <line x1="${dw+21}" y1="${dh}" x2="${dw+31}" y2="${dh}" stroke="${C.dim}" stroke-width="1"/>
+    <text x="${dw+40}" y="${dh/2}" fill="${C.dimTxt}" font-size="${print?13:14}" font-weight="700" font-family="${C.font}" text-anchor="middle" direction="ltr" transform="rotate(90, ${dw+40}, ${dh/2})">${Math.round(H)} mm</text>`;
+  if(grid){
+    // قياس قطعة معيّن واحدة
+    dims += `<text x="${dw/2}" y="${dh+46}" fill="${C.sub}" font-size="11" font-family="${C.font}" text-anchor="middle" direction="ltr">tile ${Math.round(it.mrTileW)} × ${Math.round(it.mrTileH)} mm, gap ${it.mrTileGap} mm</text>`;
+  }
+  // سطر معلومات
+  const st = mirrorStats(it);
+  let info = '', infoLen = 0;
+  if(print){
+    const parts = [`${it.mrThick||5} mm ${(MIRROR_TINTS[it.mrTint]||MIRROR_TINTS.clear).en} Mirror`];
+    parts.push(it.mrEdge === 'bevel' ? `Bevel ${Math.round(it.mrBevel||20)} mm` : 'Polished edge');
+    if(it.mrLed) parts.push('LED backlight (' + (MIRROR_LED_LABELS[it.mrLedColor] ? it.mrLedColor : 'warm') + ')');
+    if(grid) parts.push(`${st.pieces} pcs (${st.partial} cut)`);
+    infoLen = parts.join('  |  ').length;
+    info = `<text x="${dw/2}" y="${dh+(grid?64:32)}" fill="${C.sub}" font-size="11" font-family="${C.font}" text-anchor="middle" direction="ltr">${parts.join('  |  ')}</text>`;
+  } else {
+    const parts = [`مساحة ${st.bboxM2.toFixed(2)} م²`];
+    if(it.mrEdge === 'bevel') parts.push(`شطف ${st.edgeM.toFixed(2)} م.ط`);
+    if(it.mrLed) parts.push(`LED ${st.ledM.toFixed(2)} م.ط`);
+    if(grid) parts.push(`${st.pieces} قطعة`);
+    infoLen = parts.join('  •  ').length;
+    info = `<text x="${dw/2}" y="${dh+(grid?64:32)}" fill="${C.sub}" font-size="11" text-anchor="middle">${parts.join('  •  ')}</text>`;
+  }
+  const tileLen = grid ? 36 : 0;
+  const padSide = Math.max(74, Math.max(infoLen, tileLen)*6.6/2 - dw/2 + 12), padTop = 60, padBottom = grid ? 84 : 52;
+  return { svgInner: `<defs>${defs}</defs>${body}${dims}${info}`, vbX: -padSide, vbY: -padTop, vbW: dw + padSide*2, vbH: dh + padTop + padBottom };
+}
+function buildMirrorSVG(it){
+  mirrorEnsure(it);
+  if(!(it.width > 0) || !(it.height > 0)) return '<div style="color:var(--wd-ink-dim);padding:30px;font-size:12px;">أدخل أبعاد صحيحة</div>';
+  const box = getScreenMaxDimPx(it);
+  const s = Math.min(box/it.width, box/it.height);
+  const r = mirrorRender(it, false, s);
+  return `<svg viewBox="${r.vbX} ${r.vbY} ${r.vbW} ${r.vbH}" width="${r.vbW}" height="${r.vbH}" xmlns="http://www.w3.org/2000/svg">${r.svgInner}</svg>`;
+}
+function buildMirrorPrintSVG(it, pageItemCount){
+  mirrorEnsure(it);
+  if(!(it.width > 0) || !(it.height > 0)) return '';
+  const { availW, availH } = getPrintAvailPx(pageItemCount);
+  const grid = it.mrShape === 'rhombusGrid';
+  const padW = 74*2 + 200, padH = 60 + (grid ? 84 : 52);
+  const s = Math.max(0.01, Math.min((availW - padW)/it.width, (availH - padH)/it.height));
+  const r = mirrorRender(it, true, s);
+  return `<svg viewBox="${r.vbX} ${r.vbY} ${r.vbW} ${r.vbH}" width="${r.vbW}" height="${r.vbH}" xmlns="http://www.w3.org/2000/svg">${r.svgInner}</svg>`;
+}
+function build3DMirrorSVG(it){
+  mirrorEnsure(it);
+  const W = Math.max(1, it.width), H = Math.max(1, it.height);
+  const s = Math.min(340/W, 300/H);
+  const dw = W*s, dh = H*s, ox = (520-dw)/2, oy = (380-dh)/2;
+  const gid = 'm3-' + Math.random().toString(36).slice(2,8);
+  const tint = MIRROR_TINTS[it.mrTint] || MIRROR_TINTS.clear;
+  const grid = it.mrShape === 'rhombusGrid';
+  const pts = poly => poly.map(p=>(p[0]*s+ox).toFixed(1)+','+(p[1]*s+oy).toFixed(1)).join(' ');
+  const outline = grid ? pts([[0,0],[W,0],[W,H],[0,H]]) : pts(mirrorPolygon(it));
+  const led = MIRROR_LED[it.mrLedColor] || MIRROR_LED.warm;
+  const bevel = it.mrEdge === 'bevel';
+  let defs = `<linearGradient id="wall-${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#efe9df"/><stop offset="100%" stop-color="#d9d1c3"/></linearGradient>
+    <linearGradient id="mir-${gid}" gradientUnits="userSpaceOnUse" x1="${ox}" y1="${oy}" x2="${ox+dw}" y2="${oy+dh}"><stop offset="0%" stop-color="${tint.stops[0]}"/><stop offset="40%" stop-color="${tint.stops[1]}"/><stop offset="60%" stop-color="${tint.stops[2]}"/><stop offset="100%" stop-color="${tint.stops[3]}"/></linearGradient>
+    <filter id="blur-${gid}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="sh-${gid}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter>
+    <clipPath id="clip-${gid}">${grid ? '' : `<polygon points="${outline}"/>`}</clipPath>`;
+  let body = `<rect x="0" y="0" width="520" height="420" fill="url(#wall-${gid})"/><rect x="0" y="372" width="520" height="48" fill="#b9ad98"/>`;
+  if(it.mrLed) body += `<g filter="url(#blur-${gid})"><polygon points="${outline}" fill="none" stroke="${led}" stroke-width="28" stroke-linejoin="round" opacity="0.9"/></g>`;
+  body += `<g filter="url(#sh-${gid})" opacity="0.28" transform="translate(6,9)"><polygon points="${outline}" fill="#000"/></g>`;
+  if(grid){
+    const g = mirrorGridPieces(it);
+    g.pieces.forEach(p=>{ body += `<polygon points="${pts(p.poly)}" fill="url(#mir-${gid})" stroke="${bevel ? '#ffffff' : '#6d7d86'}" stroke-width="${bevel ? 1.6 : 0.8}" stroke-linejoin="round"/>`; });
+  } else {
+    body += `<polygon points="${outline}" fill="url(#mir-${gid})" stroke="${bevel ? '#ffffff' : '#51606a'}" stroke-width="${bevel ? Math.max(3, Math.min(10, (it.mrBevel||20)*s)) : 1.5}" stroke-linejoin="round"/>`;
+    if(bevel) body += `<polygon points="${outline}" fill="none" stroke="#51606a" stroke-width="1" stroke-linejoin="round"/>`;
+    body += `<g clip-path="url(#clip-${gid})" opacity="0.4"><polygon points="${ox+dw*0.18},${oy} ${ox+dw*0.34},${oy} ${ox+dw*0.06},${oy+dh} ${ox-dw*0.1},${oy+dh}" fill="#fff"/><polygon points="${ox+dw*0.5},${oy} ${ox+dw*0.56},${oy} ${ox+dw*0.28},${oy+dh} ${ox+dw*0.22},${oy+dh}" fill="#fff"/></g>`;
+  }
+  return `<svg viewBox="0 0 520 420" width="100%" style="max-width:520px;" xmlns="http://www.w3.org/2000/svg"><defs>${defs}</defs>${body}</svg>`;
+}
+// ---- لوحة التحكم ----
+function mirrorLoadControls(it){
+  mirrorEnsure(it);
+  const set = (id,v)=>{ const e=document.getElementById(id); if(e) e.value = v; };
+  set('mrShape', it.mrShape); set('mrRadius', Math.round(it.mrRadius)); set('mrOrganic', it.mrOrganic);
+  const fx = document.getElementById('mrFlipX'); if(fx) fx.checked = !!it.mrFlipX;
+  set('mrEdge', it.mrEdge); set('mrBevel', Math.round(it.mrBevel));
+  const led = document.getElementById('mrLed'); if(led) led.checked = !!it.mrLed;
+  set('mrLedColor', it.mrLedColor); set('mrThick', String(it.mrThick)); set('mrTint', it.mrTint);
+  set('mrTileW', Math.round(it.mrTileW)); set('mrTileH', Math.round(it.mrTileH)); set('mrTileGap', it.mrTileGap);
+  mirrorApplyVisibility(it);
+}
+function mirrorApplyVisibility(it){
+  const show = (id,on)=>{ const e=document.getElementById(id); if(e) e.style.display = on ? 'block' : 'none'; };
+  show('mrRoundedWrap', it.mrShape === 'rounded');
+  show('mrOrganicWrap', it.mrShape === 'organic');
+  show('mrGridWrap', it.mrShape === 'rhombusGrid');
+  show('mrBevelWrap', it.mrEdge === 'bevel');
+  show('mrLedWrap', !!it.mrLed);
+  const warn = document.getElementById('mrCircleWarn');
+  if(warn) warn.style.display = (it.mrShape === 'circle' && Math.round(it.width) !== Math.round(it.height)) ? 'block' : 'none';
+  const stEl = document.getElementById('mrStats');
+  if(stEl){
+    const st = mirrorStats(it);
+    const rows = [`المساحة (للتسعير): <b>${st.bboxM2.toFixed(2)} م²</b>`];
+    if(it.mrShape !== 'rect' && it.mrShape !== 'rhombusGrid') rows.push(`مساحة الزجاج الفعلية: ${st.glassM2.toFixed(2)} م²`);
+    if(it.mrEdge === 'bevel') rows.push(`طول الشطف: <b>${st.edgeM.toFixed(2)} م.ط</b>`);
+    if(it.mrLed) rows.push(`طول شريط الـLED: <b>${st.ledM.toFixed(2)} م.ط</b>`);
+    if(it.mrShape === 'rhombusGrid') rows.push(st.tooMany ? '<span style="color:#e53935;">القطع كتير جدًا - كبّر مقاس القطعة</span>' : `عدد القطع: <b>${st.pieces}</b> (كاملة ${st.full} + مقصوصة ${st.partial})`);
+    stEl.innerHTML = rows.join('<br>');
+  }
+}
+function onMirrorField(field, value){
+  const it = getSelected(); if(!it || !isMirror(it)) return;
+  mirrorEnsure(it);
+  pushHistory();
+  if(field === 'mrFlipX' || field === 'mrLed') it[field] = !!value;
+  else if(['mrRadius','mrBevel','mrTileW','mrTileH','mrTileGap'].indexOf(field) !== -1){
+    const n = parseFloat(value);
+    const min = (field === 'mrTileGap' || field === 'mrRadius') ? 0 : (field === 'mrBevel' ? 1 : 20);
+    if(!(isFinite(n)) || n < min) return;
+    it[field] = n;
+  }
+  else if(field === 'mrThick') it[field] = parseFloat(value) || 5;
+  else it[field] = value;
+  if(field === 'mrShape' && value === 'circle'){ const d = Math.min(it.width, it.height); it.width = d; it.height = d; document.getElementById('inWidth').value = d; document.getElementById('inHeight').value = d; }
+  mirrorApplyVisibility(it);
+  renderGallery();
+}
+window.onMirrorField = onMirrorField;
 
 /* ---------- ROOM / MAJLIS (غرفة/مجلس) - مخطط أرضية بعدة أضلاع ---------- */
 // 🆕 2026-09-24: طلب حمدي - مرحلة أولى (أساس): رسم مخطط الأرضية (عدة أضلاع، كل ضلع بطوله وزاويته
@@ -16586,6 +17019,7 @@ window.onGableSlideSpeedChange = onGableSlideSpeedChange;
 
 function buildItemSVG(it){
   if(isHandrail(it)) return buildHandrailSVG(it);
+  if(isMirror(it)) return buildMirrorSVG(it);
   if(isRoom(it)) return buildRoomSVG(it);
   if(isGableRoof(it)) return buildGableRoofSVG(it);
   const W = it.width, H = it.height;
@@ -16720,7 +17154,7 @@ function buildItemSVG(it){
 // التخزين: it.exhaustFans = [{ id, diaIn, fx, fy, cx, cy }] - fx/fy موقع نسبي (0..1) من عرض/ارتفاع البند، و cx/cy = "ملقوطة
 // بالوسط" (لو تغيّرت المقاسات أو انسحب فاصل بتضل بوسط قسمها). الإنش = 25.4 مم.
 const FAN_SNAP_PX = 22;
-function fanSupported(it){ return !!it && !isHandrail(it) && !isRoom(it) && !isGableRoof(it) && !isShowerDoor(it) && it.width > 0 && it.height > 0; }
+function fanSupported(it){ return !!it && !isHandrail(it) && !isMirror(it) && !isRoom(it) && !isGableRoof(it) && !isShowerDoor(it) && it.width > 0 && it.height > 0; }
 function fanRadiusMM(f){ const d = parseFloat(f && f.diaIn); return (isFinite(d) && d > 0 ? d : 12) * 25.4 / 2; }
 function fanLeafRectsMM(it){
   const out = [];
@@ -17229,41 +17663,54 @@ function buildHandrailPrintSVG(it, pageItemCount){
   let bottomPts = [];
   const allYs = [0];
   let pieceBottomPts = [], pieceTopPts = [];
+  const triCtx = {};
 
   panelsMm.forEach((p, idx)=>{
     const pw = p.w*hScale;
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
     const riseEnd = (isStair && (p.type==='flight' || p.inclined)) ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
-    const yT0 = yB0 - drawH*(p.tL==null?1:p.tL), yT1 = yB1 - drawH*(p.tR==null?1:p.tR);
-    pieceBottomPts.push([x,yB0], [x+pw,yB1]);
+    const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
+    // "مثلث فقط": حدّ الزجاج السفلي = القطر (من أسفل بداية الجزء لأعلى نهايته) بدل الأرض
+    let yD0 = yB0, yD1 = yB1;
+    if(p.tri){
+      if(!triCtx[p.segId] || p.triS0 === 0) triCtx[p.segId] = { xs:x, ys:yB0, ye: -(baseline + p.triTotW*hScale*rakeSlope) - drawH, w:p.triTotW };
+      const tc = triCtx[p.segId]; yD0 = tc.ys + (tc.ye-tc.ys)*p.triS0; yD1 = tc.ys + (tc.ye-tc.ys)*p.triS1;
+    }
+    pieceBottomPts.push([x,yD0], [x+pw,yD1]);
     pieceTopPts.push([x,yT0]);
-    if(p.tF > 0 && p.tF*hScale < pw - 2){ if(p.tR != null) pieceTopPts.push([x+p.tF*hScale, yT0]); else if(p.tL != null) pieceTopPts.push([x+pw-p.tF*hScale, yT1]); }
     pieceTopPts.push([x+pw,yT1]);
     if(!p.mergeWithNext){
       const piecePts = pieceBottomPts.concat(pieceTopPts.slice().reverse());
       panelsSvg += `<polygon points="${piecePts.map(pt=>pt.join(',')).join(' ')}" fill="#E4F3FA" stroke="#000000" stroke-width="2"/>`;
       pieceBottomPts = []; pieceTopPts = [];
     }
-    const cx = x+pw/2, cy = (yT0+yT1+yB0+yB1)/4;
+    const cx = x+pw/2, cy = (yT0+yT1+yD0+yD1)/4;
     const riseLabel = (p.type==='landing' && p.riseCm > 0) ? (p.inclined ? ` (+${p.riseCm}سم↗ مائلة)` : ` (+${p.riseCm}سم⬆)`) : '';
-    if(pw > 26) panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="11" fill="#2b6f93" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(p.w)}×${Math.round(glassH)}${(p.tL!=null||p.tR!=null) ? ' ◢ '+Math.round(glassH*(p.tL!=null?p.tL:p.tR)) : ''}${riseLabel}</text>`;
+    if(pw > 26) panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="11" fill="#2b6f93" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(p.w)}×${Math.round(glassH)}${p.tri ? '→'+Math.round(glassH*(1-p.triS1)) : ''}${riseLabel}</text>`;
+    if(p.tri && p.triS1 >= 0.9999){
+      const tc = triCtx[p.segId];
+      const dAng = Math.atan2(yD1-tc.ys, (x+pw)-tc.xs)*180/Math.PI;
+      const dLen = Math.sqrt(tc.w*tc.w + (tc.w*rakeSlope+glassH)*(tc.w*rakeSlope+glassH));
+      panelLabelsSvg += `<g transform="translate(${(tc.xs+x+pw)/2},${(tc.ys+yD1)/2}) rotate(${dAng})"><text x="0" y="-5" font-size="11" font-weight="700" fill="#c0392b" text-anchor="middle" font-family="'JetBrains Mono',monospace" direction="ltr">${Math.round(p.triDiag>0 ? p.triDiag : dLen)} mm</text></g>`;
+    }
     bottomPts.push([x,yB0], [x+pw,yB1]);
     const legExtra = it.hrMount === 'spigot' ? (baseH+8) : baseH;
     allYs.push(yT0, yT1, yB0+legExtra, yB1+legExtra);
     if(it.hrMount === 'spigot'){
       const postH = baseH + 8, postW = 8, baseRx = 10, baseRy = 4.5;
       [0.15, 0.85].forEach(f=>{
-        const lx = x + pw*f, ly = yB0 + (yB1-yB0)*f;
+        const lx = x + pw*f, ly = yD0 + (yD1-yD0)*f;
         legsSvg += `<ellipse cx="${lx}" cy="${ly+postH}" rx="${baseRx}" ry="${baseRy}" fill="#CFD3D8" stroke="#000000" stroke-width="1.2"/>
           <rect x="${lx-postW/2}" y="${ly}" width="${postW}" height="${postH}" rx="${postW/2.2}" fill="#b7bcc1" stroke="#000000" stroke-width="1.2"/>`;
       });
     }
     if(it.hrMount === 'standoff'){
-      const bottomAtX = f => yB0 + (yB1-yB0)*f;
+      const bottomAtX = f => yD0 + (yD1-yD0)*f;
       const topAtX = f => yT0 + (yT1-yT0)*f;
       getStandoffPairPositions(it.hrStandoffPairs).forEach(hf=>{
         const lx = x + pw*hf;
+        if(p.tri && (bottomAtX(hf) - topAtX(hf)) < 220*hScale) return; // مثلث: ما في مسامير عند الرأس الضيق
         [0.18, 0.35].forEach(vf=>{
           const ly = bottomAtX(hf) + (topAtX(hf) - bottomAtX(hf))*vf;
           legsSvg += `<circle cx="${lx}" cy="${ly}" r="3" fill="#2b2f33" stroke="#000" stroke-width="0.5"/>`;
@@ -17389,6 +17836,7 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
 
 function buildPrintSVG(it, pageItemCount){
   if(isHandrail(it)) return buildHandrailPrintSVG(it, pageItemCount);
+  if(isMirror(it)) return buildMirrorPrintSVG(it, pageItemCount);
   if(isShowerDoor(it)) return buildShowerDoorPrintSVG(it, pageItemCount);
   const W = it.width, H = it.height;
   if(!W || !H || W<=0 || H<=0) return '';
@@ -17515,7 +17963,7 @@ function buildPrintSheetHTML(opts){
   // طباعة "مقاسات التصنيع" (useMfgSizes=true)، لأنو حمدي طلب صراحة إمكانية استبعاد بند ما بدو ياه فيها.
   const rawPrintItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it) && (!useMfgSizes || !it.mfgExcluded));
   const printItems = !useMfgSizes ? rawPrintItems : rawPrintItems.map(it=>{
-    if(isHandrail(it)) return it;
+    if(isHandrail(it) || isMirror(it)) return it;
     const mfg = getMfgSizeMm(it);
     return mfg.hasAdjust ? Object.assign({}, it, { width: mfg.w, height: mfg.h }) : it;
   });
@@ -17540,12 +17988,12 @@ function buildPrintSheetHTML(opts){
     html += `<div class="print-page" style="grid-template-columns:repeat(${cols},1fr); grid-template-rows:repeat(${rows},1fr);${breakStyle}">`;
     pageItems.forEach(it=>{
       const cls = classifyItem(it);
-      const typeWord = isHandrail(it) ? 'الهاندريل' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
+      const typeWord = isHandrail(it) ? 'الهاندريل' : isMirror(it) ? 'المرآة' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
       const typeLabel = SHAPE_LABELS[it.shapeType] || 'شباك';
       const refLine = it.refCode ? `<div class="print-item-ref">مرجع الجدول / Reference: <b>${it.refCode}</b></div>` : '';
       // بوضعية طباعة مقاسات التصنيع، الرسمة نفسها أصلاً مرسومة على المقاس المعدّل (باين برقمها فوق
       // الرسمة) - فما لزمة نكرر كابشن "مقاس التصنيع" تاني، بيصير تكرار بلا فايدة.
-      const mfg = (!useMfgSizes && !isHandrail(it) && !it.mfgExcluded) ? getMfgSizeMm(it) : null;
+      const mfg = (!useMfgSizes && !isHandrail(it) && !isMirror(it) && !it.mfgExcluded) ? getMfgSizeMm(it) : null;
       const mfgLine = (mfg && mfg.hasAdjust) ? `<div class="print-item-mfg">📐 مقاس التصنيع (بعد التعديل اليدوي): <b>${mfg.w} × ${mfg.h} mm</b></div>` : '';
       html += `<div class="print-item">
         <div class="print-item-title">${it.label} — ${typeLabel}</div>
@@ -17713,7 +18161,7 @@ function renderGallery(){
     head.className = 'card-head';
     head.onclick = () => selectItem(it.id);
     head.innerHTML = `<span class="name">${it.label}${it.refCode ? ` <span style="opacity:0.6;font-weight:400;">(${it.refCode})</span>` : ''}</span>
-      ${isHandrail(it) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
+      ${(isHandrail(it) || isMirror(it)) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();rotateRoomPlan(${it.id})" title="دوّر المسقط 90° (بس شكل العرض - ما بيغيّر أي مقاس أو زاوية حقيقية)">🔄 دوّر المسقط</button>` : ''}
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();openRoomFloorPreviewFullscreen(${it.id})" title="كبّر المسقط لكامل الشاشة - مفيد لما تكون الزوايا مزنّرة على بعض وصعب تشوفها/تضغط عليها بالحجم الصغير">🔍 كبّر لكامل الشاشة</button>` : ''}
       <span class="type-badge">${SHAPE_LABELS[it.shapeType] || 'شباك'}</span>`;
@@ -17732,7 +18180,7 @@ function renderGallery(){
     }
     const caption = document.createElement('div');
     caption.className = 'card-caption';
-    const typeWord = isHandrail(it) ? 'الهاندريل' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
+    const typeWord = isHandrail(it) ? 'الهاندريل' : isMirror(it) ? 'المرآة' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
     const cls = classifyItem(it);
     caption.innerHTML = `الرؤية لهذا ${typeWord} من الخارج<br>Outside View
       <div class="card-classify">${cls.en} <span class="wd-ar">(${cls.ar})</span></div>`;
@@ -17786,6 +18234,7 @@ function guessShapeTypeFromName(name){
   const hasFolding = /folding|فولدينغ|فولدينج/.test(s);
   const hasDoor = /\bdoor\b|باب/.test(s);
   if(hasShower) return 'showerGlassDoor';
+  if(/mirror|مرآ|مراي|مراة/.test(s)) return 'mirror';
   if(hasFolding) return 'foldingDoor';
   if(hasSliding) return hasDoor ? 'slidingDoor' : 'slidingWindow';
   if(hasDoor) return 'door';
@@ -17793,7 +18242,7 @@ function guessShapeTypeFromName(name){
 }
 
 function buildItemFromSavedDesign(design, uid, label){
-  return {
+  const _it = {
     id: nextId++,
     label: label || ('بند ' + nextId),
     shapeType: design.shapeType,
@@ -17813,6 +18262,8 @@ function buildItemFromSavedDesign(design, uid, label){
     layout: cloneLayoutWithFreshIds(design.layout),
     sourceRowUid: uid
   };
+  if(design.shapeType === 'mirror'){ Object.assign(_it, design.mirror || {}); mirrorEnsure(_it); }
+  return _it;
 }
 
 window.WD = window.WD || {};
@@ -17990,6 +18441,7 @@ function wdSaveAndClose(){
         mfgWidthAdjustCm: it.mfgWidthAdjustCm || 0,
         mfgHeightAdjustCm: it.mfgHeightAdjustCm || 0,
         mfgExcluded: it.mfgExcluded || false,
+        mirror: isMirror(it) ? MIRROR_KEYS.reduce((o,k)=>{ o[k]=it[k]; return o; },{}) : undefined,
         layout: it.layout
       }
     };
@@ -18046,7 +18498,7 @@ function buildMfgSketchSVG(it, mfg){
 }
 
 function renderMfgSizesTable(){
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isHandrail(it));
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isHandrail(it) && !isMirror(it));
   const el = document.getElementById('mfgSizesTable');
   if(!visibleItems.length){
     el.innerHTML = '<p style="color:#666;padding:10px 0;">ما في بنود بعد (الهاندريل مستثنى - مقاسه بالأطوال/الألواح مش عرض وارتفاع).</p>';
@@ -18550,16 +19002,22 @@ function build3DHandrailSVG(it){
   let bottomPts = [];
   const allYs = [0];
   let pieceBottomPts = [], pieceTopPts = [];
+  const triCtx = {};
 
   panelsMm.forEach(p=>{
     const pw = p.w*hScale;
     if(isStair && p.jumpMm) baseline += p.jumpMm*hScale;
     const riseEnd = (isStair && (p.type==='flight' || p.inclined)) ? pw*rakeSlope : 0;
     const yB0 = -baseline, yB1 = -(baseline+riseEnd);
-    const yT0 = yB0 - drawH*(p.tL==null?1:p.tL), yT1 = yB1 - drawH*(p.tR==null?1:p.tR);
-    pieceBottomPts.push([x,yB0], [x+pw,yB1]);
+    const yT0 = yB0 - drawH, yT1 = yB1 - drawH;
+    // "مثلث فقط": حدّ الزجاج السفلي = القطر (من أسفل بداية الجزء لأعلى نهايته) بدل الأرض
+    let yD0 = yB0, yD1 = yB1;
+    if(p.tri){
+      if(!triCtx[p.segId] || p.triS0 === 0) triCtx[p.segId] = { xs:x, ys:yB0, ye: -(baseline + p.triTotW*hScale*rakeSlope) - drawH, w:p.triTotW };
+      const tc = triCtx[p.segId]; yD0 = tc.ys + (tc.ye-tc.ys)*p.triS0; yD1 = tc.ys + (tc.ye-tc.ys)*p.triS1;
+    }
+    pieceBottomPts.push([x,yD0], [x+pw,yD1]);
     pieceTopPts.push([x,yT0]);
-    if(p.tF > 0 && p.tF*hScale < pw - 2){ if(p.tR != null) pieceTopPts.push([x+p.tF*hScale, yT0]); else if(p.tL != null) pieceTopPts.push([x+pw-p.tF*hScale, yT1]); }
     pieceTopPts.push([x+pw,yT1]);
     if(!p.mergeWithNext){
       const piecePts = pieceBottomPts.concat(pieceTopPts.slice().reverse());
@@ -18567,24 +19025,25 @@ function build3DHandrailSVG(it){
       pieceBottomPts = []; pieceTopPts = [];
     }
     const rx = x+pw*0.2, rw = Math.max(4, pw*0.14);
-    glass += `<polygon points="${rx},${yT0} ${rx+rw},${yT0} ${x+pw*0.05},${yB0} ${Math.max(x,rx+rw-pw*0.4)},${yB0}" fill="url(#streakGrad-${gid})" opacity="0.5"/>`;
+    glass += `<polygon points="${rx},${yT0} ${rx+rw},${yT0} ${x+pw*0.05},${yD0} ${Math.max(x,rx+rw-pw*0.4)},${yD0}" fill="url(#streakGrad-${gid})" opacity="0.5"/>`;
     bottomPts.push([x,yB0], [x+pw,yB1]);
     const legExtra = it.hrMount === 'spigot' ? (baseH+8) : baseH;
     allYs.push(yT0, yT1, yB0+legExtra, yB1+legExtra);
     if(it.hrMount === 'spigot'){
       const postH = baseH + 8, postW = 8, baseRx = 10, baseRy = 4.5;
       [0.15, 0.85].forEach(f=>{
-        const lx = x + pw*f, ly = yB0 + (yB1-yB0)*f;
+        const lx = x + pw*f, ly = yD0 + (yD1-yD0)*f;
         legsSvg += `<ellipse cx="${lx}" cy="${ly+postH}" rx="${baseRx}" ry="${baseRy}" fill="#9aa0a6" stroke="#4a4e52" stroke-width="1"/>
           <rect x="${lx-postW/2}" y="${ly}" width="${postW}" height="${postH}" rx="${postW/2.2}" fill="#8b9096" stroke="#4a4e52" stroke-width="1"/>
           <rect x="${lx-3}" y="${ly-2}" width="6" height="6" fill="#5a5f63"/>`;
       });
     }
     if(it.hrMount === 'standoff'){
-      const bottomAtX = f => yB0 + (yB1-yB0)*f;
+      const bottomAtX = f => yD0 + (yD1-yD0)*f;
       const topAtX = f => yT0 + (yT1-yT0)*f;
       getStandoffPairPositions(it.hrStandoffPairs).forEach(hf=>{
         const lx = x + pw*hf;
+        if(p.tri && (bottomAtX(hf) - topAtX(hf)) < 220*hScale) return; // مثلث: ما في مسامير عند الرأس الضيق
         [0.18, 0.35].forEach(vf=>{
           const ly = bottomAtX(hf) + (topAtX(hf) - bottomAtX(hf))*vf;
           legsSvg += `<circle cx="${lx}" cy="${ly}" r="3" fill="#2b2f33" stroke="#111" stroke-width="0.4"/><circle cx="${lx-0.8}" cy="${ly-0.8}" r="1.05" fill="#8a9096" opacity="0.85"/>`;
@@ -18624,6 +19083,7 @@ function build3DHandrailSVG(it){
 
 function build3DRenderSVG(it){
   if(isHandrail(it)) return build3DHandrailSVG(it);
+  if(isMirror(it)) return build3DMirrorSVG(it);
   if(isShowerDoor(it)) return build3DShowerDoorSVG(it);
   const W = it.width, H = it.height;
   const scale = Math.min(480/W, 440/H);
@@ -18873,6 +19333,7 @@ window.addEventListener('afterprint', ()=> document.body.classList.remove('three
 
 // يحسب طول الألمنيوم الكلي لبند واحد (بالميلي متر): محيط خارجي + كل القواطع الداخلية
 function computeItemAluminumLength(it){
+  if(isMirror(it)) return 0;
   if(isHandrail(it)){
     // Spigot ما بتحتاج طول ألمنيوم (سكة) - بس Stand Off و Hidden بيمشوا على U-Channel بطول الهاندريل الإجمالي
     return it.hrMount === 'spigot' ? 0 : getHandrailTotalLength(it);

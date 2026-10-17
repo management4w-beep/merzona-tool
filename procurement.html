@@ -80,7 +80,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-08.1';
+  var CURRENT_VERSION = '2026-10-17.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
@@ -1250,8 +1250,13 @@ if (typeof module !== 'undefined') {
       saveRulesLocal(); applyRulesToUI();
     }
   }
+  var rulesPushInFlight = false, rulesPushAgain = false;
   function pushRules() {
     if (!rulesMeta.dirty) return Promise.resolve();
+    // 🛠️ 2026-10-08 (مراجعة مستقلة): تعديل تاني أثناء ما الأول لسا عم يتحفظ كان يروح بنفس baseRev القديم
+    // فيرجع 409 ضد تعديلك أنت وتضيع القيمة. هلق إرسال واحد بنفس الوقت، والباقي بينتظر وبيروح برقم النسخة المحدّث.
+    if (rulesPushInFlight) { rulesPushAgain = true; return Promise.resolve(); }
+    rulesPushInFlight = true;
     var snapshot = JSON.stringify(RULES);
     return fetch(rulesUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: RULES, baseRev: rulesMeta.rev }) })
       .then(function (r) {
@@ -1264,7 +1269,11 @@ if (typeof module !== 'undefined') {
           if (rulesMeta.dirty) { clearTimeout(rulesPushTimer); rulesPushTimer = setTimeout(pushRules, 300); }
         });
       })
-      .catch(function () { rulesMeta.status = 'offline'; updateRulesStatus(); });
+      .catch(function () { rulesMeta.status = 'offline'; updateRulesStatus(); })
+      .then(function () {
+        rulesPushInFlight = false;
+        if (rulesPushAgain) { rulesPushAgain = false; if (rulesMeta.dirty && rulesMeta.status !== 'offline') { clearTimeout(rulesPushTimer); rulesPushTimer = setTimeout(pushRules, 50); } }
+      });
   }
   function pullRules() {
     return fetch(rulesUrl(), { cache: 'no-store' })
@@ -1572,7 +1581,7 @@ if (typeof module !== 'undefined') {
     refInput.addEventListener('input', function (e) { item.refCode = e.target.value; renderSidebar(); renderBOQTab(); });
     refRow.appendChild(refInput);
     box.appendChild(refRow);
-    if (item.autoSynced && item.designShape && item.designShape !== 'handrail') {
+    if (item.autoSynced && item.designShape && item.designShape !== 'handrail' && item.designShape !== 'mirror') {
       var tRow = el('div', { class: 'editor-ref' });
       tRow.appendChild(el('label', { text: 'نوع الفتحة (بيغيّر طريقة حساب هالبند هون بس، مو التصميم): ' }));
       var tSel = el('select');
@@ -2240,7 +2249,7 @@ if (typeof module !== 'undefined') {
   // height (mm), layout: {kind:'leaf'|'split', direction:'row'|'col', children:[{frac,node}], type} }] }
   var TRI_TYPES = ['tri_up', 'tri_down', 'tri_left', 'tri_right']; // hinged/casement openable markers
   var SLIDE_TYPES = ['slide_left', 'slide_right']; // sliding sash markers
-  var UNSUPPORTED_LABELS = { foldingDoor: 'باب فولدينغ', showerGlassDoor: 'باب شاور زجاجي', handrail: 'هاندريل' };
+  var UNSUPPORTED_LABELS = { foldingDoor: 'باب فولدينغ', showerGlassDoor: 'باب شاور زجاجي', handrail: 'هاندريل', mirror: 'مرآة' };
 
   function convertDesignerNode(node, wM, hM, flagField, flagTypes) {
     if (node.kind === 'leaf') {
@@ -2283,7 +2292,7 @@ if (typeof module !== 'undefined') {
     return out;
   }
 
-  var GENERIC_TYPES = ['foldingDoor', 'showerGlassDoor', 'handrail'];
+  var GENERIC_TYPES = ['foldingDoor', 'showerGlassDoor', 'handrail', 'mirror'];
 
   // محوّل واحد مشترك (للمزامنة التلقائية ولاستيراد ملف JSON): بيرجع { item } أو { skip: {label, reason} } أو null (تجاهل صامت لغرف/سقوف/مؤقتات).
   function convertDesignItem(it, summaries) {
@@ -2546,7 +2555,7 @@ if (typeof module !== 'undefined') {
       var designId = chosen.key + '|' + it.id;
       var eff = it;
       var tov = itemOv.type[designId];
-      if (tov && SHAPE_CHOICES[tov] && it.shapeType !== 'handrail' && tov !== it.shapeType) { eff = {}; Object.keys(it).forEach(function (k) { eff[k] = it[k]; }); eff.shapeType = tov; }
+      if (tov && SHAPE_CHOICES[tov] && it.shapeType !== 'handrail' && it.shapeType !== 'mirror' && tov !== it.shapeType) { eff = {}; Object.keys(it).forEach(function (k) { eff[k] = it[k]; }); eff.shapeType = tov; }
       var r = convertDesignItem(eff, summaries);
       if (!r) return;
       if (r.skip) { skipped.push(r.skip); return; }
