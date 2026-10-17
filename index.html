@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-17.1';
+  var CURRENT_VERSION = '2026-10-17.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7558,6 +7558,8 @@ window.wdApplyBack = function(results){
             <option value="circle">دائرة</option>
             <option value="arch">قوس (نصف دائرة بالأعلى)</option>
             <option value="rhombus">معيّن</option>
+            <option value="steps">مرآة بدرجة (حرف L)</option>
+            <option value="custom">مضلع مخصص (بالنقاط)</option>
             <option value="organic">شكل حر (عضوي)</option>
             <option value="rhombusGrid">جدار معيّنات متكررة</option>
           </select>
@@ -7565,6 +7567,21 @@ window.wdApplyBack = function(results){
           <div id="mrRoundedWrap" style="display:none;margin-top:6px;">
             <label>نصف قطر الزوايا (مم)</label>
             <input type="text" inputmode="decimal" id="mrRadius" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrRadius',this.value)" value="100">
+          </div>
+          <div id="mrStepsWrap" style="display:none;margin-top:6px;">
+            <p class="hint" style="margin-top:0;">العرض والارتفاع الكليين من الخانات فوق (الارتفاع = ارتفاع الجزء المرتفع).</p>
+            <label>الجزء المرتفع</label>
+            <select id="mrStepSide" onchange="onMirrorField('mrStepSide',this.value)"><option value="right">على اليمين</option><option value="left">على اليسار</option></select>
+            <div class="row2" style="margin-top:6px;">
+              <div><label>فرق الارتفاع (الدرجة) مم</label><input type="text" inputmode="decimal" id="mrStepRise" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrStepRise',this.value)" value="200"></div>
+              <div><label>عرض الجزء المرتفع مم</label><input type="text" inputmode="decimal" id="mrStepW" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrStepW',this.value)" value="510"></div>
+            </div>
+          </div>
+          <div id="mrCustomWrap" style="display:none;margin-top:6px;">
+            <label>نقاط الشكل (مم) - (0,0) هي أسفل اليسار</label>
+            <div id="mrPtsList"></div>
+            <button type="button" class="small" style="width:100%;margin-top:6px;" onclick="onMirrorPtAdd()">+ نقطة</button>
+            <p class="hint" style="margin-top:5px;">رتّب النقاط بالتتابع حول الشكل (باتجاه عقارب الساعة أو عكسه). العرض والارتفاع بيتحدثوا لحالهم حسب النقاط.</p>
           </div>
           <div id="mrOrganicWrap" style="display:none;margin-top:6px;">
             <label>الشكل الحر</label>
@@ -7586,9 +7603,23 @@ window.wdApplyBack = function(results){
           </div>
           <label style="margin-top:8px;">حافة المرآة</label>
           <select id="mrEdge" onchange="onMirrorField('mrEdge',this.value)">
-            <option value="polish">حافة مصقولة (عادية)</option>
+            <option value="polish">حافة مصقولة</option>
             <option value="bevel">حافة مشطوفة (Bevel)</option>
           </select>
+          <div id="mrEdgeSelWrap" style="margin-top:6px;">
+            <label>الحواف المطبَّق عليها</label>
+            <select id="mrEdgeAll" onchange="onMirrorField('mrEdgeAll',this.value==='all')">
+              <option value="all">كل الحواف</option>
+              <option value="some">حواف محددة</option>
+            </select>
+            <div id="mrSidesWrap" style="display:none;margin-top:6px;">
+              <div class="check-row"><input type="checkbox" id="mrSide0" onchange="onMirrorSide(0,this.checked)"><label for="mrSide0" id="mrSideLbl0"></label></div>
+              <div class="check-row"><input type="checkbox" id="mrSide1" onchange="onMirrorSide(1,this.checked)"><label for="mrSide1" id="mrSideLbl1"></label></div>
+              <div class="check-row"><input type="checkbox" id="mrSide2" onchange="onMirrorSide(2,this.checked)"><label for="mrSide2" id="mrSideLbl2"></label></div>
+              <div class="check-row"><input type="checkbox" id="mrSide3" onchange="onMirrorSide(3,this.checked)"><label for="mrSide3" id="mrSideLbl3"></label></div>
+              <p class="hint" style="margin-top:4px;">الحواف غير المحددة بتضل حافة عادية (بدون صقل/شطف).</p>
+            </div>
+          </div>
           <div id="mrBevelWrap" style="display:none;margin-top:6px;">
             <label>عرض الشطف (مم)</label>
             <input type="text" inputmode="decimal" id="mrBevel" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrBevel',this.value)" value="20">
@@ -7604,6 +7635,14 @@ window.wdApplyBack = function(results){
             <label>لون الإضاءة</label>
             <select id="mrLedColor" onchange="onMirrorField('mrLedColor',this.value)"><option value="warm">دافئ</option><option value="neutral">محايد</option><option value="cool">بارد</option></select>
           </div>
+          <div id="mrHolesWrap" style="margin-top:10px;">
+            <label>فتحات داخل المرآة (مثلاً لقاطع/بريزة من الجدار)</label>
+            <div id="mrHolesList"></div>
+            <button type="button" class="small" style="width:100%;margin-top:6px;" onclick="onMirrorHoleAdd()">+ فتحة</button>
+            <p class="hint" style="margin-top:5px;">المسافة x من يسار المرآة، y من أسفلها (مم). الفتحة الدائرية بتاخد القطر من خانة العرض.</p>
+          </div>
+          <div id="mrWarn" class="hint" style="margin-top:6px;color:#e53935;"></div>
+          <button type="button" class="small" style="width:100%;margin-top:8px;" onclick="duplicateMirror()">📋 نسخ هذه المرآة (لقطعة ثانية)</button>
           <div id="mrStats" class="hint" style="margin-top:10px;line-height:1.8;"></div>
           <p class="hint" style="margin-top:6px;">العرض والارتفاع من الخانات العادية فوق. سعر الشطف والـLED بيتحسب من الأطوال المعروضة هون (بتضيفهم كبنود مستقلة بعرض السعر إذا بدك).</p>
         </div>
@@ -9907,7 +9946,7 @@ function onDimsChange(){
   if(isFinite(_w) && _w > 0) it.width = _w;
   if(isFinite(_h) && _h > 0) it.height = _h;
   it.archHeight = parseFloat(document.getElementById('inArchHeight').value) || 0;
-  if(isMirror(it)) mirrorApplyVisibility(it);
+  if(isMirror(it)){ if(it.mrShape === 'custom') mirrorRescaleCustom(it); mirrorApplyVisibility(it); }
   scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 
@@ -11263,8 +11302,8 @@ window.editHandrailTotal = editHandrailTotal;
 // 🆕 2026-10-17 (طلب حمدي): تصميم مرايا بالمصمم - أشكال (مستطيل/مدوّر الزوايا/بيضاوي/دائرة/قوس/معيّن/شكل حر عضوي)
 // + جدار مرايا معيّنات متكررة (مقاس القطعة والفاصل) + حواف مشطوفة (Bevel) بعرض يحدده المستخدم + إضاءة LED خلفية.
 // كل الأشكال بتتحوّل لمضلع (قائمة نقاط بالمليمتر) - هيك المساحة والمحيط (طول الشطف/الـLED) بيتحسبوا بنفس الطريقة لكل الأشكال.
-const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBevel','mrLed','mrLedColor','mrThick','mrTint','mrTileW','mrTileH','mrTileGap'];
-const MIRROR_SHAPES = { rect:'مستطيل', rounded:'مستطيل بزوايا مدوّرة', oval:'بيضاوي', circle:'دائرة', arch:'قوس (نصف دائرة بالأعلى)', rhombus:'معيّن', organic:'شكل حر (عضوي)', rhombusGrid:'جدار معيّنات متكررة' };
+const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBevel','mrLed','mrLedColor','mrThick','mrTint','mrTileW','mrTileH','mrTileGap','mrEdgeAll','mrSides','mrPts','mrHoles','mrStepRise','mrStepW','mrStepSide'];
+const MIRROR_SHAPES = { rect:'مستطيل', rounded:'مستطيل بزوايا مدوّرة', oval:'بيضاوي', circle:'دائرة', arch:'قوس (نصف دائرة بالأعلى)', rhombus:'معيّن', steps:'مرآة بدرجة (حرف L)', custom:'مضلع مخصص (بالنقاط)', organic:'شكل حر (عضوي)', rhombusGrid:'جدار معيّنات متكررة' };
 const MIRROR_ORGANIC = {
   wave:   [[0.55,0],[0.85,0.06],[0.97,0.2],[0.9,0.38],[0.8,0.5],[0.88,0.65],[0.95,0.82],[0.75,0.97],[0.45,1],[0.2,0.93],[0.1,0.78],[0.18,0.6],[0.25,0.48],[0.12,0.33],[0.05,0.15],[0.25,0.03]],
   pebble: [[0.5,0],[0.85,0.08],[1,0.4],[0.9,0.75],[0.6,1],[0.25,0.92],[0,0.6],[0.08,0.25],[0.28,0.05]],
@@ -11294,6 +11333,12 @@ function mirrorEnsure(it){
   if(it.mrTileW == null) it.mrTileW = 300;
   if(it.mrTileH == null) it.mrTileH = 500;
   if(it.mrTileGap == null) it.mrTileGap = 3;
+  if(it.mrEdgeAll == null) it.mrEdgeAll = true;
+  if(!Array.isArray(it.mrHoles)) it.mrHoles = [];
+  if(it.mrStepRise == null) it.mrStepRise = 200;
+  if(it.mrStepW == null) it.mrStepW = 510;
+  if(it.mrStepSide == null) it.mrStepSide = 'right';
+  if(!it.mrSides) it.mrSides = { t:true, r:true, b:true, l:true, tl:true, tr:true, br:true, bl:true };
   return it;
 }
 function mirrorSplinePoly(pts, steps){
@@ -11320,7 +11365,8 @@ function mirrorArcPts(cx, cy, rx, ry, a0, a1, n){
   return out;
 }
 // مضلع المرآة (غير جدار المعيّنات) بالمليمتر، الأصل أعلى-يسار، ضمن [0..W]×[0..H]
-function mirrorPolygon(it){
+function mirrorPolygon(it){ return mirrorDedupe(mirrorPolygonRaw(it)); }
+function mirrorPolygonRaw(it){
   mirrorEnsure(it);
   const W = Math.max(1, it.width), H = Math.max(1, it.height);
   switch(it.mrShape){
@@ -11341,6 +11387,17 @@ function mirrorPolygon(it){
       return [].concat(mirrorArcPts(W/2, R, R, R, Math.PI, 2*Math.PI, 48), [[W/2+R,H],[W/2-R,H]]);
     }
     case 'rhombus': return [[W/2,0],[W,H/2],[W/2,H],[0,H/2]];
+    case 'steps': {
+      const rise = Math.max(0, Math.min(it.mrStepRise||0, H-1)), sw = Math.max(1, Math.min(it.mrStepW||1, W-1));
+      return it.mrStepSide === 'left'
+        ? [[0,0],[sw,0],[sw,rise],[W,rise],[W,H],[0,H]]
+        : [[0,rise],[W-sw,rise],[W-sw,0],[W,0],[W,H],[0,H]];
+    }
+    case 'custom': {
+      const pts = (Array.isArray(it.mrPts) && it.mrPts.length >= 3) ? it.mrPts : [[0,0],[W,0],[W,H],[0,H]];
+      let x0=Infinity, y1=-Infinity; pts.forEach(p=>{ if(p[0]<x0) x0=p[0]; if(p[1]>y1) y1=p[1]; });
+      return pts.map(p=>[p[0]-x0, y1-p[1]]);
+    }
     case 'organic': {
       let pts = (MIRROR_ORGANIC[it.mrOrganic] || MIRROR_ORGANIC.wave).map(p=>[p[0],p[1]]);
       if(it.mrFlipX) pts = pts.map(p=>[1-p[0], p[1]]);
@@ -11348,6 +11405,98 @@ function mirrorPolygon(it){
     }
     default: return [[0,0],[W,0],[W,H],[0,H]];
   }
+}
+
+// ---- اختيار الحواف (كل الحواف / حواف محددة) ----
+// الأشكال المستطيلة (مستطيل/مدوّر/قوس): علوية يمنى سفلية يسرى. الأشكال المنحنية/المائلة (بيضاوي/دائرة/معيّن/حر): 4 أرباع.
+function mirrorIsQuadShape(it){ return ['oval','circle','rhombus','organic'].indexOf(it.mrShape) !== -1; }
+function mirrorSlotLabels(it){
+  return mirrorIsQuadShape(it)
+    ? [['tr','علوي أيمن','top-right'],['br','سفلي أيمن','bottom-right'],['bl','سفلي أيسر','bottom-left'],['tl','علوي أيسر','top-left']]
+    : [['t','العلوية','top'],['r','اليمنى','right'],['b','السفلية','bottom'],['l','اليسرى','left']];
+}
+function mirrorDedupe(poly){
+  const out = [];
+  poly.forEach(p=>{ const q = out[out.length-1]; if(!q || Math.hypot(p[0]-q[0], p[1]-q[1]) > 1e-6) out.push(p); });
+  if(out.length > 1 && Math.hypot(out[0][0]-out[out.length-1][0], out[0][1]-out[out.length-1][1]) <= 1e-6) out.pop();
+  return out;
+}
+function mirrorSegSelected(it, poly, i, W, H){
+  if(it.mrEdgeAll !== false) return true;
+  const p = poly[i], q = poly[(i+1)%poly.length];
+  if(it.mrShape === 'steps' || it.mrShape === 'custom'){
+    // مضلعات بزوايا قائمة/مائلة: الجهة تتحدد من اتجاه الضلع (العمودي الخارجي) مش من موقعه - حتى حواف الدرجة الداخلية تتصنف صح
+    let A = 0; for(let k=0;k<poly.length;k++){ const a=poly[k], b=poly[(k+1)%poly.length]; A += a[0]*b[1]-b[0]*a[1]; }
+    const sg = A >= 0 ? 1 : -1, dx = q[0]-p[0], dy = q[1]-p[1];
+    const onx = sg*dy, ony = -sg*dx;
+    const k2 = Math.abs(ony) > Math.abs(onx) ? (ony<0 ? 't' : 'b') : (onx>0 ? 'r' : 'l');
+    return !!(it.mrSides && it.mrSides[k2]);
+  }
+  const nx = ((p[0]+q[0])/2 - W/2)/(W/2), ny = ((p[1]+q[1])/2 - H/2)/(H/2);
+  const key = mirrorIsQuadShape(it) ? ((ny<0?'t':'b') + (nx<0?'l':'r')) : (Math.abs(nx) > Math.abs(ny) ? (nx>0?'r':'l') : (ny>0?'b':'t'));
+  return !!(it.mrSides && it.mrSides[key]);
+}
+// يرجّع { all, none, runs:[{a,m}] } - run = تسلسل أضلاع متتالية مختارة (a = أول ضلع، m = عددها)
+function mirrorEdgeRuns(it, poly){
+  const n = poly.length, W = Math.max(1,it.width), H = Math.max(1,it.height);
+  const sel = poly.map((_,i)=>mirrorSegSelected(it, poly, i, W, H));
+  const cnt = sel.filter(Boolean).length;
+  if(cnt === n) return { all:true, none:false, runs:[], sel };
+  if(cnt === 0) return { all:false, none:true, runs:[], sel };
+  let start = 0; while(sel[start]) start++;           // أول ضلع غير مختار
+  const runs = []; let cur = null;
+  for(let k=1;k<=n;k++){
+    const i = (start+k)%n;
+    if(sel[i]){ if(!cur) cur = { a:i, m:0 }; cur.m++; } else if(cur){ runs.push(cur); cur = null; }
+  }
+  if(cur) runs.push(cur);
+  return { all:false, none:false, runs, sel };
+}
+function mirrorInsetPt(poly, k, d){
+  const n = poly.length, prev = poly[(k-1+n)%n], cur = poly[k], next = poly[(k+1)%n];
+  let A = 0; for(let i=0;i<n;i++){ const p=poly[i], q=poly[(i+1)%n]; A += p[0]*q[1]-q[0]*p[1]; }
+  const sg = A >= 0 ? 1 : -1;
+  const nrm = (a,b)=>{ const dx=b[0]-a[0], dy=b[1]-a[1], L=Math.hypot(dx,dy)||1; return [sg*(-dy/L), sg*(dx/L)]; };
+  const n1 = nrm(prev,cur), n2 = nrm(cur,next);
+  const k2 = d / Math.max(0.25, 1 + n1[0]*n2[0] + n1[1]*n2[1]);
+  return [cur[0] + (n1[0]+n2[0])*k2, cur[1] + (n1[1]+n2[1])*k2];
+}
+function mirrorEdgeLabelEn(it){
+  if(it.mrEdgeAll !== false) return 'all edges';
+  const on = mirrorSlotLabels(it).filter(x=>it.mrSides && it.mrSides[x[0]]).map(x=>x[2]);
+  return on.length ? on.join(', ') : 'none';
+}
+function mirrorEdgeLabelAr(it){
+  if(it.mrEdgeAll !== false) return 'كل الحواف';
+  const on = mirrorSlotLabels(it).filter(x=>it.mrSides && it.mrSides[x[0]]).map(x=>x[1]);
+  return on.length ? on.join(' + ') : 'بدون';
+}
+
+// ---- فتحات داخل المرآة (مربعة/مستطيلة أو دائرية) - الإحداثيات: x من اليسار، y من الأسفل (مم) ----
+function mirrorHolePoly(it, h){
+  const H = Math.max(1, it.height);
+  const w = Math.max(1, +h.w||1), hh = Math.max(1, h.type === 'round' ? (+h.w||1) : (+h.h||1));
+  const x = +h.x||0, yt = H - (+h.y||0) - hh;
+  if(h.type === 'round') return mirrorArcPts(x+w/2, yt+hh/2, w/2, hh/2, 0, 2*Math.PI, 48).slice(0,-1);
+  return [[x,yt],[x+w,yt],[x+w,yt+hh],[x,yt+hh]];
+}
+function mirrorPointInPoly(pt, poly){
+  let inside = false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const a=poly[i], b=poly[j];
+    if(((a[1]>pt[1]) !== (b[1]>pt[1])) && (pt[0] < (b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1]) + a[0])) inside = !inside;
+  }
+  return inside;
+}
+function mirrorHoleWarnings(it){
+  const out = [];
+  if(it.mrShape === 'rhombusGrid') return out;
+  const poly = mirrorPolygon(it);
+  (it.mrHoles||[]).forEach((h,i)=>{
+    const hp = mirrorHolePoly(it, h);
+    if(!hp.every(p=>mirrorPointInPoly(p, poly) || mirrorPointInPoly([p[0]+0.01,p[1]+0.01], poly) || mirrorPointInPoly([p[0]-0.01,p[1]-0.01], poly))) out.push(`الفتحة ${i+1} خارج حدود المرآة`);
+  });
+  return out;
 }
 function mirrorPolyArea(poly){ let a=0; for(let i=0;i<poly.length;i++){ const p=poly[i], q=poly[(i+1)%poly.length]; a += p[0]*q[1]-q[0]*p[1]; } return Math.abs(a)/2; }
 function mirrorPolyPerim(poly){ let l=0; for(let i=0;i<poly.length;i++){ const p=poly[i], q=poly[(i+1)%poly.length]; l += Math.hypot(q[0]-p[0], q[1]-p[1]); } return l; }
@@ -11402,7 +11551,7 @@ function mirrorGridPieces(it){
 function mirrorStats(it){
   mirrorEnsure(it);
   const W = it.width, H = it.height;
-  const res = { bboxM2: W*H/1e6, glassM2: 0, edgeM: 0, ledM: 0, pieces: 1, full: 1, partial: 0, tooMany: false };
+  const res = { bboxM2: W*H/1e6, glassM2: 0, edgeM: 0, ledM: 0, pieces: 1, full: 1, partial: 0, tooMany: false, holes: 0, holeEdgeM: 0 };
   if(it.mrShape === 'rhombusGrid'){
     const g = mirrorGridPieces(it);
     res.tooMany = g.tooMany;
@@ -11415,24 +11564,32 @@ function mirrorStats(it){
   } else {
     const poly = mirrorPolygon(it);
     res.glassM2 = mirrorPolyArea(poly)/1e6;
-    res.edgeM = mirrorPolyPerim(poly)/1000;
-    res.ledM = it.mrLed ? res.edgeM : 0;
+    const per = mirrorPolyPerim(poly)/1000;
+    let selLen = 0; const W2 = Math.max(1,it.width), H2 = Math.max(1,it.height);
+    for(let i=0;i<poly.length;i++){ if(mirrorSegSelected(it, poly, i, W2, H2)){ const p=poly[i], q=poly[(i+1)%poly.length]; selLen += Math.hypot(q[0]-p[0], q[1]-p[1]); } }
+    res.edgeM = selLen/1000;
+    res.ledM = it.mrLed ? per : 0;
+    const hs = (it.mrHoles||[]);
+    res.holes = hs.length;
+    hs.forEach(h=>{ const hp = mirrorHolePoly(it, h); res.glassM2 -= mirrorPolyArea(hp)/1e6; res.holeEdgeM = (res.holeEdgeM||0) + mirrorPolyPerim(hp)/1000; });
   }
   return res;
 }
 function mirrorTitleEn(it){
   mirrorEnsure(it);
-  const shp = { rect:'Rectangular', rounded:'Rounded', oval:'Oval', circle:'Round', arch:'Arch', rhombus:'Diamond', organic:'Organic Shape', rhombusGrid:'Diamond Tiles Wall' }[it.mrShape] || 'Decorative';
+  const shp = { steps:'Stepped', custom:'Custom Shape', rect:'Rectangular', rounded:'Rounded', oval:'Oval', circle:'Round', arch:'Arch', rhombus:'Diamond', organic:'Organic Shape', rhombusGrid:'Diamond Tiles Wall' }[it.mrShape] || 'Decorative';
   const ex = [];
-  if(it.mrEdge === 'bevel') ex.push('Beveled');
+  if(it.mrEdge === 'bevel') ex.push(it.mrEdgeAll !== false ? 'Beveled' : 'Partially Beveled');
   if(it.mrLed) ex.push('LED Backlit');
+  if((it.mrHoles||[]).length && it.mrShape !== 'rhombusGrid') ex.push('With Cutout' + ((it.mrHoles||[]).length>1 ? 's' : ''));
   return `Mirror - ${shp}${ex.length ? ', ' + ex.join(', ') : ''}`;
 }
 function mirrorTitleAr(it){
   mirrorEnsure(it);
   const ex = [];
-  if(it.mrEdge === 'bevel') ex.push('حواف مشطوفة');
+  if(it.mrEdge === 'bevel') ex.push(it.mrEdgeAll !== false ? 'حواف مشطوفة' : 'حواف مشطوفة جزئيًا');
   if(it.mrLed) ex.push('إضاءة LED');
+  if((it.mrHoles||[]).length && it.mrShape !== 'rhombusGrid') ex.push('مع فتحة' + ((it.mrHoles||[]).length>1 ? 'ات' : ''));
   return `مرآة ${MIRROR_SHAPES[it.mrShape] || ''}${ex.length ? ' - ' + ex.join(' + ') : ''}`;
 }
 // رسم المرآة (للشاشة print=false، وللطباعة print=true) - s = بكسل لكل مم
@@ -11480,20 +11637,60 @@ function mirrorRender(it, print, s){
       body += `<rect x="0" y="0" width="${dw}" height="${dh}" fill="none" stroke="${C.line}" stroke-width="1.4" stroke-dasharray="${print ? '' : '4 3'}" opacity="0.7"/>`;
     }
   } else {
-    const P = pts(mirrorPolygon(it));
-    if(bevel){
-      const lw = print ? 1.4 : 1.2;
-      const m1 = `mi-${gid}`, m2 = `mj-${gid}`;
-      defs += `<mask id="${m1}" maskUnits="userSpaceOnUse" x="-20" y="-20" width="${dw+40}" height="${dh+40}"><polygon points="${P}" fill="#fff"/><polygon points="${P}" fill="none" stroke="#000" stroke-width="${(2*bpx).toFixed(1)}" stroke-linejoin="round"/></mask>`;
-      defs += `<mask id="${m2}" maskUnits="userSpaceOnUse" x="-20" y="-20" width="${dw+40}" height="${dh+40}"><polygon points="${P}" fill="#fff"/><polygon points="${P}" fill="none" stroke="#000" stroke-width="${(2*(bpx+lw)).toFixed(1)}" stroke-linejoin="round"/></mask>`;
-      body += `<polygon points="${P}" fill="${bandFill}" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
-      body += `<rect x="-20" y="-20" width="${dw+40}" height="${dh+40}" fill="${print ? '#666' : '#4a5d69'}" mask="url(#${m1})"/>`;
-      body += `<rect x="-20" y="-20" width="${dw+40}" height="${dh+40}" fill="${fillMain}" mask="url(#${m2})"/>`;
-    } else {
-      body += `<polygon points="${P}" fill="${fillMain}" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
+    const polyMm = mirrorPolygon(it);
+    const P = pts(polyMm);
+    const pp = polyMm.map(p=>[p[0]*s, p[1]*s]);
+    const er = mirrorEdgeRuns(it, polyMm);
+    const holes = (it.mrHoles||[]);
+    const holePolys = holes.map(h=>mirrorHolePoly(it, h));
+    const ptsD = poly => 'M ' + pts(poly).replace(/ /g,' L ') + ' Z';
+    const fillD = ptsD(polyMm) + holePolys.map(hp=>' ' + ptsD(hp)).join('');
+    body += holePolys.length ? `<path d="${fillD}" fill-rule="evenodd" fill="${fillMain}" stroke="none"/>` : `<polygon points="${P}" fill="${fillMain}" stroke="none"/>`;
+    const ptsStr = arr => arr.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    const runVerts = r => { const out=[]; for(let k=0;k<=r.m;k++) out.push((r.a+k)%pp.length); return out; };
+    // حواف غير مختارة = حافة عادية (خط رفيع متقطع)
+    if(!er.all){
+      for(let i=0;i<pp.length;i++){ if(er.sel[i]) continue; const p=pp[i], q=pp[(i+1)%pp.length];
+        body += `<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}" stroke="${C.ink}" stroke-width="1" stroke-dasharray="5 3" opacity="0.75"/>`; }
     }
+    const groups = er.all ? [{ all:true }] : er.runs;
+    groups.forEach(r=>{
+      if(bevel){
+        if(r.all){
+          const inner = pp.map((_,k)=>mirrorInsetPt(pp,k,bpx));
+          body += `<path data-mr="band" fill-rule="evenodd" d="M ${ptsStr(pp).replace(/ /g,' L ')} Z M ${ptsStr(inner).replace(/ /g,' L ')} Z" fill="${bandFill}" stroke="${C.ink}" stroke-width="1.4" stroke-linejoin="round"/>`;
+        } else {
+          const vs = runVerts(r);
+          const outer = vs.map(k=>pp[k]), inner = vs.map(k=>mirrorInsetPt(pp,k,bpx)).reverse();
+          body += `<path data-mr="band" d="M ${ptsStr(outer.concat(inner)).replace(/ /g,' L ')} Z" fill="${bandFill}" stroke="${C.ink}" stroke-width="1.4" stroke-linejoin="round"/>`;
+        }
+      } else {
+        // حافة مصقولة: خط خارجي سميك + خط داخلي رفيع قريب (علامة الصقل)
+        const d0 = 4;
+        if(r.all){
+          const inner = pp.map((_,k)=>mirrorInsetPt(pp,k,d0));
+          body += `<polygon data-mr="polish" points="${ptsStr(pp)}" fill="none" stroke="${C.ink}" stroke-width="2.4" stroke-linejoin="round"/><polygon points="${ptsStr(inner)}" fill="none" stroke="${print ? '#666' : '#ffffff'}" stroke-width="0.9" opacity="0.85" stroke-linejoin="round"/>`;
+        } else {
+          const vs = runVerts(r);
+          body += `<polyline data-mr="polish" points="${ptsStr(vs.map(k=>pp[k]))}" fill="none" stroke="${C.ink}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${ptsStr(vs.map(k=>mirrorInsetPt(pp,k,d0)))}" fill="none" stroke="${print ? '#666' : '#ffffff'}" stroke-width="0.9" opacity="0.85" stroke-linejoin="round"/>`;
+        }
+      }
+    });
+    holePolys.forEach((hp,i)=>{
+      const h = holes[i];
+      body += `<polygon data-mr="hole" points="${pts(hp)}" fill="none" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
+      const hw = (+h.w||0), hh = h.type === 'round' ? (+h.w||0) : (+h.h||0);
+      const cx = ((+h.x||0) + hw/2)*s, cy = (H - (+h.y||0) - hh/2)*s;
+      const lbl = h.type === 'round' ? `Ø${Math.round(hw)}` : `${Math.round(hw)}×${Math.round(hh)}`;
+      const small = hw*s < 54 || hh*s < 18;
+      body += `<text x="${(small ? cx + hw*s/2 + 6 : cx).toFixed(1)}" y="${(small ? cy - hh*s/2 - 4 : cy + 3.5).toFixed(1)}" font-size="10.5" font-weight="700" fill="${C.dimTxt}" text-anchor="${small ? 'start' : 'middle'}" font-family="${C.font}" direction="ltr">${lbl}</text>`;
+      // مسافة الفتحة من يسار المرآة ومن أسفلها
+      const xL = (+h.x||0)*s, yB = (H - (+h.y||0))*s;
+      body += `<line x1="0" y1="${cy.toFixed(1)}" x2="${xL.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${C.dim}" stroke-width="0.9" stroke-dasharray="3 2"/><text x="${(xL/2).toFixed(1)}" y="${(cy-3).toFixed(1)}" font-size="9.5" fill="${C.dimTxt}" text-anchor="middle" font-family="${C.font}" direction="ltr">${Math.round(+h.x||0)}</text>`;
+      body += `<line x1="${cx.toFixed(1)}" y1="${yB.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${dh.toFixed(1)}" stroke="${C.dim}" stroke-width="0.9" stroke-dasharray="3 2"/><text x="${(cx+3).toFixed(1)}" y="${((yB+dh)/2).toFixed(1)}" font-size="9.5" fill="${C.dimTxt}" font-family="${C.font}" direction="ltr">${Math.round(+h.y||0)}</text>`;
+    });
     if(!print){
-      defs += `<clipPath id="c-${gid}"><polygon points="${P}"/></clipPath>`;
+      defs += holePolys.length ? `<clipPath id="c-${gid}"><path clip-rule="evenodd" d="${fillD}"/></clipPath>` : `<clipPath id="c-${gid}"><polygon points="${P}"/></clipPath>`;
       body += `<g clip-path="url(#c-${gid})" opacity="0.38"><polygon points="${dw*0.18},0 ${dw*0.34},0 ${dw*0.06},${dh} ${-dw*0.1},${dh}" fill="#ffffff"/><polygon points="${dw*0.5},0 ${dw*0.56},0 ${dw*0.28},${dh} ${dw*0.22},${dh}" fill="#ffffff"/></g>`;
     }
   }
@@ -11516,16 +11713,19 @@ function mirrorRender(it, print, s){
   let info = '', infoLen = 0;
   if(print){
     const parts = [`${it.mrThick||5} mm ${(MIRROR_TINTS[it.mrTint]||MIRROR_TINTS.clear).en} Mirror`];
-    parts.push(it.mrEdge === 'bevel' ? `Bevel ${Math.round(it.mrBevel||20)} mm` : 'Polished edge');
+    if(!grid) parts.push((it.mrEdge === 'bevel' ? `Bevel ${Math.round(it.mrBevel||20)} mm` : 'Polished edge') + ` (${mirrorEdgeLabelEn(it)})`); else if(it.mrEdge === 'bevel') parts.push(`Bevel ${Math.round(it.mrBevel||20)} mm`);
     if(it.mrLed) parts.push('LED backlight (' + (MIRROR_LED_LABELS[it.mrLedColor] ? it.mrLedColor : 'warm') + ')');
     if(grid) parts.push(`${st.pieces} pcs (${st.partial} cut)`);
+    if(st.holes) parts.push(`${st.holes} cutout${st.holes>1?'s':''}`);
     infoLen = parts.join('  |  ').length;
     info = `<text x="${dw/2}" y="${dh+(grid?64:32)}" fill="${C.sub}" font-size="11" font-family="${C.font}" text-anchor="middle" direction="ltr">${parts.join('  |  ')}</text>`;
   } else {
     const parts = [`مساحة ${st.bboxM2.toFixed(2)} م²`];
     if(it.mrEdge === 'bevel') parts.push(`شطف ${st.edgeM.toFixed(2)} م.ط`);
+    else if(!grid) parts.push(`صقل ${st.edgeM.toFixed(2)} م.ط`);
     if(it.mrLed) parts.push(`LED ${st.ledM.toFixed(2)} م.ط`);
     if(grid) parts.push(`${st.pieces} قطعة`);
+    if(st.holes) parts.push(`${st.holes} فتحة`);
     infoLen = parts.join('  •  ').length;
     info = `<text x="${dw/2}" y="${dh+(grid?64:32)}" fill="${C.sub}" font-size="11" text-anchor="middle">${parts.join('  •  ')}</text>`;
   }
@@ -11575,8 +11775,18 @@ function build3DMirrorSVG(it){
     const g = mirrorGridPieces(it);
     g.pieces.forEach(p=>{ body += `<polygon points="${pts(p.poly)}" fill="url(#mir-${gid})" stroke="${bevel ? '#ffffff' : '#6d7d86'}" stroke-width="${bevel ? 1.6 : 0.8}" stroke-linejoin="round"/>`; });
   } else {
-    body += `<polygon points="${outline}" fill="url(#mir-${gid})" stroke="${bevel ? '#ffffff' : '#51606a'}" stroke-width="${bevel ? Math.max(3, Math.min(10, (it.mrBevel||20)*s)) : 1.5}" stroke-linejoin="round"/>`;
-    if(bevel) body += `<polygon points="${outline}" fill="none" stroke="#51606a" stroke-width="1" stroke-linejoin="round"/>`;
+    { const hs3 = (it.mrHoles||[]);
+      if(hs3.length){
+        const ptsH = poly => 'M ' + poly.map(p=>(p[0]*s+ox).toFixed(1)+','+(p[1]*s+oy).toFixed(1)).join(' L ') + ' Z';
+        const d3 = ptsH(mirrorPolygon(it)) + hs3.map(h=>' ' + ptsH(mirrorHolePoly(it, h))).join('');
+        body += `<path d="${d3}" fill-rule="evenodd" fill="url(#mir-${gid})" stroke="#51606a" stroke-width="1" stroke-linejoin="round"/>`;
+        hs3.forEach(h=>{ body += `<polygon points="${pts(mirrorHolePoly(it, h))}" fill="none" stroke="#51606a" stroke-width="1.2"/>`; });
+      } else body += `<polygon points="${outline}" fill="url(#mir-${gid})" stroke="#51606a" stroke-width="1" stroke-linejoin="round"/>`; }
+    { const pm = mirrorPolygon(it), pq = pm.map(p=>[p[0]*s+ox, p[1]*s+oy]), er3 = mirrorEdgeRuns(it, pm);
+      const sw3 = bevel ? Math.max(3, Math.min(10, (it.mrBevel||20)*s)) : 2;
+      const poly3 = arr => arr.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+      if(er3.all) body += `<polygon points="${poly3(pq)}" fill="none" stroke="#ffffff" stroke-width="${sw3}" stroke-linejoin="round" opacity="0.9"/>`;
+      else er3.runs.forEach(r=>{ const vs=[]; for(let k=0;k<=r.m;k++) vs.push(pq[(r.a+k)%pq.length]); body += `<polyline points="${poly3(vs)}" fill="none" stroke="#ffffff" stroke-width="${sw3}" stroke-linejoin="round" stroke-linecap="butt" opacity="0.9"/>`; }); }
     body += `<g clip-path="url(#clip-${gid})" opacity="0.4"><polygon points="${ox+dw*0.18},${oy} ${ox+dw*0.34},${oy} ${ox+dw*0.06},${oy+dh} ${ox-dw*0.1},${oy+dh}" fill="#fff"/><polygon points="${ox+dw*0.5},${oy} ${ox+dw*0.56},${oy} ${ox+dw*0.28},${oy+dh} ${ox+dw*0.22},${oy+dh}" fill="#fff"/></g>`;
   }
   return `<svg viewBox="0 0 520 420" width="100%" style="max-width:520px;" xmlns="http://www.w3.org/2000/svg"><defs>${defs}</defs>${body}</svg>`;
@@ -11590,6 +11800,7 @@ function mirrorLoadControls(it){
   set('mrEdge', it.mrEdge); set('mrBevel', Math.round(it.mrBevel));
   const led = document.getElementById('mrLed'); if(led) led.checked = !!it.mrLed;
   set('mrLedColor', it.mrLedColor); set('mrThick', String(it.mrThick)); set('mrTint', it.mrTint);
+  set('mrStepSide', it.mrStepSide); set('mrStepRise', Math.round(it.mrStepRise)); set('mrStepW', Math.round(it.mrStepW));
   set('mrTileW', Math.round(it.mrTileW)); set('mrTileH', Math.round(it.mrTileH)); set('mrTileGap', it.mrTileGap);
   mirrorApplyVisibility(it);
 }
@@ -11598,7 +11809,17 @@ function mirrorApplyVisibility(it){
   show('mrRoundedWrap', it.mrShape === 'rounded');
   show('mrOrganicWrap', it.mrShape === 'organic');
   show('mrGridWrap', it.mrShape === 'rhombusGrid');
+  show('mrStepsWrap', it.mrShape === 'steps');
+  show('mrCustomWrap', it.mrShape === 'custom');
+  show('mrHolesWrap', it.mrShape !== 'rhombusGrid');
+  if(it.mrShape === 'custom') mirrorRenderPtsList(it);
+  mirrorRenderHolesList(it);
+  { const wr = document.getElementById('mrWarn'); if(wr) wr.innerHTML = mirrorHoleWarnings(it).join('<br>'); }
   show('mrBevelWrap', it.mrEdge === 'bevel');
+  show('mrEdgeSelWrap', it.mrShape !== 'rhombusGrid');
+  show('mrSidesWrap', it.mrShape !== 'rhombusGrid' && it.mrEdgeAll === false);
+  { const ea = document.getElementById('mrEdgeAll'); if(ea) ea.value = it.mrEdgeAll === false ? 'some' : 'all';
+    mirrorSlotLabels(it).forEach((x,i)=>{ const c=document.getElementById('mrSide'+i), l=document.getElementById('mrSideLbl'+i); if(c) c.checked = !!(it.mrSides && it.mrSides[x[0]]); if(l) l.textContent = 'حافة ' + x[1]; }); }
   show('mrLedWrap', !!it.mrLed);
   const warn = document.getElementById('mrCircleWarn');
   if(warn) warn.style.display = (it.mrShape === 'circle' && Math.round(it.width) !== Math.round(it.height)) ? 'block' : 'none';
@@ -11607,8 +11828,10 @@ function mirrorApplyVisibility(it){
     const st = mirrorStats(it);
     const rows = [`المساحة (للتسعير): <b>${st.bboxM2.toFixed(2)} م²</b>`];
     if(it.mrShape !== 'rect' && it.mrShape !== 'rhombusGrid') rows.push(`مساحة الزجاج الفعلية: ${st.glassM2.toFixed(2)} م²`);
-    if(it.mrEdge === 'bevel') rows.push(`طول الشطف: <b>${st.edgeM.toFixed(2)} م.ط</b>`);
+    if(it.mrShape !== 'rhombusGrid') rows.push(`الحواف: ${mirrorEdgeLabelAr(it)}`);
+    rows.push(it.mrEdge === 'bevel' ? `طول الشطف: <b>${st.edgeM.toFixed(2)} م.ط</b>` : (it.mrShape === 'rhombusGrid' ? '' : `طول الصقل: <b>${st.edgeM.toFixed(2)} م.ط</b>`));
     if(it.mrLed) rows.push(`طول شريط الـLED: <b>${st.ledM.toFixed(2)} م.ط</b>`);
+    if(st.holes) rows.push(`الفتحات: <b>${st.holes}</b> (محيطها ${st.holeEdgeM.toFixed(2)} م.ط)`);
     if(it.mrShape === 'rhombusGrid') rows.push(st.tooMany ? '<span style="color:#e53935;">القطع كتير جدًا - كبّر مقاس القطعة</span>' : `عدد القطع: <b>${st.pieces}</b> (كاملة ${st.full} + مقصوصة ${st.partial})`);
     stEl.innerHTML = rows.join('<br>');
   }
@@ -11617,10 +11840,15 @@ function onMirrorField(field, value){
   const it = getSelected(); if(!it || !isMirror(it)) return;
   mirrorEnsure(it);
   pushHistory();
-  if(field === 'mrFlipX' || field === 'mrLed') it[field] = !!value;
-  else if(['mrRadius','mrBevel','mrTileW','mrTileH','mrTileGap'].indexOf(field) !== -1){
+  if(field === 'mrShape' && value === 'custom' && it.mrShape !== 'custom' && !(Array.isArray(it.mrPts) && it.mrPts.length >= 3)){
+    const poly0 = mirrorPolygon(it);
+    const H0 = Math.max(1, it.height), W0 = Math.max(1, it.width);
+    it.mrPts = (poly0.length <= 16 ? poly0 : [[0,0],[W0,0],[W0,H0],[0,H0]]).map(p=>[Math.round(p[0]), Math.round(poly0.length <= 16 ? H0 - p[1] : p[1])]);
+  }
+  if(field === 'mrFlipX' || field === 'mrLed' || field === 'mrEdgeAll') it[field] = !!value;
+  else if(['mrRadius','mrBevel','mrTileW','mrTileH','mrTileGap','mrStepRise','mrStepW'].indexOf(field) !== -1){
     const n = parseFloat(value);
-    const min = (field === 'mrTileGap' || field === 'mrRadius') ? 0 : (field === 'mrBevel' ? 1 : 20);
+    const min = (field === 'mrTileGap' || field === 'mrRadius' || field === 'mrStepRise') ? 0 : (field === 'mrBevel' ? 1 : 20);
     if(!(isFinite(n)) || n < min) return;
     it[field] = n;
   }
@@ -11630,7 +11858,106 @@ function onMirrorField(field, value){
   mirrorApplyVisibility(it);
   renderGallery();
 }
+function onMirrorSide(idx, checked){
+  const it = getSelected(); if(!it || !isMirror(it)) return;
+  mirrorEnsure(it);
+  const lab = mirrorSlotLabels(it)[idx]; if(!lab) return;
+  pushHistory();
+  it.mrSides[lab[0]] = !!checked;
+  mirrorApplyVisibility(it);
+  renderGallery();
+}
+window.onMirrorSide = onMirrorSide;
 window.onMirrorField = onMirrorField;
+// ---- مضلع مخصص: جدول النقاط ----
+function mirrorSyncCustomDims(it){
+  const pts = it.mrPts || []; if(pts.length < 3) return;
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; pts.forEach(p=>{ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); y0=Math.min(y0,p[1]); y1=Math.max(y1,p[1]); });
+  it.width = Math.max(1, Math.round(x1-x0)); it.height = Math.max(1, Math.round(y1-y0));
+  const wi = document.getElementById('inWidth'), hi = document.getElementById('inHeight');
+  if(wi) wi.value = it.width; if(hi) hi.value = it.height;
+}
+function mirrorRescaleCustom(it){
+  const pts = it.mrPts || []; if(pts.length < 3) return;
+  let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity; pts.forEach(p=>{ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); y0=Math.min(y0,p[1]); y1=Math.max(y1,p[1]); });
+  const sx = it.width/Math.max(1e-9,x1-x0), sy = it.height/Math.max(1e-9,y1-y0);
+  it.mrPts = pts.map(p=>[Math.round((p[0]-x0)*sx*10)/10, Math.round((p[1]-y0)*sy*10)/10]);
+}
+function mirrorRenderPtsList(it){
+  const el = document.getElementById('mrPtsList'); if(!el) return;
+  const pts = it.mrPts || [];
+  el.innerHTML = pts.map((p,i)=>`<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;"><span style="font-size:11px;min-width:18px;">${i+1}</span>
+    <input type="text" inputmode="decimal" style="width:78px;" value="${Math.round(p[0]*10)/10}" title="x (مم)" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorPt(${i},0,this.value)">
+    <input type="text" inputmode="decimal" style="width:78px;" value="${Math.round(p[1]*10)/10}" title="y (مم)" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorPt(${i},1,this.value)">
+    <button class="small danger" style="margin-right:auto;" ${pts.length<=3?'disabled':''} onclick="onMirrorPtDel(${i})">×</button></div>`).join('');
+}
+function onMirrorPt(i, axis, v){
+  const it = getSelected(); if(!it || !isMirror(it) || !it.mrPts || !it.mrPts[i]) return;
+  const n = parseFloat(v); if(!isFinite(n)) return;
+  pushHistory(); it.mrPts[i][axis] = n;
+  mirrorSyncCustomDims(it); mirrorApplyVisibility(it); renderGallery();
+}
+function onMirrorPtAdd(){
+  const it = getSelected(); if(!it || !isMirror(it) || !it.mrPts) return;
+  pushHistory();
+  const a = it.mrPts[it.mrPts.length-1], b = it.mrPts[0];
+  it.mrPts.push([Math.round((a[0]+b[0])/2), Math.round((a[1]+b[1])/2)]);
+  mirrorApplyVisibility(it); renderGallery();
+}
+function onMirrorPtDel(i){
+  const it = getSelected(); if(!it || !isMirror(it) || !it.mrPts || it.mrPts.length <= 3) return;
+  pushHistory(); it.mrPts.splice(i,1);
+  mirrorSyncCustomDims(it); mirrorApplyVisibility(it); renderGallery();
+}
+// ---- الفتحات ----
+function mirrorRenderHolesList(it){
+  const el = document.getElementById('mrHolesList'); if(!el) return;
+  el.innerHTML = (it.mrHoles||[]).map((h,i)=>`<div style="padding:6px;background:rgba(255,255,255,0.04);border-radius:6px;margin-bottom:6px;">
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;"><span style="font-size:11px;min-width:42px;">فتحة ${i+1}</span>
+      <select style="font-size:11px;" onchange="onMirrorHole('${h.id}','type',this.value)"><option value="rect"${h.type!=='round'?' selected':''}>مربعة/مستطيلة</option><option value="round"${h.type==='round'?' selected':''}>دائرية</option></select>
+      <button class="small danger" style="margin-right:auto;" onclick="onMirrorHoleDel('${h.id}')">×</button></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+      <label style="font-size:10.5px;margin:0;">${h.type==='round'?'القطر':'عرض'}</label><input type="text" inputmode="decimal" style="width:62px;" value="${Math.round(+h.w||0)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorHole('${h.id}','w',this.value)">
+      ${h.type==='round'?'':`<label style="font-size:10.5px;margin:0;">ارتفاع</label><input type="text" inputmode="decimal" style="width:62px;" value="${Math.round(+h.h||0)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorHole('${h.id}','h',this.value)">`}
+      <label style="font-size:10.5px;margin:0;">x</label><input type="text" inputmode="decimal" style="width:62px;" value="${Math.round(+h.x||0)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorHole('${h.id}','x',this.value)">
+      <label style="font-size:10.5px;margin:0;">y</label><input type="text" inputmode="decimal" style="width:62px;" value="${Math.round(+h.y||0)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorHole('${h.id}','y',this.value)">
+    </div></div>`).join('');
+}
+let mirrorHoleIdCounter = 1;
+function onMirrorHoleAdd(){
+  const it = getSelected(); if(!it || !isMirror(it)) return;
+  mirrorEnsure(it); pushHistory();
+  const w = 86, h = 86;
+  it.mrHoles.push({ id:'h'+Date.now().toString(36)+(mirrorHoleIdCounter++), type:'rect', w, h, x: Math.max(0, Math.round((it.width-w)/2)), y: Math.max(0, Math.round((it.height-h)/2)) });
+  mirrorApplyVisibility(it); renderGallery();
+}
+function onMirrorHole(id, field, v){
+  const it = getSelected(); if(!it || !isMirror(it)) return;
+  const h = (it.mrHoles||[]).find(x=>x.id===id); if(!h) return;
+  pushHistory();
+  if(field === 'type') h.type = (v === 'round') ? 'round' : 'rect';
+  else { const n = parseFloat(v); if(!isFinite(n) || n < 0 || ((field==='w'||field==='h') && n < 1)) return; h[field] = n; }
+  mirrorApplyVisibility(it); renderGallery();
+}
+function onMirrorHoleDel(id){
+  const it = getSelected(); if(!it || !isMirror(it)) return;
+  pushHistory(); it.mrHoles = (it.mrHoles||[]).filter(x=>x.id!==id);
+  mirrorApplyVisibility(it); renderGallery();
+}
+function duplicateMirror(){
+  const it = getSelected(); if(!it || !isMirror(it)) return;
+  pushHistory(true);
+  const c = JSON.parse(JSON.stringify(it));
+  c.id = nextId++; delete c.sourceRowUid; delete c.refCode;
+  c.label = (it.label || 'مرآة').replace(/\s*\(نسخة\s*\d*\)\s*$/,'') + ' (نسخة)';
+  (c.mrHoles||[]).forEach(h=>{ h.id = 'h'+Date.now().toString(36)+(mirrorHoleIdCounter++); });
+  try{ c.layout = cloneLayoutWithFreshIds(c.layout); }catch(e){}
+  items.push(c); selectedId = c.id;
+  renderChips(); loadSelectedIntoControls(); renderGallery();
+}
+window.onMirrorPt = onMirrorPt; window.onMirrorPtAdd = onMirrorPtAdd; window.onMirrorPtDel = onMirrorPtDel;
+window.onMirrorHoleAdd = onMirrorHoleAdd; window.onMirrorHole = onMirrorHole; window.onMirrorHoleDel = onMirrorHoleDel; window.duplicateMirror = duplicateMirror;
+
 
 /* ---------- ROOM / MAJLIS (غرفة/مجلس) - مخطط أرضية بعدة أضلاع ---------- */
 // 🆕 2026-09-24: طلب حمدي - مرحلة أولى (أساس): رسم مخطط الأرضية (عدة أضلاع، كل ضلع بطوله وزاويته
