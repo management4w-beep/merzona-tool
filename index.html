@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-17.5';
+  var CURRENT_VERSION = '2026-10-17.6';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -11739,7 +11739,7 @@ function mirrorRenderOne(it, print, s, opts){
     : { ink:'var(--wd-ink)', dim:'var(--wd-amber)', dimTxt:'var(--wd-amber)', sub:'var(--wd-ink-dim)', font:'var(--wd-font-mono)', line:'var(--wd-ink)' };
   const tint = mirrorTint(it);
   const bevel = it.mrEdge === 'bevel' ? Math.max(1, it.mrBevel||20) : 0;
-  const bpx = Math.max(2, bevel*s);
+  const bpx = Math.max(bevel ? 9 : 2, bevel*s); // الشطف بالرسم أعرض شوي من الحقيقي حتى يبين بوضوح
   const pts = poly => poly.map(p=>(p[0]*s).toFixed(1)+','+(p[1]*s).toFixed(1)).join(' ');
   let defs = '', body = '', holeLegend = [];
   // تعبئة الزجاج (انعكاس) - userSpaceOnUse حتى يكمّل الانعكاس عبر كل القطع
@@ -11748,7 +11748,8 @@ function mirrorRenderOne(it, print, s, opts){
     defs += `<linearGradient id="g-${gid}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${dw.toFixed(1)}" y2="${dh.toFixed(1)}"><stop offset="0%" stop-color="${tint.stops[0]}"/><stop offset="38%" stop-color="${tint.stops[1]}"/><stop offset="62%" stop-color="${tint.stops[2]}"/><stop offset="100%" stop-color="${tint.stops[3]}"/></linearGradient>`;
     defs += `<linearGradient id="b-${gid}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${dw.toFixed(1)}" y2="${dh.toFixed(1)}"><stop offset="0%" stop-color="#ffffff"/><stop offset="50%" stop-color="#cfe3ea"/><stop offset="100%" stop-color="#ffffff"/></linearGradient>`;
   }
-  const bandFill = print ? '#FFFFFF' : `url(#b-${gid})`;
+  const bandFill = `url(#bv-${gid})`;
+  defs += `<pattern id="bv-${gid}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="${print ? '#ffffff' : '#fff6f3'}"/><line x1="0" y1="0" x2="0" y2="5" stroke="${print ? '#000000' : '#e8553f'}" stroke-width="1.7"/></pattern>`;
   // LED: هالة خلف المرآة (شاشة) أو خط متقطع برّا الحافة (طباعة)
   const ledCol = mirrorLedHex(it);
   const outlinePts = grid ? pts([[0,0],[W,0],[W,H],[0,H]]) : pts(mirrorPolygon(it));
@@ -11793,7 +11794,7 @@ function mirrorRenderOne(it, print, s, opts){
       if(bevel){
         if(r.all){
           const inner = pp.map((_,k)=>mirrorInsetPt(pp,k,bpx));
-          body += `<path data-mr="band" fill-rule="evenodd" d="M ${ptsStr(pp).replace(/ /g,' L ')} Z M ${ptsStr(inner).replace(/ /g,' L ')} Z" fill="${bandFill}" stroke="${C.ink}" stroke-width="1.4" stroke-linejoin="round"/>`;
+          body += `<path data-mr="band" fill-rule="evenodd" d="M ${ptsStr(pp).replace(/ /g,' L ')} Z M ${ptsStr(inner).replace(/ /g,' L ')} Z" fill="${bandFill}" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
         } else {
           const vs = runVerts(r);
           const outer = vs.map(k=>pp[k]), inner = vs.map(k=>mirrorInsetPt(pp,k,bpx)).reverse();
@@ -11876,7 +11877,7 @@ function mirrorRenderOne(it, print, s, opts){
     let A = 0; for(let k=0;k<ppA.length;k++){ const a=ppA[k], b=ppA[(k+1)%ppA.length]; A += a[0]*b[1]-b[0]*a[1]; }
     const sg = A >= 0 ? 1 : -1;
     const erA = mirrorEdgeRuns(it, polyA);
-    const segInfo = i=>{ const p=ppA[i], q=ppA[(i+1)%ppA.length], dx=q[0]-p[0], dy=q[1]-p[1], L=Math.hypot(dx,dy)||1; return { i, L, m:[(p[0]+q[0])/2,(p[1]+q[1])/2], n:[sg*(-dy/L), sg*(dx/L)] }; };
+    const segInfo = i=>{ const p=ppA[i], q=ppA[(i+1)%ppA.length], dx=q[0]-p[0], dy=q[1]-p[1], L=Math.hypot(dx,dy)||1; return { i, L, p, q, m:[(p[0]+q[0])/2,(p[1]+q[1])/2], n:[sg*(-dy/L), sg*(dx/L)] }; };
     let groups = [];
     { const side = {}; ppA.forEach((_,i)=>{ if(!erA.all && !erA.sel[i]) return; const g = segInfo(i); const key = Math.abs(g.n[0]) > Math.abs(g.n[1]) ? (g.n[0]>0?'l':'r') : (g.n[1]>0?'t':'b'); (side[key] = side[key]||[]).push(g); }); groups = Object.keys(side).map(k=>side[k]); }
     const arrowCol = print ? '#C62828' : '#ff7a6b';
@@ -11885,7 +11886,8 @@ function mirrorRenderOne(it, print, s, opts){
     groups.forEach(g=>{
       g.slice().sort((p,q)=>q.L-p.L).slice(0,4).some(sgm=>{
         if(sgm.L < 16) return false;
-        const M = sgm.m, n = sgm.n, T = [M[0]+n[0]*dA, M[1]+n[1]*dA];
+        return [0.5,0.28,0.72,0.14,0.86].some(tt=>{
+        const M = [sgm.p[0]+(sgm.q[0]-sgm.p[0])*tt, sgm.p[1]+(sgm.q[1]-sgm.p[1])*tt], n = sgm.n, T = [M[0]+n[0]*dA, M[1]+n[1]*dA];
         const horiz = Math.abs(n[0]) > Math.abs(n[1]);
         const anchor = horiz ? (n[0] > 0 ? 'start' : 'end') : 'middle';
         const tp = horiz ? [T[0]+n[0]*4, T[1]+3] : [T[0], n[1] > 0 ? T[1]+11 : T[1]-4];
@@ -11897,6 +11899,7 @@ function mirrorRenderOne(it, print, s, opts){
         const tip = [M[0]+n[0]*1.5, M[1]+n[1]*1.5], dir = [-n[0], -n[1]], base = [tip[0]-dir[0]*7, tip[1]-dir[1]*7], pr = [-dir[1], dir[0]];
         body += `<g data-mr="arrow"><line x1="${T[0].toFixed(1)}" y1="${T[1].toFixed(1)}" x2="${base[0].toFixed(1)}" y2="${base[1].toFixed(1)}" stroke="${arrowCol}" stroke-width="1.6"/><polygon points="${tip[0].toFixed(1)},${tip[1].toFixed(1)} ${(base[0]+pr[0]*3.4).toFixed(1)},${(base[1]+pr[1]*3.4).toFixed(1)} ${(base[0]-pr[0]*3.4).toFixed(1)},${(base[1]-pr[1]*3.4).toFixed(1)}" fill="${arrowCol}"/><text x="${tp[0].toFixed(1)}" y="${tp[1].toFixed(1)}" font-size="9.5" font-weight="700" fill="${arrowCol}" text-anchor="${anchor}" font-family="${C.font}" direction="ltr">${txt}</text></g>`;
         return true;
+        });
       });
     });
   }
