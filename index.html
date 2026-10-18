@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-18.2';
+  var CURRENT_VERSION = '2026-10-18.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7700,6 +7700,7 @@ window.wdApplyBack = function(results){
           <div style="margin-top:6px;"><label>اسم اللون (اكتبه كما تريد، يظهر بالرسم والطباعة)</label><input type="text" id="mrColorName" maxlength="40" placeholder="مثال: ذهبي مطفي" onchange="onMirrorField('mrColorName',this.value)"></div>
           <div id="mrColorHexWrap" style="display:none;margin-top:6px;"><label>درجة اللون</label><input type="color" id="mrColorHex" onchange="onMirrorField('mrColorHex',this.value)" style="width:100%;height:34px;padding:2px;"></div>
           <div class="check-row" style="margin-top:8px;"><input type="checkbox" id="mrLed" onchange="onMirrorField('mrLed',this.checked)"><label for="mrLed">💡 إضاءة LED خلفية حول المرآة</label></div>
+          <div class="check-row" id="mrLedAllRow" style="display:none;margin-top:4px;"><input type="checkbox" id="mrLedAll" onchange="onMirrorField('mrLedAll',this.checked)"><label for="mrLedAll">تطبيق الإضاءة على كل القطع</label></div>
           <div id="mrLedWrap" style="display:none;margin-top:4px;">
             <label>درجة حرارة لون الإضاءة (Kelvin)</label>
             <select id="mrLedK" onchange="onMirrorField('mrLedK',this.value)"><option value="2500">2500K - أصفر دافئ جدًا (Amber)</option><option value="2700">2700K - دافئ (Warm White)</option><option value="3000">3000K - دافئ (Warm White)</option><option value="3500">3500K - أبيض دافئ-محايد</option><option value="4000">4000K - أبيض محايد (Neutral)</option><option value="5000">5000K - أبيض نهاري</option><option value="6000">6000K - أبيض بارد (Cool)</option><option value="6500">6500K - أبيض بارد جدًا (Daylight)</option></select>
@@ -11376,7 +11377,7 @@ window.editHandrailTotal = editHandrailTotal;
 // كل الأشكال بتتحوّل لمضلع (قائمة نقاط بالمليمتر) - هيك المساحة والمحيط (طول الشطف/الـLED) بيتحسبوا بنفس الطريقة لكل الأشكال.
 const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBevel','mrLed','mrLedColor','mrThick','mrTint','mrTileW','mrTileH','mrTileGap','mrEdgeAll','mrSides','mrPts','mrHoles','mrStepRise','mrStepW','mrStepSide','mrColorName','mrColorHex','mrUnit','mrLedK','mrLedV','mrCorners'];
 const MIRROR_PIECE_KEYS = MIRROR_KEYS.filter(k=>k!=='mrUnit');
-const MIRROR_COMP_KEYS = ['mrPieces','mrCur','mrArrange','mrAlign'];
+const MIRROR_COMP_KEYS = ['mrPieces','mrCur','mrArrange','mrAlign','mrLedAll'];
 const MIRROR_SHAPES = { rect:'مستطيل', rounded:'مستطيل بزوايا مدوّرة', oval:'بيضاوي', circle:'دائرة', arch:'قوس (نصف دائرة بالأعلى)', capsule:'كبسولة (طرفين نصف دائريين)', dshape:'حرف D (طرف مستدير)', halfround:'نصف دائرة (قبة)', triangle:'مثلث', trapezoid:'شبه منحرف', hexagon:'سداسي', octagon:'ثماني', chamfer:'مستطيل بزوايا مقطوعة', lens:'عدسة / ورقة (طرفين مدببين)', rhombus:'معيّن', steps:'مرآة بدرجة (حرف L)', custom:'مضلع مخصص (بالنقاط)', organic:'شكل حر (عضوي)', rhombusGrid:'جدار معيّنات متكررة' };
 const MIRROR_ORGANIC = {
   wave:   [[0.55,0],[0.85,0.06],[0.97,0.2],[0.9,0.38],[0.8,0.5],[0.88,0.65],[0.95,0.82],[0.75,0.97],[0.45,1],[0.2,0.93],[0.1,0.78],[0.18,0.6],[0.25,0.48],[0.12,0.33],[0.05,0.15],[0.25,0.03]],
@@ -12220,6 +12221,7 @@ function mirrorPiecesUI(it){
     if(comp){ const st = mirrorStats(it); tot.style.display = 'block'; tot.innerHTML = `<b>إجمالي ${it.mrPieces.length} قطع:</b> مساحة التسعير <b>${st.bboxM2.toFixed(2)} م²</b> • زجاج فعلي ${st.glassM2.toFixed(2)} م² • مقاس البند المكافئ بالقائمة ${Math.round(it.width)}×${Math.round(it.height)} مم`; }
     else { tot.style.display = 'none'; tot.innerHTML = ''; }
   }
+  { const r = document.getElementById('mrLedAllRow'); if(r) r.style.display = comp ? 'flex' : 'none'; const c = document.getElementById('mrLedAll'); if(c) c.checked = it.mrLedAll !== false; }
   const ar = document.getElementById('mrArrange'); if(ar) ar.value = it.mrArrange === 'h' ? 'h' : 'v';
   const al = document.getElementById('mrAlign'); if(al) al.value = it.mrAlign || 'center';
   const ub = document.getElementById('mrUnitBtn'); if(ub) ub.textContent = it.mrUnit === 'cm' ? '📏 المقاسات على الرسمة: سم  (اضغط للتحويل إلى مم)' : '📏 المقاسات على الرسمة: مم  (اضغط للتحويل إلى سم)';
@@ -12425,9 +12427,14 @@ function onMirrorField(field, value){
     }
     else if(field === 'mrThick') it[field] = parseFloat(value) || 5;
     else if(field === 'mrLedK'){ const k = parseInt(value,10); if(MIRROR_LED_KS[k]) it.mrLedK = k; }
+    else if(field === 'mrLedAll'){ it.mrLedAll = !!value; }
     else if(field === 'mrColorName') it[field] = String(value||'').slice(0, 40);
     else it[field] = value;
     if(field === 'mrShape' && value === 'circle'){ const d = Math.min(it.width, it.height); it.width = d; it.height = d; }
+    // الإضاءة (تشغيل/درجة اللون/الجهد) بتنطبق على كل القطع افتراضيًا - إلا إذا طفّى المستخدم "تطبيق على كل القطع"
+    if(mirrorIsComposite(it) && it.mrLedAll !== false && ['mrLed','mrLedK','mrLedV','mrLedAll'].indexOf(field) !== -1){
+      it.mrPieces.forEach((p,i)=>{ if(i === (it.mrCur||0)) return; p.mrLed = !!it.mrLed; p.mrLedK = it.mrLedK; p.mrLedV = it.mrLedV; });
+    }
   });
 }
 function onMirrorCorner(key, checked){
