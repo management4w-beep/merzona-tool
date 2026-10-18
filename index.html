@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-17.6';
+  var CURRENT_VERSION = '2026-10-17.7';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7635,6 +7635,7 @@ window.wdApplyBack = function(results){
           <select id="mrEdge" onchange="onMirrorField('mrEdge',this.value)">
             <option value="polish">حافة مصقولة</option>
             <option value="bevel">حافة مشطوفة (Bevel)</option>
+            <option value="none">بدون صقل أو شطف (حافة خام)</option>
           </select>
           <div id="mrEdgeSelWrap" style="margin-top:6px;">
             <label>الحواف المطبَّق عليها</label>
@@ -11538,6 +11539,7 @@ function mirrorDedupe(poly){
   return out;
 }
 function mirrorSegSelected(it, poly, i, W, H){
+  if(it.mrEdge === 'none') return false;
   if(it.mrEdgeAll !== false) return true;
   const p = poly[i], q = poly[(i+1)%poly.length];
   if(mirrorNormalShape(it)){
@@ -11749,6 +11751,7 @@ function mirrorRenderOne(it, print, s, opts){
     defs += `<linearGradient id="b-${gid}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${dw.toFixed(1)}" y2="${dh.toFixed(1)}"><stop offset="0%" stop-color="#ffffff"/><stop offset="50%" stop-color="#cfe3ea"/><stop offset="100%" stop-color="#ffffff"/></linearGradient>`;
   }
   const bandFill = `url(#bv-${gid})`;
+  defs += `<pattern id="pl-${gid}" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="${print ? '#ffffff' : '#eaf4ff'}"/><circle cx="3" cy="3" r="1.25" fill="${print ? '#000000' : '#2f8cff'}"/></pattern>`;
   defs += `<pattern id="bv-${gid}" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="${print ? '#ffffff' : '#fff6f3'}"/><line x1="0" y1="0" x2="0" y2="5" stroke="${print ? '#000000' : '#e8553f'}" stroke-width="1.7"/></pattern>`;
   // LED: هالة خلف المرآة (شاشة) أو خط متقطع برّا الحافة (طباعة)
   const ledCol = mirrorLedHex(it);
@@ -11801,14 +11804,15 @@ function mirrorRenderOne(it, print, s, opts){
           body += `<path data-mr="band" d="M ${ptsStr(outer.concat(inner)).replace(/ /g,' L ')} Z" fill="${bandFill}" stroke="${C.ink}" stroke-width="1.4" stroke-linejoin="round"/>`;
         }
       } else {
-        // حافة مصقولة: خط خارجي سميك + خط داخلي رفيع قريب (علامة الصقل)
-        const d0 = 4;
+        // حافة مصقولة: شريط منقّط أزرق (أخضر بالطباعة: نقط سوداء) عرضه ثابت حتى يبين بوضوح
+        const wP = 6;
         if(r.all){
-          const inner = pp.map((_,k)=>mirrorInsetPt(pp,k,d0));
-          body += `<polygon data-mr="polish" points="${ptsStr(pp)}" fill="none" stroke="${C.ink}" stroke-width="2.4" stroke-linejoin="round"/><polygon points="${ptsStr(inner)}" fill="none" stroke="${print ? '#666' : '#ffffff'}" stroke-width="0.9" opacity="0.85" stroke-linejoin="round"/>`;
+          const inner = pp.map((_,k)=>mirrorInsetPt(pp,k,wP));
+          body += `<path data-mr="polish" fill-rule="evenodd" d="M ${ptsStr(pp).replace(/ /g,' L ')} Z M ${ptsStr(inner).replace(/ /g,' L ')} Z" fill="url(#pl-${gid})" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
         } else {
           const vs = runVerts(r);
-          body += `<polyline data-mr="polish" points="${ptsStr(vs.map(k=>pp[k]))}" fill="none" stroke="${C.ink}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${ptsStr(vs.map(k=>mirrorInsetPt(pp,k,d0)))}" fill="none" stroke="${print ? '#666' : '#ffffff'}" stroke-width="0.9" opacity="0.85" stroke-linejoin="round"/>`;
+          const outer = vs.map(k=>pp[k]), inner = vs.map(k=>mirrorInsetPt(pp,k,wP)).reverse();
+          body += `<path data-mr="polish" d="M ${ptsStr(outer.concat(inner)).replace(/ /g,' L ')} Z" fill="url(#pl-${gid})" stroke="${C.ink}" stroke-width="1.5" stroke-linejoin="round"/>`;
         }
       }
     });
@@ -11872,7 +11876,7 @@ function mirrorRenderOne(it, print, s, opts){
     });
     holeLegend = legend;
   // ---- أسهم الشطف/الصقل: توضّح للعامل أي حافة بالضبط ----
-  if(!grid && !(it.mrEdgeAll === false && !Object.keys(it.mrSides||{}).some(k=>it.mrSides[k]))){
+  if(!grid && it.mrEdge !== 'none' && !(it.mrEdgeAll === false && !Object.keys(it.mrSides||{}).some(k=>it.mrSides[k]))){
     const polyA = mirrorPolygon(it), ppA = polyA.map(p=>[p[0]*s, p[1]*s]);
     let A = 0; for(let k=0;k<ppA.length;k++){ const a=ppA[k], b=ppA[(k+1)%ppA.length]; A += a[0]*b[1]-b[0]*a[1]; }
     const sg = A >= 0 ? 1 : -1;
@@ -11937,7 +11941,8 @@ function mirrorRenderOne(it, print, s, opts){
   const specs = [`${mirrorFmt(it.mrThick||5, it, true)} ${tint.en} Mirror - ${shapeEn}`];
   const edgesTxt = mirrorEdgeLabelEn(it);
   if(!grid){
-    if(it.mrEdge === 'bevel') specs.push(`Bevel ${mirrorFmt(it.mrBevel||20, it, true)} - ${it.mrEdgeAll !== false ? 'all edges' : edgesTxt + ' only (front view), other edges plain'}`);
+    if(it.mrEdge === 'none') specs.push('Edges: plain, no polish and no bevel');
+    else if(it.mrEdge === 'bevel') specs.push(`Bevel ${mirrorFmt(it.mrBevel||20, it, true)} - ${it.mrEdgeAll !== false ? 'all edges' : edgesTxt + ' only (front view), other edges plain'}`);
     else specs.push(`Polished edge - ${it.mrEdgeAll !== false ? 'all edges' : edgesTxt + ' only (front view), other edges plain'}`);
   } else if(it.mrEdge === 'bevel') specs.push(`Bevel ${mirrorFmt(it.mrBevel||20, it, true)} on each piece`);
   if(it.mrLed) specs.push(`LED backlight: ${it.mrLedK}K ${mirrorLedWhite(it.mrLedK)}, ${MIRROR_LED_VOLTS[it.mrLedV]}, ${st.ledM.toFixed(2)} m`);
@@ -11947,7 +11952,7 @@ function mirrorRenderOne(it, print, s, opts){
   if(!print){
     const parts = [`مساحة ${st.bboxM2.toFixed(2)} م²`];
     if(it.mrEdge === 'bevel') parts.push(`شطف ${st.edgeM.toFixed(2)} م.ط`);
-    else if(!grid) parts.push(`صقل ${st.edgeM.toFixed(2)} م.ط`);
+    else if(!grid && it.mrEdge !== 'none') parts.push(`صقل ${st.edgeM.toFixed(2)} م.ط`);
     if(it.mrLed) parts.push(`LED ${st.ledM.toFixed(2)} م.ط`);
     if(grid) parts.push(`${st.pieces} قطعة`);
     if(st.holes) parts.push(`${st.holes} فتحة`);
@@ -12299,8 +12304,8 @@ function mirrorApplyVisibility(it){
   mirrorRenderHolesList(it);
   { const wr = document.getElementById('mrWarn'); if(wr) wr.innerHTML = mirrorHoleWarnings(it).join('<br>'); }
   show('mrBevelWrap', it.mrEdge === 'bevel');
-  show('mrEdgeSelWrap', it.mrShape !== 'rhombusGrid');
-  show('mrSidesWrap', it.mrShape !== 'rhombusGrid' && it.mrEdgeAll === false);
+  show('mrEdgeSelWrap', it.mrShape !== 'rhombusGrid' && it.mrEdge !== 'none');
+  show('mrSidesWrap', it.mrShape !== 'rhombusGrid' && it.mrEdge !== 'none' && it.mrEdgeAll === false);
   { const ea = document.getElementById('mrEdgeAll'); if(ea) ea.value = it.mrEdgeAll === false ? 'some' : 'all';
     mirrorSlotLabels(it).forEach((x,i)=>{ const c=document.getElementById('mrSide'+i), l=document.getElementById('mrSideLbl'+i); if(c) c.checked = !!(it.mrSides && it.mrSides[x[0]]); if(l) l.textContent = 'حافة ' + x[1]; }); }
   show('mrLedWrap', !!it.mrLed);
@@ -12312,7 +12317,7 @@ function mirrorApplyVisibility(it){
     const rows = [`المساحة (للتسعير): <b>${st.bboxM2.toFixed(2)} م²</b>`];
     if(it.mrShape !== 'rect' && it.mrShape !== 'rhombusGrid') rows.push(`مساحة الزجاج الفعلية: ${st.glassM2.toFixed(2)} م²`);
     if(it.mrShape !== 'rhombusGrid') rows.push(`الحواف: ${mirrorEdgeLabelAr(it)}`);
-    rows.push(it.mrEdge === 'bevel' ? `طول الشطف: <b>${st.edgeM.toFixed(2)} م.ط</b>` : (it.mrShape === 'rhombusGrid' ? '' : `طول الصقل: <b>${st.edgeM.toFixed(2)} م.ط</b>`));
+    rows.push(it.mrEdge === 'bevel' ? `طول الشطف: <b>${st.edgeM.toFixed(2)} م.ط</b>` : ((it.mrShape === 'rhombusGrid' || it.mrEdge === 'none') ? (it.mrEdge === 'none' ? 'الحواف بدون صقل أو شطف' : '') : `طول الصقل: <b>${st.edgeM.toFixed(2)} م.ط</b>`));
     if(it.mrLed) rows.push(`طول شريط الـLED: <b>${st.ledM.toFixed(2)} م.ط</b>`);
     if(st.holes) rows.push(`الفتحات: <b>${st.holes}</b> (محيطها ${st.holeEdgeM.toFixed(2)} م.ط)`);
     if(it.mrShape === 'rhombusGrid') rows.push(st.tooMany ? '<span style="color:#e53935;">القطع كتير جدًا - كبّر مقاس القطعة</span>' : `عدد القطع: <b>${st.pieces}</b> (كاملة ${st.full} + مقصوصة ${st.partial})`);
