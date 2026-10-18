@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-17.7';
+  var CURRENT_VERSION = '2026-10-17.8';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7598,6 +7598,11 @@ window.wdApplyBack = function(results){
               <div><label>فرق الارتفاع (الدرجة) مم</label><input type="text" inputmode="decimal" id="mrStepRise" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrStepRise',this.value)" value="200"></div>
               <div><label>عرض الجزء المرتفع مم</label><input type="text" inputmode="decimal" id="mrStepW" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrStepW',this.value)" value="510"></div>
             </div>
+            <div class="row2" style="margin-top:6px;">
+              <div><label>طول الجزء المنخفض مم</label><input type="text" inputmode="decimal" id="mrStepLowW" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorStepLow('lw',this.value)"></div>
+              <div><label>ارتفاع الجزء المنخفض مم</label><input type="text" inputmode="decimal" id="mrStepLowH" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorStepLow('lh',this.value)"></div>
+            </div>
+            <p class="hint" style="margin-top:5px;">مثال: مرآة أول 155 سم من اليسار أقل من آخر 51 سم: العرض الكلي 206 سم، عرض الجزء المرتفع 51 سم، الجزء المرتفع على اليمين. غيّر "فرق الارتفاع" أو "ارتفاع الجزء المنخفض" حسب مقاسك.</p>
           </div>
           <div id="mrCustomWrap" style="display:none;margin-top:6px;">
             <label>نقاط الشكل (مم) - (0,0) هي أسفل اليسار</label>
@@ -11907,13 +11912,20 @@ function mirrorRenderOne(it, print, s, opts){
       });
     });
   }
-    // مقاسات الدرجة (فرق الارتفاع وعرض الجزء المرتفع)
+    // مقاسات الدرجة: سلسلة أطوال تحت المرآة (المنخفض | المرتفع) + فرق الارتفاع + ارتفاع الجزء المنخفض
     if(it.mrShape === 'steps'){
       const rise = Math.max(0, Math.min(it.mrStepRise||0, H-1)), sw = Math.max(1, Math.min(it.mrStepW||1, W-1));
       const right = it.mrStepSide !== 'left';
-      const sx = (right ? W - sw : sw)*s;
-      body += `<text x="${(right ? sx-5 : sx+5).toFixed(1)}" y="${(rise*s/2+3).toFixed(1)}" font-size="10" fill="${C.dimTxt}" text-anchor="${right ? 'end' : 'start'}" font-family="${C.font}" direction="ltr"${E('step')}>↕${mirrorFmt(rise,it)}</text>`;
-      body += `<text x="${((right ? W - sw/2 : sw/2)*s).toFixed(1)}" y="-8" font-size="10" fill="${C.dimTxt}" text-anchor="middle" font-family="${C.font}" direction="ltr"${E('step')}>↔${mirrorFmt(sw,it)}</text>`;
+      const sx = (right ? W - sw : sw)*s, yc = dh + 22;
+      const tk = (x)=>`<line x1="${x.toFixed(1)}" y1="${yc-4}" x2="${x.toFixed(1)}" y2="${yc+4}" stroke="${C.dim}" stroke-width="1"/>`;
+      const hd = (x1,x2,mm)=>`<line x1="${x1.toFixed(1)}" y1="${yc}" x2="${x2.toFixed(1)}" y2="${yc}" stroke="${C.dim}" stroke-width="1"/>${tk(x1)}${tk(x2)}<text x="${((x1+x2)/2).toFixed(1)}" y="${yc-4}" font-size="10.5" font-weight="700" fill="${C.dimTxt}" text-anchor="middle" font-family="${C.font}" direction="ltr"${E('step')}>${mirrorFmt(mm,it)}</text>`;
+      body += right ? hd(0, sx, W - sw) + hd(sx, dw, sw) : hd(0, sx, sw) + hd(sx, dw, W - sw);
+      // فرق الارتفاع (الدرجة)
+      const rx = right ? sx - 16 : sx + 16;
+      body += `<line x1="${rx.toFixed(1)}" y1="0" x2="${rx.toFixed(1)}" y2="${(rise*s).toFixed(1)}" stroke="${C.dim}" stroke-width="1"/><line x1="${(rx-4).toFixed(1)}" y1="0" x2="${(rx+4).toFixed(1)}" y2="0" stroke="${C.dim}" stroke-width="1"/><line x1="${(rx-4).toFixed(1)}" y1="${(rise*s).toFixed(1)}" x2="${(rx+4).toFixed(1)}" y2="${(rise*s).toFixed(1)}" stroke="${C.dim}" stroke-width="1"/><text x="${(right ? rx-5 : rx+5).toFixed(1)}" y="${(rise*s/2+3.5).toFixed(1)}" font-size="10.5" font-weight="700" fill="${C.dimTxt}" text-anchor="${right ? 'end' : 'start'}" font-family="${C.font}" direction="ltr"${E('step')}>${mirrorFmt(rise,it)}</text>`;
+      // ارتفاع الجزء المنخفض (على الجهة المنخفضة)
+      const lx = right ? -26 : dw + 62, y0 = rise*s;
+      body += `<line x1="${lx}" y1="${y0.toFixed(1)}" x2="${lx}" y2="${dh.toFixed(1)}" stroke="${C.dim}" stroke-width="1"/><line x1="${lx-5}" y1="${y0.toFixed(1)}" x2="${lx+5}" y2="${y0.toFixed(1)}" stroke="${C.dim}" stroke-width="1"/><line x1="${lx-5}" y1="${dh.toFixed(1)}" x2="${lx+5}" y2="${dh.toFixed(1)}" stroke="${C.dim}" stroke-width="1"/><text x="${lx + (right ? -8 : 14)}" y="${((y0+dh)/2).toFixed(1)}" font-size="10.5" font-weight="700" fill="${C.dimTxt}" text-anchor="middle" font-family="${C.font}" direction="ltr" transform="rotate(${right ? -90 : 90}, ${lx + (right ? -8 : 14)}, ${((y0+dh)/2).toFixed(1)})"${E('step')}>${mirrorFmt(H - rise,it)}</text>`;
     }
     if(!print){
       defs += holePolys.length ? `<clipPath id="c-${gid}"><path clip-rule="evenodd" d="${fillD}"/></clipPath>` : `<clipPath id="c-${gid}"><polygon points="${P}"/></clipPath>`;
@@ -11946,6 +11958,10 @@ function mirrorRenderOne(it, print, s, opts){
     else specs.push(`Polished edge - ${it.mrEdgeAll !== false ? 'all edges' : edgesTxt + ' only (front view), other edges plain'}`);
   } else if(it.mrEdge === 'bevel') specs.push(`Bevel ${mirrorFmt(it.mrBevel||20, it, true)} on each piece`);
   if(it.mrLed) specs.push(`LED backlight: ${it.mrLedK}K ${mirrorLedWhite(it.mrLedK)}, ${MIRROR_LED_VOLTS[it.mrLedV]}, ${st.ledM.toFixed(2)} m`);
+  if(it.mrShape === 'steps'){
+    const rs = Math.max(0, Math.min(it.mrStepRise||0, it.height-1)), ws = Math.max(1, Math.min(it.mrStepW||1, it.width-1));
+    specs.push(`Step cut-out: lower part ${mirrorFmt(it.width - ws, it, true)} long x ${mirrorFmt(it.height - rs, it, true)} high (${it.mrStepSide === 'left' ? 'right' : 'left'} side); raised part ${mirrorFmt(ws, it, true)} wide x ${mirrorFmt(it.height, it, true)} high; step ${mirrorFmt(rs, it, true)}`);
+  }
   if(grid) specs.push(`${st.pieces} pcs (${st.partial} cut)`);
   if(st.holes) specs.push(`${st.holes} cutout${st.holes>1?'s':''}${st.holes>1 ? ' (see table)' : ''}`);
   const lines = [];
@@ -11960,7 +11976,7 @@ function mirrorRenderOne(it, print, s, opts){
   }
   specs.forEach(t=>lines.push({ t, ar:false }));
   const infoLen = lines.reduce((m,l)=>Math.max(m,l.t.length),0);
-  const y0i = dh + (grid ? 64 : 32);
+  const y0i = dh + (grid ? 64 : (it.mrShape === 'steps' ? 46 : 32));
   let info = lines.map((l,k)=>`<text x="${(dw/2).toFixed(1)}" y="${y0i + 15*k}" fill="${C.sub}" font-size="11" ${l.ar ? '' : `font-family="${C.font}" direction="ltr" `}text-anchor="middle">${l.t}</text>`).join('');
   const tileLen = grid ? 36 : 0;
   const legLen = holeLegend.reduce((m,l)=>Math.max(m,l.length),0);
@@ -11968,7 +11984,7 @@ function mirrorRenderOne(it, print, s, opts){
   if(holeLegend.length){
     info += holeLegend.map((l,k)=>`<text x="${(dw/2).toFixed(1)}" y="${legY0 + 16*(k+1)}" fill="${C.sub}" font-size="10.5" font-family="${C.font}" text-anchor="middle" direction="ltr">${l}</text>`).join('');
   }
-  const padSide = Math.max(74, Math.max(infoLen, tileLen, legLen*0.95)*6.6/2 - dw/2 + 12), padTop = 62, padBottom = (grid ? 84 : 52) + 15*(lines.length-1) + 16*holeLegend.length;
+  const padSide = Math.max(it.mrShape === 'steps' ? 96 : 74, Math.max(infoLen, tileLen, legLen*0.95)*6.6/2 - dw/2 + 12), padTop = 62, padBottom = (grid ? 84 : (it.mrShape === 'steps' ? 66 : 52)) + 15*(lines.length-1) + 16*holeLegend.length;
   return { svgInner: `<defs>${defs}</defs>${body}${dims}${info}`, vbX: -padSide, vbY: -padTop, vbW: dw + padSide*2, vbH: dh + padTop + padBottom };
 }
 // تجميع القطع: كل قطعة بإطارها (قياساتها ومعلوماتها) ثم ترتيبها فوق بعض أو جنب بعض
@@ -12249,7 +12265,7 @@ function mirrorEditDim(ev, itemId, idx, kind, holeId){
     fields = h.type === 'round' ? [{k:'w', label:'القطر', val:+h.w||0}] : [{k:'w', label:'العرض', val:+h.w||0},{k:'h', label:'الارتفاع', val:+h.h||0}];
     fields.push({k:'x', label:'من اليسار', val:+h.x||0},{k:'y', label:'من الأسفل', val:+h.y||0});
   }
-  else if(kind === 'step'){ title = 'الدرجة' + pn; fields = [{k:'sr', label:'فرق الارتفاع', val:p.mrStepRise},{k:'sw', label:'عرض المرتفع', val:p.mrStepW}]; }
+  else if(kind === 'step'){ title = 'الدرجة' + pn; fields = [{k:'sr', label:'فرق الارتفاع', val:p.mrStepRise},{k:'lh', label:'ارتفاع المنخفض', val:p.height - p.mrStepRise},{k:'sw', label:'عرض المرتفع', val:p.mrStepW},{k:'lw', label:'طول المنخفض', val:p.width - p.mrStepW}]; }
   else if(kind === 'tile'){ title = 'المعيّن' + pn; fields = [{k:'tw', label:'العرض', val:p.mrTileW},{k:'th', label:'الارتفاع', val:p.mrTileH},{k:'tg', label:'الفاصل', val:p.mrTileGap}]; }
   else return;
   mirrorDimPopup(ev, title, fields, it0.mrUnit, vals=>{
@@ -12263,7 +12279,12 @@ function mirrorEditDim(ev, itemId, idx, kind, holeId){
         const h = (it.mrHoles||[]).find(x=>x.id === holeId); if(!h) return;
         ['w','h','x','y'].forEach(k=>{ if(vals[k] == null) return; const n = vals[k]; if(!isFinite(n) || n < 0 || ((k==='w'||k==='h') && n < 1)) return; h[k] = n; });
       } else if(kind === 'step'){
-        if(vals.sr >= 0) it.mrStepRise = vals.sr; if(vals.sw >= 1) it.mrStepW = vals.sw;
+        const o = { sr:p.mrStepRise, lh:p.height - p.mrStepRise, sw:p.mrStepW, lw:p.width - p.mrStepW };
+        const ch = k => vals[k] != null && Math.abs(vals[k] - o[k]) > 1e-6;
+        if(ch('sr') && vals.sr >= 0) it.mrStepRise = vals.sr;
+        if(ch('lh') && vals.lh >= 1 && it.height - vals.lh >= 0) it.mrStepRise = it.height - vals.lh;
+        if(ch('sw') && vals.sw >= 1) it.mrStepW = vals.sw;
+        if(ch('lw') && vals.lw >= 1 && it.width - vals.lw >= 1) it.mrStepW = it.width - vals.lw;
       } else if(kind === 'tile'){
         if(vals.tw >= 20) it.mrTileW = vals.tw; if(vals.th >= 20) it.mrTileH = vals.th; if(vals.tg >= 0) it.mrTileGap = vals.tg;
       }
@@ -12283,6 +12304,7 @@ function mirrorLoadControls(it){
     const led = document.getElementById('mrLed'); if(led) led.checked = !!it.mrLed;
     set('mrLedK', it.mrLedK); set('mrLedV', it.mrLedV); set('mrThick', String(it.mrThick)); set('mrTint', it.mrTint);
     set('mrColorName', it.mrColorName || ''); set('mrColorHex', /^#[0-9a-f]{6}$/i.test(it.mrColorHex||'') ? it.mrColorHex : '#c9a24a');
+    set('mrStepLowW', Math.round(it.width - it.mrStepW)); set('mrStepLowH', Math.round(it.height - it.mrStepRise));
     set('mrStepSide', it.mrStepSide); set('mrStepRise', Math.round(it.mrStepRise)); set('mrStepW', Math.round(it.mrStepW));
     set('mrTileW', Math.round(it.mrTileW)); set('mrTileH', Math.round(it.mrTileH)); set('mrTileGap', it.mrTileGap);
     mirrorApplyVisibility(it);
@@ -12345,6 +12367,14 @@ function onMirrorField(field, value){
     if(field === 'mrShape' && value === 'circle'){ const d = Math.min(it.width, it.height); it.width = d; it.height = d; }
   });
 }
+function onMirrorStepLow(kind, value){
+  mirrorRun(null, null, it=>{
+    const n = parseFloat(value); if(!isFinite(n) || n < 1) return;
+    if(kind === 'lh'){ if(it.height - n < 0) return; it.mrStepRise = it.height - n; }
+    else { if(it.width - n < 1) return; it.mrStepW = it.width - n; }
+  });
+}
+window.onMirrorStepLow = onMirrorStepLow;
 function onMirrorSide(idx, checked){
   mirrorRun(null, null, it=>{
     const lab = mirrorSlotLabels(it)[idx]; if(!lab) return;
