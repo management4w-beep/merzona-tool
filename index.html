@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-17.9';
+  var CURRENT_VERSION = '2026-10-18.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -3838,6 +3838,7 @@ function resetAllNoConfirm(){
   // 🆕 2026-09-22: seedDefaults() فوق بيزرع فقرة الاختصاص القضائي دايمًا بنص "الشارقة" الافتراضي
   // (شوف addNoteRow جوا seedDefaults) - إذا الفرع الحالي دمشق/سوريا، لازم نصححها فورًا لنص دمشق.
   applyBranchJurisdictionClause(getCurrentBranch());
+  try{ applyBranchSystemStatement(getCurrentBranch()); }catch(e){}
   // 🛠️ 2026-10-08 (بلاغ حمدي: "عرض سعر جديد بضل معلق على آخر عرض"): العرض الجديد كان يفضّي الجداول بس
   // ويضل اسم الزبون/المشروع/الموقع/الرقم من العرض القديم. هلق بنفضّيهم كمان وبنحط تاريخ اليوم.
   ['m-client','m-number','m-project','m-location'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
@@ -4992,6 +4993,28 @@ function applyBranchJurisdictionClause(branch){
     }
   });
 }
+// 🆕 2026-10-18 (طلب حمدي): فرع سوريا - ما بدنا اسم "الغرير / Al Ghurair" يظهر بمواصفات العرض إطلاقًا.
+// جملة النظام ("Using below Al Ghurair Thermal Break System...") بتتحوّل لصيغة محايدة بدون اسم الشركة لعروض سوريا
+// (بالتحرير والطباعة والـPDF)، وبترجع لصيغة الغرير لعروض الإمارات. بنعدّل بس جمل النظام بقسم المواصفات، مش نصوص كتبها المستخدم بكلام ثاني.
+function applyBranchSystemStatement(branch){
+  const rows = document.querySelectorAll('#alum-spec-rows .bi-row');
+  const UAE_EN = 'Using below Al Ghurair Thermal Break System, we can change it as per client request:';
+  const UAE_AR = 'سيتم العمل على المقاطع العازلة للحرارة من الغرير أدناه وبالإمكان التغيير حسب رغبة الزبون:';
+  const SY_EN = 'Using below Thermal Break System, we can change it as per client request:';
+  const SY_AR = 'سيتم العمل على المقاطع العازلة للحرارة أدناه وبالإمكان التغيير حسب رغبة الزبون:';
+  rows.forEach(row=>{
+    const enEl = row.querySelector('textarea:not(.ar)'), arEl = row.querySelector('textarea.ar');
+    if(!enEl || !arEl) return;
+    if(branch === 'syria'){
+      if(/ghurair/i.test(enEl.value)) enEl.value = enEl.value.replace(/\s*\(?\bAl[\s-]*Ghurair\b\)?/gi, '').replace(/\s{2,}/g,' ').trim();
+      if(/الغرير/.test(arEl.value)) arEl.value = arEl.value.replace(/\s*(من\s+)?(شركة\s+)?الغرير/g, '').replace(/\s{2,}/g,' ').trim();
+    } else {
+      if(enEl.value.trim() === SY_EN) enEl.value = UAE_EN;
+      if(arEl.value.trim() === SY_AR) arEl.value = UAE_AR;
+    }
+  });
+}
+window.applyBranchSystemStatement = applyBranchSystemStatement;
 // 🆕 2026-09-22: بند "VAT 5%" (ضريبة القيمة المضافة الإماراتية) ما بينطبق على فرع دمشق/سوريا - منخفي
 // سطره كليًا (بالتحرير والطباعة والـPDF سوا، لأنو style.display مش كلاس @media print) ومنصفّر قيمته
 // فعليًا (شوف recalcSummary) حتى ما يترتب أي ضريبة خفية على المجموع.
@@ -5068,6 +5091,7 @@ function onCurrencyChange(){
 function applyBranchDependentUI(branch){
   applyBranchAddress(branch);
   applyBranchJurisdictionClause(branch);
+  try{ applyBranchSystemStatement(branch); }catch(e){}
   updateVatVisibility(branch);
   updateBankInfoVisibility(branch);
   updateCurrencyRowVisibility(branch);
@@ -7589,6 +7613,13 @@ window.wdApplyBack = function(results){
           <div id="mrRoundedWrap" style="display:none;margin-top:6px;">
             <label id="mrRadiusLbl">نصف قطر الزوايا (مم)</label>
             <input type="text" inputmode="decimal" id="mrRadius" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onMirrorField('mrRadius',this.value)" value="100">
+            <label style="margin-top:6px;">الزوايا المطبَّق عليها (شيل العلامة عن الزاوية القائمة)</label>
+            <div class="row2">
+              <div class="check-row"><input type="checkbox" id="mrCorner_tl" onchange="onMirrorCorner('tl',this.checked)"><label for="mrCorner_tl">علوية يسرى</label></div>
+              <div class="check-row"><input type="checkbox" id="mrCorner_tr" onchange="onMirrorCorner('tr',this.checked)"><label for="mrCorner_tr">علوية يمنى</label></div>
+              <div class="check-row"><input type="checkbox" id="mrCorner_bl" onchange="onMirrorCorner('bl',this.checked)"><label for="mrCorner_bl">سفلية يسرى</label></div>
+              <div class="check-row"><input type="checkbox" id="mrCorner_br" onchange="onMirrorCorner('br',this.checked)"><label for="mrCorner_br">سفلية يمنى</label></div>
+            </div>
           </div>
           <div id="mrStepsWrap" style="display:none;margin-top:6px;">
             <p class="hint" style="margin-top:0;">العرض والارتفاع الكليين من الخانات فوق (الارتفاع = ارتفاع الجزء المرتفع).</p>
@@ -11343,7 +11374,7 @@ window.editHandrailTotal = editHandrailTotal;
 // 🆕 2026-10-17 (طلب حمدي): تصميم مرايا بالمصمم - أشكال (مستطيل/مدوّر الزوايا/بيضاوي/دائرة/قوس/معيّن/شكل حر عضوي)
 // + جدار مرايا معيّنات متكررة (مقاس القطعة والفاصل) + حواف مشطوفة (Bevel) بعرض يحدده المستخدم + إضاءة LED خلفية.
 // كل الأشكال بتتحوّل لمضلع (قائمة نقاط بالمليمتر) - هيك المساحة والمحيط (طول الشطف/الـLED) بيتحسبوا بنفس الطريقة لكل الأشكال.
-const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBevel','mrLed','mrLedColor','mrThick','mrTint','mrTileW','mrTileH','mrTileGap','mrEdgeAll','mrSides','mrPts','mrHoles','mrStepRise','mrStepW','mrStepSide','mrColorName','mrColorHex','mrUnit','mrLedK','mrLedV'];
+const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBevel','mrLed','mrLedColor','mrThick','mrTint','mrTileW','mrTileH','mrTileGap','mrEdgeAll','mrSides','mrPts','mrHoles','mrStepRise','mrStepW','mrStepSide','mrColorName','mrColorHex','mrUnit','mrLedK','mrLedV','mrCorners'];
 const MIRROR_PIECE_KEYS = MIRROR_KEYS.filter(k=>k!=='mrUnit');
 const MIRROR_COMP_KEYS = ['mrPieces','mrCur','mrArrange','mrAlign'];
 const MIRROR_SHAPES = { rect:'مستطيل', rounded:'مستطيل بزوايا مدوّرة', oval:'بيضاوي', circle:'دائرة', arch:'قوس (نصف دائرة بالأعلى)', capsule:'كبسولة (طرفين نصف دائريين)', dshape:'حرف D (طرف مستدير)', halfround:'نصف دائرة (قبة)', triangle:'مثلث', trapezoid:'شبه منحرف', hexagon:'سداسي', octagon:'ثماني', chamfer:'مستطيل بزوايا مقطوعة', lens:'عدسة / ورقة (طرفين مدببين)', rhombus:'معيّن', steps:'مرآة بدرجة (حرف L)', custom:'مضلع مخصص (بالنقاط)', organic:'شكل حر (عضوي)', rhombusGrid:'جدار معيّنات متكررة' };
@@ -11420,6 +11451,7 @@ function mirrorEnsure(it){
   if(!MIRROR_LED_VOLTS[it.mrLedV]) it.mrLedV = '12';
   if(it.mrThick == null) it.mrThick = 5;
   if(it.mrTint == null) it.mrTint = 'clear';
+  if(!it.mrCorners || typeof it.mrCorners !== 'object') it.mrCorners = { tl:true, tr:true, br:true, bl:true };
   if(it.mrColorName == null) it.mrColorName = '';
   if(it.mrColorHex == null) it.mrColorHex = '#c9a24a';
   if(it.mrUnit !== 'cm' && it.mrUnit !== 'mm') it.mrUnit = mirrorDefaultUnit();
@@ -11465,13 +11497,13 @@ function mirrorPolygonRaw(it){
   switch(it.mrShape){
     case 'rounded': {
       const r = Math.max(0, Math.min(it.mrRadius||0, W/2, H/2));
+      const c = it.mrCorners || {}, PI = Math.PI;
       if(r <= 0) return [[0,0],[W,0],[W,H],[0,H]];
-      const PI = Math.PI;
       return [].concat(
-        mirrorArcPts(r, r, r, r, PI, 1.5*PI, 10),
-        mirrorArcPts(W-r, r, r, r, 1.5*PI, 2*PI, 10),
-        mirrorArcPts(W-r, H-r, r, r, 0, 0.5*PI, 10),
-        mirrorArcPts(r, H-r, r, r, 0.5*PI, PI, 10));
+        c.tl !== false ? mirrorArcPts(r, r, r, r, PI, 1.5*PI, 10) : [[0,0]],
+        c.tr !== false ? mirrorArcPts(W-r, r, r, r, 1.5*PI, 2*PI, 10) : [[W,0]],
+        c.br !== false ? mirrorArcPts(W-r, H-r, r, r, 0, 0.5*PI, 10) : [[W,H]],
+        c.bl !== false ? mirrorArcPts(r, H-r, r, r, 0.5*PI, PI, 10) : [[0,H]]);
     }
     case 'oval': return mirrorArcPts(W/2, H/2, W/2, H/2, 0, 2*Math.PI, 120).slice(0,-1);
     case 'circle': { const r = Math.min(W,H)/2; return mirrorArcPts(W/2, H/2, r, r, 0, 2*Math.PI, 120).slice(0,-1); }
@@ -11498,9 +11530,13 @@ function mirrorPolygonRaw(it){
     case 'hexagon': return [[W*0.25,0],[W*0.75,0],[W,H/2],[W*0.75,H],[W*0.25,H],[0,H/2]];
     case 'octagon': { const c = 0.2929*Math.min(W,H); return [[c,0],[W-c,0],[W,c],[W,H-c],[W-c,H],[c,H],[0,H-c],[0,c]]; }
     case 'chamfer': {
-      const c = Math.max(0, Math.min(it.mrRadius||0, W/2, H/2));
+      const c = Math.max(0, Math.min(it.mrRadius||0, W/2, H/2)), k = it.mrCorners || {};
       if(c <= 0) return [[0,0],[W,0],[W,H],[0,H]];
-      return [[c,0],[W-c,0],[W,c],[W,H-c],[W-c,H],[c,H],[0,H-c],[0,c]];
+      return [].concat(
+        k.tl !== false ? [[0,c],[c,0]] : [[0,0]],
+        k.tr !== false ? [[W-c,0],[W,c]] : [[W,0]],
+        k.br !== false ? [[W,H-c],[W-c,H]] : [[W,H]],
+        k.bl !== false ? [[c,H],[0,H-c]] : [[0,H]]);
     }
     case 'lens': {
       const out = [], n = 40;
@@ -11979,6 +12015,12 @@ function mirrorRenderOne(it, print, s, opts){
     else specs.push(`Polished edge - ${it.mrEdgeAll !== false ? 'all edges' : edgesTxt + ' only (front view), other edges plain'}`);
   } else if(it.mrEdge === 'bevel') specs.push(`Bevel ${mirrorFmt(it.mrBevel||20, it, true)} on each piece`);
   if(it.mrLed) specs.push(`LED backlight: ${it.mrLedK}K ${mirrorLedWhite(it.mrLedK)}, ${MIRROR_LED_VOLTS[it.mrLedV]}, ${st.ledM.toFixed(2)} m`);
+  if(it.mrShape === 'rounded' || it.mrShape === 'chamfer'){
+    const kk = it.mrCorners || {}, nm = { tl:'top-left', tr:'top-right', br:'bottom-right', bl:'bottom-left' };
+    const on = ['tl','tr','br','bl'].filter(k=>kk[k] !== false), off = ['tl','tr','br','bl'].filter(k=>kk[k] === false);
+    const what = it.mrShape === 'rounded' ? `rounded R${mirrorFmt(it.mrRadius||0, it, true)}` : `chamfered ${mirrorFmt(it.mrRadius||0, it, true)}`;
+    specs.push(off.length === 0 ? `Corners: all ${what}` : (on.length === 0 ? 'Corners: all square' : `Corners: ${what} at ${on.map(k=>nm[k]).join(', ')}; ${off.map(k=>nm[k]).join(', ')} square`));
+  }
   if(it.mrShape === 'steps'){
     const rs = Math.max(0, Math.min(it.mrStepRise||0, it.height-1)), ws = Math.max(1, Math.min(it.mrStepW||1, it.width-1));
     specs.push(`Step cut-out: lower part ${mirrorFmt(it.width - ws, it, true)} long x ${mirrorFmt(it.height - rs, it, true)} high (${it.mrStepSide === 'left' ? 'right' : 'left'} side); raised part ${mirrorFmt(ws, it, true)} wide x ${mirrorFmt(it.height, it, true)} high; step ${mirrorFmt(rs, it, true)}`);
@@ -12325,6 +12367,7 @@ function mirrorLoadControls(it){
     set('mrLedK', it.mrLedK); set('mrLedV', it.mrLedV); set('mrThick', String(it.mrThick)); set('mrTint', it.mrTint);
     set('mrColorName', it.mrColorName || ''); set('mrColorHex', /^#[0-9a-f]{6}$/i.test(it.mrColorHex||'') ? it.mrColorHex : '#c9a24a');
     set('mrStepLowW', Math.round(it.width - it.mrStepW)); set('mrStepLowH', Math.round(it.height - it.mrStepRise));
+    ['tl','tr','bl','br'].forEach(k=>{ const e = document.getElementById('mrCorner_'+k); if(e) e.checked = it.mrCorners ? it.mrCorners[k] !== false : true; });
     set('mrStepSide', it.mrStepSide); set('mrStepRise', Math.round(it.mrStepRise)); set('mrStepW', Math.round(it.mrStepW));
     set('mrTileW', Math.round(it.mrTileW)); set('mrTileH', Math.round(it.mrTileH)); set('mrTileGap', it.mrTileGap);
     mirrorApplyVisibility(it);
@@ -12387,6 +12430,10 @@ function onMirrorField(field, value){
     if(field === 'mrShape' && value === 'circle'){ const d = Math.min(it.width, it.height); it.width = d; it.height = d; }
   });
 }
+function onMirrorCorner(key, checked){
+  mirrorRun(null, null, it=>{ if(!it.mrCorners) it.mrCorners = { tl:true, tr:true, br:true, bl:true }; it.mrCorners[key] = !!checked; });
+}
+window.onMirrorCorner = onMirrorCorner;
 function onMirrorStepLow(kind, value){
   mirrorRun(null, null, it=>{
     const n = parseFloat(value); if(!isFinite(n) || n < 1) return;
