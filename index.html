@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-17.8';
+  var CURRENT_VERSION = '2026-10-17.9';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -11611,13 +11611,30 @@ function mirrorPointInPoly(pt, poly){
   }
   return inside;
 }
+function mirrorPtIn(poly, p){ return mirrorPointInPoly(p, poly) || mirrorPointInPoly([p[0]+0.01,p[1]+0.01], poly) || mirrorPointInPoly([p[0]-0.01,p[1]-0.01], poly); }
+// حالة الفتحة بالنسبة للمرآة: in = كلها جوّا، part = جزء منها برّا (بتنقص من الحافة)، out = كلها برّا
+function mirrorHoleSample(poly, hp){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; hp.forEach(p=>{ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); y0=Math.min(y0,p[1]); y1=Math.max(y1,p[1]); });
+  let tot = 0, ins = 0; const N = 28;
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){ const p = [x0+(x1-x0)*(i+0.5)/N, y0+(y1-y0)*(j+0.5)/N]; if(mirrorPointInPoly(p, hp)){ tot++; if(mirrorPointInPoly(p, poly)) ins++; } }
+  return { tot, ins };
+}
+// حالة الفتحة بالنسبة للمرآة: in = كلها جوّا، part = جزء منها برّا (بتنقص من الحافة)، out = كلها برّا
+function mirrorHoleState(poly, hp){
+  const r = mirrorHoleSample(poly, hp);
+  if(!r.tot || r.ins === 0) return 'out';
+  return r.ins === r.tot ? 'in' : 'part';
+}
+// نسبة الفتحة اللي فعليًا داخل المرآة (للمساحة)
+function mirrorHoleFrac(poly, hp){ const r = mirrorHoleSample(poly, hp); return r.tot ? r.ins/r.tot : 0; }
 function mirrorHoleWarnings(it){
   const out = [];
   if(it.mrShape === 'rhombusGrid') return out;
   const poly = mirrorPolygon(it);
   (it.mrHoles||[]).forEach((h,i)=>{
-    const hp = mirrorHolePoly(it, h);
-    if(!hp.every(p=>mirrorPointInPoly(p, poly) || mirrorPointInPoly([p[0]+0.01,p[1]+0.01], poly) || mirrorPointInPoly([p[0]-0.01,p[1]-0.01], poly))) out.push(`الفتحة ${i+1} خارج حدود المرآة`);
+    const st = mirrorHoleState(poly, mirrorHolePoly(it, h));
+    if(st === 'out') out.push(`الفتحة ${i+1} خارج المرآة بالكامل ولا تأثير لها (احذفها؛ وإذا بدك جزء مقصوص من الحافة استخدم شكل "مرآة بدرجة")`);
+    else if(st === 'part') out.push(`جزء من الفتحة ${i+1} خارج حدود المرآة - بتنقص من الحافة`);
   });
   return out;
 }
@@ -11698,8 +11715,8 @@ function mirrorStats(it){
     res.edgeM = selLen/1000;
     res.ledM = it.mrLed ? per : 0;
     const hs = (it.mrHoles||[]);
-    res.holes = hs.length;
-    hs.forEach(h=>{ const hp = mirrorHolePoly(it, h); res.glassM2 -= mirrorPolyArea(hp)/1e6; res.holeEdgeM = (res.holeEdgeM||0) + mirrorPolyPerim(hp)/1000; });
+    res.holes = 0;
+    hs.forEach(h=>{ const hp = mirrorHolePoly(it, h); const fr = mirrorHoleFrac(poly, hp); if(fr > 0) res.holes++; res.glassM2 -= fr*mirrorPolyArea(hp)/1e6; res.holeEdgeM = (res.holeEdgeM||0) + fr*mirrorPolyPerim(hp)/1000; });
   }
   return res;
 }
@@ -11789,7 +11806,11 @@ function mirrorRenderOne(it, print, s, opts){
     const holePolys = holes.map(h=>mirrorHolePoly(it, h));
     const ptsD = poly => 'M ' + pts(poly).replace(/ /g,' L ') + ' Z';
     const fillD = ptsD(polyMm) + holePolys.map(hp=>' ' + ptsD(hp)).join('');
-    body += holePolys.length ? `<path d="${fillD}" fill-rule="evenodd" fill="${fillMain}" stroke="none"/>` : `<polygon points="${P}" fill="${fillMain}" stroke="none"/>`;
+    if(holePolys.length){
+      defs += `<mask id="mk-${gid}" maskUnits="userSpaceOnUse" x="-10" y="-10" width="${(dw+20).toFixed(1)}" height="${(dh+20).toFixed(1)}"><polygon points="${P}" fill="#fff"/>${holePolys.map(hp=>`<polygon points="${pts(hp)}" fill="#000"/>`).join('')}</mask>`;
+      body += `<polygon points="${P}" fill="${fillMain}" stroke="none" mask="url(#mk-${gid})"/>`;
+    } else body += `<polygon points="${P}" fill="${fillMain}" stroke="none"/>`;
+    const holeSt = holePolys.map((hp,i)=>mirrorHoleState(polyMm, (it.mrHoles||[])[i] ? mirrorHolePoly(it, it.mrHoles[i]) : hp));
     const ptsStr = arr => arr.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
     const runVerts = r => { const out=[]; for(let k=0;k<=r.m;k++) out.push((r.a+k)%pp.length); return out; };
     // حواف غير مختارة = حافة عادية (خط رفيع متقطع)
@@ -11844,7 +11865,7 @@ function mirrorRenderOne(it, print, s, opts){
     const holeTxt = [];
     holePolys.forEach((hp,i)=>{
       const h = holes[i];
-      body += `<polygon data-mr="hole" points="${pts(hp)}" fill="none" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
+      body += holeSt[i] === 'out' ? `<polygon data-mr="hole" data-out="1" points="${pts(hp)}" fill="none" stroke="#e53935" stroke-width="1.4" stroke-dasharray="4 3"/>` : `<polygon data-mr="hole" points="${pts(hp)}" fill="none" stroke="${C.ink}" stroke-width="1.8" stroke-linejoin="round"/>`;
       const hw = (+h.w||0), hh = h.type === 'round' ? (+h.w||0) : (+h.h||0);
       const hb = holeBoxes[i], cx = (hb.x0+hb.x1)/2, cy = (hb.y0+hb.y1)/2;
       const sz = h.type === 'round' ? `Ø${mirrorFmt(hw,it)}` : `${mirrorFmt(hw,it)}×${mirrorFmt(hh,it)}`;
@@ -11928,8 +11949,8 @@ function mirrorRenderOne(it, print, s, opts){
       body += `<line x1="${lx}" y1="${y0.toFixed(1)}" x2="${lx}" y2="${dh.toFixed(1)}" stroke="${C.dim}" stroke-width="1"/><line x1="${lx-5}" y1="${y0.toFixed(1)}" x2="${lx+5}" y2="${y0.toFixed(1)}" stroke="${C.dim}" stroke-width="1"/><line x1="${lx-5}" y1="${dh.toFixed(1)}" x2="${lx+5}" y2="${dh.toFixed(1)}" stroke="${C.dim}" stroke-width="1"/><text x="${lx + (right ? -8 : 14)}" y="${((y0+dh)/2).toFixed(1)}" font-size="10.5" font-weight="700" fill="${C.dimTxt}" text-anchor="middle" font-family="${C.font}" direction="ltr" transform="rotate(${right ? -90 : 90}, ${lx + (right ? -8 : 14)}, ${((y0+dh)/2).toFixed(1)})"${E('step')}>${mirrorFmt(H - rise,it)}</text>`;
     }
     if(!print){
-      defs += holePolys.length ? `<clipPath id="c-${gid}"><path clip-rule="evenodd" d="${fillD}"/></clipPath>` : `<clipPath id="c-${gid}"><polygon points="${P}"/></clipPath>`;
-      body += `<g clip-path="url(#c-${gid})" opacity="0.38"><polygon points="${dw*0.18},0 ${dw*0.34},0 ${dw*0.06},${dh} ${-dw*0.1},${dh}" fill="#ffffff"/><polygon points="${dw*0.5},0 ${dw*0.56},0 ${dw*0.28},${dh} ${dw*0.22},${dh}" fill="#ffffff"/></g>`;
+      if(!holePolys.length) defs += `<clipPath id="c-${gid}"><polygon points="${P}"/></clipPath>`;
+      body += `<g ${holePolys.length ? `mask="url(#mk-${gid})"` : `clip-path="url(#c-${gid})"`} opacity="0.38"><polygon points="${dw*0.18},0 ${dw*0.34},0 ${dw*0.06},${dh} ${-dw*0.1},${dh}" fill="#ffffff"/><polygon points="${dw*0.5},0 ${dw*0.56},0 ${dw*0.28},${dh} ${dw*0.22},${dh}" fill="#ffffff"/></g>`;
     }
   }
   // قياسات
@@ -12055,9 +12076,8 @@ function mirror3DPiece(it, ox, oy, s, gid){
   } else {
     { const hs3 = (it.mrHoles||[]);
       if(hs3.length){
-        const ptsH = poly => 'M ' + poly.map(p=>(p[0]*s+ox).toFixed(1)+','+(p[1]*s+oy).toFixed(1)).join(' L ') + ' Z';
-        const d3 = ptsH(mirrorPolygon(it)) + hs3.map(h=>' ' + ptsH(mirrorHolePoly(it, h))).join('');
-        body += `<path d="${d3}" fill-rule="evenodd" fill="url(#mir-${gid})" stroke="#51606a" stroke-width="1" stroke-linejoin="round"/>`;
+        defs += `<mask id="mk-${gid}" maskUnits="userSpaceOnUse" x="0" y="0" width="520" height="420"><polygon points="${outline}" fill="#fff"/>${hs3.map(h=>`<polygon points="${pts(mirrorHolePoly(it, h))}" fill="#000"/>`).join('')}</mask>`;
+        body += `<polygon points="${outline}" fill="url(#mir-${gid})" stroke="#51606a" stroke-width="1" stroke-linejoin="round" mask="url(#mk-${gid})"/>`;
         hs3.forEach(h=>{ body += `<polygon points="${pts(mirrorHolePoly(it, h))}" fill="none" stroke="#51606a" stroke-width="1.2"/>`; });
       } else body += `<polygon points="${outline}" fill="url(#mir-${gid})" stroke="#51606a" stroke-width="1" stroke-linejoin="round"/>`; }
     { const pm = mirrorPolygon(it), pq = pm.map(p=>[p[0]*s+ox, p[1]*s+oy]), er3 = mirrorEdgeRuns(it, pm);
