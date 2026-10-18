@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-18.3';
+  var CURRENT_VERSION = '2026-10-18.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7655,6 +7655,21 @@ window.wdApplyBack = function(results){
               <option value="blob2">بقعة 2 (غير متماثلة)</option>
               <option value="stone">حجر مسطّح</option>
               <option value="gourd">قرعة (رقم 8)</option>
+              <option value="cloud2">سحابة 2 (5 فصوص)</option>
+              <option value="cloud3">سحابة 3 (7 فصوص ناعمة)</option>
+              <option value="cloud4">سحابة 4 (فصوص كبيرة)</option>
+              <option value="cloud5">سحابة 5 (قاعدة مسطّحة)</option>
+              <option value="cloud6">سحابة 6 (غير منتظمة)</option>
+              <option value="cloud7">سحابة 7 (طويلة بقاعدة مسطّحة)</option>
+              <option value="cloud8">سحابة 8 (3 فصوص كبيرة)</option>
+              <option value="tri3">مثلث بزوايا ناعمة</option>
+              <option value="squircle">مربع ناعم (Squircle)</option>
+              <option value="pillow">نجمة رباعية ناعمة</option>
+              <option value="peanut">فول سوداني</option>
+              <option value="cookie">كوكي (8 بتلات ناعمة)</option>
+              <option value="heart">قلب ناعم</option>
+              <option value="puddle">بركة</option>
+              <option value="blob3">بقعة 3</option>
             </select>
           </div>
           <div id="mrFlipWrap" style="display:none;margin-top:6px;"><div class="check-row"><input type="checkbox" id="mrFlipX" onchange="onMirrorField('mrFlipX',this.checked)"><label for="mrFlipX">قلب الشكل (مرآة أفقية)</label></div></div>
@@ -11379,6 +11394,7 @@ const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBeve
 const MIRROR_PIECE_KEYS = MIRROR_KEYS.filter(k=>k!=='mrUnit');
 const MIRROR_COMP_KEYS = ['mrPieces','mrCur','mrArrange','mrAlign','mrLedAll'];
 const MIRROR_SHAPES = { rect:'مستطيل', rounded:'مستطيل بزوايا مدوّرة', oval:'بيضاوي', circle:'دائرة', arch:'قوس (نصف دائرة بالأعلى)', capsule:'كبسولة (طرفين نصف دائريين)', dshape:'حرف D (طرف مستدير)', halfround:'نصف دائرة (قبة)', triangle:'مثلث', trapezoid:'شبه منحرف', hexagon:'سداسي', octagon:'ثماني', chamfer:'مستطيل بزوايا مقطوعة', lens:'عدسة / ورقة (طرفين مدببين)', rhombus:'معيّن', steps:'مرآة بدرجة (حرف L)', custom:'مضلع مخصص (بالنقاط)', organic:'شكل حر (عضوي)', rhombusGrid:'جدار معيّنات متكررة' };
+let MIRROR_ORGANIC_DENSE = {};
 const MIRROR_ORGANIC = {
   wave:   [[0.55,0],[0.85,0.06],[0.97,0.2],[0.9,0.38],[0.8,0.5],[0.88,0.65],[0.95,0.82],[0.75,0.97],[0.45,1],[0.2,0.93],[0.1,0.78],[0.18,0.6],[0.25,0.48],[0.12,0.33],[0.05,0.15],[0.25,0.03]],
   pebble: [[0.5,0],[0.85,0.08],[1,0.4],[0.9,0.75],[0.6,1],[0.25,0.92],[0,0.6],[0.08,0.25],[0.28,0.05]],
@@ -11395,9 +11411,46 @@ const MIRROR_ORGANIC = {
   E.blob1 = [[0.3,0.05],[0.65,0],[0.92,0.2],[1,0.55],[0.82,0.85],[0.5,1],[0.2,0.92],[0.03,0.65],[0.05,0.3]];
   E.blob2 = [[0.15,0.2],[0.45,0.02],[0.8,0.1],[0.98,0.4],[0.78,0.6],[0.9,0.85],[0.55,0.98],[0.25,0.85],[0.08,0.55]];
   E.stone = [[0.1,0.3],[0.4,0.04],[0.8,0.1],[0.98,0.45],[0.85,0.85],[0.5,0.98],[0.15,0.85],[0.02,0.55]];
+  E.gourd0 = null; delete E.gourd0;
   E.gourd = [[0.5,0],[0.78,0.08],[0.85,0.25],[0.68,0.42],[0.58,0.5],[0.7,0.62],[0.95,0.8],[0.8,0.97],[0.5,1],[0.2,0.97],[0.05,0.8],[0.3,0.62],[0.42,0.5],[0.32,0.42],[0.15,0.25],[0.22,0.08]];
+
+  // ---- عائلة السحابة (7 أشكال) + أشكال حرة إضافية: بتتولد بمعادلات (فصوص/بروزات) وبعدين بتتمدد لمقاس المرآة ----
+  // سحابات بفصوص دائرية حقيقية: كل ضلع من المضلع الأساسي بيتحوّل لقوس (بروز) للخارج، والضلع المسطّح (اختياري) بيضل مستقيم
+  const cloudOf = (base, bulges, flatLast)=>{
+    const cx = base.reduce((s,p)=>s+p[0],0)/base.length, cy = base.reduce((s,p)=>s+p[1],0)/base.length;
+    const out = [], n = base.length;
+    for(let i=0;i<n;i++){
+      const A = base[i], B = base[(i+1)%n];
+      out.push([A[0],A[1]]);
+      if(flatLast && i === n-1) continue;
+      const dx = B[0]-A[0], dy = B[1]-A[1], L = Math.hypot(dx,dy), mx = (A[0]+B[0])/2, my = (A[1]+B[1])/2;
+      let nx = dy/L, ny = -dx/L; if(nx*(mx-cx)+ny*(my-cy) < 0){ nx = -nx; ny = -ny; }
+      const sg = (bulges[i % bulges.length])*L, R = (L*L/4 + sg*sg)/(2*sg), ccx = mx - nx*(R-sg), ccy = my - ny*(R-sg);
+      const ph = Math.atan2(ny, nx), th = Math.atan2(L/2, R-sg);
+      for(let k=1;k<12;k++){ const u = -th + 2*th*k/12; out.push([ccx + R*Math.cos(ph+u), ccy + R*Math.sin(ph+u)]); }
+    }
+    return out;
+  };
+  const ring = (angs, rs, sy)=>angs.map((a,i)=>{ const t = a*Math.PI/180, r = rs[i % rs.length]; return [0.5+r*Math.cos(t), 0.5+r*sy*Math.sin(t)]; });
+  E.cloud2 = cloudOf(ring([0,51,103,154,206,257,309],[0.4,0.38,0.41,0.39,0.42,0.38,0.4],0.8), [0.46]);
+  E.cloud3 = cloudOf(ring([0,40,80,120,160,200,240,280,320],[0.41],0.78), [0.42]);
+  E.cloud4 = cloudOf(ring([45,135,225,315],[0.34,0.34,0.34,0.34],1), [0.5,0.46,0.5,0.46]);
+  E.cloud5 = cloudOf([[0.14,0.82],[0.04,0.6],[0.2,0.36],[0.45,0.2],[0.72,0.26],[0.92,0.44],[0.96,0.68],[0.86,0.82]], [0.5,0.45,0.5,0.5,0.45,0.5,0.5], true);
+  E.cloud6 = cloudOf([[0.1,0.85],[0.02,0.64],[0.16,0.42],[0.32,0.3],[0.5,0.18],[0.68,0.28],[0.84,0.38],[0.98,0.6],[0.9,0.85]], [0.5,0.48,0.44,0.5,0.46,0.5,0.48,0.5], true);
+  E.cloud7 = cloudOf(ring([0,62,118,180,242,300],[0.36,0.4,0.37,0.4,0.36,0.39],1.35), [0.48]);
+  E.cloud8 = cloudOf(ring([0,45,92,138,185,228,275,318],[0.4,0.35,0.42,0.37,0.41,0.34,0.4,0.36],0.85), [0.55,0.38,0.5,0.35,0.48,0.42,0.5,0.4]);
+  MIRROR_ORGANIC_DENSE = { cloud2:1, cloud3:1, cloud4:1, cloud5:1, cloud6:1, cloud7:1, cloud8:1 };
+  const polar = (n, f)=>{ const o=[]; for(let i=0;i<n;i++){ const a=2*Math.PI*i/n; const r=f(a); o.push([0.5+0.5*r*Math.cos(a), 0.5+0.5*r*Math.sin(a)]); } return o; };
+  E.tri3 = polar(24, a=>(1+0.28*Math.cos(3*a-Math.PI/2))/1.28);
+  E.squircle = polar(32, a=>1/Math.pow(Math.pow(Math.abs(Math.cos(a)),4)+Math.pow(Math.abs(Math.sin(a)),4),0.25)/1.19);
+  E.pillow = [[0,0],[0.5,0.13],[1,0],[0.87,0.5],[1,1],[0.5,0.87],[0,1],[0.13,0.5]];
+  E.peanut = polar(28, a=>1-0.34*Math.exp(-Math.pow(Math.atan2(Math.sin(a-Math.PI/2),Math.cos(a-Math.PI/2))/0.5,2))-0.34*Math.exp(-Math.pow(Math.atan2(Math.sin(a+Math.PI/2),Math.cos(a+Math.PI/2))/0.5,2)));
+  E.cookie = polar(32, a=>(1+0.07*Math.cos(8*a))/1.07);
+  { const hp=[]; for(let i=0;i<32;i++){ const t=2*Math.PI*i/32; hp.push([16*Math.pow(Math.sin(t),3), -(13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t))]); } E.heart = hp; }
+  E.puddle = [[0.1,0.35],[0.3,0.12],[0.55,0.2],[0.8,0.05],[0.97,0.3],[0.85,0.55],[0.98,0.8],[0.7,0.95],[0.45,0.82],[0.2,0.97],[0.03,0.7],[0.15,0.52]];
+  E.blob3 = [[0.35,0.02],[0.7,0.08],[0.95,0.3],[0.88,0.6],[1,0.85],[0.65,0.98],[0.3,0.9],[0.12,0.7],[0.2,0.45],[0.02,0.25]];
 })();
-const MIRROR_ORGANIC_LABELS = { wave:'موجة (طويلة)', pebble:'حصوة ناعمة', cloud:'سحابة', egg:'بيضة', drop:'قطرة', bean:'حبة فاصوليا (كلوية)', flower:'زهرة (6 بتلات)', blob1:'بقعة 1', blob2:'بقعة 2 (غير متماثلة)', stone:'حجر مسطّح', gourd:'قرعة (رقم 8)' };
+const MIRROR_ORGANIC_LABELS = { wave:'موجة (طويلة)', pebble:'حصوة ناعمة', cloud:'سحابة', egg:'بيضة', drop:'قطرة', bean:'حبة فاصوليا (كلوية)', flower:'زهرة (6 بتلات)', blob1:'بقعة 1', blob2:'بقعة 2 (غير متماثلة)', stone:'حجر مسطّح', gourd:'قرعة (رقم 8)', cloud2:'سحابة 2 (5 فصوص)', cloud3:'سحابة 3 (7 فصوص ناعمة)', cloud4:'سحابة 4 (فصوص كبيرة)', cloud5:'سحابة 5 (قاعدة مسطّحة)', cloud6:'سحابة 6 (غير منتظمة)', cloud7:'سحابة 7 (طويلة بقاعدة مسطّحة)', cloud8:'سحابة 8 (3 فصوص كبيرة)', tri3:'مثلث بزوايا ناعمة', squircle:'مربع ناعم (Squircle)', pillow:'نجمة رباعية ناعمة', peanut:'فول سوداني', cookie:'كوكي (8 بتلات ناعمة)', heart:'قلب ناعم', puddle:'بركة', blob3:'بقعة 3' };
 const MIRROR_LED = { warm:'#ffcf70', neutral:'#fff3d6', cool:'#bfe6ff' };
 // درجات حرارة لون الإضاءة (كلفن) والجهد - خيارات الـLED الشائعة بالسوق
 const MIRROR_LED_KS = { 2500:'#ffb35c', 2700:'#ffc57a', 3000:'#ffd08a', 3500:'#ffdcaa', 4000:'#ffe8c8', 5000:'#fff4e6', 6000:'#f1f5ff', 6500:'#e6eeff' };
@@ -11559,7 +11612,7 @@ function mirrorPolygonRaw(it){
     case 'organic': {
       let pts = (MIRROR_ORGANIC[it.mrOrganic] || MIRROR_ORGANIC.wave).map(p=>[p[0],p[1]]);
       if(it.mrFlipX) pts = pts.map(p=>[1-p[0], p[1]]);
-      return mirrorFitPoly(mirrorSplinePoly(pts, 14), W, H);
+      return mirrorFitPoly(MIRROR_ORGANIC_DENSE[it.mrOrganic] ? pts : mirrorSplinePoly(pts, 14), W, H);
     }
     default: return [[0,0],[W,0],[W,H],[0,H]];
   }
