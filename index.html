@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-17.4';
+  var CURRENT_VERSION = '2026-10-17.5';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7664,8 +7664,10 @@ window.wdApplyBack = function(results){
           <div id="mrColorHexWrap" style="display:none;margin-top:6px;"><label>درجة اللون</label><input type="color" id="mrColorHex" onchange="onMirrorField('mrColorHex',this.value)" style="width:100%;height:34px;padding:2px;"></div>
           <div class="check-row" style="margin-top:8px;"><input type="checkbox" id="mrLed" onchange="onMirrorField('mrLed',this.checked)"><label for="mrLed">💡 إضاءة LED خلفية حول المرآة</label></div>
           <div id="mrLedWrap" style="display:none;margin-top:4px;">
-            <label>لون الإضاءة</label>
-            <select id="mrLedColor" onchange="onMirrorField('mrLedColor',this.value)"><option value="warm">دافئ</option><option value="neutral">محايد</option><option value="cool">بارد</option></select>
+            <label>درجة حرارة لون الإضاءة (Kelvin)</label>
+            <select id="mrLedK" onchange="onMirrorField('mrLedK',this.value)"><option value="2500">2500K - أصفر دافئ جدًا (Amber)</option><option value="2700">2700K - دافئ (Warm White)</option><option value="3000">3000K - دافئ (Warm White)</option><option value="3500">3500K - أبيض دافئ-محايد</option><option value="4000">4000K - أبيض محايد (Neutral)</option><option value="5000">5000K - أبيض نهاري</option><option value="6000">6000K - أبيض بارد (Cool)</option><option value="6500">6500K - أبيض بارد جدًا (Daylight)</option></select>
+            <label style="margin-top:6px;">جهد الكهرباء للـLED</label>
+            <select id="mrLedV" onchange="onMirrorField('mrLedV',this.value)"><option value="12">12V DC (الأكثر شيوعًا)</option><option value="24">24V DC</option><option value="110">110V AC</option><option value="220">220V AC</option></select>
           </div>
           <div id="mrHolesWrap" style="margin-top:10px;">
             <label>فتحات داخل المرآة (مثلاً لقاطع/بريزة من الجدار)</label>
@@ -11335,7 +11337,7 @@ window.editHandrailTotal = editHandrailTotal;
 // 🆕 2026-10-17 (طلب حمدي): تصميم مرايا بالمصمم - أشكال (مستطيل/مدوّر الزوايا/بيضاوي/دائرة/قوس/معيّن/شكل حر عضوي)
 // + جدار مرايا معيّنات متكررة (مقاس القطعة والفاصل) + حواف مشطوفة (Bevel) بعرض يحدده المستخدم + إضاءة LED خلفية.
 // كل الأشكال بتتحوّل لمضلع (قائمة نقاط بالمليمتر) - هيك المساحة والمحيط (طول الشطف/الـLED) بيتحسبوا بنفس الطريقة لكل الأشكال.
-const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBevel','mrLed','mrLedColor','mrThick','mrTint','mrTileW','mrTileH','mrTileGap','mrEdgeAll','mrSides','mrPts','mrHoles','mrStepRise','mrStepW','mrStepSide','mrColorName','mrColorHex','mrUnit'];
+const MIRROR_KEYS = ['mrShape','mrRadius','mrOrganic','mrFlipX','mrEdge','mrBevel','mrLed','mrLedColor','mrThick','mrTint','mrTileW','mrTileH','mrTileGap','mrEdgeAll','mrSides','mrPts','mrHoles','mrStepRise','mrStepW','mrStepSide','mrColorName','mrColorHex','mrUnit','mrLedK','mrLedV'];
 const MIRROR_PIECE_KEYS = MIRROR_KEYS.filter(k=>k!=='mrUnit');
 const MIRROR_COMP_KEYS = ['mrPieces','mrCur','mrArrange','mrAlign'];
 const MIRROR_SHAPES = { rect:'مستطيل', rounded:'مستطيل بزوايا مدوّرة', oval:'بيضاوي', circle:'دائرة', arch:'قوس (نصف دائرة بالأعلى)', capsule:'كبسولة (طرفين نصف دائريين)', dshape:'حرف D (طرف مستدير)', halfround:'نصف دائرة (قبة)', triangle:'مثلث', trapezoid:'شبه منحرف', hexagon:'سداسي', octagon:'ثماني', chamfer:'مستطيل بزوايا مقطوعة', lens:'عدسة / ورقة (طرفين مدببين)', rhombus:'معيّن', steps:'مرآة بدرجة (حرف L)', custom:'مضلع مخصص (بالنقاط)', organic:'شكل حر (عضوي)', rhombusGrid:'جدار معيّنات متكررة' };
@@ -11359,6 +11361,11 @@ const MIRROR_ORGANIC = {
 })();
 const MIRROR_ORGANIC_LABELS = { wave:'موجة (طويلة)', pebble:'حصوة ناعمة', cloud:'سحابة', egg:'بيضة', drop:'قطرة', bean:'حبة فاصوليا (كلوية)', flower:'زهرة (6 بتلات)', blob1:'بقعة 1', blob2:'بقعة 2 (غير متماثلة)', stone:'حجر مسطّح', gourd:'قرعة (رقم 8)' };
 const MIRROR_LED = { warm:'#ffcf70', neutral:'#fff3d6', cool:'#bfe6ff' };
+// درجات حرارة لون الإضاءة (كلفن) والجهد - خيارات الـLED الشائعة بالسوق
+const MIRROR_LED_KS = { 2500:'#ffb35c', 2700:'#ffc57a', 3000:'#ffd08a', 3500:'#ffdcaa', 4000:'#ffe8c8', 5000:'#fff4e6', 6000:'#f1f5ff', 6500:'#e6eeff' };
+const MIRROR_LED_VOLTS = { '12':'12V DC', '24':'24V DC', '110':'110V AC', '220':'220V AC' };
+function mirrorLedHex(it){ return MIRROR_LED_KS[it.mrLedK] || MIRROR_LED.warm; }
+function mirrorLedWhite(k){ return k <= 3500 ? 'warm white' : (k <= 5000 ? 'neutral white' : 'cool white'); }
 const MIRROR_LED_LABELS = { warm:'دافئ', neutral:'محايد', cool:'بارد' };
 const MIRROR_TINTS = {
   clear:  { ar:'شفاف (عادي)',  en:'Clear',  stops:['#eaf6fb','#a9c7d3','#f2fafc','#8fb2c1'] },
@@ -11403,6 +11410,8 @@ function mirrorEnsure(it){
   if(it.mrBevel == null) it.mrBevel = 20;
   if(it.mrLed == null) it.mrLed = false;
   if(it.mrLedColor == null) it.mrLedColor = 'warm';
+  if(!MIRROR_LED_KS[it.mrLedK]) it.mrLedK = ({ warm:3000, neutral:4000, cool:6000 })[it.mrLedColor] || 3000;
+  if(!MIRROR_LED_VOLTS[it.mrLedV]) it.mrLedV = '12';
   if(it.mrThick == null) it.mrThick = 5;
   if(it.mrTint == null) it.mrTint = 'clear';
   if(it.mrColorName == null) it.mrColorName = '';
@@ -11741,7 +11750,7 @@ function mirrorRenderOne(it, print, s, opts){
   }
   const bandFill = print ? '#FFFFFF' : `url(#b-${gid})`;
   // LED: هالة خلف المرآة (شاشة) أو خط متقطع برّا الحافة (طباعة)
-  const ledCol = MIRROR_LED[it.mrLedColor] || MIRROR_LED.warm;
+  const ledCol = mirrorLedHex(it);
   const outlinePts = grid ? pts([[0,0],[W,0],[W,H],[0,H]]) : pts(mirrorPolygon(it));
   if(it.mrLed){
     if(print){
@@ -11861,6 +11870,36 @@ function mirrorRenderOne(it, print, s, opts){
       if(pl2) body += `<text x="${pl2[0].toFixed(1)}" y="${pl2[1].toFixed(1)}" font-size="9.5" fill="${C.dimTxt}" text-anchor="${pl2[2]}" font-family="${C.font}" direction="ltr"${E('hole', h.id)}>${yt}</text>`;
     });
     holeLegend = legend;
+  // ---- أسهم الشطف/الصقل: توضّح للعامل أي حافة بالضبط ----
+  if(!grid && !(it.mrEdgeAll === false && !Object.keys(it.mrSides||{}).some(k=>it.mrSides[k]))){
+    const polyA = mirrorPolygon(it), ppA = polyA.map(p=>[p[0]*s, p[1]*s]);
+    let A = 0; for(let k=0;k<ppA.length;k++){ const a=ppA[k], b=ppA[(k+1)%ppA.length]; A += a[0]*b[1]-b[0]*a[1]; }
+    const sg = A >= 0 ? 1 : -1;
+    const erA = mirrorEdgeRuns(it, polyA);
+    const segInfo = i=>{ const p=ppA[i], q=ppA[(i+1)%ppA.length], dx=q[0]-p[0], dy=q[1]-p[1], L=Math.hypot(dx,dy)||1; return { i, L, m:[(p[0]+q[0])/2,(p[1]+q[1])/2], n:[sg*(-dy/L), sg*(dx/L)] }; };
+    let groups = [];
+    { const side = {}; ppA.forEach((_,i)=>{ if(!erA.all && !erA.sel[i]) return; const g = segInfo(i); const key = Math.abs(g.n[0]) > Math.abs(g.n[1]) ? (g.n[0]>0?'l':'r') : (g.n[1]>0?'t':'b'); (side[key] = side[key]||[]).push(g); }); groups = Object.keys(side).map(k=>side[k]); }
+    const arrowCol = print ? '#C62828' : '#ff7a6b';
+    const txt = it.mrEdge === 'bevel' ? `BEVEL ${mirrorFmt(it.mrBevel||20, it, true)}` : 'POLISH';
+    const dA = Math.max(18, Math.min(34, Math.min(dw, dh)*0.28));
+    groups.forEach(g=>{
+      g.slice().sort((p,q)=>q.L-p.L).slice(0,4).some(sgm=>{
+        if(sgm.L < 16) return false;
+        const M = sgm.m, n = sgm.n, T = [M[0]+n[0]*dA, M[1]+n[1]*dA];
+        const horiz = Math.abs(n[0]) > Math.abs(n[1]);
+        const anchor = horiz ? (n[0] > 0 ? 'start' : 'end') : 'middle';
+        const tp = horiz ? [T[0]+n[0]*4, T[1]+3] : [T[0], n[1] > 0 ? T[1]+11 : T[1]-4];
+        const bx = tbox(txt, tp[0], tp[1], anchor, 9.5);
+        if(!inB(bx) || lblBoxes.some(l=>ovl(l,bx)) || holeBoxes.some(hb=>ovl(hb,bx))) return false;
+        const sb = { x0:Math.min(M[0],T[0])-2, x1:Math.max(M[0],T[0])+2, y0:Math.min(M[1],T[1])-2, y1:Math.max(M[1],T[1])+2 };
+        if(holeBoxes.some(hb=>ovl(hb,sb))) return false;
+        lblBoxes.push(bx);
+        const tip = [M[0]+n[0]*1.5, M[1]+n[1]*1.5], dir = [-n[0], -n[1]], base = [tip[0]-dir[0]*7, tip[1]-dir[1]*7], pr = [-dir[1], dir[0]];
+        body += `<g data-mr="arrow"><line x1="${T[0].toFixed(1)}" y1="${T[1].toFixed(1)}" x2="${base[0].toFixed(1)}" y2="${base[1].toFixed(1)}" stroke="${arrowCol}" stroke-width="1.6"/><polygon points="${tip[0].toFixed(1)},${tip[1].toFixed(1)} ${(base[0]+pr[0]*3.4).toFixed(1)},${(base[1]+pr[1]*3.4).toFixed(1)} ${(base[0]-pr[0]*3.4).toFixed(1)},${(base[1]-pr[1]*3.4).toFixed(1)}" fill="${arrowCol}"/><text x="${tp[0].toFixed(1)}" y="${tp[1].toFixed(1)}" font-size="9.5" font-weight="700" fill="${arrowCol}" text-anchor="${anchor}" font-family="${C.font}" direction="ltr">${txt}</text></g>`;
+        return true;
+      });
+    });
+  }
     // مقاسات الدرجة (فرق الارتفاع وعرض الجزء المرتفع)
     if(it.mrShape === 'steps'){
       const rise = Math.max(0, Math.min(it.mrStepRise||0, H-1)), sw = Math.max(1, Math.min(it.mrStepW||1, W-1));
@@ -11889,34 +11928,39 @@ function mirrorRenderOne(it, print, s, opts){
     // قياس قطعة معيّن واحدة
     dims += `<text x="${dw/2}" y="${dh+46}" fill="${C.sub}" font-size="11" font-family="${C.font}" text-anchor="middle" direction="ltr"${E('tile')}>tile ${mirrorFmt(it.mrTileW,it)} × ${mirrorFmt(it.mrTileH,it)} ${it.mrUnit==='cm'?'cm':'mm'}, gap ${mirrorFmt(it.mrTileGap,it)} ${it.mrUnit==='cm'?'cm':'mm'}</text>`;
   }
-  // سطر معلومات
   const st = mirrorStats(it);
-  let info = '', infoLen = 0;
-  if(print){
-    const parts = [`${it.mrThick||5} mm ${tint.en} Mirror`];
-    if(!grid) parts.push((it.mrEdge === 'bevel' ? `Bevel ${mirrorFmt(it.mrBevel||20, it, true)}` : 'Polished edge') + ` (${mirrorEdgeLabelEn(it)})`); else if(it.mrEdge === 'bevel') parts.push(`Bevel ${mirrorFmt(it.mrBevel||20, it, true)}`);
-    if(it.mrLed) parts.push('LED backlight (' + (MIRROR_LED_LABELS[it.mrLedColor] ? it.mrLedColor : 'warm') + ')');
-    if(grid) parts.push(`${st.pieces} pcs (${st.partial} cut)`);
-    if(st.holes) parts.push(`${st.holes} cutout${st.holes>1?'s':''}`);
-    infoLen = parts.join('  |  ').length;
-    info = `<text x="${dw/2}" y="${dh+(grid?64:32)}" fill="${C.sub}" font-size="11" font-family="${C.font}" text-anchor="middle" direction="ltr">${parts.join('  |  ')}</text>`;
-  } else {
+  // ---- مواصفات مكتوبة تحت المرآة (إنكليزي للعامل) ----
+  const shapeEn = mirrorTitleEn(it).replace(/^Mirror - /,'').split(', ')[0];
+  const specs = [`${mirrorFmt(it.mrThick||5, it, true)} ${tint.en} Mirror - ${shapeEn}`];
+  const edgesTxt = mirrorEdgeLabelEn(it);
+  if(!grid){
+    if(it.mrEdge === 'bevel') specs.push(`Bevel ${mirrorFmt(it.mrBevel||20, it, true)} - ${it.mrEdgeAll !== false ? 'all edges' : edgesTxt + ' only (front view), other edges plain'}`);
+    else specs.push(`Polished edge - ${it.mrEdgeAll !== false ? 'all edges' : edgesTxt + ' only (front view), other edges plain'}`);
+  } else if(it.mrEdge === 'bevel') specs.push(`Bevel ${mirrorFmt(it.mrBevel||20, it, true)} on each piece`);
+  if(it.mrLed) specs.push(`LED backlight: ${it.mrLedK}K ${mirrorLedWhite(it.mrLedK)}, ${MIRROR_LED_VOLTS[it.mrLedV]}, ${st.ledM.toFixed(2)} m`);
+  if(grid) specs.push(`${st.pieces} pcs (${st.partial} cut)`);
+  if(st.holes) specs.push(`${st.holes} cutout${st.holes>1?'s':''}${st.holes>1 ? ' (see table)' : ''}`);
+  const lines = [];
+  if(!print){
     const parts = [`مساحة ${st.bboxM2.toFixed(2)} م²`];
     if(it.mrEdge === 'bevel') parts.push(`شطف ${st.edgeM.toFixed(2)} م.ط`);
     else if(!grid) parts.push(`صقل ${st.edgeM.toFixed(2)} م.ط`);
     if(it.mrLed) parts.push(`LED ${st.ledM.toFixed(2)} م.ط`);
     if(grid) parts.push(`${st.pieces} قطعة`);
     if(st.holes) parts.push(`${st.holes} فتحة`);
-    infoLen = parts.join('  •  ').length;
-    info = `<text x="${dw/2}" y="${dh+(grid?64:32)}" fill="${C.sub}" font-size="11" text-anchor="middle">${parts.join('  •  ')}</text>`;
+    lines.push({ t: parts.join('  •  '), ar:true });
   }
+  specs.forEach(t=>lines.push({ t, ar:false }));
+  const infoLen = lines.reduce((m,l)=>Math.max(m,l.t.length),0);
+  const y0i = dh + (grid ? 64 : 32);
+  let info = lines.map((l,k)=>`<text x="${(dw/2).toFixed(1)}" y="${y0i + 15*k}" fill="${C.sub}" font-size="11" ${l.ar ? '' : `font-family="${C.font}" direction="ltr" `}text-anchor="middle">${l.t}</text>`).join('');
   const tileLen = grid ? 36 : 0;
   const legLen = holeLegend.reduce((m,l)=>Math.max(m,l.length),0);
-  const legY0 = dh + (grid ? 64 : 32);
+  const legY0 = y0i + 15*(lines.length-1);
   if(holeLegend.length){
     info += holeLegend.map((l,k)=>`<text x="${(dw/2).toFixed(1)}" y="${legY0 + 16*(k+1)}" fill="${C.sub}" font-size="10.5" font-family="${C.font}" text-anchor="middle" direction="ltr">${l}</text>`).join('');
   }
-  const padSide = Math.max(74, Math.max(infoLen, tileLen, legLen*0.95)*6.6/2 - dw/2 + 12), padTop = 62, padBottom = (grid ? 84 : 52) + 16*holeLegend.length;
+  const padSide = Math.max(74, Math.max(infoLen, tileLen, legLen*0.95)*6.6/2 - dw/2 + 12), padTop = 62, padBottom = (grid ? 84 : 52) + 15*(lines.length-1) + 16*holeLegend.length;
   return { svgInner: `<defs>${defs}</defs>${body}${dims}${info}`, vbX: -padSide, vbY: -padTop, vbW: dw + padSide*2, vbH: dh + padTop + padBottom };
 }
 // تجميع القطع: كل قطعة بإطارها (قياساتها ومعلوماتها) ثم ترتيبها فوق بعض أو جنب بعض
@@ -11959,7 +12003,7 @@ function buildMirrorPrintSVG(it, pageItemCount){
   const { availW, availH } = getPrintAvailPx(pageItemCount);
   const grid = it.mrShape === 'rhombusGrid';
   const nHoles = mirrorPieceObjs(it).reduce((m,p)=>Math.max(m, (p.mrHoles||[]).length > 1 ? p.mrHoles.length : 0), 0);
-  const padW = 74*2 + 200, padH = 62 + (grid ? 84 : 52) + 16*nHoles;
+  const padW = 74*2 + 200, padH = 62 + (grid ? 84 : 52) + 16*nHoles + 60;
   const comp = mirrorIsComposite(it);
   const s = comp ? mirrorFitScale(it, availW, availH, 148, padH, 200) : Math.max(0.01, Math.min((availW - padW)/it.width, (availH - padH)/it.height));
   const r = mirrorRender(it, true, s);
@@ -11972,7 +12016,7 @@ function mirror3DPiece(it, ox, oy, s, gid){
   const grid = it.mrShape === 'rhombusGrid';
   const pts = poly => poly.map(p=>(p[0]*s+ox).toFixed(1)+','+(p[1]*s+oy).toFixed(1)).join(' ');
   const outline = grid ? pts([[0,0],[W,0],[W,H],[0,H]]) : pts(mirrorPolygon(it));
-  const led = MIRROR_LED[it.mrLedColor] || MIRROR_LED.warm;
+  const led = mirrorLedHex(it);
   const bevel = it.mrEdge === 'bevel';
   let defs = `<linearGradient id="mir-${gid}" gradientUnits="userSpaceOnUse" x1="${ox}" y1="${oy}" x2="${ox+dw}" y2="${oy+dh}"><stop offset="0%" stop-color="${tint.stops[0]}"/><stop offset="40%" stop-color="${tint.stops[1]}"/><stop offset="60%" stop-color="${tint.stops[2]}"/><stop offset="100%" stop-color="${tint.stops[3]}"/></linearGradient>
     <filter id="blur-${gid}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="12"/></filter>
@@ -12229,7 +12273,7 @@ function mirrorLoadControls(it){
     const fx = document.getElementById('mrFlipX'); if(fx) fx.checked = !!it.mrFlipX;
     set('mrEdge', it.mrEdge); set('mrBevel', Math.round(it.mrBevel));
     const led = document.getElementById('mrLed'); if(led) led.checked = !!it.mrLed;
-    set('mrLedColor', it.mrLedColor); set('mrThick', String(it.mrThick)); set('mrTint', it.mrTint);
+    set('mrLedK', it.mrLedK); set('mrLedV', it.mrLedV); set('mrThick', String(it.mrThick)); set('mrTint', it.mrTint);
     set('mrColorName', it.mrColorName || ''); set('mrColorHex', /^#[0-9a-f]{6}$/i.test(it.mrColorHex||'') ? it.mrColorHex : '#c9a24a');
     set('mrStepSide', it.mrStepSide); set('mrStepRise', Math.round(it.mrStepRise)); set('mrStepW', Math.round(it.mrStepW));
     set('mrTileW', Math.round(it.mrTileW)); set('mrTileH', Math.round(it.mrTileH)); set('mrTileGap', it.mrTileGap);
@@ -12287,6 +12331,7 @@ function onMirrorField(field, value){
       it[field] = n;
     }
     else if(field === 'mrThick') it[field] = parseFloat(value) || 5;
+    else if(field === 'mrLedK'){ const k = parseInt(value,10); if(MIRROR_LED_KS[k]) it.mrLedK = k; }
     else if(field === 'mrColorName') it[field] = String(value||'').slice(0, 40);
     else it[field] = value;
     if(field === 'mrShape' && value === 'circle'){ const d = Math.min(it.width, it.height); it.width = d; it.height = d; }
