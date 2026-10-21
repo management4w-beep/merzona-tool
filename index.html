@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-18.4';
+  var CURRENT_VERSION = '2026-10-21.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7609,6 +7609,10 @@ window.wdApplyBack = function(results){
             <option value="organic">شكل حر (عضوي)</option>
             <option value="rhombusGrid">جدار معيّنات متكررة</option>
           </select>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <button type="button" class="small" style="flex:1;" onclick="mztrOpen('img')">رفع صورة للشكل</button>
+            <button type="button" class="small" style="flex:1;" onclick="mztrOpen('draw')">رسم الشكل يدويًا</button>
+          </div>
           <p class="hint" id="mrCircleWarn" style="display:none;color:#e53935;">الدائرة: ساوِ العرض والارتفاع (بتنرسم بقطر أصغر القيمتين).</p>
           <div id="mrRoundedWrap" style="display:none;margin-top:6px;">
             <label id="mrRadiusLbl">نصف قطر الزوايا (مم)</label>
@@ -12550,6 +12554,203 @@ function onMirrorPtDel(i){
     it.mrPts.splice(i,1); mirrorSyncCustomDims(it);
   });
 }
+// ---- شكل من صورة أو رسم يدوي ----
+const MZTR = { img:null, cv:null, mode:'img', thr:45, simp:0.8, invert:false, pts:null, draw:null, dw:0, dh:0 };
+function mztrMask(){
+  const c = MZTR.cv, w = c.width, h = c.height;
+  const d = c.getContext('2d').getImageData(0,0,w,h).data;
+  let transp = 0; for(let i=3;i<d.length;i+=4) if(d[i] < 200) transp++;
+  const mask = new Uint8Array(w*h);
+  if(transp > w*h*0.01){
+    for(let i=0;i<w*h;i++) mask[i] = d[i*4+3] > 128 ? 1 : 0;
+  } else {
+    let r=0,g=0,b=0,n=0;
+    const add = (x,y)=>{ const k=(y*w+x)*4; r+=d[k]; g+=d[k+1]; b+=d[k+2]; n++; };
+    for(let x=0;x<w;x++){ add(x,0); add(x,h-1); } for(let y=0;y<h;y++){ add(0,y); add(w-1,y); }
+    r/=n; g/=n; b/=n;
+    for(let i=0;i<w*h;i++){
+      const dr=d[i*4]-r, dg=d[i*4+1]-g, db=d[i*4+2]-b;
+      mask[i] = Math.sqrt(dr*dr+dg*dg+db*db) > MZTR.thr*2 ? 1 : 0;
+    }
+  }
+  if(MZTR.invert) for(let i=0;i<mask.length;i++) mask[i] = mask[i] ? 0 : 1;
+  return mask;
+}
+function mztrLargest(mask,w,h){
+  const lab = new Int32Array(w*h); let best=0,bestN=0,cur=0; const st=[];
+  for(let i=0;i<w*h;i++){
+    if(!mask[i] || lab[i]) continue;
+    cur++; let n=0; st.push(i); lab[i]=cur;
+    while(st.length){
+      const p=st.pop(); n++; const x=p%w, y=(p/w)|0;
+      if(x>0 && mask[p-1] && !lab[p-1]){ lab[p-1]=cur; st.push(p-1); }
+      if(x<w-1 && mask[p+1] && !lab[p+1]){ lab[p+1]=cur; st.push(p+1); }
+      if(y>0 && mask[p-w] && !lab[p-w]){ lab[p-w]=cur; st.push(p-w); }
+      if(y<h-1 && mask[p+w] && !lab[p+w]){ lab[p+w]=cur; st.push(p+w); }
+    }
+    if(n>bestN){ bestN=n; best=cur; }
+  }
+  const out = new Uint8Array(w*h); for(let i=0;i<w*h;i++) out[i] = lab[i]===best ? 1 : 0;
+  return { mask: out, n: bestN };
+}
+function mztrContour(mask,w,h){
+  const at=(x,y)=> (x>=0&&y>=0&&x<w&&y<h) ? mask[y*w+x] : 0;
+  let sx=-1, sy=-1;
+  outer: for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(mask[y*w+x]){ sx=x; sy=y; break outer; }
+  if(sx<0) return [];
+  const dx=[1,1,0,-1,-1,-1,0,1], dy=[0,1,1,1,0,-1,-1,-1];
+  const pts=[[sx,sy]]; let x=sx, y=sy, dir=7, guard=0;
+  do {
+    let found=false;
+    for(let k=0;k<8;k++){
+      const nd=(dir+6+k)%8, nx=x+dx[nd], ny=y+dy[nd];
+      if(at(nx,ny)){ x=nx; y=ny; dir=nd; found=true; break; }
+    }
+    if(!found) break;
+    pts.push([x,y]);
+  } while((x!==sx || y!==sy) && ++guard < w*h*4);
+  return pts;
+}
+function mztrDP(pts, eps){
+  if(pts.length < 4) return pts;
+  const keep = new Uint8Array(pts.length); keep[0]=1; keep[pts.length-1]=1;
+  const stack=[[0,pts.length-1]];
+  while(stack.length){
+    const [a,b]=stack.pop(); let md=0, mi=-1;
+    const ax=pts[a][0], ay=pts[a][1], bx=pts[b][0], by=pts[b][1];
+    const L=Math.hypot(bx-ax,by-ay)||1e-9;
+    for(let i=a+1;i<b;i++){
+      const dd=Math.abs((bx-ax)*(ay-pts[i][1])-(ax-pts[i][0])*(by-ay))/L;
+      if(dd>md){ md=dd; mi=i; }
+    }
+    if(md>eps && mi>0){ keep[mi]=1; stack.push([a,mi],[mi,b]); }
+  }
+  return pts.filter((p,i)=>keep[i]);
+}
+function mztrSimplify(raw, diag){
+  if(raw.length < 4) return raw;
+  // نقسم الحلقة نصفين لتفادي أن تكون نقطة البداية ثابتة
+  const m = raw.length>>1;
+  const a = mztrDP(raw.slice(0,m+1), MZTR.simp/100*diag);
+  const b = mztrDP(raw.slice(m).concat([raw[0]]), MZTR.simp/100*diag);
+  const out = a.slice(0,-1).concat(b.slice(0,-1));
+  return out;
+}
+function mztrCompute(){
+  const st = document.getElementById('mztrStatus');
+  let raw=null, w, h;
+  if(MZTR.mode === 'img'){
+    if(!MZTR.cv){ MZTR.pts=null; mztrPaint(); return; }
+    w=MZTR.cv.width; h=MZTR.cv.height;
+    const lg = mztrLargest(mztrMask(), w, h);
+    if(lg.n < w*h*0.01){ MZTR.pts=null; if(st) st.textContent='ما قدرت أحدد الشكل. جرّب تغيير الحساسية أو تفعيل "عكس".'; mztrPaint(); return; }
+    raw = mztrContour(lg.mask, w, h);
+  } else {
+    if(!MZTR.draw || MZTR.draw.length < 8){ MZTR.pts=null; mztrPaint(); return; }
+    raw = MZTR.draw; w=MZTR.dw; h=MZTR.dh;
+  }
+  const pts = mztrSimplify(raw, Math.hypot(w,h));
+  MZTR.pts = pts.length >= 3 ? { p: pts, w:w, h:h } : null;
+  if(st) st.textContent = MZTR.pts ? ('عدد النقاط: ' + pts.length) : 'الشكل بسيط زيادة، قلّل التبسيط.';
+  mztrPaint();
+}
+function mztrPaint(){
+  const cv = document.getElementById('mztrCanvas'); if(!cv) return;
+  const g = cv.getContext('2d'); g.clearRect(0,0,cv.width,cv.height);
+  g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+  if(MZTR.mode==='img' && MZTR.cv){
+    const k = Math.min(cv.width/MZTR.cv.width, cv.height/MZTR.cv.height);
+    g.globalAlpha=0.55; g.drawImage(MZTR.cv,0,0,MZTR.cv.width*k,MZTR.cv.height*k); g.globalAlpha=1;
+    mztrPoly(g,k);
+  } else if(MZTR.mode==='draw'){
+    if(MZTR.draw && MZTR.draw.length){
+      g.strokeStyle='#999'; g.lineWidth=1; g.beginPath(); MZTR.draw.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); g.stroke();
+    }
+    mztrPoly(g,1);
+  }
+}
+function mztrPoly(g,k){
+  if(!MZTR.pts) return;
+  g.strokeStyle='#e53935'; g.lineWidth=2; g.beginPath();
+  MZTR.pts.p.forEach((p,i)=>i?g.lineTo(p[0]*k,p[1]*k):g.moveTo(p[0]*k,p[1]*k)); g.closePath(); g.stroke();
+  g.fillStyle='#e53935'; MZTR.pts.p.forEach(p=>{ g.beginPath(); g.arc(p[0]*k,p[1]*k,2.5,0,6.3); g.fill(); });
+}
+function mztrOpen(mode){
+  MZTR.mode = mode || 'img'; MZTR.pts=null; MZTR.draw=null;
+  let ov = document.getElementById('mztrOv');
+  if(!ov){
+    ov = document.createElement('div'); ov.id='mztrOv';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100000;display:flex;align-items:center;justify-content:center;padding:12px;';
+    ov.innerHTML = `<div dir="rtl" style="background:#1e2230;color:#eee;border-radius:12px;padding:14px;max-width:460px;width:100%;max-height:96vh;overflow:auto;font-size:13px;">
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button type="button" class="small" id="mztrTabImg" onclick="mztrOpen('img')" style="flex:1;">من صورة</button>
+        <button type="button" class="small" id="mztrTabDraw" onclick="mztrOpen('draw')" style="flex:1;">ارسم الشكل</button>
+      </div>
+      <div id="mztrImgCtl">
+        <input type="file" id="mztrFile" accept="image/*" style="width:100%;margin-bottom:6px;">
+        <label style="display:block;margin:4px 0 2px;">الحساسية (فرق اللون عن الخلفية)</label>
+        <input type="range" id="mztrThr" min="5" max="120" value="45" style="width:100%;">
+        <label style="display:flex;gap:6px;align-items:center;margin-top:4px;"><input type="checkbox" id="mztrInv"> عكس (الشكل فاتح والخلفية غامقة)</label>
+      </div>
+      <div id="mztrDrawCtl" style="display:none;">
+        <p class="hint" style="margin:0 0 4px;">ارسم حدود الشكل بالماوس أو بإصبعك بحركة وحدة، والنهاية بتنغلق لحالها.</p>
+        <button type="button" class="small" onclick="mztrClear()">مسح</button>
+      </div>
+      <label style="display:block;margin:6px 0 2px;">التبسيط (أقل = تفاصيل أكتر ونقاط أكتر)</label>
+      <input type="range" id="mztrSimp" min="0.3" max="4" step="0.1" value="0.8" style="width:100%;">
+      <canvas id="mztrCanvas" width="400" height="400" style="width:100%;max-width:400px;background:#fff;border-radius:8px;margin-top:8px;touch-action:none;display:block;margin-inline:auto;"></canvas>
+      <div id="mztrStatus" class="hint" style="margin:6px 0;min-height:16px;"></div>
+      <label style="display:block;margin:4px 0 2px;">العرض مم (الارتفاع بيتحدد حسب نسبة الصورة)</label>
+      <input type="text" inputmode="decimal" id="mztrW" style="width:100%;">
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button type="button" id="mztrApply" style="flex:1;" onclick="mztrApply()">تطبيق على المرآة</button>
+        <button type="button" class="small" onclick="mztrClose()">إلغاء</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    const f = ov.querySelector('#mztrFile');
+    f.onchange = ()=>{
+      const file = f.files && f.files[0]; if(!file) return;
+      const url = URL.createObjectURL(file); const im = new Image();
+      im.onload = ()=>{
+        const k = Math.min(1, 420/Math.max(im.width, im.height));
+        const c = document.createElement('canvas'); c.width=Math.max(8,Math.round(im.width*k)); c.height=Math.max(8,Math.round(im.height*k));
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height); MZTR.cv=c; URL.revokeObjectURL(url); mztrCompute();
+      };
+      im.onerror = ()=>{ const st=document.getElementById('mztrStatus'); if(st) st.textContent='ما قدرت أفتح الصورة.'; };
+      im.src = url;
+    };
+    ov.querySelector('#mztrThr').oninput = e=>{ MZTR.thr=+e.target.value; mztrCompute(); };
+    ov.querySelector('#mztrSimp').oninput = e=>{ MZTR.simp=+e.target.value; mztrCompute(); };
+    ov.querySelector('#mztrInv').onchange = e=>{ MZTR.invert=e.target.checked; mztrCompute(); };
+    const cv = ov.querySelector('#mztrCanvas'); let down=false;
+    const pos = e=>{ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left)*cv.width/r.width, (e.clientY-r.top)*cv.height/r.height]; };
+    cv.addEventListener('pointerdown', e=>{ if(MZTR.mode!=='draw') return; down=true; MZTR.draw=[pos(e)]; MZTR.dw=cv.width; MZTR.dh=cv.height; MZTR.pts=null; try{cv.setPointerCapture(e.pointerId);}catch(_){} mztrPaint(); });
+    cv.addEventListener('pointermove', e=>{ if(!down) return; MZTR.draw.push(pos(e)); mztrPaint(); });
+    const up = ()=>{ if(!down) return; down=false; mztrCompute(); };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  }
+  ov.style.display='flex';
+  ov.querySelector('#mztrImgCtl').style.display = MZTR.mode==='img' ? '' : 'none';
+  ov.querySelector('#mztrDrawCtl').style.display = MZTR.mode==='draw' ? '' : 'none';
+  const cur = getSelected();
+  const wi = ov.querySelector('#mztrW'); if(wi && !wi.value) wi.value = (cur && cur.width) ? Math.round(cur.width) : 800;
+  ov.querySelector('#mztrStatus').textContent='';
+  mztrPaint();
+}
+function mztrClear(){ MZTR.draw=null; MZTR.pts=null; mztrPaint(); const st=document.getElementById('mztrStatus'); if(st) st.textContent=''; }
+function mztrClose(){ const ov=document.getElementById('mztrOv'); if(ov) ov.style.display='none'; }
+function mztrApply(){
+  if(!MZTR.pts){ const st=document.getElementById('mztrStatus'); if(st) st.textContent='ما في شكل لتطبيقه بعد.'; return; }
+  const P = MZTR.pts, W = Math.max(50, parseFloat(document.getElementById('mztrW').value) || 800);
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9; P.p.forEach(p=>{ x0=Math.min(x0,p[0]); x1=Math.max(x1,p[0]); y0=Math.min(y0,p[1]); y1=Math.max(y1,p[1]); });
+  const k = W/Math.max(1e-9,x1-x0);
+  const pts = P.p.map(p=>[Math.round((p[0]-x0)*k*10)/10, Math.round((y1-p[1])*k*10)/10]);
+  mirrorRun(null, null, it=>{
+    it.mrShape='custom'; it.mrPts=pts; it.mrFlipX=false; mirrorSyncCustomDims(it);
+  });
+  mztrClose();
+}
+window.mztrOpen = mztrOpen; window.mztrClose = mztrClose; window.mztrClear = mztrClear; window.mztrApply = mztrApply;
 // ---- الفتحات ----
 function mirrorRenderHolesList(it){
   const el = document.getElementById('mrHolesList'); if(!el) return;
