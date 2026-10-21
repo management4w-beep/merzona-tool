@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-10.1';
+  var CURRENT_VERSION = '2026-10-21.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -116,7 +116,8 @@
           return;
         }
         try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
-        location.replace(location.pathname + '?_cb=' + bust + (location.hash || ''));
+        var _qs = ''; try { var _u = new URLSearchParams(location.search); _u.set('_cb', bust); _qs = '?' + _u.toString(); } catch (e) { _qs = '?_cb=' + bust; }
+        location.replace(location.pathname + _qs + (location.hash || ''));
       })
       .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); onDone(); } });
   }
@@ -2032,7 +2033,7 @@ function getChartData(){
   });
 }
 
-function fmt(n){ return n.toLocaleString('en-US'); }
+function fmt(n){ return (Number(n)||0).toLocaleString('en-US'); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // 🆕 2026-09-23: طلب حمدي - عروض أسعار فرع سوريا ما كانت عم تظهر عالداشبورد لأنه الفحص/المطابقة مع
@@ -3137,7 +3138,7 @@ function buildBackupPayload(){
 // كل نسخة احتياطية (تلقائية أو يدوية) بتستبدل نفس الملف داخل هالمجلد - ما بتصنع ملف جديد كل مرة.
 const AUTO_BACKUP_FOLDER_ID = '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy';
 const AUTO_BACKUP_FILE_NAME = 'merzona-backup-auto.json';
-let cachedAutoBackupFileId = localStorage.getItem('merzona_auto_backup_file_id') || null;
+let cachedAutoBackupFileId = null; try{ cachedAutoBackupFileId = localStorage.getItem('merzona_auto_backup_file_id') || null; }catch(e){}
 
 async function getOrCreateAutoBackupFileId(token){
   if(cachedAutoBackupFileId) return cachedAutoBackupFileId;
@@ -4777,7 +4778,7 @@ const DRIVE_SCOPE_DASH = 'https://www.googleapis.com/auth/drive';
 // جوا Quotation_Generator.html).
 const DASH_DRIVE_TOKEN_URL = 'https://merzona-server-production.up.railway.app/drive-token';
 
-let cachedSyncFileId = localStorage.getItem('merzona_sync_file_id') || null;
+let cachedSyncFileId = null; try{ cachedSyncFileId = localStorage.getItem('merzona_sync_file_id') || null; }catch(e){}
 async function getOrCreateSyncFileId(token){
   if(cachedSyncFileId) return cachedSyncFileId;
   const q = encodeURIComponent(`name = '${SYNC_FILE_NAME}' and '${DRIVE_ROOT_FOLDER_ID_DASH}' in parents and trashed = false`);
@@ -5955,7 +5956,7 @@ function populatePmpRefSelect(){
   const contracts = loadContracts();
   const refs = Object.keys(contracts).sort();
   sel.innerHTML = '<option value="">اختر رقم مرجعي (من العقود المسجّلة)...</option>' +
-    refs.map(ref=>'<option value="'+ref+'">'+ref+' — '+contracts[ref].client+'</option>').join('');
+    refs.map(ref=>'<option value="'+escapeHtml(ref)+'">'+escapeHtml(ref)+' — '+escapeHtml(contracts[ref].client)+'</option>').join('');
   if(refs.length===0){
     sel.innerHTML = '<option value="">مافي عقود مسجّلة — سجّل عقد وحدد مدته أول من تبويب العقود</option>';
   }
@@ -6137,7 +6138,7 @@ function renderContractFileDisplay(){
     const href = f.driveViewLink || f.dataUrl || '#';
     const note = f.driveViewLink ? ' <span style="color:var(--muted);font-size:11px;">☁️ محفوظ بجوجل درايف</span>'
       : (f.dataUrl ? ' <span style="color:var(--muted);font-size:11px;">('+Math.round((f.dataUrl.length * 0.75) / 1024)+' KB - محفوظ محليًا)</span>' : '');
-    return '<div style="margin-bottom:4px;">📎 <a href="'+href+'" target="_blank" rel="noopener" style="color:var(--aux1);">'+f.name+'</a>'+note+' '+
+    return '<div style="margin-bottom:4px;">📎 <a href="'+escapeHtml(href)+'" target="_blank" rel="noopener" style="color:var(--aux1);">'+escapeHtml(f.name)+'</a>'+note+' '+
       '<span class="contractFileRemoveBtn" data-idx="'+i+'" style="cursor:pointer;color:var(--danger);margin-right:10px;">✕ إزالة</span></div>';
   }).join('');
   el.querySelectorAll('.contractFileRemoveBtn').forEach(btn=>{
@@ -7480,7 +7481,7 @@ const PHASE_COLORS = ['#8DB3E2','#76923C','#E6B8AF','#B8863B','#7F7F7F','#0f88cd
 function loadPmpProjects(){
   try{ return JSON.parse(localStorage.getItem(PMP_KEY) || '{}'); }catch(e){ return {}; }
 }
-function savePmpProjects(obj){ localStorage.setItem(PMP_KEY, JSON.stringify(obj)); markSyncDirty(PMP_KEY, obj); }
+function savePmpProjects(obj){ try{ localStorage.setItem(PMP_KEY, JSON.stringify(obj)); }catch(e){ console.warn('تعذّر حفظ المشروع محليًا', e); try{ alert('تعذّر الحفظ على هذا المتصفح (التخزين ممتلئ أو محظور). التعديل ما انحفظ محليًا.'); }catch(_){} } markSyncDirty(PMP_KEY, obj); }
 
 // 🛠️ إصلاح 2026-09-28 (فحص شامل جولة ٢): مهام جدول المشروع (tasks) ما إلها id ولا طابع زمني خاص
 // فيها - نفس مشكلة صفوف الدفعات بالضبط (شوف touchPayRow فوق) بس هون على مستوى سجل مشروع كامل:
@@ -7748,9 +7749,9 @@ function renderPmpGantt(){
     for(let w=1; w<=dur; w++){
       if(w === startW){
         const span = endW - startW + 1;
-        const enLine = t.name_en ? '<br><span style="opacity:.9;">'+t.name_en+'</span>' : '';
+        const enLine = t.name_en ? '<br><span style="opacity:.9;">'+escapeHtml(t.name_en)+'</span>' : '';
         html += '<td class="gantt-cell gantt-bar" data-taskidx="'+idx+'" colspan="'+span+'" style="border:1px solid var(--line);background:'+phaseColor[t.phase]+';height:46px;text-align:center;vertical-align:middle;font-size:11px;color:#fff;overflow:hidden;position:relative;">'+
-          '<span style="padding:0 4px;white-space:nowrap;pointer-events:none;">'+t.name+enLine+'</span>'+
+          '<span style="padding:0 4px;white-space:nowrap;pointer-events:none;">'+escapeHtml(t.name)+enLine+'</span>'+
           '<span class="gantt-handle gantt-handle-start" title="اسحب لتغيير أسبوع البداية" style="position:absolute;top:0;bottom:0;right:0;width:10px;cursor:ew-resize;background:rgba(255,255,255,.25);"></span>'+
           '<span class="gantt-handle gantt-handle-end" title="اسحب لتغيير أسبوع النهاية" style="position:absolute;top:0;bottom:0;left:0;width:10px;cursor:ew-resize;background:rgba(255,255,255,.25);"></span>'+
           '</td>';

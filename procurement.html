@@ -80,7 +80,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-17.1';
+  var CURRENT_VERSION = '2026-10-21.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
@@ -113,7 +113,8 @@
           return;
         }
         try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
-        location.replace(location.pathname + '?_cb=' + bust + (location.hash || ''));
+        var _qs = ''; try { var _u = new URLSearchParams(location.search); _u.set('_cb', bust); _qs = '?' + _u.toString(); } catch (e) { _qs = '?_cb=' + bust; }
+        location.replace(location.pathname + _qs + (location.hash || ''));
       })
       .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); onDone(); } });
   }
@@ -2045,7 +2046,7 @@ if (typeof module !== 'undefined') {
       qtyTd.appendChild(qtyInput);
       tr.appendChild(qtyTd);
       tr.appendChild(el('td', { text: row.unit }));
-      var bars = row.unit === 'متر طولي' ? Math.ceil(row.qty / state.barLength) : '';
+      var bars = row.unit === 'متر طولي' ? Math.ceil(+(row.qty / state.barLength).toFixed(6)) : '';
       tr.appendChild(el('td', { text: String(bars) }));
       tbody.appendChild(tr);
     });
@@ -2073,7 +2074,7 @@ if (typeof module !== 'undefined') {
       tr.appendChild(el('td', { text: g.material }));
       tr.appendChild(el('td', { text: String(round2(g.qty)) }));
       tr.appendChild(el('td', { text: g.unit }));
-      var bars = g.unit === 'متر طولي' ? Math.ceil(g.qty / state.barLength) : '';
+      var bars = g.unit === 'متر طولي' ? Math.ceil(+(g.qty / state.barLength).toFixed(6)) : '';
       tr.appendChild(el('td', { text: String(bars) }));
       sumBody.appendChild(tr);
     });
@@ -2089,7 +2090,7 @@ if (typeof module !== 'undefined') {
     var groups = {}, order = [];
     collectBoqEntries().forEach(function (d) {
       var row = d.row;
-      var bars = row.unit === 'متر طولي' ? Math.ceil(row.qty / state.barLength) : '';
+      var bars = row.unit === 'متر طولي' ? Math.ceil(+(row.qty / state.barLength).toFixed(6)) : '';
       detailRows.push([d.ref, d.name, d.type, row.material, row.qty, row.unit, bars]);
       var key = row.material + '|' + row.unit;
       if (!groups[key]) { groups[key] = { material: row.material, unit: row.unit, qty: 0 }; order.push(key); }
@@ -2097,7 +2098,7 @@ if (typeof module !== 'undefined') {
     });
     order.forEach(function (key) {
       var g = groups[key];
-      var bars = g.unit === 'متر طولي' ? Math.ceil(g.qty / state.barLength) : '';
+      var bars = g.unit === 'متر طولي' ? Math.ceil(+(g.qty / state.barLength).toFixed(6)) : '';
       summaryRows.push([g.material, round2(g.qty), g.unit, bars]);
     });
 
@@ -2253,7 +2254,7 @@ if (typeof module !== 'undefined') {
 
   function convertDesignerNode(node, wM, hM, flagField, flagTypes) {
     if (node.kind === 'leaf') {
-      var leaf = { type: 'leaf', w: round2(wM), h: round2(hM) };
+      var leaf = { type: 'leaf', w: Math.round(wM * 10000) / 10000, h: Math.round(hM * 10000) / 10000 };
       leaf[flagField] = flagTypes.indexOf(node.type) !== -1;
       return leaf;
     }
@@ -2282,7 +2283,7 @@ if (typeof module !== 'undefined') {
   // يجمّع كل أقسام الورقة (leaf) بقياساتها (م) من تقسيمات أداة التصميم (kind/children/frac/direction).
   function collectDesignerLeaves(node, wM, hM, out) {
     if (!node) return out;
-    if (node.kind === 'leaf') { out.push({ type: node.type || 'plain', w: round2(wM), h: round2(hM) }); return out; }
+    if (node.kind === 'leaf') { out.push({ type: node.type || 'plain', w: Math.round(wM * 10000) / 10000, h: Math.round(hM * 10000) / 10000 }); return out; }
     var isRow = node.direction === 'row';
     var total = isRow ? wM : hM;
     (node.children || []).forEach(function (ch) {
@@ -2636,6 +2637,8 @@ if (typeof module !== 'undefined') {
     reader.onload = function (e) {
       try {
         var data = JSON.parse(e.target.result);
+        var _bak = { n: state.projectName, b: state.barLength, t: state.barLengthTouched, o: state.overrides, i: state.items, a: state.activeItemId };
+        try {
         state.projectName = data.projectName || '';
         state.barLength = (isFinite(data.barLength) && data.barLength >= 1 && data.barLength <= 20) ? data.barLength : RULES.barLength;
         state.barLengthTouched = !!data.barLength;
@@ -2643,6 +2646,12 @@ if (typeof module !== 'undefined') {
         state.items = data.items || [];
         state.activeItemId = state.items.length ? state.items[0].id : null;
         renderApp();
+        } catch (inner) {
+          // الملف تالف أو شكله غلط: نرجّع الحالة السابقة بدل ما تبقى الأداة معطّلة
+          state.projectName = _bak.n; state.barLength = _bak.b; state.barLengthTouched = _bak.t; state.overrides = _bak.o; state.items = _bak.i; state.activeItemId = _bak.a;
+          try { renderApp(); } catch (e2) {}
+          throw inner;
+        }
       } catch (err) {
         alert('تعذّر قراءة الملف. تأكد أنه ملف مشروع صحيح (JSON).');
       }

@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-21.1';
+  var CURRENT_VERSION = '2026-10-21.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -139,7 +139,8 @@
         try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
         // ⚠️ هون فقط: ما منحط __merzonaVersionCheckSettled__ = true لأنو فعلاً رح يصير reload،
         // وبدنا الفلاغ يضل false حتى النسخة الجديدة المعاد تحميلها تعمل الفحص من جديد وتقرر بنفسها.
-        location.replace(location.pathname + '?_cb=' + bust + (location.hash || ''));
+        var _qs = ''; try { var _u = new URLSearchParams(location.search); _u.set('_cb', bust); _qs = '?' + _u.toString(); } catch (e) { _qs = '?_cb=' + bust; }
+        location.replace(location.pathname + _qs + (location.hash || ''));
       })
       .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); window.__merzonaVersionCheckSettled__ = true; onDone(); } });
   }
@@ -1653,7 +1654,7 @@
     body.combined-printing .print-only{ display:block !important; }
     body.combined-printing #printSheet{ page-break-before: always; break-before: page; }
     body.three-d-printing{ background:white !important; }
-    body.three-d-printing .page{ display:none !important; }
+    body.three-d-printing .page, body.three-d-printing .app{ display:none !important; }
     body.three-d-printing #wdOverlay{ display:none !important; }
     body.three-d-printing #threeDOverlay{
       display:block !important; position:static !important; inset:auto !important; z-index:auto !important;
@@ -2244,6 +2245,8 @@ function saveAlumSpecArToStorage(){
   try{ localStorage.setItem('merzona-alum-spec-ar', JSON.stringify(ALUM_SPEC_AR)); }catch(e){}
 }
 let supplyCount=0, specCount=0, qtyCount=0, payCount=0, noteCount=0;
+function mzEscText(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function mzEscAttrFull(s){ return mzEscText(s).replace(/"/g,'&quot;'); }
 
 function addBiRow(containerId, phEn, phAr, valEn='', valAr='', linkedItem=''){
   const c=document.getElementById(containerId);
@@ -2251,9 +2254,9 @@ function addBiRow(containerId, phEn, phAr, valEn='', valAr='', linkedItem=''){
   row.className='bi-row';
   if(linkedItem) row.dataset.linkedItem = linkedItem;
   row.innerHTML=`
-    <textarea rows="1" placeholder="${phEn}" onblur="autoTranslateRow(this); propagateRowEditToItems(this)">${valEn}</textarea>
+    <textarea rows="1" placeholder="${mzEscAttrFull(phEn)}" onblur="autoTranslateRow(this); propagateRowEditToItems(this)">${mzEscText(valEn)}</textarea>
     <div>
-      <textarea class="ar" rows="1" placeholder="${phAr}" onblur="autoTranslateRow(this); propagateRowEditToItems(this)">${valAr}</textarea>
+      <textarea class="ar" rows="1" placeholder="${mzEscAttrFull(phAr)}" onblur="autoTranslateRow(this); propagateRowEditToItems(this)">${mzEscText(valAr)}</textarea>
       <div class="row-controls"><button class="small danger row-remove" onclick="this.closest('.bi-row').remove()">Remove</button></div>
     </div>`;
   c.appendChild(row);
@@ -2265,9 +2268,9 @@ function addNoteRow(en,ar){
   const row=document.createElement('div');
   row.className='notes-item';
   row.innerHTML=`
-    <textarea rows="1" onblur="autoTranslateRow(this)">${en}</textarea>
+    <textarea rows="1" onblur="autoTranslateRow(this)">${mzEscText(en)}</textarea>
     <div>
-      <textarea class="ar" rows="1" onblur="autoTranslateRow(this)">${ar}</textarea>
+      <textarea class="ar" rows="1" onblur="autoTranslateRow(this)">${mzEscText(ar)}</textarea>
       <div class="row-controls"><button class="small danger row-remove" onclick="this.closest('.notes-item').remove()">Remove</button></div>
     </div>`;
   c.appendChild(row);
@@ -2278,9 +2281,9 @@ function addPayRow(en,ar,pct){
   const row=document.createElement('div');
   row.className='pay-row';
   row.innerHTML=`
-    <input value="${en}" placeholder="Payment label (English)" onblur="autoTranslateRow(this)">
-    <div class="pay-pct-box"><input value="${pct}" placeholder="%" style="text-align:center"><span>%</span></div>
-    <input class="ar" value="${ar}" placeholder="نسبة الدفعة بالعربي" onblur="autoTranslateRow(this)">
+    <input value="${mzEscAttrFull(en)}" placeholder="Payment label (English)" onblur="autoTranslateRow(this)">
+    <div class="pay-pct-box"><input value="${mzEscAttrFull(pct)}" placeholder="%" style="text-align:center"><span>%</span></div>
+    <input class="ar" value="${mzEscAttrFull(ar)}" placeholder="نسبة الدفعة بالعربي" onblur="autoTranslateRow(this)">
     <button class="small danger row-remove" onclick="this.closest('.pay-row').remove()">×</button>`;
   c.appendChild(row);
 }
@@ -2774,10 +2777,10 @@ function finishImportStatus(message, isError){
 }
 
 function getExtractEndpoint(){
-  let url = localStorage.getItem('merzona-extract-endpoint');
+  let url = null; try{ url = localStorage.getItem('merzona-extract-endpoint'); }catch(e){}
   if(!url){
     url = prompt('Paste your PDF-extraction server URL (from Vercel), e.g.\nhttps://merzona.vercel.app/api/extract-quotation');
-    if(url) localStorage.setItem('merzona-extract-endpoint', url.trim());
+    if(url){ try{ localStorage.setItem('merzona-extract-endpoint', url.trim()); }catch(e){} }
   }
   return url ? url.trim() : '';
 }
@@ -3299,16 +3302,16 @@ function addQtyRow(w='',h='',qty='1',price='', selectedIdx=-1){
   const tr=document.createElement('tr');
   tr.setAttribute('ondragover','onQtyRowDragOver(event)');
   tr.setAttribute('ondrop','onQtyRowDrop(event)');
-  const initialItemVal = (selectedIdx>=0 && ITEMS[selectedIdx]) ? ITEMS[selectedIdx].en.replace(/"/g,'&quot;') : '';
+  const initialItemVal = (selectedIdx>=0 && ITEMS[selectedIdx]) ? mzEscAttrFull(ITEMS[selectedIdx].en) : '';
   tr.innerHTML=`
     <td class="elevation-cell"></td>
     <td class="row-num"></td>
     <td class="row-code">${qtyCount}</td>
     <td><input class="item-input" list="items-datalist" value="${initialItemVal}" placeholder="Type or pick / اكتب أو اختر..." oninput="onItemTextInput(this)" onkeydown="handleRowEnter(event)" enterkeyhint="next"></td>
-    <td><input class="w-input" value="${w}" oninput="restrictToNumbersAndPlus(this); onDimensionInput(this)" onkeydown="handleRowEnter(event)" onblur="evalSumExpression(this)" enterkeyhint="next"></td>
-    <td><input class="h-input" value="${h}" oninput="restrictToNumbersAndPlus(this); onDimensionInput(this)" onkeydown="handleRowEnter(event)" onblur="evalSumExpression(this)" enterkeyhint="done"></td>
-    <td><input class="qty-input" value="${qty}" oninput="onDimensionInput(this)" onkeydown="handleRowEnter(event)" enterkeyhint="done"></td>
-    <td class="price-col"><input class="price" value="${price}" oninput="onPriceInput(this)" onkeydown="handleRowEnter(event)" placeholder="${getCurrentCurrencyConfig().code}/m²" enterkeyhint="done"></td>
+    <td><input class="w-input" value="${mzEscAttrFull(w)}" oninput="restrictToNumbersAndPlus(this); onDimensionInput(this)" onkeydown="handleRowEnter(event)" onblur="evalSumExpression(this)" enterkeyhint="next"></td>
+    <td><input class="h-input" value="${mzEscAttrFull(h)}" oninput="restrictToNumbersAndPlus(this); onDimensionInput(this)" onkeydown="handleRowEnter(event)" onblur="evalSumExpression(this)" enterkeyhint="done"></td>
+    <td><input class="qty-input" value="${mzEscAttrFull(qty)}" oninput="onDimensionInput(this)" onkeydown="handleRowEnter(event)" enterkeyhint="done"></td>
+    <td class="price-col"><input class="price" value="${mzEscAttrFull(price)}" oninput="onPriceInput(this)" onkeydown="handleRowEnter(event)" placeholder="${getCurrentCurrencyConfig().code}/m²" enterkeyhint="done"></td>
     <td><input class="line-total" value="0" oninput="onManualTotalInput(this)" onkeydown="handleRowEnter(event)" style="background:#f4f5f7;font-weight:bold;text-align:center;" title="Auto-calculated — edit directly to override with a fixed total" enterkeyhint="done"></td>
     <td class="remove-col">
       <button type="button" class="small row-drag-handle" draggable="true" ondragstart="onQtyRowDragStart(event)" ondragend="onQtyRowDragEnd(event)" title="اسحب لتحريك السطر لأي مكان بالجدول دفعة وحدة - أسرع من ▲▼ لمسافات طويلة">⠿</button>
@@ -5788,7 +5791,7 @@ function findOrCreateDriveFolder(name, parentId, token){
   return p;
 }
 async function __findOrCreateDriveFolderRaw(name, parentId, token){
-  const safeName = name.replace(/'/g, "\\'");
+  const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const q = encodeURIComponent(`name = '${safeName}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
   // 🔧 2026-09-23: رفعنا المهلة هون (كانت 15 ثانية) - أول حفظة لفرع جديد كليًا (متل دمشق-سوريا) بتحتاج
   // فعليًا تنشئ المجلد (create) مش بس تدوّر عليه (search)، وهالإنشاء ممكن ياخد وقت أطول شوي من البحث
@@ -5833,7 +5836,7 @@ async function uploadFileToDriveFolder(filename, mimeType, blob, parentId, token
 // فمحتاجين هون طريقة "دوّر عليه، وإذا موجود حدّثه (PATCH) وإلا أنشئه" حتى تكرار "حفظ كمسودة"/"حفظ
 // التصميم" لنفس العنصر يحدّث نفس الملف عالدرايف بدل ما ينشئ نسخة جديدة مكررة كل مرة.
 async function findFileInFolder(name, parentId, token){
-  const safeName = name.replace(/'/g, "\\'");
+  const safeName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const q = encodeURIComponent(`name = '${safeName}' and '${parentId}' in parents and trashed = false`);
   const res = await fetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
@@ -9013,7 +9016,7 @@ async function mergeInAnotherQuotation(){
       if(cid === 'acc-rows' || cid === 'notes-rows' || cid === 'pay-rows') return; // منصفّرهم للشكل القياسي تحت بدل ما نلزق فوقهم
       const el = document.getElementById(cid);
       const html = otherData.rows && otherData.rows[cid];
-      if(el && typeof html === 'string' && html.trim()) el.insertAdjacentHTML('beforeend', html);
+      if(el && typeof html === 'string' && html.trim()) el.insertAdjacentHTML('beforeend', mzSanitizeHtml(html));
     });
     if(typeof seedStandardAccessoryRows === 'function') seedStandardAccessoryRows();
     if(typeof seedStandardNotesRows === 'function') seedStandardNotesRows();
@@ -9508,7 +9511,7 @@ function onHrSegField(itemId, segId, field, value){
     seg.riseCm = Math.max(0, parseFloat(value)||0);
   } else {
     const v = Math.max(1, parseFloat(value)||1);
-    seg[field] = field==='panelCount' ? Math.round(v) : v;
+    seg[field] = field==='panelCount' ? Math.min(500, Math.round(v)) : v;
   }
   syncHandrailDims(it);
   renderGallery();
@@ -10824,7 +10827,7 @@ function wantsPanelBorder(it, nodeType){
 
 function frostedOverlayLines(w, h, color, excludeRects){
   let lines = '';
-  const step = 10;
+  const step = Math.max(10, (w+h)/400);
   for(let d=-h; d<w; d+=step){
     const sx = d, ex = d+h;
     const y1 = sx<0 ? -sx : 0;
@@ -17235,6 +17238,7 @@ async function getSharedFFmpegInstanceForVideoConvert(onStatus){
   if(__mzFFmpegInstance && __mzFFmpegInstance.isLoaded && __mzFFmpegInstance.isLoaded()) return __mzFFmpegInstance;
   if(!__mzFFmpegLoadPromise){
     __mzFFmpegLoadPromise = (async function(){
+     try{
       if(typeof FFmpeg === 'undefined' || !FFmpeg.createFFmpeg){
         throw new Error('مكتبة تحويل الفيديو لصيغة mp4 (ffmpeg.wasm) ما انحمّلت - تأكد من اتصالك بالإنترنت.');
       }
@@ -17246,6 +17250,7 @@ async function getSharedFFmpegInstanceForVideoConvert(onStatus){
       await instance.load();
       __mzFFmpegInstance = instance;
       return instance;
+     }catch(e){ __mzFFmpegLoadPromise = null; throw e; }
     })();
   }
   return __mzFFmpegLoadPromise;
@@ -18669,7 +18674,7 @@ function onDragEnd(){
     const targets = linkedEntries && linkedEntries.length > 1
       ? linkedEntries.map(en => findNode(it.layout, en.nodeId)).filter(Boolean)
       : [node];
-    targets.forEach(tNode=>{
+    targets.filter(tNode=>tNode && tNode.children && tNode.children[idx] && tNode.children[idx+1]).forEach(tNode=>{
       const tS = tNode.children[idx].frac + tNode.children[idx+1].frac;
       tNode.children[idx].frac = frac*tS;
       tNode.children[idx+1].frac = tS - frac*tS;
@@ -19207,6 +19212,7 @@ function exportProcurementJSON(){
 window.exportProcurementJSON = exportProcurementJSON;
 
 function preparePrint(){
+  if(!items.some(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it))){ alert('ما في بنود للطباعة بعد - أضف بند واحد عالأقل.'); return; }
   exportProcurementJSON();
   const dims = getPageDimsMM();
   let styleTag = document.getElementById('dynamicPageStyle');
@@ -19232,7 +19238,7 @@ window.addEventListener('afterprint', ()=> document.body.classList.remove('wd-pr
 // على مقاسه المعدّل (مقاس التصنيع) بدل مقاس الفتحة الأصلي - أي بند ما انعدّل عليه شي بيطلع بمقاسه
 // العادي زي ما هو.
 function printMfgSizes(){
-  const printableCount = items.filter(it => !it.isCameraTemp && !it.mfgExcluded).length;
+  const printableCount = items.filter(it => !it.isCameraTemp && !it.mfgExcluded && !isRoom(it) && !isGableRoof(it)).length;
   if(!printableCount){
     alert('كل البنود مستبعدة من مقاسات التصنيع (أو ما في بنود بعد) - رجّعي تضمين بند واحد عالأقل من تبويب مقاسات التصنيع قبل الطباعة.');
     return;
@@ -19408,6 +19414,8 @@ function guessShapeTypeFromName(name){
   return 'window';
 }
 
+// حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
@@ -19429,6 +19437,7 @@ function buildItemFromSavedDesign(design, uid, label){
     layout: cloneLayoutWithFreshIds(design.layout),
     sourceRowUid: uid
   };
+  if(design.extra){ SAVED_EXTRA_KEYS.forEach(k=>{ if(design.extra[k] !== undefined) _it[k] = JSON.parse(JSON.stringify(design.extra[k])); }); }
   if(design.shapeType === 'mirror'){ Object.assign(_it, design.mirror || {}); mirrorEnsure(_it); }
   return _it;
 }
@@ -19609,6 +19618,7 @@ function wdSaveAndClose(){
         mfgHeightAdjustCm: it.mfgHeightAdjustCm || 0,
         mfgExcluded: it.mfgExcluded || false,
         mirror: isMirror(it) ? MIRROR_KEYS.concat(MIRROR_COMP_KEYS).reduce((o,k)=>{ o[k]=(it[k]===undefined?undefined:JSON.parse(JSON.stringify(it[k]))); return o; },{}) : undefined,
+        extra: SAVED_EXTRA_KEYS.reduce((o,k)=>{ if(it[k] !== undefined) o[k] = JSON.parse(JSON.stringify(it[k])); return o; },{}),
         layout: it.layout
       }
     };
@@ -19925,7 +19935,11 @@ function setCameraOpacity(){
   if(camItem) renderCameraDesign();
 }
 
+let camWdWasOpen = false;
 async function openCameraOverlay(){
+  // #cameraOverlay كان جوا #wdOverlay فلما نخفي المصمم كانت شاشة الكاميرا تختفي معه - ننقلها لجسم الصفحة
+  { const co = document.getElementById('cameraOverlay'); if(co && co.parentElement !== document.body) document.body.appendChild(co); }
+  { const wd = document.getElementById('wdOverlay'); camWdWasOpen = !!wd && wd.style.display === 'block'; }
   document.getElementById('wdOverlay').style.display = 'none';
   camPhase = 1;
   camFrame = { x0:250, y0:250, x1:750, y1:750 };
@@ -19982,6 +19996,7 @@ function closeCameraOverlay(){
   if(camItem){ items = items.filter(it => it !== camItem); camItem = null; }
   document.getElementById('cameraOverlay').style.display = 'none';
   camPhase = 1;
+  if(camWdWasOpen){ const wd = document.getElementById('wdOverlay'); if(wd) wd.style.display = 'block'; camWdWasOpen = false; }
 }
 
 window.openCameraOverlay = openCameraOverlay;
@@ -20253,6 +20268,7 @@ function build3DRenderSVG(it){
   if(isMirror(it)) return build3DMirrorSVG(it);
   if(isShowerDoor(it)) return build3DShowerDoorSVG(it);
   const W = it.width, H = it.height;
+  if(!(W>0) || !(H>0)) return '<p style="color:#666;padding:20px;">المقاسات غير صالحة</p>';
   const scale = Math.min(480/W, 440/H);
   const drawW = W*scale, drawH = H*scale;
   const isSliding = isSlidingType(it);
@@ -20469,8 +20485,30 @@ function build3DRenderSVG(it){
   </svg>`;
 }
 
+function threeDSizeCaption(it){
+  try{
+    const f = n => Math.round(+n||0);
+    const box = t => `<div class="threeD-size" dir="rtl" style="font-family:var(--wd-font-ui);font-size:13px;color:#1a1a2e;text-align:center;margin:0 0 8px;line-height:1.7;">${t}</div>`;
+    const wh = (w,h) => `<b>${f(w)} × ${f(h)} مم</b> (${Math.round(w/10*10)/10} × ${Math.round(h/10*10)/10} سم)`;
+    if(isMirror(it)){
+      const ps = (typeof mirrorIsComposite === 'function' && mirrorIsComposite(it)) ? mirrorPieceObjs(it) : null;
+      if(ps) return box(ps.map((q,i)=>`القطعة ${i+1}: ${wh(q.width,q.height)}`).join('<br>'));
+      return box('المقاس: ' + wh(it.width,it.height));
+    }
+    if(isHandrail(it)) return box('الطول الكلي: <b>' + f(getHandrailTotalLength(it)) + ' مم</b> (' + Math.round(getHandrailTotalLength(it)/10*10)/10 + ' سم)' + (it.height ? '<br>الارتفاع: <b>' + f(it.height) + ' مم</b>' : ''));
+    let t = 'العرض × الارتفاع: ' + wh(it.width,it.height);
+    const n = it.layout;
+    if(n && n.kind !== 'leaf' && Array.isArray(n.children) && n.children.length > 1){
+      const tot = n.direction === 'row' ? it.width : it.height;
+      const parts = n.children.map(c=>f(c.frac/100*tot));
+      t += '<br>' + (n.direction === 'row' ? 'عرض الأقسام' : 'ارتفاع الأقسام') + ' (مم): <b>' + parts.join(' | ') + '</b>';
+    }
+    return box(t);
+  }catch(e){ return ''; }
+}
 function open3DPreview(){
   const grid = document.getElementById('threeDGrid');
+  { const ov = document.getElementById('threeDOverlay'); if(ov && ov.parentElement !== document.body) document.body.appendChild(ov); }
   grid.innerHTML = '';
   const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
   if(!visibleItems.length){
@@ -20480,7 +20518,7 @@ function open3DPreview(){
       const cls = classifyItem(it);
       const card = document.createElement('div');
       card.className = 'threeD-card';
-      card.innerHTML = `<div class="threeD-title">${it.label} — ${cls.ar}</div>${build3DRenderSVG(it)}`;
+      card.innerHTML = `<div class="threeD-title">${it.label} — ${cls.ar}</div>${threeDSizeCaption(it)}${build3DRenderSVG(it)}`;
       grid.appendChild(card);
     });
   }
