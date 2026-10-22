@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-21.3';
+  var CURRENT_VERSION = '2026-10-22.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -3680,7 +3680,7 @@ async function mzRunSelfCheck(){
     else add('ok','ما في تكرار ببنود التصميم', di.length+' بند تصميم');
   }catch(e){ add('warn','تعذّر فحص التصميم', e.message); }
   // 10) التخزين المحلي
-  try{ let used=0; for(let i=0;i<localStorage.length;i++){ used += (localStorage.getItem(localStorage.key(i))||'').length; } const mb = used/1048576; if(mb > 4) add('warn','التخزين المحلي شبه ممتلئ', mb.toFixed(1)+' MB من ~5 MB - ممكن يفشل الحفظ التلقائي'); else add('ok','التخزين المحلي مرتاح', mb.toFixed(1)+' MB'); }catch(e){ add('warn','التخزين المحلي غير متاح', e.message); }
+  try{ let used=mzStorageUsedChars(); let mb = used/1048576; let top = mzStorageBreakdown(3).map(function(r){ return r.k.slice(0,34)+' ('+(r.n/1048576).toFixed(2)+'MB)'; }).join(' | '); if(mb > 4) add('warn','التخزين المحلي شبه ممتلئ', mb.toFixed(1)+' MB من ~5 MB - الأكبر: '+top); else add('ok','التخزين المحلي مرتاح', mb.toFixed(1)+' MB - الأكبر: '+top); }catch(e){ add('warn','التخزين المحلي غير متاح', e.message); }
   // 11) أخطاء JS سابقة بهالجلسة
   const jsErrs = window.__mzSelfErrors || [];
   if(jsErrs.length) add('bad','في أخطاء برمجية صارت بهالجلسة ('+jsErrs.length+')', jsErrs.slice(-3).join(' | ')); else add('ok','ما صار أي خطأ برمجي بهالجلسة');
@@ -4560,6 +4560,60 @@ let currentDesignSavedAt = 0;
    بالكود الرئيسي تحت (قرب seedDefaults). هاي منفصلة تمامًا عن "افتح عرض سعر قديم بآخر نسخة" (جوجل
    درايف) وعن الحفظ الفعلي - هاي بس شبكة أمان محلية بهالمتصفح بالذات، وبتنمسح تلقائيًا لما تبدئي عرض
    سعر جديد فاضي (resetAllNoConfirm) حتى ما ترجع تقترح نفسها لعرض سعر خلص وانحفظ. */
+// ===== إدارة التخزين المحلي (2026-10-22): التصاميم المحلية (merzona-design-items:: / merzona-latest-design::) كانت تتراكم
+// مفتاح لكل عرض سعر بدون ما تنحذف أبدًا، فيمتلئ تخزين المتصفح (~5MB) وبعدها تفشل المسودة والمزامنة بصمت.
+// هون: تنظيف تلقائي للأقدم (بنحتفظ بآخر عدد منهم + الحالي)، وكتابة آمنة بتنظّف وبتعيد المحاولة، وتنبيه واضح لو فشلت.
+var MZ_EVICT_PREFIXES = ['merzona-design-items::','merzona-latest-design::'];
+function mzStorageUsedChars(){ var u=0; try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); u += k.length + (localStorage.getItem(k)||'').length; } }catch(e){} return u; }
+function mzStorageBreakdown(n){
+  var rows=[]; try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); rows.push({k:k, n:k.length+(localStorage.getItem(k)||'').length}); } }catch(e){}
+  rows.sort(function(a,b){ return b.n-a.n; }); return rows.slice(0, n||5);
+}
+function mzStorageSweep(opts){
+  opts = opts || {}; var keep = opts.keep == null ? 12 : opts.keep; var removed = 0;
+  try{
+    if(!opts.force && mzStorageUsedChars() < 3000000) return 0;
+    var protect = {}; if(opts.keepKey) protect[opts.keepKey] = 1;
+    try{ if(window.getDesignAutosaveStorageKey) protect[window.getDesignAutosaveStorageKey()] = 1; }catch(e){}
+    var list=[];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i); if(!k) continue;
+      if(!MZ_EVICT_PREFIXES.some(function(pf){ return k.indexOf(pf)===0; })) continue;
+      var v = localStorage.getItem(k) || ''; var ts = 0;
+      var m = v.match(/"savedAt"\s*:\s*("([^"]+)"|(\d+))/);
+      if(m){ ts = m[3] ? +m[3] : (Date.parse(m[2]) || 0); }
+      list.push({k:k, ts:ts, n:v.length});
+    }
+    list.sort(function(a,b){ return b.ts-a.ts; });
+    var kept = 0;
+    list.forEach(function(it){
+      if(protect[it.k]){ kept++; return; }
+      if(kept < keep){ kept++; return; }
+      try{ localStorage.removeItem(it.k); removed++; }catch(e){}
+    });
+  }catch(e){}
+  return removed;
+}
+var __mzStorageWarnAt = 0;
+function mzSafeSetItem(key, value){
+  try{ localStorage.setItem(key, value); return true; }catch(e){}
+  var tries = [12, 6, 2, 0];
+  for(var i=0;i<tries.length;i++){
+    mzStorageSweep({ force:true, keep:tries[i], keepKey:key });
+    try{ localStorage.setItem(key, value); return true; }catch(e2){}
+  }
+  if(Date.now() - __mzStorageWarnAt > 60000){
+    __mzStorageWarnAt = Date.now();
+    try{
+      var msg = '⚠️ تخزين المتصفح ممتلئ - ما انحفظ "' + key.slice(0,40) + '" محليًا. احفظ الشغل على درايف أو اطبع PDF، ونظّف من المتصفح بيانات الموقع.';
+      if(typeof showMerzonaToast === 'function') showMerzonaToast(msg, true); else console.warn(msg);
+    }catch(e3){}
+  }
+  return false;
+}
+window.mzSafeSetItem = mzSafeSetItem; window.mzStorageSweep = mzStorageSweep; window.mzStorageBreakdown = mzStorageBreakdown;
+try{ mzStorageSweep({}); }catch(e){}
+
 const DRAFT_STORAGE_KEY = 'merzona-quotation-draft-v1';
 // 🛠️ 2026-09-30.12 (بلاغ حمدي المباشر: "النظام صاير جداً جداً جداً بطيء كتير صاير صعب الشغل عليه") -
 // فحص شامل لقى السبب الرئيسي هون بالضبط: كل مرة توقف الكتابة/التعديل (كل ~700ms أثناء الشغل الفعلي)
@@ -4578,7 +4632,7 @@ function saveDraftFromSnapshot(snapJson){
       const prevRaw = localStorage.getItem(DRAFT_STORAGE_KEY);
       if(prevRaw && !isDraftMeaningful(JSON.parse(snapJson)) && isDraftMeaningful(JSON.parse(prevRaw))) return;
     }catch(e){}
-    localStorage.setItem(DRAFT_STORAGE_KEY, withTimestamp);
+    mzSafeSetItem(DRAFT_STORAGE_KEY, withTimestamp);
   }catch(e){ console.warn('[مسودة محلية] تعذّر الحفظ:', e); }
 }
 function clearDraft(){
@@ -6390,7 +6444,7 @@ async function saveDesignToDrive(opts){
     };
     await saveJsonToDriveFolder(currentDesignId + '.json', envelope, designsFolderId, token);
     currentDesignSavedAt = envelope.savedAt;
-    if(refRaw){ try{ localStorage.setItem('merzona-latest-design::' + normalizeRefForCompare(refRaw), JSON.stringify(envelope)); }catch(e){} }
+    if(refRaw){ try{ mzSafeSetItem('merzona-latest-design::' + normalizeRefForCompare(refRaw), JSON.stringify(envelope)); }catch(e){} }
     // المسودة المفتوحة (لو في) لازم تحمل نفس التصميم، وإلا فتحها بعدين بيجيب النسخة القديمة المخزنة جواها.
     let draftOk = null;
     if(currentDraftId){ draftOk = await saveDraftToDrive(null, { silent: true }); }
@@ -8752,7 +8806,7 @@ function saveDesignItemsToStorage(){
     // بدل ما تحسبها لحالها بشكل مختلف (كانت تتجاهل العدد وما بتدعم الفولدينغ/الشاور/الهاندريل). ما بيندخل جوا items نفسها.
     let ref = '';
     try{ const re = document.getElementById('m-ref'); ref = re ? (re.value || '').trim() : ''; }catch(e){}
-    localStorage.setItem(key, JSON.stringify({ items: items, nextId: nextId, selectedId: selectedId, savedAt: new Date().toISOString(), projectRef: ref || null, purchSummaries: buildPurchSummaries() }));
+    mzSafeSetItem(key, JSON.stringify({ items: items, nextId: nextId, selectedId: selectedId, savedAt: new Date().toISOString(), projectRef: ref || null, purchSummaries: buildPurchSummaries() }));
   }catch(e){}
 }
 function buildPurchSummaries(){

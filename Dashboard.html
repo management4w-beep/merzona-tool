@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-21.1';
+  var CURRENT_VERSION = '2026-10-22.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -4324,6 +4324,45 @@ function renderQuotationsTracking(){
    شي موجود عندي محليًا بطابع أحدث (هيك ما تضيع أي معلومة أدخلها حدا للتو). وقت الرفع لدرايف:
    منرفع نسخة كاملة مطابقة لكل شي عندي محليًا (فمنطقيًا لو حدا حذف شي فعليًا، الحذف بينعكس
    بالنسخة المشتركة بعد أول رفع). */
+// ===== تخزين آمن (2026-10-22): نفس منطق index.html - لو امتلأ تخزين المتصفح منحذف أقدم التصاميم المحلية المخبّأة ومنعيد المحاولة =====
+const DASH_EVICT_PREFIXES = ['merzona-design-items::','merzona-latest-design::'];
+function dashStorageSweep(keep){
+  let removed = 0;
+  try{
+    const list = [];
+    for(let i=0;i<localStorage.length;i++){
+      const k = localStorage.key(i); if(!k || !DASH_EVICT_PREFIXES.some(pf=>k.indexOf(pf)===0)) continue;
+      const v = localStorage.getItem(k) || ''; const m = v.match(/"savedAt"\s*:\s*("([^"]+)"|(\d+))/);
+      list.push({ k, ts: m ? (m[3] ? +m[3] : (Date.parse(m[2])||0)) : 0 });
+    }
+    list.sort((a,b)=>b.ts-a.ts);
+    list.slice(keep).forEach(it=>{ try{ localStorage.removeItem(it.k); removed++; }catch(e){} });
+  }catch(e){}
+  return removed;
+}
+function dashSafeSetItem(key, value){
+  try{ localStorage.setItem(key, value); return true; }catch(e){}
+  for(const keep of [12, 6, 2, 0]){
+    dashStorageSweep(keep);
+    try{ localStorage.setItem(key, value); return true; }catch(e2){}
+  }
+  return false;
+}
+let lastSyncErrorText = '';
+function syncErrorToText(msg){
+  msg = String(msg || '');
+  if(msg === 'storage-full') return 'تخزين المتصفح ممتلئ - نظّف بيانات الموقع أو احذف مسودات قديمة';
+  if(msg === 'google-not-ready') return 'مكتبة جوجل ما انحمّلت (تحقق من الإنترنت)';
+  if(msg === 'consent-timeout') return 'ما انعطت موافقة جوجل - اضغط وكمّل نافذة جوجل';
+  if(/-401$/.test(msg)) return 'انتهت صلاحية ربط جوجل درايف (401) - اضغط للربط من جديد';
+  if(/-403$/.test(msg)) return 'جوجل رفض الصلاحية (403) - اربط الحساب الصحيح';
+  if(/-404$/.test(msg)) return 'ملف المزامنة أو المجلد مو موجود على درايف (404)';
+  if(/-(5\d\d)$/.test(msg)) return 'جوجل درايف مو متاح مؤقتًا';
+  if(msg === 'drive-sync-file-corrupt') return 'ملف المزامنة على درايف تالف';
+  if(msg === 'AbortError' || /abort/i.test(msg)) return 'انتهت مهلة الاتصال';
+  if(/Failed to fetch|NetworkError|network/i.test(msg)) return 'ما في اتصال بالإنترنت أو السيرفر';
+  return msg || 'سبب غير معروف';
+}
 const SYNC_KEYS = ['merzona_client_overrides','merzona_quote_durations','merzona_contracts','merzona_contract_files','merzona_pmp','merzona_discovered_quotations','merzona_quote_total_overrides','merzona_discovered_deleted_tombstones','merzona_contract_deleted_tombstones','merzona_payroll_employees','merzona_payroll_entries','merzona_payroll_payments','merzona_client_directory'];
 const SYNC_FILE_NAME = 'merzona-sync-data.json';
 const DASH_TOKEN_CACHE_KEY = 'merzona_dash_gtoken_v1';
@@ -4365,7 +4404,7 @@ SYNC_KEYS.forEach(k=>{
 function loadSyncTs(key){
   try{ return JSON.parse(localStorage.getItem(key+'__ts') || '{}'); }catch(e){ return {}; }
 }
-function saveSyncTs(key, ts){ try{ localStorage.setItem(key+'__ts', JSON.stringify(ts)); }catch(e){} }
+function saveSyncTs(key, ts){ dashSafeSetItem(key+'__ts', JSON.stringify(ts)); }
 
 function markSyncDirty(storageKey, obj){
   if(SYNC_KEYS.indexOf(storageKey) === -1) return;
@@ -4600,7 +4639,7 @@ function mergeOneSyncKey(key, remoteData){
     }
   });
   if(keyChanged){
-    localStorage.setItem(key, JSON.stringify(localObj));
+    if(!dashSafeSetItem(key, JSON.stringify(localObj))) throw new Error('storage-full');
     saveSyncTs(key, localTs);
     syncPrevSnapshot[key] = snapshotOfObj(localObj);
   }
@@ -4785,6 +4824,7 @@ async function getOrCreateSyncFileId(token){
   const searchRes = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`, {
     headers: { Authorization: 'Bearer ' + token }
   }, 15000);
+  if(!searchRes.ok) throw new Error('drive-search-failed-' + searchRes.status);
   const searchData = await searchRes.json();
   if(searchData.files && searchData.files.length){
     cachedSyncFileId = searchData.files[0].id;
@@ -4798,10 +4838,11 @@ async function getOrCreateSyncFileId(token){
       headers: { Authorization: 'Bearer ' + token },
       body: form
     }, 15000);
+    if(!createRes.ok) throw new Error('drive-create-failed-' + createRes.status);
     const createData = await createRes.json();
     cachedSyncFileId = createData.id;
   }
-  if(cachedSyncFileId) localStorage.setItem('merzona_sync_file_id', cachedSyncFileId);
+  if(cachedSyncFileId) dashSafeSetItem('merzona_sync_file_id', cachedSyncFileId);
   return cachedSyncFileId;
 }
 
@@ -4832,6 +4873,7 @@ function setSyncStatus(text, isError){
   const el = document.getElementById('syncStatusPill');
   if(!el) return;
   el.textContent = text;
+  el.title = (isError && lastSyncErrorText) ? ('سبب الفشل: ' + lastSyncErrorText) : 'مزامنة تلقائية مع جوجل درايف لكل الفريق - اضغط للربط أول مرة أو لإعادة المحاولة';
   el.style.borderColor = isError ? 'var(--danger)' : '';
   el.style.color = isError ? 'var(--danger)' : '';
 }
@@ -4860,7 +4902,8 @@ async function driveSyncPullAndMerge(silent, retried){
     // كانت محفوظة قبل تصحيح المسافات بالرقم المرجعي، ممكن ترجع تحقن رقم مرجعي فيه مسافة زايدة محليًا
     // حتى لو كان انمسح من قبل. منعيد التنظيف فورًا بعد كل سحب حتى ما يرجع التكرار من جهاز/نسخة قديمة.
     if(changed){ cleanupAllRefWhitespace(); applyQuoteTotalOverridesToData(); recomputeAllQuoteTotalOverrides(); } // لو فريق تاني رفع/عدّل عقد بجهاز تاني، منصحح قيمة العرض هون كمان
-    localStorage.setItem('merzona_sync_connected', '1');
+    dashSafeSetItem('merzona_sync_connected', '1');
+    lastSyncErrorText = '';
     setSyncStatus('✅ متزامن مع الفريق', false);
     if(changed) refreshVisibleView();
     return true;
@@ -4875,8 +4918,9 @@ async function driveSyncPullAndMerge(silent, retried){
       setTimeout(()=>{ driveSyncPullAndMerge(silent, true); }, 2500);
       return false;
     }
+    lastSyncErrorText = syncErrorToText(err && err.message);
     if(localStorage.getItem('merzona_sync_connected') === '1'){
-      setSyncStatus('⚠️ تعذّرت المزامنة (اضغط للمحاولة)', true);
+      setSyncStatus('⚠️ تعذّرت المزامنة: ' + lastSyncErrorText, true);
     } else {
       setSyncStatus('🔗 اضغط هون لربط جوجل درايف (مرة وحدة بس)', false);
     }
@@ -4907,13 +4951,15 @@ async function driveSyncPushNow(retried){
     if(mergeRemoteIntoLocal(remoteData)){ cleanupAllRefWhitespace(); applyQuoteTotalOverridesToData(); recomputeAllQuoteTotalOverrides(); }
     const payload = buildLocalSyncPayload();
     await uploadSyncData(token, payload);
+    lastSyncErrorText = '';
     setSyncStatus('✅ متزامن مع الفريق', false);
   }catch(err){
     if(err && err.message === 'drive-file-missing' && !retried){
       driveSyncPushNow(true); return;
     }
     console.warn('[مزامنة الفريق] فشل الرفع:', err && err.message);
-    setSyncStatus('⚠️ تعذّر رفع آخر تعديلاتك - رح تنحفظ محليًا وتترفع بأول فرصة اتصال', true);
+    lastSyncErrorText = syncErrorToText(err && err.message);
+    setSyncStatus('⚠️ تعذّر رفع تعديلاتك: ' + lastSyncErrorText, true);
   }
 }
 
