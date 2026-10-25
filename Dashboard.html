@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-25.4';
+  var CURRENT_VERSION = '2026-10-25.7';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -6237,8 +6237,8 @@ async function readFileAsDataUrlDash(file){
 // التخزين المحلي صغير جدًا (تقريبًا 5-10 ميجا لكل المتصفح لكل الأداة)، وملف واحد كبير كان كافي
 // يعبّيه ويفشل الحفظ. جوجل درايف ما إله هالسقف، وكمان هيك الملف بيصير جزء من مزامنة الفريق
 // (بمعرّف صغير بس، مش الملف كله) بدل ما يكبّر حجم بيانات المزامنة لكل شخص بالفريق.
-async function uploadContractFileToDrive(ref, file){
-  const token = await getDashGoogleAccessToken(false); // كبسة يدوية من المستخدم (اختيار ملف) - مسموح نافذة موافقة لو أول مرة
+async function uploadContractFileToDrive(ref, file, tokenArg){
+  const token = tokenArg || await getDashGoogleAccessToken(false); // كبسة يدوية من المستخدم (اختيار ملف) - مسموح نافذة موافقة لو أول مرة
   const year = getYearFromReferenceDash(ref);
   const refSafe = sanitizeRefForFolderDash(ref);
   // 🛠️ إصلاح 2026-09-27 (فحص شامل - باغ حقيقي، لقيناه بفحصين منفصلين): كانت هون تدوّر دايمًا بمجلد
@@ -6252,6 +6252,39 @@ async function uploadContractFileToDrive(ref, file){
   const uploaded = await uploadFileToDriveFolderDash(file.name, file.type || 'application/octet-stream', file, filesFolderId, token);
   return { name: file.name, driveFileId: uploaded.id, driveViewLink: uploaded.webViewLink || ('https://drive.google.com/file/d/'+uploaded.id+'/view') };
 }
+
+/* 🆕 2026-10-25 (طلب حمدي: "خلي كل شي على الدرايف كجذور وملفات"): أي ملف عقد انحفظ محليًا كـbase64
+   (احتياط قديم لما درايف كان فاشل) بينرفع لدرايف بنفس هيكل المجلدات (السنة / الرقم المرجعي / عقود مرفقة)
+   وبيتبدّل بالمتصفح بمعرّف + رابط صغير بس. ما بنمسح النسخة المحلية إلا بعد ما الرفع ينجح فعلًا. */
+var __mzContractMigBusy = false;
+async function mzMigrateContractFiles(silent){
+  if(__mzContractMigBusy) return { moved: 0, failed: 0, busy: true };
+  __mzContractMigBusy = true;
+  const res = { moved: 0, failed: 0, bytes: 0 };
+  try{
+    const files0 = loadContractFiles();
+    const pending = [];
+    Object.keys(files0).forEach(ref=> getContractFilesList(files0, ref).forEach(f=>{ if(f && f.dataUrl && !f.driveFileId) pending.push({ ref, name: f.name, dataUrl: f.dataUrl }); }));
+    if(!pending.length) return res;
+    const token = await getDashGoogleAccessToken(!!silent);
+    for(const it of pending){
+      try{
+        const blob = await (await fetch(it.dataUrl)).blob();
+        const file = new File([blob], it.name || 'contract', { type: blob.type || 'application/octet-stream' });
+        const entry = await uploadContractFileToDrive(it.ref, file, token);
+        const cur = loadContractFiles();
+        const list = getContractFilesList(cur, it.ref);
+        const idx = list.findIndex(x=> x && x.dataUrl && !x.driveFileId && x.name === it.name);
+        if(idx > -1){ list[idx] = entry; cur[it.ref] = list; if(saveContractFiles(cur)){ res.moved++; res.bytes += it.dataUrl.length; } else res.failed++; }
+      }catch(e){ res.failed++; console.warn('[نقل ملفات العقود لدرايف] تعذّر', it.ref, it.name, e && e.message); }
+    }
+    if(res.moved){ try{ renderContractFileDisplay(); }catch(e){} }
+  }catch(e){ console.warn('[نقل ملفات العقود لدرايف]', e && e.message); }
+  finally{ __mzContractMigBusy = false; }
+  return res;
+}
+window.mzMigrateContractFiles = mzMigrateContractFiles;
+setTimeout(function(){ mzMigrateContractFiles(true).then(function(r){ if(r && r.moved) console.info('[ملفات العقود] اننقل ' + r.moved + ' ملف لدرايف'); }); }, 20000);
 
 document.getElementById('contractFileInput').addEventListener('change', async (e)=>{
   const selectedFiles = Array.from(e.target.files);
@@ -9196,10 +9229,39 @@ async function stepServer(){
   if(h.err) fail('السيرفر /health', 'ما رد: ' + h.err + ' - السيرفر متوقف أو ما في إنترنت');
   else if(!h.ok) fail('السيرفر /health', 'رجّع حالة ' + h.status);
   else { ok('السيرفر شغّال', h.ms + ' ms'); if(h.ms > 3500) warn('السيرفر بطيء', h.ms + ' ms'); }
+  /* واتساب: ما منعرف شكل رد السيرفر بالضبط، فمنفحص /health و/whatsapp-status ومنقرا أي حقل بيخص واتساب
+     (ready/connected/state/qr/status...) ومنعرض الرد الخام بالتقرير حتى ما يبقى أي شي مخفي. (/qr ما منلمسه أبدًا - بيمسح الجلسة) */
   var w = await timed(base + '/whatsapp-status');
+  var BAD_WORDS = /disconnect|unpair|logout|logged.?out|auth.?fail|not.?ready|qr|offline|error|fail|closed|conflict|unlaunched|timeout/i;
+  var GOOD_WORDS = /^(ready|connected|open|online|authenticated|ok|true)$/i;
+  function waProbe(body, prefix){
+    var out = { bad: [], good: [], seen: [] };
+    (function walk(o, path, depth){
+      if(!o || typeof o !== 'object' || depth > 3) return;
+      Object.keys(o).forEach(function(k){
+        var v = o[k], p = path ? path + '.' + k : k;
+        if(v && typeof v === 'object'){ if(/whatsapp|wa|client|bridge/i.test(k) || depth === 0) walk(v, p, depth + 1); return; }
+        var relevant = /whatsapp|(^|\.)wa|ready|connect|client|qr|session|auth|online/i.test(p);
+        if(!relevant) return;
+        out.seen.push(p + '=' + String(v).slice(0, 40));
+        if(typeof v === 'boolean'){ var neg = /ready|connect|online|auth|logged|open/i.test(k); var isQrFlag = /qr|error|fail|disconn|logout/i.test(k); if(isQrFlag ? v === true : (neg && v === false)) out.bad.push(p + '=' + v); else if(neg && v === true) out.good.push(p); }
+        else if(typeof v === 'string' && /whatsapp|(^|\.)wa|client|session|qr/i.test(p)){ if(BAD_WORDS.test(v) && !GOOD_WORDS.test(v)) out.bad.push(p + '=' + v); else out.good.push(p + '=' + v); }
+      });
+    })(body, '', 0);
+    return out;
+  }
+  var waProbes = [];
+  if(!h.err && h.body) waProbes.push({ src: '/health', r: waProbe(h.body) });
+  var wsMissing = false;
   if(w.err) warn('حالة واتساب', 'ما انقرأت: ' + w.err);
-  else if(w.body && (w.body.ready === false || w.body.connected === false || w.body.clientReady === false)) warn('واتساب غير جاهز', 'جلسة واتساب بالسيرفر مو متصلة - الإرسال التلقائي رح يفشل لحد ما تنربط');
-  else ok('حالة واتساب', w.body ? 'متصل/جاهز' : 'انقرأت');
+  else if(!w.ok){ wsMissing = true; }
+  else if(w.body) waProbes.push({ src: '/whatsapp-status', r: waProbe(w.body) });
+  var anyBad = [], anyGood = [], anySeen = [];
+  waProbes.forEach(function(p){ p.r.bad.forEach(function(x){ anyBad.push(p.src + ': ' + x); }); p.r.good.forEach(function(x){ anyGood.push(p.src + ': ' + x); }); p.r.seen.forEach(function(x){ anySeen.push(p.src + ': ' + x); }); });
+  if(anyBad.length) fail('مشكلة بواتساب', 'السيرفر بيقول: ' + anyBad.slice(0, 5).join(' | ') + ' - الإرسال التلقائي ورسائل الموافقة ممكن ما توصل. افتح الرابط بتاع ربط الواتساب بالسيرفر (QR) أو راجع Railway Logs.');
+  else if(anyGood.length) ok('حالة واتساب', 'سليمة حسب رد السيرفر (' + anyGood.slice(0, 3).join(' | ') + ')');
+  else if(!w.err) warn('حالة واتساب غير مؤكدة', (wsMissing ? 'السيرفر ما عنده /whatsapp-status (رجّع ' + w.status + ') و' : '') + 'ما لقيت بردّ /health أي حقل بيخص واتساب - ما قدرت أتأكد إنو متصل. ' + 'الرد الخام: ' + JSON.stringify(h.body || null).slice(0, 220));
+  if(anySeen.length) info('واتساب: الحقول المقروءة', anySeen.slice(0, 8).join(' | '));
   setProgress(0.3);
   /* درايف + ملف المزامنة (قراءة فقط) */
   var tokenData = null;
@@ -9523,11 +9585,14 @@ async function stepFixes(){
   if(kinds.refws && typeof cleanupAllRefWhitespace === 'function'){
     try{ cleanupAllRefWhitespace(); if(typeof applyQuoteTotalOverridesToData === 'function') applyQuoteTotalOverridesToData(); fixLog('تنظيف المسافات الزايدة بالأرقام المرجعية', 'تم'); }catch(e){ fail('تعذّر تنظيف المراجع', e.message); }
   }
+  if(kinds.storage && typeof mzMigrateContractFiles === 'function'){
+    try{ var mg = await mzMigrateContractFiles(true); if(mg.moved) fixLog('نقل ملفات العقود المحلية لجوجل درايف', 'اننقل ' + mg.moved + ' ملف (' + (mg.bytes * 0.75 / 1048576).toFixed(2) + ' MB) وانشال من المتصفح'); else if(mg.failed) warn('نقل ملفات العقود لدرايف', mg.failed + ' ملف ما انرفع - تأكد إنك مربوط بدرايف (زر مزامنة الفريق)'); }catch(e){}
+  }
   if(kinds.storage && typeof dashStorageSweep === 'function'){
     var before = 0; try{ for(var i = 0; i < localStorage.length; i++){ before += (localStorage.getItem(localStorage.key(i)) || '').length; } }catch(e){}
     var removed = dashStorageSweep(12);
     var after = 0; try{ for(var j = 0; j < localStorage.length; j++){ after += (localStorage.getItem(localStorage.key(j)) || '').length; } }catch(e){}
-    fixLog('تنظيف التصاميم المحلية القديمة', 'حُذفت ' + removed + ' نسخة مخبّأة (بقي آخر 12) - وفّرت ' + ((before - after) / 1048576).toFixed(2) + ' MB');
+    if(removed > 0) fixLog('تنظيف التصاميم المحلية القديمة', 'حُذفت ' + removed + ' نسخة مخبّأة (بقي آخر 12) - وفّرت ' + ((before - after) / 1048576).toFixed(2) + ' MB');
   }
   if(kinds.token){ try{ localStorage.removeItem('merzona_dash_gtoken_v1'); fixLog('مسح توكن جوجل المنتهي', 'بيتجدد لحاله'); }catch(e){} }
   keysCorrupt.forEach(function(k){
@@ -9620,7 +9685,8 @@ async function runFixOnly(){
         else { r.detail = still[r.title].detail; r.status = still[r.title].status; }
       }
     });
-    MT.fixes.push({ title: 'نتيجة زر إصلاح الأخطاء', detail: resolved + ' بند انحل فعليًا، ' + (MT.fixes.length - fixesBefore) + ' إجراء إصلاح نُفّذ' });
+    MT.fixes = MT.fixes.filter(function(f){ return f.title !== 'نتيجة زر إصلاح الأخطاء'; });
+    MT.fixes.push({ title: 'نتيجة زر إصلاح الأخطاء', detail: resolved ? (resolved + ' بند انحل فعليًا') : 'ما في شي إضافي بيتصلح آليًا - اللي ضل بيحتاج قرار منك أو شي خارج الصفحة' });
   }catch(e){ MT.results.push({ status: 'fail', group: 'الإصلاح التلقائي', title: 'فشل زر الإصلاح', detail: String(e && e.message || e), code: true }); }
   var c = { ok: 0, warn: 0, fail: 0, info: 0 }; MT.results.forEach(function(r){ c[r.status] = (c[r.status] || 0) + 1; });
   MT.report.ok = c.ok; MT.report.warn = c.warn; MT.report.fail = c.fail; MT.report.fixed = MT.fixes.length; MT.report.at = Date.now();
