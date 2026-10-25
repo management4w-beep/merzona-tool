@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-25.2';
+  var CURRENT_VERSION = '2026-10-25.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -1450,6 +1450,8 @@
     background: var(--wd-bg-deep); border:1px solid var(--wd-line-soft); border-radius:8px;
     padding: 10px; flex: 0 0 auto;
   }
+  /* 🆕 2026-10-25: بنود الرسّام بره الشاشة ما بيحسبلها المتصفح تخطيط/رسم (سرعة لما يكون عندك 20+ بند) */
+  @media screen{ .item-card{ content-visibility:auto; contain-intrinsic-size:auto 560px; } .item-card.selected{ content-visibility:visible; } }
   .item-card.selected{ border-color: var(--wd-cyan); box-shadow: 0 0 0 1px var(--wd-cyan); }
   .item-card .card-head{
     display:flex; align-items:center; justify-content:space-between; gap:8px;
@@ -4613,6 +4615,57 @@ function mzSafeSetItem(key, value){
 }
 window.mzSafeSetItem = mzSafeSetItem; window.mzStorageSweep = mzStorageSweep; window.mzStorageBreakdown = mzStorageBreakdown;
 try{ mzStorageSweep({}); }catch(e){}
+
+/* 🆕 2026-10-25: مسجّل بطء تلقائي (بدون أي تأثير على الأداء) - لما الصفحة تعلق (إطار أطول من 350ms) بيسجّل
+   مين الفنكشن/السكربت اللي أكل الوقت + حجم الصفحة + عدد البنود + التخزين. لو تكرر البطء بيطلع شريط صغير
+   فيه زر "تنزيل تقرير البطء" - ابعتلي الملف وبحدد السبب الحقيقي بدل التخمين. */
+(function(){
+  var LOG = window.__mzLag = [];
+  var recentSlow = [], shown = false;
+  function ctxInfo(){
+    var o = {};
+    try{ o.dom = document.getElementsByTagName('*').length; o.svg = document.getElementsByTagName('svg').length; }catch(e){}
+    try{ o.items = (window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__().items.length : null); }catch(e){}
+    try{ o.storageMB = +(mzStorageUsedChars() / 1048576).toFixed(2); }catch(e){}
+    try{ o.ref = (document.getElementById('m-ref') || {}).value || ''; }catch(e){}
+    try{ o.version = CURRENT_VERSION; }catch(e){}
+    try{ o.mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB' : null; }catch(e){}
+    return o;
+  }
+  function record(e){
+    var rec = { t: new Date().toISOString(), ms: Math.round(e.duration), blocking: Math.round(e.blockingDuration || 0), scripts: [], act: window.__mzLastAct || null };
+    try{ (e.scripts || []).forEach(function(sc){ rec.scripts.push({ fn: sc.sourceFunctionName || '', inv: sc.invoker || '', type: sc.invokerType || '', url: String(sc.sourceURL || '').slice(-60), line: sc.sourceCharPosition, ms: Math.round(sc.duration), forced: Math.round(sc.forcedStyleAndLayoutDuration || 0) }); }); }catch(x){}
+    rec.render = Math.round((e.renderStart && e.startTime) ? (e.styleAndLayoutStart ? (e.startTime + e.duration - e.styleAndLayoutStart) : 0) : 0);
+    LOG.push(rec); if(LOG.length > 60) LOG.shift();
+    var now = Date.now(); recentSlow.push(now); recentSlow = recentSlow.filter(function(t){ return now - t < 90000; });
+    if(recentSlow.length >= 4 && !shown) showBar();
+  }
+  function download(){
+    var payload = { generatedAt: new Date().toISOString(), context: ctxInfo(), slowFrames: LOG, ua: navigator.userAgent, cores: navigator.hardwareConcurrency, memGB: navigator.deviceMemory };
+    var blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' }); var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'merzona-lag-report-' + Date.now() + '.json'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  window.__mzLagReport = download;
+  function showBar(){
+    shown = true;
+    try{
+      var d = document.createElement('div'); d.className = 'no-print'; d.dir = 'rtl';
+      d.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:100000;background:#1d2b3a;color:#fff;padding:8px 12px;border-radius:10px;font-size:12.5px;display:flex;gap:8px;align-items:center;box-shadow:0 4px 18px rgba(0,0,0,.3);';
+      d.innerHTML = '<span>🐢 لاحظنا بطء بالصفحة</span><button style="cursor:pointer;border:0;border-radius:6px;padding:4px 8px;">⬇ تنزيل تقرير البطء</button><button style="cursor:pointer;border:0;background:transparent;color:#fff;">✕</button>';
+      d.children[1].onclick = download; d.children[2].onclick = function(){ d.remove(); };
+      document.body.appendChild(d);
+    }catch(e){}
+  }
+  ['pointerdown', 'keydown', 'input', 'change'].forEach(function(ev){
+    document.addEventListener(ev, function(e){ try{ var t = e.target || {}; window.__mzLastAct = ev + ' ' + (t.id ? '#' + t.id : (t.className && String(t.className).slice ? String(t.className).slice(0, 40) : (t.tagName || ''))); }catch(x){} }, true);
+  });
+  try{
+    var po = new PerformanceObserver(function(list){ list.getEntries().forEach(function(e){ if(e.duration >= 350) record(e); }); });
+    po.observe({ type: 'long-animation-frame', buffered: false });
+  }catch(e){
+    try{ var po2 = new PerformanceObserver(function(list){ list.getEntries().forEach(function(e){ if(e.duration >= 350) record({ duration: e.duration, startTime: e.startTime, scripts: [] }); }); }); po2.observe({ entryTypes: ['longtask'] }); }catch(e2){}
+  }
+})();
 
 const DRAFT_STORAGE_KEY = 'merzona-quotation-draft-v1';
 // 🛠️ 2026-09-30.12 (بلاغ حمدي المباشر: "النظام صاير جداً جداً جداً بطيء كتير صاير صعب الشغل عليه") -
