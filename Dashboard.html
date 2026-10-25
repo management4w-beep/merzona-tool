@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-22.1';
+  var CURRENT_VERSION = '2026-10-25.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1039,6 +1039,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="pmpTabBtn">🗓 جدول المشاريع</span>
         <span class="nav-pill" id="draftsDesignsTabBtn">📂 المسودات والتصاميم</span>
         <span class="nav-pill" id="backupTabBtn">📦 نسخة احتياطية</span>
+        <span class="nav-pill" id="maintTabBtn" title="صيانة شاملة: بتختبر كل النظام بالخلفية (بنسخ معزولة) وبتصلّح المشاكل الآمنة وبتعطيك تقرير - ما بتوقف شغلك">🛠 صيانة</span>
         <span class="nav-pill" id="syncStatusPill" title="مزامنة تلقائية مع جوجل درايف لكل الفريق - اضغط للربط أول مرة أو لإعادة المحاولة">🔄 مزامنة الفريق</span>
         <span class="nav-pill" id="usersTabBtn" style="display:none;">👤 المستخدمين</span>
       </div>
@@ -1654,6 +1655,21 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         تصاميم محفوظة ("💾 حفظ التصميم" جوا رسّام النوافذ والأبواب) - إما مرتبطة برقم مرجعي لعرض سعر، أو تصميم حر باسمه الخاص.
       </p>
       <div id="designsListArea"><p style="font-size:12.5px;color:var(--muted);">اضغط "🔄 تحديث" لجلب التصاميم من جوجل درايف.</p></div>
+    </div>
+
+    <div class="panel" id="trashPanel">
+      <div class="controls" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
+        <p class="panel-title" style="margin:0;">🗑 سلة المحذوفات (المسودات)</p>
+        <div class="controls" style="gap:6px;">
+          <button class="export-btn" id="purgeNowBtn">🧹 فرّغ المسودات الآن</button>
+          <button class="export-btn" id="refreshTrashBtn">🔄 تحديث</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin:6px 0 4px;">
+        المسودات محفوظة على جوجل درايف مش بالمتصفح. كل أسبوع بتنتقل كل المسودات لهون (مش حذف نهائي)، وكمان أي مسودة/تصميم بتحذفه يدويًا. السلة ما بتنمسح لحالها أبدًا - بتقدر ترجّع أي عنصر أو دفعة كاملة بأي وقت.
+      </p>
+      <p id="trashStatus" style="font-size:12px;color:var(--muted);margin:0 0 8px;"></p>
+      <div id="trashListArea"><p style="font-size:12.5px;color:var(--muted);">اضغط "🔄 تحديث" لعرض السلة.</p></div>
     </div>
 
   </div>
@@ -2629,6 +2645,7 @@ function showDraftsDesignsView(){
   document.getElementById('draftsDesignsView').style.display = 'block';
   document.getElementById('draftsDesignsTabBtn').classList.add('active');
   refreshDraftsAndDesigns();
+  try{ if(window.dtr) window.dtr.refreshTrash(true); }catch(e){}
 }
 // عرض السعر (رسّام النوافذ والأبواب) - أداة مستقلة محمّلة داخل نفس الصفحة (iframe)
 // بيتحمّل أول مرة بس (lazy load) لتسريع فتح الداشبورد
@@ -3036,6 +3053,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     pmpTabBtn: 'pmp',
     draftsDesignsTabBtn: 'quotationsLog',
     backupTabBtn: 'backup',
+    maintTabBtn: 'backup',
     syncStatusPill: 'teamSync',
   };
   Object.keys(navMap).forEach(function(id){
@@ -5459,7 +5477,7 @@ function renderDraftsList(drafts){
       <div><b style="font-size:13px;">📝 مسودة عرض سعر: ${label}</b><br><span style="font-size:11.5px;color:var(--muted);">${sub}</span></div>
       <div class="controls" style="gap:6px;">
         <button class="export-btn open-draft-btn" data-file-id="${escapeHtml(d.__fileId)}" data-branch="${escapeHtml(d.__branch)}">🔓 افتح وكمّل (عرض سعر)</button>
-        <button class="export-btn delete-draft-btn" style="border-color:var(--danger);color:var(--danger);" data-file-id="${escapeHtml(d.__fileId)}">🗑 حذف</button>
+        <button class="export-btn delete-draft-btn" style="border-color:var(--danger);color:var(--danger);" data-file-id="${escapeHtml(d.__fileId)}" data-branch="${escapeHtml(d.__branch)}" data-label="${label}">🗑 حذف</button>
       </div>
     </div>`;
   }).join('');
@@ -5467,7 +5485,7 @@ function renderDraftsList(drafts){
     btn.addEventListener('click', ()=> openDraftFromLog(btn.dataset.fileId, drafts));
   });
   area.querySelectorAll('.delete-draft-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> deleteDriveJsonFile(btn.dataset.fileId, 'المسودة', refreshDraftsAndDesigns));
+    btn.addEventListener('click', ()=> deleteDriveJsonFile(btn.dataset.fileId, 'المسودة', refreshDraftsAndDesigns, {branch: btn.dataset.branch, kind: 'draft', label: btn.dataset.label}));
   });
 }
 
@@ -5486,7 +5504,7 @@ function renderDesignsList(designs){
       <div><b style="font-size:13px;">🎨 تصميم: ${label}</b><br><span style="font-size:11.5px;color:var(--muted);">${sub}</span></div>
       <div class="controls" style="gap:6px;">
         <button class="export-btn open-design-btn" data-file-id="${escapeHtml(d.__fileId)}">🔓 افتح التصميم (بدون عرض السعر)</button>
-        <button class="export-btn delete-design-btn" style="border-color:var(--danger);color:var(--danger);" data-file-id="${escapeHtml(d.__fileId)}">🗑 حذف</button>
+        <button class="export-btn delete-design-btn" style="border-color:var(--danger);color:var(--danger);" data-file-id="${escapeHtml(d.__fileId)}" data-branch="${escapeHtml(d.__branch||'')}" data-label="${label}">🗑 حذف</button>
       </div>
     </div>`;
   }).join('');
@@ -5494,7 +5512,7 @@ function renderDesignsList(designs){
     btn.addEventListener('click', ()=> openDesignFromLog(btn.dataset.fileId, designs));
   });
   area.querySelectorAll('.delete-design-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> deleteDriveJsonFile(btn.dataset.fileId, 'التصميم', refreshDraftsAndDesigns));
+    btn.addEventListener('click', ()=> deleteDriveJsonFile(btn.dataset.fileId, 'التصميم', refreshDraftsAndDesigns, {branch: btn.dataset.branch, kind: 'design', label: btn.dataset.label}));
   });
 }
 
@@ -5558,9 +5576,15 @@ async function openDesignFromLog(fileId, cachedList){
 }
 
 // حذف (ترحيل - trashed:true، مش حذف نهائي - نفس اتفاقية بقية النظام) ملف مسودة/تصميم من جوجل درايف.
-async function deleteDriveJsonFile(fileId, whatLabel, onDone){
-  if(!confirm('متأكد بدك تحذف هاي ' + whatLabel + '؟ (بتنترحّل بجوجل درايف - بتقدر تسترجعها يدويًا من سلة المهملات فيه لو غيّرت رأيك)')) return;
+async function deleteDriveJsonFile(fileId, whatLabel, onDone, info){
+  if(!confirm('متأكد بدك تحذف هاي ' + whatLabel + '؟ (بتنتقل لـ"🗑 سلة المحذوفات" بنفس تبويب المسودات - بتقدر ترجعها منها بأي وقت)')) return;
   try{
+    if(window.mzTrashOne && info && info.branch){
+      await window.mzTrashOne(fileId, info.branch, info.kind, info.label);
+      if(onDone) onDone();
+      try{ window.dtr.refreshTrash(true); }catch(e){}
+      return;
+    }
     const token = await getDashGoogleAccessToken(false);
     const delRes = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
       method: 'PATCH',
@@ -8518,4 +8542,1156 @@ document.getElementById('addDraftItemBtn').addEventListener('click', addDraftIte
 </script><div id="chartTooltip" class="chart-tooltip"></div><div id="chartTooltip" class="chart-tooltip"></div>
 
 
+<script id="mz-drafts-trash">
+/* ============================================================================================
+   🗑 سلة المسودات + التفريغ الأسبوعي (2026-10-25)
+   - المسودات مكانها جوجل درايف (_Drafts تحت مجلد كل فرع) - مش المتصفح.
+   - كل أسبوع: بتتنقل كل المسودات لمجلد "_Drafts_Trash/<تاريخ>" (مش حذف نهائي) + بتنأرشف نسخ التصاميم/المسودة المحلية القديمة من المتصفح.
+   - زر "استرجاع" بيرجّع أي ملف (أو دفعة كاملة) بأي وقت - السلة ما بتنحذف تلقائيًا أبدًا.
+   - الحذف اليدوي (🗑) لأي مسودة/تصميم صار ينتقل للسلة نفسها بدل سلة درايف (30 يوم).
+   ============================================================================================ */
+(function(){
+'use strict';
+var TRASH = '_Drafts_Trash', STATE = '_state.json', MANIFEST = '_manifest.json';
+var WEEK = 7 * 86400000, RECENT_MS = 30 * 60000;
+var FOLDER_MIME = 'application/vnd.google-apps.folder';
+var LOCAL_PREFIXES = ['merzona-design-items::', 'merzona-latest-design::'];
+var LOCAL_DRAFT_KEY = 'merzona-quotation-draft-v1';
+
+function pad(n){ return String(n).padStart(2, '0'); }
+function stamp(d){ d = d || new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function stampT(d){ d = d || new Date(); return stamp(d) + ' ' + pad(d.getHours()) + '-' + pad(d.getMinutes()); }
+function qEsc(s){ return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+function auth(token, extra){ return Object.assign({ Authorization: 'Bearer ' + token }, extra || {}); }
+
+async function findChild(token, parentId, name, folderOnly){
+  var q = encodeURIComponent("name = '" + qEsc(name) + "' and '" + parentId + "' in parents" + (folderOnly ? " and mimeType = '" + FOLDER_MIME + "'" : '') + " and trashed = false");
+  var r = await dashFetchWithTimeout('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=files(id,name,mimeType,modifiedTime)', { headers: auth(token) }, 15000);
+  if(!r.ok) throw new Error('drive-list-failed-' + r.status);
+  var d = await r.json(); return (d.files && d.files[0]) || null;
+}
+async function readJson(token, fileId){ try{ return JSON.parse(await downloadDriveFileText(token, fileId)); }catch(e){ return null; } }
+async function writeJson(token, parentId, name, obj, existingId){
+  var body = JSON.stringify(obj);
+  if(existingId){
+    var r = await dashFetchWithTimeout('https://www.googleapis.com/upload/drive/v3/files/' + existingId + '?uploadType=media', { method: 'PATCH', headers: auth(token, { 'Content-Type': 'application/json' }), body: body }, 20000);
+    if(!r.ok) throw new Error('drive-write-failed-' + r.status);
+    return existingId;
+  }
+  var form = new FormData();
+  form.append('metadata', new Blob([JSON.stringify({ name: name, parents: [parentId], mimeType: 'application/json' })], { type: 'application/json' }));
+  form.append('file', new Blob([body], { type: 'application/json' }));
+  var r2 = await dashFetchWithTimeout('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', headers: auth(token), body: form }, 30000);
+  if(!r2.ok) throw new Error('drive-write-failed-' + r2.status);
+  return (await r2.json()).id;
+}
+async function moveFile(token, fileId, addParent, removeParent){
+  var r = await dashFetchWithTimeout('https://www.googleapis.com/drive/v3/files/' + fileId + '?addParents=' + encodeURIComponent(addParent) + '&removeParents=' + encodeURIComponent(removeParent) + '&fields=id,parents', { method: 'PATCH', headers: auth(token, { 'Content-Type': 'application/json' }), body: '{}' }, 20000);
+  if(!r.ok) throw new Error('drive-move-failed-' + r.status);
+}
+async function ensureFolder(token, name, parentId){ return await findOrCreateDriveFolderDash(name, parentId, token); }
+function branches(){ return Object.keys(DRIVE_ROOTS_BY_BRANCH_DASH); }
+async function pool(list, n, fn){ var i = 0; async function w(){ while(i < list.length){ var k = i++; await fn(list[k], k); } } await Promise.all(Array.from({ length: Math.min(n, list.length) }, w)); }
+
+/* ------- أرشفة نسخ المتصفح المحلية القديمة ------- */
+function collectLocalToArchive(force){
+  var out = [], now = Date.now();
+  try{
+    for(var i = 0; i < localStorage.length; i++){
+      var k = localStorage.key(i); if(!k) continue;
+      var isDraft = (k === LOCAL_DRAFT_KEY);
+      if(!isDraft && !LOCAL_PREFIXES.some(function(p){ return k.indexOf(p) === 0; })) continue;
+      var v = localStorage.getItem(k) || ''; var ts = 0;
+      var m = v.match(/"savedAt"\s*:\s*("([^"]+)"|(\d+))/); if(m) ts = m[3] ? +m[3] : (Date.parse(m[2]) || 0);
+      if(isDraft || force || !ts || (now - ts) > WEEK) out.push({ key: k, value: v, savedAt: ts });
+    }
+  }catch(e){}
+  return out;
+}
+async function archiveLocal(token, batchId, items){
+  var done = [];
+  await pool(items, 4, async function(it){
+    var fname = 'local__' + encodeURIComponent(it.key).slice(0, 150) + '.json';
+    try{
+      var fid = await writeJson(token, batchId, fname, { schema: 'merzona-local-cache-v1', key: it.key, value: it.value, savedAt: it.savedAt, archivedAt: Date.now() });
+      done.push({ fileId: fid, name: fname, kind: 'local', label: it.key.replace('merzona-', '').slice(0, 60), ref: it.key.indexOf('::') > -1 ? it.key.split('::').slice(1).join('::') : null, localKey: it.key });
+    }catch(e){ console.warn('[سلة المسودات] تعذّرت أرشفة نسخة محلية', it.key, e); }
+  });
+  /* منمسح من المتصفح بس اللي انرفع فعلًا */
+  done.forEach(function(d){ try{ localStorage.removeItem(d.localKey); }catch(e){} });
+  return done;
+}
+
+/* ------- التفريغ ------- */
+async function purge(token, opts){
+  opts = opts || {};
+  var now = Date.now(), res = { moved: 0, skipped: 0, local: 0, initialized: 0, due: false, branches: [] };
+  var firstBatchId = null, firstTrashRoot = null, anyRan = false;
+  for(var bi = 0; bi < branches().length; bi++){
+    var branch = branches()[bi], root = DRIVE_ROOTS_BY_BRANCH_DASH[branch];
+    var trashId = await ensureFolder(token, TRASH, root);
+    var stateFile = await findChild(token, trashId, STATE);
+    var state = stateFile ? await readJson(token, stateFile.id) : null;
+    if(!opts.force){
+      if(!state || !state.lastPurgeAt){ await writeJson(token, trashId, STATE, { lastPurgeAt: now, init: true }, stateFile && stateFile.id); res.initialized++; continue; }
+      if(now - state.lastPurgeAt < WEEK){ res.next = Math.min(res.next || Infinity, state.lastPurgeAt + WEEK); continue; }
+    }
+    anyRan = true; res.due = true;
+    var draftsFolder = await findChild(token, root, '_Drafts', true);
+    var files = [];
+    if(draftsFolder){
+      var kids = await listDriveFolderChildren(token, draftsFolder.id);
+      files = kids.filter(function(f){ return f.mimeType !== FOLDER_MIME && /\.json$/i.test(f.name); });
+    }
+    var fresh = files.filter(function(f){ return f.modifiedTime && (now - Date.parse(f.modifiedTime)) < RECENT_MS; });
+    files = files.filter(function(f){ return fresh.indexOf(f) === -1; });
+    res.skipped += fresh.length;
+    var items = [], batchId = null, batchName = stampT(new Date(now)) + ' — ' + (opts.reason || 'تفريغ أسبوعي');
+    if(files.length){
+      batchId = await ensureFolder(token, batchName, trashId);
+      await pool(files, 5, async function(f){
+        var meta = await readJson(token, f.id) || {};
+        try{
+          await moveFile(token, f.id, batchId, draftsFolder.id);
+          items.push({ fileId: f.id, name: f.name, kind: 'draft', orig: '_Drafts', label: meta.label || meta.ref || f.name, ref: meta.ref || null, client: meta.client || null, savedAt: meta.savedAt || null, movedAt: now });
+          res.moved++;
+        }catch(e){ console.warn('[سلة المسودات] تعذّر نقل', f.name, e); }
+      });
+    }
+    if(!firstBatchId){ firstTrashRoot = trashId; if(!batchId && !opts.noLocal){ /* مجلد للدفعة لو في نسخ محلية */ } }
+    if(batchId && !firstBatchId) firstBatchId = batchId;
+    if(items.length){ await writeJson(token, batchId, MANIFEST, { schema: 'merzona-trash-manifest-v1', createdAt: now, reason: opts.reason || 'تفريغ أسبوعي', branch: branch, items: items }); }
+    await writeJson(token, trashId, STATE, { lastPurgeAt: now }, stateFile && stateFile.id);
+    res.branches.push(branch + ': ' + items.length);
+  }
+  /* نسخ المتصفح المحلية (بتتأرشف مع أول فرع) */
+  if(anyRan){
+    var locals = collectLocalToArchive(!!opts.force && opts.includeLocalAll);
+    if(locals.length){
+      var root0 = DRIVE_ROOTS_BY_BRANCH_DASH[branches()[0]];
+      var trash0 = await ensureFolder(token, TRASH, root0);
+      var lb = await ensureFolder(token, stampT(new Date(now)) + ' — نسخ المتصفح المحلية', trash0);
+      var doneL = await archiveLocal(token, lb, locals);
+      if(doneL.length){ await writeJson(token, lb, MANIFEST, { schema: 'merzona-trash-manifest-v1', createdAt: now, reason: 'نسخ المتصفح المحلية', branch: branches()[0], items: doneL.map(function(d){ d.movedAt = now; return d; }) }); }
+      res.local = doneL.length;
+    }
+  }
+  return res;
+}
+
+async function trashOne(token, branch, fileId, kind, label){
+  var root = DRIVE_ROOTS_BY_BRANCH_DASH[branch] || DRIVE_ROOTS_BY_BRANCH_DASH[branches()[0]];
+  var origName = kind === 'design' ? '_Designs' : '_Drafts';
+  var orig = await findChild(token, root, origName, true);
+  if(!orig) throw new Error('المجلد الأصلي غير موجود');
+  var trashId = await ensureFolder(token, TRASH, root);
+  var batchId = await ensureFolder(token, stamp() + ' — حذف يدوي', trashId);
+  var meta = await readJson(token, fileId) || {};
+  await moveFile(token, fileId, batchId, orig.id);
+  var mf = await findChild(token, batchId, MANIFEST);
+  var man = mf ? (await readJson(token, mf.id)) : null; if(!man) man = { schema: 'merzona-trash-manifest-v1', createdAt: Date.now(), reason: 'حذف يدوي', branch: branch, items: [] };
+  man.items.push({ fileId: fileId, name: (meta.draftId || meta.designId || fileId) + '.json', kind: kind === 'design' ? 'design' : 'draft', orig: origName, label: meta.label || meta.ref || meta.name || label || '', ref: meta.ref || null, client: meta.client || null, savedAt: meta.savedAt || null, movedAt: Date.now() });
+  await writeJson(token, batchId, MANIFEST, man, mf && mf.id);
+}
+
+/* ------- القراءة والاسترجاع ------- */
+async function listTrash(token){
+  var out = [];
+  for(var bi = 0; bi < branches().length; bi++){
+    var branch = branches()[bi], root = DRIVE_ROOTS_BY_BRANCH_DASH[branch];
+    var trash = await findChild(token, root, TRASH, true); if(!trash) continue;
+    var st = await findChild(token, trash.id, STATE); var state = st ? await readJson(token, st.id) : null;
+    var kids = (await listDriveFolderChildren(token, trash.id)).filter(function(k){ return k.mimeType === FOLDER_MIME; });
+    var batches = [];
+    await pool(kids, 5, async function(k){
+      var mf = await findChild(token, k.id, MANIFEST); var man = mf ? await readJson(token, mf.id) : null;
+      if(man) batches.push({ branch: branch, batchId: k.id, name: k.name, manifestId: mf.id, manifest: man });
+    });
+    out.push({ branch: branch, state: state, batches: batches });
+  }
+  return out;
+}
+async function restoreItem(token, branch, batch, idx){
+  var man = batch.manifest, it = man.items[idx];
+  if(!it) throw new Error('عنصر غير موجود');
+  if(it.restoredAt) return 'already';
+  if(it.kind === 'local'){
+    var obj = await readJson(token, it.fileId);
+    if(!obj || obj.key == null) throw new Error('ملف النسخة المحلية تالف أو محذوف');
+    if(!dashSafeSetItem(obj.key, obj.value)) throw new Error('تخزين المتصفح ممتلئ');
+  } else {
+    var root = DRIVE_ROOTS_BY_BRANCH_DASH[branch];
+    var dest = await ensureFolder(token, it.orig || '_Drafts', root);
+    var r = await dashFetchWithTimeout('https://www.googleapis.com/drive/v3/files/' + it.fileId + '?fields=id,parents,trashed', { headers: auth(token) }, 15000);
+    if(!r.ok) throw new Error('الملف ما عاد موجود (' + r.status + ') - ممكن انحذف نهائيًا من درايف');
+    var meta = await r.json();
+    if(meta.trashed){
+      var u = await dashFetchWithTimeout('https://www.googleapis.com/drive/v3/files/' + it.fileId, { method: 'PATCH', headers: auth(token, { 'Content-Type': 'application/json' }), body: JSON.stringify({ trashed: false }) }, 15000);
+      if(!u.ok) throw new Error('تعذّر إخراجه من سلة درايف (' + u.status + ')');
+    }
+    await moveFile(token, it.fileId, dest, batch.batchId);
+  }
+  it.restoredAt = Date.now();
+  await writeJson(token, batch.batchId, MANIFEST, man, batch.manifestId);
+  return 'ok';
+}
+
+/* ------- الواجهة ------- */
+function el(id){ return document.getElementById(id); }
+var lastTrash = null;
+function fmtDate(ms){ try{ return new Date(ms).toLocaleString('ar'); }catch(e){ return ''; } }
+async function refreshTrash(silent){
+  var area = el('trashListArea'), status = el('trashStatus'); if(!area) return;
+  area.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">⏳ عم نجيب السلة...</p>';
+  try{
+    var token = await getDashGoogleAccessToken(!!silent);
+    var data = await listTrash(token); lastTrash = data;
+    var last = 0; data.forEach(function(b){ if(b.state && b.state.lastPurgeAt) last = Math.max(last, b.state.lastPurgeAt); });
+    if(status) status.textContent = last ? ('آخر تفريغ: ' + fmtDate(last) + ' — التفريغ القادم: ' + fmtDate(last + WEEK)) : 'لسا ما صار أي تفريغ - رح تبدأ دورة الأسبوع أول ما تنفتح الصفحة.';
+    renderTrash(data);
+  }catch(e){
+    area.innerHTML = '<p style="font-size:12.5px;color:var(--danger);">تعذّر جلب السلة: ' + escapeHtml((e && e.message) || e) + (silent ? ' — اضغط "🔄 تحديث".' : '') + '</p>';
+  }
+}
+function renderTrash(data){
+  var area = el('trashListArea'); if(!area) return;
+  var rows = [];
+  data.forEach(function(b){ b.batches.forEach(function(x){ rows.push(x); }); });
+  rows.sort(function(a, b){ return (b.manifest.createdAt || 0) - (a.manifest.createdAt || 0); });
+  if(!rows.length){ area.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">السلة فاضية - ما انحذف شي لسا.</p>'; return; }
+  area.innerHTML = rows.map(function(x, bi){
+    var items = x.manifest.items || [];
+    var left = items.filter(function(i){ return !i.restoredAt; }).length;
+    var kindLabel = { draft: '📝 مسودة', design: '🎨 تصميم', local: '💻 نسخة متصفح' };
+    return '<details class="trash-batch" style="border:1px solid var(--line);border-radius:10px;padding:6px 10px;margin:6px 0;"' + (bi === 0 ? ' open' : '') + '><summary style="cursor:pointer;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><b>' + escapeHtml(x.name) + '</b><span style="font-size:11.5px;color:var(--muted);">(' + left + ' من ' + items.length + ' قابل للاسترجاع' + (x.branch ? ' — فرع ' + (x.branch === 'syria' ? 'سوريا' : 'الإمارات') : '') + ')</span>' +
+      (left ? '<button class="export-btn trash-restore-all" data-bi="' + bi + '" style="margin-inline-start:auto;">↩ استرجاع الكل</button>' : '') + '</summary>' +
+      items.map(function(it, ii){
+        return '<div class="controls" style="justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding:6px 0;flex-wrap:wrap;"><div style="font-size:12.5px;"><b>' + (kindLabel[it.kind] || '') + ' ' + escapeHtml(it.label || it.name || '') + '</b>' + (it.client ? ' — ' + escapeHtml(it.client) : '') + '<br><span style="font-size:11px;color:var(--muted);">' + (it.savedAt ? 'آخر حفظ: ' + fmtDate(it.savedAt) + ' — ' : '') + 'انحذف: ' + fmtDate(it.movedAt) + (it.restoredAt ? ' — ✅ استُرجع ' + fmtDate(it.restoredAt) : '') + '</span></div>' +
+          (it.restoredAt ? '<span style="font-size:12px;color:var(--ok,#2e7d32);">✅ مُستعاد</span>' : '<button class="export-btn trash-restore" data-bi="' + bi + '" data-ii="' + ii + '">↩ استرجاع</button>') + '</div>';
+      }).join('') + '</details>';
+  }).join('');
+  area._rows = rows;
+  Array.prototype.forEach.call(area.querySelectorAll('.trash-restore'), function(b){ b.addEventListener('click', function(){ doRestore(rows[+b.dataset.bi], [+b.dataset.ii], b); }); });
+  Array.prototype.forEach.call(area.querySelectorAll('.trash-restore-all'), function(b){ b.addEventListener('click', function(ev){ ev.preventDefault(); var r = rows[+b.dataset.bi]; doRestore(r, r.manifest.items.map(function(_, i){ return i; }), b); }); });
+}
+async function doRestore(batch, idxs, btn){
+  if(btn){ btn.disabled = true; btn.textContent = '⏳...'; }
+  var okN = 0, errs = [];
+  try{
+    var token = await getDashGoogleAccessToken(false);
+    for(var i = 0; i < idxs.length; i++){
+      if(batch.manifest.items[idxs[i]].restoredAt) continue;
+      try{ var r = await restoreItem(token, batch.branch, batch, idxs[i]); if(r === 'ok') okN++; }
+      catch(e){ errs.push((batch.manifest.items[idxs[i]].label || '') + ': ' + ((e && e.message) || e)); }
+    }
+  }catch(e){ errs.push((e && e.message) || String(e)); }
+  alert((okN ? '✅ انسترجع ' + okN + ' عنصر - افتح "🔄 تحديث" بقوائم المسودات/التصاميم لتشوفهم.' : 'ما انسترجع شي.') + (errs.length ? '\n\nمشاكل:\n' + errs.join('\n') : ''));
+  try{ refreshDraftsAndDesigns(true); }catch(e){}
+  refreshTrash(true);
+}
+async function purgeNow(){
+  if(!confirm('بدك تفرّغ كل المسودات هلق؟\n\nكل المسودات بتنتقل لسلة المحذوفات (مش حذف نهائي) وبتقدر ترجعها بأي وقت من نفس القسم. المسودات يلي اتعدّلت من آخر نص ساعة بتنتخطى.')) return;
+  var b = el('purgeNowBtn'); if(b){ b.disabled = true; b.textContent = '⏳ عم نفرّغ...'; }
+  try{
+    var token = await getDashGoogleAccessToken(false);
+    var r = await purge(token, { force: true, reason: 'تفريغ يدوي', includeLocalAll: false });
+    alert('تمّ: نُقلت ' + r.moved + ' مسودة للسلة' + (r.local ? ' + أُرشفت ' + r.local + ' نسخة محلية من المتصفح' : '') + (r.skipped ? ' (تخطّينا ' + r.skipped + ' لأنها اتعدّلت هلق)' : '') + '.');
+  }catch(e){ alert('تعذّر التفريغ: ' + ((e && e.message) || e)); }
+  finally{ if(b){ b.disabled = false; b.textContent = '🧹 فرّغ المسودات الآن'; } }
+  try{ refreshDraftsAndDesigns(true); }catch(e){}
+  refreshTrash(true);
+}
+/* التفريغ التلقائي الأسبوعي: بيشتغل بصمت بعد ما تنفتح الصفحة (لو التوكن جاهز) */
+var weeklyRan = false;
+async function maybeWeeklyPurge(){
+  if(weeklyRan) return; weeklyRan = true;
+  try{
+    var token = await getDashGoogleAccessToken(true);
+    if(!token) return;
+    var r = await purge(token, { reason: 'تفريغ أسبوعي' });
+    window.__mzLastWeeklyPurge = r;
+    if(r.due && (r.moved || r.local)){
+      var msg = '🧹 تفريغ المسودات الأسبوعي: نُقلت ' + r.moved + ' مسودة' + (r.local ? ' و' + r.local + ' نسخة متصفح' : '') + ' لسلة المحذوفات (بتقدر ترجعها من تبويب المسودات).';
+      try{ if(typeof showToast === 'function') showToast(msg); else { var t = document.createElement('div'); t.textContent = msg; t.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:100001;background:#1d2b3a;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;max-width:420px;direction:rtl;'; document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 10000); } }catch(e){}
+    }
+  }catch(e){ weeklyRan = false; console.warn('[سلة المسودات] تعذّر التفريغ الأسبوعي (بينعاد لاحقًا):', e && e.message); }
+}
+window.dtr = { purge: purge, listTrash: listTrash, restoreItem: restoreItem, trashOne: trashOne, maybeWeeklyPurge: maybeWeeklyPurge, refreshTrash: refreshTrash, collectLocalToArchive: collectLocalToArchive };
+window.mzTrashOne = async function(fileId, branch, kind, label){ var token = await getDashGoogleAccessToken(false); await trashOne(token, branch, fileId, kind, label); };
+
+function init(){
+  var r = el('refreshTrashBtn'); if(r) r.addEventListener('click', function(){ refreshTrash(false); });
+  var p = el('purgeNowBtn'); if(p) p.addEventListener('click', purgeNow);
+  setTimeout(maybeWeeklyPurge, 14000);
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
+</script>
+<script id="mz-maint-module">
+/* ============================================================================================
+   🛠 صيانة شاملة (2026-10-25) - زر "🛠 صيانة" بالداشبورد
+   - بيشتغل بالخلفية: بدون نافذة تحجب الشغل، وبنسبة تقدّم بالزر نفسه + شريط رفيع فوق.
+   - الاختبارات الخطرة (ضغط كل الأزرار، تجارب الحسابات، الطباعة...) بتتنفّذ جوا نسخ معزولة من الصفحات
+     (iframe مخفي، تخزين بالذاكرة فقط، بدون شبكة، بدون تحميلات/طباعة/واتساب) - فبياناتك الحقيقية ما بتتأثر.
+   - بيانات الداشبورد الحقيقية بتنفحص قراءة فقط، وبعدها بيتنفّذ بس إصلاحات آمنة (بنسخة أمان قبلها).
+   ============================================================================================ */
+(function(){
+'use strict';
+var MT = { running:false, pct:0, stepName:'', results:[], fixes:[], startedAt:0, finishedAt:0, backup:null, report:null, cancelled:false };
+window.__mzMaint = MT;
+var LAST_KEY = 'merzona_maint_last_v1';
+
+function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
+/* ------------------------------ تسجيل النتائج ------------------------------ */
+var curGroup = '';
+function rec(status, title, detail, extra){
+  var r = { status: status, group: curGroup, title: title, detail: detail || '' };
+  if(extra) for(var k in extra) r[k] = extra[k];
+  MT.results.push(r);
+  return r;
+}
+var ok = function(t, d){ return rec('ok', t, d); };
+var warn = function(t, d, x){ return rec('warn', t, d, x); };
+var fail = function(t, d, x){ return rec('fail', t, d, x); };
+var info = function(t, d){ return rec('info', t, d); };
+
+/* ------------------------------ التقدّم ------------------------------ */
+var plan = [];           // { name, weight, fn }
+var doneW = 0, totalW = 1, curW = 0;
+function setProgress(frac){
+  var p = (doneW + curW * Math.max(0, Math.min(1, frac || 0))) / totalW * 100;
+  MT.pct = Math.max(MT.pct, Math.min(99.4, p));
+  paintProgress();
+}
+function paintProgress(){
+  var pill = document.getElementById('maintTabBtn');
+  var bar = document.getElementById('maintBar');
+  var pct = Math.round(MT.pct);
+  if(pill){
+    if(MT.running) pill.textContent = '🛠 صيانة ' + pct + '%';
+    else if(MT.report) pill.textContent = MT.report.fail ? ('🛠 صيانة ⚠️ ' + MT.report.fail) : '🛠 صيانة ✅';
+    else pill.textContent = '🛠 صيانة';
+  }
+  if(bar){
+    bar.style.display = MT.running ? 'block' : 'none';
+    var inner = bar.firstElementChild; if(inner) inner.style.width = MT.pct + '%';
+  }
+  var pp = document.getElementById('maintPanelPct');
+  if(pp){ pp.textContent = pct + '%'; document.getElementById('maintPanelFill').style.width = MT.pct + '%'; document.getElementById('maintPanelStep').textContent = MT.running ? ('جاري: ' + MT.stepName) : ''; }
+}
+
+/* ------------------------------ أدوات الصندوق المعزول ------------------------------ */
+function buildShim(cfg){
+  return '(function(){' +
+  'var cfg=' + JSON.stringify(cfg) + ';' +
+  'function Mem(seed,quota){var d={};var self=this;for(var k in seed)d[k]=String(seed[k]);' +
+  ' function size(){var n=0;for(var k in d)n+=k.length+d[k].length;return n;}' +
+  ' this.getItem=function(k){k=String(k);return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null;};' +
+  ' this.setItem=function(k,v){k=String(k);v=String(v);var old=Object.prototype.hasOwnProperty.call(d,k)?(k.length+d[k].length):0;if(quota&&size()-old+k.length+v.length>quota){throw new DOMException("quota","QuotaExceededError");}d[k]=v;};' +
+  ' this.removeItem=function(k){delete d[String(k)];};this.clear=function(){d={};};' +
+  ' this.key=function(i){return Object.keys(d)[i]===undefined?null:Object.keys(d)[i];};' +
+  ' Object.defineProperty(this,"length",{get:function(){return Object.keys(d).length;}});}' +
+  'var ls=new Mem(cfg.seed||{},cfg.quota||0),ss=new Mem({},0);' +
+  'try{Object.defineProperty(window,"localStorage",{configurable:true,get:function(){return ls;}});Object.defineProperty(window,"sessionStorage",{configurable:true,get:function(){return ss;}});}catch(e){}' +
+  'window.__mtErr=[];window.__mtCon=[];window.__mtAlerts=[];window.__mtPrints=0;window.__mtDownloads=0;window.__mtAlive=true;' +
+  'window.addEventListener("error",function(e){window.__mtErr.push({m:String(e.message||e.type),s:String(e.filename||"").split("/").pop()+":"+(e.lineno||0)});});' +
+  'window.addEventListener("unhandledrejection",function(e){var r=e.reason;window.__mtErr.push({m:"promise: "+String((r&&r.message)||r),s:""});});' +
+  'var ce=console.error;console.error=function(){try{var m=Array.prototype.slice.call(arguments).map(function(x){return String((x&&x.message)||x);}).join(" ").slice(0,200);if(!/Failed to fetch|NetworkError|net::|ERR_/i.test(m))window.__mtCon.push(m);}catch(e){}};' +
+  'window.fetch=function(){return Promise.reject(new TypeError("Failed to fetch"));};' +
+  'XMLHttpRequest.prototype.open=function(){};XMLHttpRequest.prototype.send=function(){var s=this;setTimeout(function(){try{s.onerror&&s.onerror(new Event("error"));}catch(e){}},0);};' +
+  'navigator.sendBeacon=function(){return false;};window.open=function(){return null;};' +
+  'window.print=function(){window.__mtPrints++;};window.alert=function(m){window.__mtAlerts.push(String(m).slice(0,120));};window.confirm=function(){return true;};window.prompt=function(m,d){return cfg.promptValue||"100";};' +
+  'HTMLAnchorElement.prototype.click=function(){if(this.download||/^blob:|^data:/.test(this.href||"")){window.__mtDownloads++;return;}};' +
+  'try{navigator.mediaDevices.getUserMedia=function(){return Promise.reject(new Error("camera-disabled-in-maintenance"));};}catch(e){}' +
+  'try{var _sa=Element.prototype.setAttribute;Element.prototype.setAttribute=function(n,v){if(this.tagName==="IFRAME"&&String(n).toLowerCase()==="src"){_sa.call(this,"data-blocked-src",v);return;}return _sa.call(this,n,v);};Object.defineProperty(HTMLIFrameElement.prototype,"src",{configurable:true,set:function(v){_sa.call(this,"data-blocked-src",v);},get:function(){return this.getAttribute("data-blocked-src")||"";}});}catch(e){}' +
+  'try{window.requestFullscreen=function(){};Element.prototype.requestFullscreen=function(){return Promise.resolve();};}catch(e){}' +
+  '})();';
+}
+
+async function makeSandbox(page, opts){
+  opts = opts || {};
+  var res = await fetch(page + (page.indexOf('?') === -1 ? '?' : '&') + '_mt=' + Date.now(), { cache: 'no-store' });
+  if(!res.ok) throw new Error('تعذّر تحميل ' + page + ' (' + res.status + ')');
+  var html = await res.text();
+  var shim = '<script>' + buildShim({ seed: opts.seed || {}, quota: opts.quota || 5000000, promptValue: opts.promptValue }) + '<\/script>';
+  var m = html.match(/<head[^>]*>/i);
+  html = m ? html.replace(m[0], m[0] + shim) : (shim + html);
+  var fr = document.createElement('iframe');
+  fr.setAttribute('aria-hidden', 'true'); fr.tabIndex = -1;
+  fr.style.cssText = 'position:fixed;left:-12000px;top:0;width:1280px;height:900px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(fr);
+  await new Promise(function(resolve){ fr.onload = function(){ resolve(); }; fr.srcdoc = html; setTimeout(resolve, 20000); });
+  var win = fr.contentWindow;
+  await sleep(opts.settle || 900);
+  try{
+    var g = win.document.getElementById('mz-gate-overlay'); if(g) g.remove();
+    var gs = win.document.getElementById('mz-gate-style'); if(gs) gs.remove();
+  }catch(e){}
+  return { frame: fr, win: win, destroy: function(){ try{ fr.remove(); }catch(e){} } };
+}
+
+function visibleTextProblems(doc){
+  var t = ''; try{ t = (doc.body.innerText || ''); }catch(e){ return []; }
+  var out = [], re = /\bNaN\b|\bundefined\b|\[object Object\]|\bInfinity\b|\bnull\b(?=\s*(مم|سم|AED|USD|SYP|%))/g, m;
+  while((m = re.exec(t)) && out.length < 5){ out.push(t.slice(Math.max(0, m.index - 25), m.index + 25).replace(/\s+/g, ' ')); }
+  return out;
+}
+function describe(el){
+  try{
+    var id = el.id ? '#' + el.id : '';
+    var txt = (el.innerText || el.value || el.title || '').replace(/\s+/g, ' ').trim().slice(0, 24);
+    var oc = (el.getAttribute('onclick') || '').slice(0, 40);
+    return (el.tagName || '').toLowerCase() + id + (txt ? ' «' + txt + '»' : '') + (oc ? ' ' + oc : '');
+  }catch(e){ return '?'; }
+}
+
+/* ضغط كل شي: أزرار، اختيارات، مدخلات (قيم غريبة) - بنسخة معزولة، مع تجديد النسخة كل دفعة */
+async function interactionSweep(label, page, opts, prep){
+  opts = opts || {};
+  var BATCH = opts.batch || 45;
+  var sb = await makeSandbox(page, opts);
+  if(prep){ try{ await prep(sb.win); }catch(e){ warn(label + ': تجهيز الصفحة', String(e && e.message || e)); } }
+  function collect(win){
+    var doc = win.document;
+    var btns = Array.prototype.slice.call(doc.querySelectorAll('button,[onclick],input[type=checkbox],input[type=radio],summary,.nav-pill,.chip,[role=button],[role=tab]'));
+    btns = btns.filter(function(el){ return el.tagName !== 'A' || !el.getAttribute('href') || el.getAttribute('href') === '#'; })
+               .filter(function(el){ return !(el.closest && el.closest('#mz-gate-overlay,#mztrOv')); });
+    var sels = Array.prototype.slice.call(doc.querySelectorAll('select'));
+    var inps = Array.prototype.slice.call(doc.querySelectorAll('input[type=text],input[type=number],input:not([type]),textarea'))
+                    .filter(function(el){ return !el.readOnly && !el.disabled; });
+    return { btns: btns, sels: sels, inps: inps };
+  }
+  var first = collect(sb.win);
+  var nB = first.btns.length, nS = first.sels.length, nI = first.inps.length;
+  var total = nB + nS + Math.min(nI, 220);
+  var done = 0, clicks = 0, problems = [], seenErr = {};
+  function noteErrors(win, what, from){
+    var errs = (win.__mtErr || []).slice(from).concat((win.__mtCon || []).slice(0, 0));
+    errs.forEach(function(e){
+      var key = what + '|' + e.m;
+      if(seenErr[key]) return; seenErr[key] = 1;
+      problems.push({ what: what, msg: e.m + (e.s ? ' (' + e.s + ')' : '') });
+    });
+  }
+  async function ensureAlive(){
+    var alive = false; try{ alive = !!(sb.win && sb.win.__mtAlive && sb.win.document && sb.win.document.body); }catch(e){}
+    if(!alive){ sb.destroy(); sb = await makeSandbox(page, opts); if(prep){ try{ await prep(sb.win); }catch(e){} } return false; }
+    return true;
+  }
+  async function fresh(){ sb.destroy(); sb = await makeSandbox(page, opts); if(prep){ try{ await prep(sb.win); }catch(e){} } }
+  var curC = null;
+  var fuzz = ['', '0', '-5', '999999999', 'abc', '1+2', '12.5.5', '٣٠٠', '<b>x</b>', 'x'.repeat(300)];
+  /* 1) الأزرار */
+  for(var i = 0; i < nB; i++){
+    if(MT.cancelled) break;
+    if(clicks > 0 && clicks % BATCH === 0) await fresh();
+    if(!curC || curC.win !== sb.win){ curC = collect(sb.win); curC.win = sb.win; }
+    var el = curC.btns[i];
+    if(el && sb.win.document.contains(el)){
+      var from = sb.win.__mtErr.length;
+      var d = describe(el);
+      try{ el.click(); }catch(e){ problems.push({ what: d, msg: 'استثناء عند الضغط: ' + (e && e.message) }); }
+      clicks++;
+      await sleep(14);
+      if(!(await ensureAlive())){ info(label + ': زر يغيّر الصفحة', d + ' - انتقل بالصفحة بعيدًا (طبيعي لأزرار الانتقال)'); }
+      else noteErrors(sb.win, d, from);
+    }
+    done++; if(opts.onProg) opts.onProg(done / total);
+    if(i % 5 === 0) await sleep(0);
+  }
+  /* 2) القوائم المنسدلة: كل خيار */
+  await fresh();
+  var cs = collect(sb.win);
+  for(var s = 0; s < cs.sels.length; s++){
+    if(MT.cancelled) break;
+    var sel = cs.sels[s];
+    if(!sb.win.document.contains(sel)){ done++; continue; }
+    var did = describe(sel);
+    for(var o = 0; o < sel.options.length && o < 80; o++){
+      var f0 = sb.win.__mtErr.length;
+      try{ sel.selectedIndex = o; sel.dispatchEvent(new sb.win.Event('input', { bubbles: true })); sel.dispatchEvent(new sb.win.Event('change', { bubbles: true })); }catch(e){ problems.push({ what: did + ' خيار ' + o, msg: String(e && e.message || e) }); }
+      await sleep(6);
+      noteErrors(sb.win, did + ' خيار «' + ((sel.options[o] && sel.options[o].text) || o).toString().slice(0, 20) + '»', f0);
+      if(!sb.win.__mtAlive){ await ensureAlive(); break; }
+    }
+    done++; if(opts.onProg) opts.onProg(done / total);
+    if(s % 3 === 0) await sleep(0);
+  }
+  /* 3) المدخلات: قيم غريبة */
+  await fresh();
+  cs = collect(sb.win);
+  var maxI = Math.min(cs.inps.length, 220);
+  for(var q = 0; q < maxI; q++){
+    if(MT.cancelled) break;
+    var inp = cs.inps[q];
+    if(!sb.win.document.contains(inp)){ done++; continue; }
+    var iid = describe(inp);
+    for(var v = 0; v < fuzz.length; v++){
+      var f1 = sb.win.__mtErr.length;
+      try{
+        inp.value = fuzz[v];
+        inp.dispatchEvent(new sb.win.Event('input', { bubbles: true }));
+        inp.dispatchEvent(new sb.win.Event('change', { bubbles: true }));
+        inp.dispatchEvent(new sb.win.Event('blur', { bubbles: false }));
+        inp.dispatchEvent(new sb.win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      }catch(e){ problems.push({ what: iid, msg: String(e && e.message || e) }); }
+      noteErrors(sb.win, iid + ' ← «' + String(fuzz[v]).slice(0, 12) + '»', f1);
+    }
+    await sleep(8);
+    done++; if(opts.onProg) opts.onProg(done / total);
+    if(q % 4 === 0) await sleep(0);
+  }
+  var textProblems = visibleTextProblems(sb.win.document);
+  var consoleErrs = (sb.win.__mtCon || []).slice(0, 8);
+  var dl = sb.win.__mtDownloads, pr = sb.win.__mtPrints;
+  sb.destroy();
+  var summary = 'ضُغط ' + clicks + ' زر، جُرّب ' + nS + ' قائمة بكل خياراتها، و' + Math.min(nI, 220) + ' حقل بـ' + fuzz.length + ' قيم غريبة (تحميلات متجاهلة: ' + dl + '، طباعات متجاهلة: ' + pr + ')';
+  if(!problems.length) ok(label + ': كل الأزرار والقوائم والحقول', summary);
+  else problems.slice(0, 25).forEach(function(p){ fail(label + ': خطأ برمجي عند تفاعل', p.what + '  →  ' + p.msg, { code: true }); });
+  if(problems.length > 25) fail(label + ': أخطاء إضافية', 'وفي ' + (problems.length - 25) + ' خطأ كمان غير معروض');
+  if(problems.length) info(label + ': ملخص التفاعل', summary);
+  if(textProblems.length) warn(label + ': نصوص غلط ظاهرة (NaN/undefined...)', textProblems.join(' | '));
+  if(consoleErrs.length) warn(label + ': رسائل خطأ بالكونسول', consoleErrs.join(' | '));
+}
+
+/* ------------------------------ البيانات الحقيقية (قراءة فقط) ------------------------------ */
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function parseKey(k){ var raw = lsGet(k); if(raw == null) return { missing: true }; try{ return { val: JSON.parse(raw), raw: raw }; }catch(e){ return { bad: true, raw: raw, err: e.message }; } }
+function isFiniteNum(n){ return typeof n === 'number' && isFinite(n); }
+
+async function stepEnvironment(){
+  curGroup = 'البيئة والتخزين';
+  var feats = [];
+  try{ localStorage.setItem('__mt_probe', '1'); localStorage.removeItem('__mt_probe'); }catch(e){ feats.push('التخزين المحلي لا يعمل'); }
+  if(typeof fetch !== 'function') feats.push('fetch غير مدعوم');
+  if(typeof AbortController === 'undefined') feats.push('AbortController غير مدعوم');
+  if(!window.indexedDB) feats.push('IndexedDB غير مدعوم');
+  if(feats.length) fail('ميزات المتصفح الناقصة', feats.join('، ')); else ok('ميزات المتصفح الأساسية', 'التخزين، الشبكة، المؤقتات متوفرة');
+  var used = 0, rows = [];
+  try{ for(var i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); var n = k.length + (localStorage.getItem(k) || '').length; used += n; rows.push({ k: k, n: n }); } }catch(e){}
+  rows.sort(function(a, b){ return b.n - a.n; });
+  var mb = used / 1048576;
+  var top = rows.slice(0, 3).map(function(r){ return r.k.slice(0, 36) + ' (' + (r.n / 1048576).toFixed(2) + 'MB)'; }).join(' | ');
+  if(mb > 4.3) fail('التخزين المحلي شبه ممتلئ', mb.toFixed(2) + ' MB من ~5 - الأكبر: ' + top, { fixable: 'storage' });
+  else if(mb > 3.2) warn('التخزين المحلي مرتفع', mb.toFixed(2) + ' MB - الأكبر: ' + top, { fixable: 'storage' });
+  else ok('التخزين المحلي مرتاح', mb.toFixed(2) + ' MB - الأكبر: ' + top);
+  var designKeys = rows.filter(function(r){ return r.k.indexOf('merzona-design-items::') === 0 || r.k.indexOf('merzona-latest-design::') === 0; });
+  if(designKeys.length > 40) warn('تصاميم محلية كتيرة', designKeys.length + ' نسخة محلية مخبّأة', { fixable: 'storage' });
+  var cached = parseKey('merzona_dash_gtoken_v1');
+  if(cached.val && cached.val.expiresAt && cached.val.expiresAt < Date.now()) warn('توكن جوجل منتهي بالتخزين', 'توكن قديم مخزّن (بيتجدد لحاله)', { fixable: 'token' });
+  else ok('توكن جوجل المخزّن', cached.val ? 'صالح' : 'ما في توكن مخزّن (بيجيبه من السيرفر)');
+}
+
+async function stepVersions(){
+  curGroup = 'النسخ والملفات';
+  var remote = null;
+  try{
+    var r = await fetch('version.json?_mt=' + Date.now(), { cache: 'no-store' });
+    if(r.ok) remote = await r.json(); else warn('ملف version.json', 'ما انقرأ (' + r.status + ')');
+  }catch(e){ warn('ملف version.json', 'تعذّرت قراءته: ' + e.message); }
+  if(remote){
+    var cur = (typeof CURRENT_VERSION !== 'undefined') ? CURRENT_VERSION : (window.__mzVersion || '');
+    if(cur && remote.dashboard && cur !== remote.dashboard) warn('نسخة الداشبورد', 'المفتوحة ' + cur + ' والمنشورة ' + remote.dashboard + ' - حدّث الصفحة (Ctrl+Shift+R)');
+    else ok('نسخة الداشبورد', cur || '—');
+  }
+  var pages = ['index.html', 'procurement.html', 'Dashboard.html', 'designer.html'];
+  for(var i = 0; i < pages.length; i++){
+    try{
+      var res = await fetch(pages[i] + '?_mt=' + Date.now(), { cache: 'no-store' });
+      if(!res.ok){ fail('الصفحة ' + pages[i], 'ما انفتحت (' + res.status + ')'); continue; }
+      var txt = await res.text();
+      var m = txt.match(/CURRENT_VERSION\s*=\s*'([^']+)'/);
+      var key = pages[i].replace('.html', '').replace('Dashboard', 'dashboard');
+      if(m && remote && remote[key] && remote[key] !== m[1]) fail('رقم نسخة ' + pages[i], 'داخل الملف ' + m[1] + ' وفي version.json ' + remote[key] + ' - لازم يتطابقوا (غالبًا ملف واحد ما انرفع)');
+      else ok('الصفحة ' + pages[i], m ? 'نسخة ' + m[1] : 'تفتح');
+    }catch(e){ fail('الصفحة ' + pages[i], 'تعذّر تحميلها: ' + e.message); }
+    await sleep(0);
+  }
+}
+
+async function stepDataIntegrity(){
+  curGroup = 'سلامة البيانات';
+  var SYNC = (typeof SYNC_KEYS !== 'undefined') ? SYNC_KEYS : [];
+  var summary = [];
+  for(var i = 0; i < SYNC.length; i++){
+    var k = SYNC[i], p = parseKey(k);
+    if(p.missing){ summary.push(k.replace('merzona_', '') + ': فاضي'); continue; }
+    if(p.bad){ fail('بيانات تالفة: ' + k, 'ما بتنقرأ كـ JSON (' + p.err + ')', { fixable: 'corrupt', key: k }); continue; }
+    if(!p.val || typeof p.val !== 'object'){ fail('نوع بيانات غلط: ' + k, 'المتوقع كائن، الموجود ' + typeof p.val, { fixable: 'corrupt', key: k }); continue; }
+    var n = Object.keys(p.val).length; summary.push(k.replace('merzona_', '') + ': ' + n);
+    var tsP = parseKey(k + '__ts');
+    if(tsP.bad) fail('طوابع المزامنة تالفة: ' + k + '__ts', tsP.err, { fixable: 'corrupt', key: k + '__ts' });
+    await sleep(0);
+  }
+  ok('قراءة كل مفاتيح المزامنة (' + SYNC.length + ')', summary.join(' | '));
+  /* مراجع فيها مسافات / مكررة */
+  var wsBad = [], dup = {}, dupList = [];
+  ['merzona_contracts', 'merzona_discovered_quotations', 'merzona_quote_durations', 'merzona_quote_total_overrides'].forEach(function(k){
+    var p = parseKey(k); if(!p.val) return;
+    Object.keys(p.val).forEach(function(ref){
+      if(ref !== ref.trim() || /\s{2,}/.test(ref)) wsBad.push(k.replace('merzona_', '') + ':"' + ref + '"');
+      var norm = ref.replace(/\s+/g, '').toUpperCase(); var kk = k + '|' + norm;
+      if(dup[kk] && dup[kk] !== ref) dupList.push(ref + ' ≈ ' + dup[kk]); else dup[kk] = ref;
+    });
+  });
+  if(wsBad.length) fail('أرقام مرجعية فيها مسافات زايدة', wsBad.slice(0, 6).join(' | ') + (wsBad.length > 6 ? ' ...(+' + (wsBad.length - 6) + ')' : ''), { fixable: 'refws' });
+  else ok('الأرقام المرجعية نظيفة', 'بدون مسافات زايدة');
+  if(dupList.length) warn('أرقام مرجعية مكررة بصيغتين', dupList.slice(0, 5).join(' | '));
+  /* العقود */
+  var c = parseKey('merzona_contracts');
+  if(c.val){
+    var bad = [], n2 = 0;
+    Object.keys(c.val).forEach(function(ref){
+      var rec0 = c.val[ref] || {}; n2++;
+      if(!/^[A-Z]-?[A-Z]?-?\d{5,}/i.test(ref.trim()) && !/\d{5,}/.test(ref)) bad.push('مرجع غريب: ' + ref);
+      (rec0.paymentTables || []).forEach(function(t){
+        (t.payments || []).forEach(function(py){
+          ['amount', 'amountAed', 'aed', 'pct', 'percent'].forEach(function(f){
+            if(f in py && py[f] !== '' && py[f] != null && !isFinite(Number(py[f]))) bad.push(ref + ' / ' + (t.name || '') + ' / دفعة: ' + f + '=' + py[f]);
+          });
+        });
+      });
+    });
+    if(bad.length) warn('بيانات عقود غريبة', bad.slice(0, 5).join(' | ')); else ok('العقود (' + n2 + ')', 'مراجع وجداول دفعات سليمة');
+  }
+  /* الرواتب */
+  var emp = parseKey('merzona_payroll_employees'), ent = parseKey('merzona_payroll_entries');
+  if(emp.val && ent.val){
+    var orphan = 0, nan = 0, total = 0;
+    var entries = Array.isArray(ent.val) ? ent.val : Object.keys(ent.val).map(function(k){ return ent.val[k]; });
+    entries.forEach(function(e){ if(!e) return; total++; if(e.employeeId && emp.val && !emp.val[e.employeeId] && !(Array.isArray(emp.val) && emp.val.some(function(x){ return x && x.id === e.employeeId; }))) orphan++; ['amount', 'days', 'hours', 'total'].forEach(function(f){ if(f in e && e[f] !== '' && e[f] != null && !isFinite(Number(e[f]))) nan++; }); });
+    if(nan) fail('الرواتب: قيم غير رقمية', nan + ' قيد فيه مبلغ/أيام غير رقمية');
+    else if(orphan) warn('الرواتب: قيود بدون موظف', orphan + ' من ' + total + ' قيد مربوط بموظف غير موجود');
+    else ok('الرواتب', total + ' قيد سليم');
+  }
+  /* الجدولة */
+  var pm = parseKey('merzona_pmp');
+  if(pm.val){
+    var pbad = [];
+    Object.keys(pm.val).forEach(function(ref){ var pr = pm.val[ref] || {}; if(pr.tasks && !Array.isArray(pr.tasks)) pbad.push(ref + ': tasks ليست مصفوفة'); (pr.tasks || []).forEach(function(t, i){ if(t && t.name != null && typeof t.name !== 'string') pbad.push(ref + ' مهمة ' + i); if(t && t.phase != null && !isFinite(Number(t.phase))) pbad.push(ref + ' مرحلة المهمة ' + i); }); });
+    if(pbad.length) warn('جدول المشاريع: بيانات غريبة', pbad.slice(0, 5).join(' | ')); else ok('جدول المشاريع (' + Object.keys(pm.val).length + ')', 'سليم');
+  }
+  /* الدفعة الرئيسية DATA */
+  if(typeof DATA !== 'undefined' && Array.isArray(DATA)){
+    var dbad = [], seen = {};
+    DATA.forEach(function(d){ if(!d) return; if(d.total != null && !isFiniteNum(Number(d.total))) dbad.push('إجمالي غير رقمي: ' + d.ref); if(!d.ref) dbad.push('سجل بدون رقم مرجعي'); var kk2 = String(d.ref || '').replace(/\s+/g, ''); if(seen[kk2]) dbad.push('مكرر: ' + d.ref); seen[kk2] = 1; });
+    if(dbad.length) warn('سجلات عروض الأسعار: ملاحظات', dbad.slice(0, 6).join(' | ') + (dbad.length > 6 ? ' ...(+' + (dbad.length - 6) + ')' : '')); else ok('عروض الأسعار المحمّلة (' + DATA.length + ')', 'كلها سليمة ومن غير تكرار');
+  }
+}
+
+async function stepServer(){
+  curGroup = 'السيرفر والمزامنة';
+  var base = (typeof DASH_DRIVE_TOKEN_URL !== 'undefined') ? DASH_DRIVE_TOKEN_URL.replace(/\/drive-token.*$/, '') : '';
+  if(!base){ warn('عنوان السيرفر', 'غير معروف'); return; }
+  async function timed(url, ms){
+    var ctl = new AbortController(), t0 = performance.now(), to = setTimeout(function(){ ctl.abort(); }, ms || 9000);
+    try{ var r = await fetch(url, { signal: ctl.signal, cache: 'no-store' }); var body = null; try{ body = await r.json(); }catch(e){} return { ok: r.ok, status: r.status, ms: Math.round(performance.now() - t0), body: body }; }
+    catch(e){ return { err: e.name === 'AbortError' ? 'انتهت المهلة' : (e.message || 'فشل الاتصال') }; }
+    finally{ clearTimeout(to); }
+  }
+  var h = await timed(base + '/health');
+  if(h.err) fail('السيرفر /health', 'ما رد: ' + h.err + ' - السيرفر متوقف أو ما في إنترنت');
+  else if(!h.ok) fail('السيرفر /health', 'رجّع حالة ' + h.status);
+  else { ok('السيرفر شغّال', h.ms + ' ms'); if(h.ms > 3500) warn('السيرفر بطيء', h.ms + ' ms'); }
+  var w = await timed(base + '/whatsapp-status');
+  if(w.err) warn('حالة واتساب', 'ما انقرأت: ' + w.err);
+  else if(w.body && (w.body.ready === false || w.body.connected === false || w.body.clientReady === false)) warn('واتساب غير جاهز', 'جلسة واتساب بالسيرفر مو متصلة - الإرسال التلقائي رح يفشل لحد ما تنربط');
+  else ok('حالة واتساب', w.body ? 'متصل/جاهز' : 'انقرأت');
+  setProgress(0.3);
+  /* درايف + ملف المزامنة (قراءة فقط) */
+  var tokenData = null;
+  try{
+    if(typeof fetchDashDriveTokenFromServer === 'function') tokenData = await fetchDashDriveTokenFromServer(9000);
+  }catch(e){}
+  if(!tokenData){ warn('توكن جوجل درايف من السيرفر', 'ما انجاب (السيرفر غير مربوط بحساب جوجل أو الجهاز غير معتمد). بدون هالتوكن المزامنة وحفظ درايف رح تفشل.', { fixable: 'sync' }); return; }
+  ok('توكن جوجل درايف من السيرفر', 'انجاب بنجاح');
+  var token = tokenData.access_token;
+  try{
+    var ab = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress),storageQuota', { headers: { Authorization: 'Bearer ' + token } });
+    if(ab.ok){ var abj = await ab.json(); var q = abj.storageQuota || {}; var usedG = Number(q.usage || 0), lim = Number(q.limit || 0);
+      ok('الاتصال بجوجل درايف', 'شغّال' + (lim ? ' - المساحة ' + Math.round(usedG / lim * 100) + '%' : ''));
+      if(lim && usedG / lim > 0.92) warn('مساحة جوجل درايف شبه ممتلئة', Math.round(usedG / lim * 100) + '% - ممكن يفشل الحفظ على درايف');
+    } else fail('الاتصال بجوجل درايف', 'رجّع ' + ab.status + (ab.status === 401 ? ' (التوكن مرفوض)' : ab.status === 403 ? ' (صلاحيات ناقصة)' : ''));
+  }catch(e){ fail('الاتصال بجوجل درايف', 'فشل: ' + e.message); }
+  setProgress(0.6);
+  try{
+    var remote = await downloadSyncData(token);
+    var rc = 0, lc = 0, missingLocal = 0, missingRemote = 0;
+    SYNC_KEYS.forEach(function(k){
+      var rk = (remote && remote[k]) || {}, lk = {};
+      try{ lk = JSON.parse(localStorage.getItem(k) || '{}'); }catch(e){}
+      if(Array.isArray(rk) || Array.isArray(lk)) return;
+      rc += Object.keys(rk).length; lc += Object.keys(lk).length;
+      Object.keys(rk).forEach(function(r){ if(!(r in lk)) missingLocal++; });
+      Object.keys(lk).forEach(function(r){ if(!(r in rk)) missingRemote++; });
+    });
+    ok('ملف المزامنة على درايف', rc + ' سجل على درايف مقابل ' + lc + ' محلي');
+    if(missingLocal || missingRemote) warn('فرق بين المحلي ودرايف', missingLocal + ' سجل على درايف مو عندك، و' + missingRemote + ' سجل عندك مو على درايف - المزامنة بتدمجهم', { fixable: 'sync' });
+    else ok('المحلي ودرايف متطابقين', 'ما في فرق بالسجلات');
+    if(lsGet('merzona_sync_connected') !== '1') warn('المزامنة غير مفعّلة على هذا الجهاز', 'الزر "مزامنة الفريق" ما انربط بعد', { fixable: 'sync' });
+  }catch(e){
+    var m = String(e && e.message || e);
+    fail('قراءة ملف المزامنة', (typeof syncErrorToText === 'function' ? syncErrorToText(m) : m), { fixable: /missing|404/.test(m) ? 'syncid' : 'sync' });
+  }
+}
+
+/* ------------------------------ الصناديق المعزولة ------------------------------ */
+async function seededDashboardData(){
+  var seed = {};
+  try{ for(var i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); if(/^merzona_/.test(k) && k.length < 80 && (localStorage.getItem(k) || '').length < 600000 && k !== 'merzona_dash_gtoken_v1') seed[k] = localStorage.getItem(k); } }catch(e){}
+  return seed;
+}
+
+async function stepDashboardSandbox(){
+  curGroup = 'الداشبورد (نسخة معزولة ببياناتك)';
+  var seed = await seededDashboardData();
+  var sb = await makeSandbox('Dashboard.html', { seed: seed, settle: 1500 });
+  var win = sb.win;
+  try{
+    if(typeof win.render !== 'function') fail('الداشبورد المعزول', 'ما انحمّلت بشكل سليم (render غير موجود)');
+    else ok('تحميل الداشبورد بنسخة معزولة', 'انفتح مع بياناتك المنسوخة');
+    var errs0 = win.__mtErr.length;
+    var tabs = ['showDashboardView', 'showQuotationsView', 'showContractsView', 'showPayrollView', 'showClientsView', 'showCatalogsView', 'showPmpView', 'showDraftsDesignsView', 'showUsersView'];
+    for(var i = 0; i < tabs.length; i++){
+      var f = win[tabs[i]]; if(typeof f !== 'function'){ warn('تبويب ' + tabs[i], 'الدالة مو موجودة'); continue; }
+      var e0 = win.__mtErr.length;
+      try{ f(); }catch(e){ fail('فتح تبويب ' + tabs[i].replace('show', '').replace('View', ''), String(e && e.message || e), { code: true }); }
+      await sleep(250);
+      var ne = win.__mtErr.slice(e0);
+      if(ne.length) fail('أخطاء عند فتح ' + tabs[i].replace('show', '').replace('View', ''), ne.map(function(x){ return x.m; }).slice(0, 3).join(' | '), { code: true });
+      else {
+        var tp = visibleTextProblems(win.document);
+        if(tp.length) warn('نص غلط ظاهر بتبويب ' + tabs[i].replace('show', '').replace('View', ''), tp.join(' | '));
+        else ok('تبويب ' + tabs[i].replace('show', '').replace('View', ''), 'يفتح بدون أخطاء ولا قيم NaN');
+      }
+    }
+    /* إجماليات اللوحة مقابل حساب مستقل */
+    try{
+      win.showDashboardView(); await sleep(200);
+      var D = win.eval('typeof DATA!=="undefined"?DATA:[]'); var sumAed = 0, cnt = 0;
+      D.forEach(function(d){ if(!d) return; var cur = (typeof win.getEntryCurrency === 'function') ? win.getEntryCurrency(d) : 'aed'; if(cur === 'aed' && isFinite(Number(d.total))){ sumAed += Number(d.total); cnt++; } });
+      info('تحقق إجمالي اللوحة', 'مجموع ' + cnt + ' عرض بالدرهم = ' + Math.round(sumAed).toLocaleString('en-US'));
+    }catch(e){}
+  }finally{ sb.destroy(); }
+}
+
+async function stepDashboardSweep(onProg){
+  curGroup = 'ضغط كل أزرار الداشبورد';
+  var seed = await seededDashboardData();
+  await interactionSweep('الداشبورد', 'Dashboard.html', { seed: seed, settle: 1500, onProg: onProg, batch: 40 });
+}
+
+/* ---------- عرض السعر والمصمم ---------- */
+function geomPolyIntersections(poly){
+  var segs = poly.map(function(q, i){ return [q, poly[(i + 1) % poly.length]]; });
+  function ccw(a, b, c){ return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0]); }
+  var x = 0;
+  for(var i = 0; i < segs.length; i++) for(var j = i + 2; j < segs.length; j++){
+    if(i === 0 && j === segs.length - 1) continue;
+    var a = segs[i][0], b = segs[i][1], c = segs[j][0], d = segs[j][1];
+    if(ccw(a, c, d) !== ccw(b, c, d) && ccw(a, b, c) !== ccw(a, b, d)) x++;
+  }
+  return x;
+}
+var NAN_RE = /NaN|undefined|Infinity|\[object/;
+
+async function quotationPrep(win){
+  win.addQtyRow(1000, 1000, 1, '', -1);
+  win.addQtyRow(1200, 1400, 2, '', -1);
+  try{ win.openDesignerFromToolbar(); }catch(e){}
+  ['window', 'door', 'slidingWindow', 'slidingDoor', 'foldingDoor', 'showerGlassDoor', 'handrail', 'mirror'].forEach(function(t){ try{ win.addItem(t); }catch(e){} });
+}
+
+async function stepQuotationScenarios(onProg){
+  curGroup = 'عرض السعر: حسابات وسيناريوهات';
+  var sb = await makeSandbox('index.html', { settle: 1800 });
+  var w = sb.win, d = w.document;
+  function errsSince(n){ return (w.__mtErr || []).slice(n).map(function(e){ return e.m; }); }
+  try{
+    if(typeof w.addQtyRow !== 'function'){ fail('تحميل عرض السعر', 'ما انحمّل بشكل سليم (addQtyRow غير موجود)'); return; }
+    w.addQtyRow(1000, 1000, 1, '', -1); w.addQtyRow(1200, 1400, 2, '', -1);
+    var e0 = w.__mtErr.length;
+    ok('تحميل عرض السعر بنسخة معزولة', 'انفتح بدون أخطاء' + (e0 ? ' (لكن ' + e0 + ' خطأ أثناء التحميل)' : ''));
+    if(e0) fail('أخطاء أثناء تحميل عرض السعر', w.__mtErr.slice(0, 3).map(function(x){ return x.m; }).join(' | '), { code: true });
+    /* 1) الحسابات الإماراتية */
+    function setRow(tr, w_, h_, q_, p_){
+      var set = function(sel, v){ var el = tr.querySelector(sel); if(el){ el.value = v; el.dispatchEvent(new w.Event('input', { bubbles: true })); el.dispatchEvent(new w.Event('blur')); } };
+      set('.w-input', w_); set('.h-input', h_); set('.qty-input', q_); set('.price', p_);
+    }
+    async function totalsCheck(label){
+      w.recalcSummary();
+      var rows = Array.prototype.slice.call(d.querySelectorAll('#qty-rows tr'));
+      var lineSum = 0;
+      rows.forEach(function(tr){ var lt = tr.querySelector('.line-total'); if(lt) lineSum += w.parseMoney(lt.value) || 0; });
+      lineSum = Math.round(lineSum * 100) / 100;
+      var tot = w.parseMoney(d.getElementById('sum-total').textContent);
+      var disc = w.parseMoney((d.getElementById('sum-discount').textContent || '0').replace('-', ''));
+      var vat = w.parseMoney(d.getElementById('sum-vat').textContent);
+      var grand = w.parseMoney(d.getElementById('sum-grand').textContent);
+      var hasVat = w.getBranchConfig(w.getCurrentBranch()).hasVat;
+      var expVat = hasVat ? Math.round((tot - disc) * 0.05 * 100) / 100 : 0;
+      var expGrand = Math.round((tot - disc + expVat) * 100) / 100;
+      var probs = [];
+      if(Math.abs(tot - lineSum) > 0.011) probs.push('الإجمالي ' + tot + ' ≠ مجموع السطور ' + lineSum);
+      if(Math.abs(vat - expVat) > 0.011) probs.push('الضريبة ' + vat + ' ≠ المتوقع ' + expVat);
+      if(Math.abs(grand - expGrand) > 0.011) probs.push('المجموع النهائي ' + grand + ' ≠ المتوقع ' + expGrand);
+      if(!isFinite(grand)) probs.push('المجموع النهائي غير رقمي');
+      var words = d.getElementById('sum-words').textContent;
+      if(NAN_RE.test(words)) probs.push('سطر التفقيط فيه NaN');
+      if(probs.length) fail(label, probs.join(' ; ')); else ok(label, 'إجمالي ' + tot + ' | خصم ' + disc + ' | ضريبة ' + vat + ' | نهائي ' + grand);
+    }
+    var trs = d.querySelectorAll('#qty-rows tr');
+    setRow(trs[0], '2000', '1500', '2', '350');
+    setRow(trs[1], '1250.5', '2100', '3', '420.75');
+    await totalsCheck('حساب الإمارات: بدون خصم');
+    var dp = d.getElementById('discount-pct'); dp.value = '10'; dp.dispatchEvent(new w.Event('input', { bubbles: true }));
+    await totalsCheck('حساب الإمارات: خصم 10%');
+    dp.value = '150'; dp.dispatchEvent(new w.Event('input', { bubbles: true }));
+    await totalsCheck('حساب الإمارات: خصم أكبر من المجموع (لازم ينقصّ لصفر)');
+    dp.value = ''; dp.dispatchEvent(new w.Event('input', { bubbles: true }));
+    setRow(trs[0], '0', '0', '1', '100'); await totalsCheck('حساب: مقاس صفر');
+    setRow(trs[0], '1+2', '3*', '1', 'abc'); await totalsCheck('حساب: مدخلات غير صالحة (لازم ما ينهار)');
+    setRow(trs[0], '999999', '999999', '9999', '99999'); await totalsCheck('حساب: أرقام ضخمة');
+    setRow(trs[0], '2000', '1500', '2', '350');
+    if(onProg) onProg(0.12);
+    /* 2) سوريا */
+    var br = d.getElementById('m-branch');
+    br.value = 'syria'; br.dispatchEvent(new w.Event('change', { bubbles: true })); await sleep(120);
+    ['usd', 'syp'].forEach(function(){});
+    var cur = d.getElementById('m-currency');
+    for(var ci = 0; ci < (cur ? cur.options.length : 0); ci++){
+      cur.selectedIndex = ci; cur.dispatchEvent(new w.Event('change', { bubbles: true })); await sleep(80);
+      await totalsCheck('حساب سوريا (' + cur.value + '): بدون ضريبة');
+      var vatRow = d.getElementById('vat-row');
+      if(vatRow && vatRow.offsetParent !== null) warn('سوريا: صف الضريبة ظاهر', 'لازم ما يظهر لفرع سوريا');
+    }
+    var specText = (d.getElementById('alum-spec-rows') || {}).innerText || '';
+    if(/الغرير|Ghurair/i.test(specText)) fail('سوريا: ذكر "الغرير"', 'ظاهر بالمواصفات رغم إنه ممنوع لفرع سوريا');
+    else ok('سوريا: بدون ذكر الغرير', 'تمام');
+    br.value = 'uae'; br.dispatchEvent(new w.Event('change', { bubbles: true })); await sleep(120);
+    await totalsCheck('الرجوع للإمارات');
+    if(onProg) onProg(0.25);
+    /* 3) حفظ/استرجاع */
+    try{
+      var before = { grand: d.getElementById('sum-grand').textContent, rows: d.querySelectorAll('#qty-rows tr').length, branch: br.value };
+      var snap = w.captureFullQuotationData();
+      var snapJson = JSON.stringify(snap);
+      w.resetAllNoConfirm(); await sleep(150);
+      w.applyFullQuotationData(JSON.parse(snapJson)); await sleep(200); w.recalcSummary();
+      var after = { grand: d.getElementById('sum-grand').textContent, rows: d.querySelectorAll('#qty-rows tr').length, branch: d.getElementById('m-branch').value };
+      if(before.grand === after.grand && before.rows === after.rows && before.branch === after.branch) ok('حفظ ثم استرجاع عرض السعر', 'الإجمالي والصفوف والفرع رجعوا مطابقين');
+      else fail('حفظ ثم استرجاع عرض السعر', 'قبل: ' + JSON.stringify(before) + ' بعد: ' + JSON.stringify(after));
+    }catch(e){ fail('حفظ ثم استرجاع عرض السعر', String(e && e.message || e), { code: true }); }
+    /* 4) المسودة بتخزين ممتلئ */
+    try{
+      var big = 'z'.repeat(150000);
+      for(var bi = 0; bi < 24; bi++) w.localStorage.setItem('merzona-design-items::S-Q-2600' + (10 + bi), JSON.stringify({ savedAt: new Date(2026, 0, 1 + bi).toISOString(), pad: big }));
+      var okSet = w.mzSafeSetItem('merzona-quotation-draft-v1', JSON.stringify({ savedAt: Date.now(), pad: 'd'.repeat(200000) }));
+      if(okSet) ok('حفظ المسودة والتخزين شبه ممتلئ', 'نجح بعد تنظيف القديم تلقائيًا'); else fail('حفظ المسودة والتخزين ممتلئ', 'فشل الحفظ حتى بعد التنظيف');
+    }catch(e){ fail('اختبار امتلاء التخزين', String(e && e.message || e), { code: true }); }
+    if(onProg) onProg(0.3);
+    /* 5) المصمم: كل نوع بند × مقاسات × (عرض/طباعة/3D/تصنيع/مشتريات) */
+    var types = ['window', 'door', 'slidingWindow', 'slidingDoor', 'foldingDoor', 'showerGlassDoor', 'handrail', 'mirror', 'room', 'gableRoof'];
+    var sizes = [[1000, 1000], [50, 50], [3000, 2400], [1, 1], [99999, 120], [1200, 99999]];
+    try{ w.openDesignerFromToolbar(); }catch(e){}
+    var ti = 0;
+    for(var t = 0; t < types.length; t++){
+      var type = types[t], badSz = [];
+      try{ w.addItem(type); }catch(e){ fail('إضافة بند ' + type, String(e && e.message || e), { code: true }); continue; }
+      for(var s = 0; s < sizes.length; s++){
+        var items = w.__getDesignItemsForExport__().items; var it = items[items.length - 1];
+        if(!it) continue;
+        if(type !== 'room' && type !== 'gableRoof' && type !== 'handrail'){ it.width = sizes[s][0]; it.height = sizes[s][1]; }
+        var ee = w.__mtErr.length;
+        try{ w.renderGallery(); }catch(e){ badSz.push('عرض ' + sizes[s].join('×') + ': ' + e.message); }
+        try{ w.open3DPreview(); var h3 = (d.getElementById('threeDGrid') || {}).innerHTML || ''; w.close3DPreview(); if(/NaN|undefined/.test(h3.replace(/data:[^"']*/g, ''))) badSz.push('3D ' + sizes[s].join('×') + ': NaN/undefined'); }catch(e){ badSz.push('3D ' + sizes[s].join('×') + ': ' + e.message); }
+        try{ w.preparePrint(); var sheet = (d.getElementById('printSheet') || {}).innerHTML || ''; d.body.classList.remove('wd-printing'); if(!sheet) badSz.push('طباعة ' + sizes[s].join('×') + ': ورقة الطباعة فاضية'); else if(/NaN|undefined|Infinity/.test(sheet.replace(/data:[^"']*/g, ''))) badSz.push('طباعة ' + sizes[s].join('×') + ': NaN/undefined'); }catch(e){ badSz.push('طباعة ' + sizes[s].join('×') + ': ' + e.message); }
+        try{ w.printMfgSizes(); d.body.classList.remove('wd-printing'); }catch(e){ badSz.push('مقاسات التصنيع ' + sizes[s].join('×') + ': ' + e.message); }
+        try{ var ps = w.__getPurchSummaries__(); if(/NaN|undefined|Infinity/.test(JSON.stringify(ps || {}))) badSz.push('مشتريات ' + sizes[s].join('×') + ': NaN'); }catch(e){ badSz.push('مشتريات ' + sizes[s].join('×') + ': ' + e.message); }
+        var ne = errsSince(ee); if(ne.length) badSz.push('أخطاء صامتة ' + sizes[s].join('×') + ': ' + ne.slice(0, 2).join(' | '));
+        await sleep(4);
+        if(type === 'room' || type === 'gableRoof' || type === 'handrail') break;
+      }
+      if(badSz.length) fail('المصمم: ' + type, badSz.slice(0, 4).join(' ; '), { code: true }); else ok('المصمم: ' + type, 'عرض + طباعة + 3D + تصنيع + مشتريات بـ' + (type === 'room' || type === 'gableRoof' || type === 'handrail' ? 1 : sizes.length) + ' مقاسات بدون مشاكل');
+      ti++; if(onProg) onProg(0.3 + 0.3 * ti / types.length);
+    }
+    /* 6) هيكل الطباعة (اللي سبّب مشكلة الثري دي) */
+    try{
+      w.open3DPreview();
+      var ov = d.getElementById('threeDOverlay'); var hiddenAnc = null;
+      for(var an = ov && ov.parentElement; an; an = an.parentElement){ if(an.id === 'wdOverlay'){ hiddenAnc = 'wdOverlay'; break; } }
+      if(hiddenAnc) fail('طباعة الثري دي', 'شاشة الثري دي داخل ' + hiddenAnc + ' والطباعة بتخفيها - الطباعة رح تطلع فاضية'); else ok('طباعة الثري دي: البنية', 'الشاشة خارج العناصر المخفية وقت الطباعة');
+      w.close3DPreview();
+      var css = ''; try{ Array.prototype.forEach.call(d.styleSheets, function(ss){ try{ Array.prototype.forEach.call(ss.cssRules, function(r){ css += r.cssText + '\n'; }); }catch(e){} }); }catch(e){}
+      ['wd-printing', 'combined-printing', 'three-d-printing'].forEach(function(cl){ if(css.indexOf(cl) === -1) fail('قواعد طباعة ' + cl, 'ما لقيتها بالـCSS'); });
+      var co = d.getElementById('cameraOverlay'); w.openCameraOverlay && (function(){ try{ w.openCameraOverlay(); }catch(e){} })(); await sleep(150);
+      var cOv = d.getElementById('cameraOverlay'); var camHidden = false;
+      for(var an2 = cOv && cOv.parentElement; an2; an2 = an2.parentElement){ if(an2.id === 'wdOverlay' && an2.style.display === 'none') camHidden = true; }
+      if(camHidden) fail('شاشة الكاميرا', 'داخل نافذة مخفية - ما رح تظهر'); else ok('شاشة الكاميرا: البنية', 'ظاهرة');
+      try{ w.closeCameraOverlay(); }catch(e){}
+    }catch(e){ fail('فحص بنية الطباعة', String(e && e.message || e), { code: true }); }
+    if(onProg) onProg(0.65);
+    /* 7) المرايا: كل الأشكال × خيارات */
+    try{
+      w.addItem('mirror'); var mit = w.__getDesignItemsForExport__().items.slice(-1)[0];
+      mit.width = 1200; mit.height = 800;
+      var shapes = Array.prototype.map.call(d.querySelectorAll('#mrShape option'), function(o){ return o.value; });
+      var orgs = Array.prototype.map.call(d.querySelectorAll('#mrOrganic option'), function(o){ return o.value; });
+      var badM = [];
+      for(var si = 0; si < shapes.length; si++){
+        try{ w.onMirrorField('mrShape', shapes[si]); }catch(e){ badM.push(shapes[si] + ': ' + e.message); continue; }
+        var opts = shapes[si] === 'organic' ? orgs : [null];
+        for(var oi = 0; oi < opts.length; oi++){
+          try{
+            if(opts[oi]) w.onMirrorField('mrOrganic', opts[oi]);
+            w.onMirrorField('mrEdge', 'bevel'); w.onMirrorField('mrLed', true);
+            var cur2 = w.getSelected(); var poly = w.__mirrorTest.mirrorPolygon(cur2);
+            var st = w.__mirrorTest.mirrorStats(cur2);
+            var tag = shapes[si] + (opts[oi] ? '/' + opts[oi] : '');
+            if(!poly || poly.length < 3) badM.push(tag + ': مضلع فاضي');
+            else if(poly.some(function(p){ return !isFinite(p[0]) || !isFinite(p[1]); })) badM.push(tag + ': إحداثيات غير رقمية');
+            else if(shapes[si] === 'organic' && geomPolyIntersections(poly) > 0) badM.push(tag + ': الحدود بتتقاطع مع نفسها');
+            if(st && (!isFinite(st.glassM2) || st.glassM2 <= 0)) badM.push(tag + ': مساحة غلط');
+            w.renderGallery();
+          }catch(e){ badM.push(shapes[si] + (opts[oi] ? '/' + opts[oi] : '') + ': ' + e.message); }
+        }
+        await sleep(3);
+        if(onProg) onProg(0.65 + 0.15 * (si + 1) / shapes.length);
+      }
+      if(badM.length) fail('المرايا: أشكال فيها مشاكل', badM.slice(0, 6).join(' ; '), { code: true }); else ok('المرايا: كل الأشكال (' + shapes.length + ' شكل + ' + orgs.length + ' شكل حر)', 'مضلعات سليمة، بدون تقاطع، وتتعرض');
+      /* خيارات إضافية */
+      var badO = [];
+      try{ w.onMirrorField('mrShape', 'rect'); w.onMirrorHoleAdd(); w.onMirrorHoleAdd(); w.onMirrorPieceAdd(); w.onMirrorField('mrShape', 'rounded'); w.onMirrorCorner && w.onMirrorCorner('tl', 'chamfer'); var c3 = w.getSelected(); w.preparePrint(); d.body.classList.remove('wd-printing'); w.open3DPreview(); var g3 = d.getElementById('threeDGrid').innerHTML; w.close3DPreview(); if(/NaN/.test(g3.replace(/data:[^"']*/g, ''))) badO.push('3D مرايا مركّبة NaN'); }catch(e){ badO.push('مرايا مركّبة: ' + e.message); }
+      if(badO.length) fail('المرايا: قطع متعددة + فتحات + زوايا', badO.join(' ; '), { code: true }); else ok('المرايا: قطع متعددة + فتحات + زوايا', 'طباعة + 3D سليمة');
+    }catch(e){ fail('اختبار المرايا', String(e && e.message || e), { code: true }); }
+    /* 8) رسم الشكل من صورة */
+    try{
+      var cv = d.createElement('canvas'); cv.width = 300; cv.height = 220; var cx = cv.getContext('2d');
+      cx.fillStyle = '#fff'; cx.fillRect(0, 0, 300, 220); cx.fillStyle = '#2a5a9a'; cx.beginPath(); cx.arc(110, 110, 70, 0, 6.3); cx.arc(190, 120, 60, 0, 6.3); cx.fill();
+      var blob = await new Promise(function(res){ cv.toBlob(res, 'image/png'); });
+      w.mztrOpen('img'); var inp = d.getElementById('mztrFile');
+      var dt = new w.DataTransfer(); dt.items.add(new w.File([blob], 'shape.png', { type: 'image/png' })); inp.files = dt.files; inp.dispatchEvent(new w.Event('change'));
+      await sleep(900);
+      var st2 = (d.getElementById('mztrStatus') || {}).textContent || '';
+      if(/عدد النقاط/.test(st2)){ w.mztrApply(); var np = (w.getSelected().mrPts || []).length; if(np >= 4) ok('رسم الشكل من صورة', 'استخرج ' + np + ' نقطة وطبّقها'); else fail('رسم الشكل من صورة', 'نقاط قليلة: ' + np); }
+      else fail('رسم الشكل من صورة', 'ما قدر يستخرج الشكل: ' + st2);
+      var ov2 = d.getElementById('mztrOv'); if(ov2) ov2.style.display = 'none';
+    }catch(e){ fail('رسم الشكل من صورة', String(e && e.message || e), { code: true }); }
+    var finalErrs = (w.__mtErr || []).slice(e0);
+    if(finalErrs.length){ var seen = {}; finalErrs.forEach(function(e){ seen[e.m] = (seen[e.m] || 0) + 1; }); fail('أخطاء برمجية صامتة أثناء السيناريوهات', Object.keys(seen).slice(0, 5).map(function(m){ return m + ' (×' + seen[m] + ')'; }).join(' | '), { code: true }); }
+    else ok('لا أخطاء برمجية صامتة', 'طول سيناريوهات عرض السعر والمصمم');
+  }finally{ sb.destroy(); }
+}
+
+async function stepQuotationSweep(onProg){
+  curGroup = 'ضغط كل أزرار عرض السعر والمصمم';
+  await interactionSweep('عرض السعر', 'index.html', { settle: 1800, onProg: onProg, batch: 35 }, quotationPrep);
+}
+
+/* ---------- المشتريات ---------- */
+async function stepProcurementSweep(onProg){
+  curGroup = 'المشتريات';
+  var sb = await makeSandbox('procurement.html', { settle: 1500 });
+  try{
+    var w = sb.win;
+    if(!w.document.querySelector('button,[onclick]')) fail('تحميل المشتريات', 'ما انحمّلت');
+    else ok('تحميل المشتريات بنسخة معزولة', (w.__mtErr.length ? w.__mtErr.length + ' خطأ' : 'بدون أخطاء'));
+    if(w.__mtErr.length) fail('أخطاء أثناء تحميل المشتريات', w.__mtErr.slice(0, 3).map(function(e){ return e.m; }).join(' | '), { code: true });
+    var tp = visibleTextProblems(w.document); if(tp.length) warn('المشتريات: نص غلط ظاهر', tp.join(' | '));
+  }finally{ sb.destroy(); }
+  await interactionSweep('المشتريات', 'procurement.html', { settle: 1500, onProg: onProg, batch: 40 });
+}
+
+/* ------------------------------ الإصلاحات الآمنة ------------------------------ */
+function takeBackup(){
+  var snap = {};
+  try{ for(var i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); if(/^merzona/.test(k) && k.indexOf('gtoken') === -1) snap[k] = localStorage.getItem(k); } }catch(e){}
+  MT.backup = { at: new Date().toISOString(), keys: Object.keys(snap).length, data: snap };
+}
+function fixLog(title, detail){ MT.fixes.push({ title: title, detail: detail || '' }); }
+
+async function stepFixes(){
+  curGroup = 'الإصلاح التلقائي';
+  var kinds = {}, keysCorrupt = [];
+  MT.results.forEach(function(r){ if(r.fixable && (r.status === 'fail' || r.status === 'warn')){ kinds[r.fixable] = true; if(r.fixable === 'corrupt' && r.key) keysCorrupt.push(r.key); } });
+  if(!Object.keys(kinds).length){ ok('الإصلاح التلقائي', 'ما في شي يحتاج إصلاح'); return; }
+  takeBackup();
+  info('نسخة أمان قبل الإصلاح', MT.backup.keys + ' مفتاح - بتقدر تنزّلها من التقرير');
+  if(kinds.refws && typeof cleanupAllRefWhitespace === 'function'){
+    try{ cleanupAllRefWhitespace(); if(typeof applyQuoteTotalOverridesToData === 'function') applyQuoteTotalOverridesToData(); fixLog('تنظيف المسافات الزايدة بالأرقام المرجعية', 'تم'); }catch(e){ fail('تعذّر تنظيف المراجع', e.message); }
+  }
+  if(kinds.storage && typeof dashStorageSweep === 'function'){
+    var before = 0; try{ for(var i = 0; i < localStorage.length; i++){ before += (localStorage.getItem(localStorage.key(i)) || '').length; } }catch(e){}
+    var removed = dashStorageSweep(12);
+    var after = 0; try{ for(var j = 0; j < localStorage.length; j++){ after += (localStorage.getItem(localStorage.key(j)) || '').length; } }catch(e){}
+    fixLog('تنظيف التصاميم المحلية القديمة', 'حُذفت ' + removed + ' نسخة مخبّأة (بقي آخر 12) - وفّرت ' + ((before - after) / 1048576).toFixed(2) + ' MB');
+  }
+  if(kinds.token){ try{ localStorage.removeItem('merzona_dash_gtoken_v1'); fixLog('مسح توكن جوجل المنتهي', 'بيتجدد لحاله'); }catch(e){} }
+  keysCorrupt.forEach(function(k){
+    try{
+      var raw = localStorage.getItem(k);
+      MT.backup.data['__corrupt__' + k] = raw;
+      localStorage.setItem(k, '{}');
+      fixLog('إصلاح بيانات تالفة: ' + k, 'اتصلّحت (النص التالف محفوظ بنسخة الأمان بالتقرير) - المزامنة ممكن تسترجع البيانات من درايف');
+    }catch(e){ fail('تعذّر إصلاح ' + k, e.message); }
+  });
+  if(kinds.syncid){ try{ localStorage.removeItem('merzona_sync_file_id'); if(typeof cachedSyncFileId !== 'undefined') cachedSyncFileId = null; fixLog('مسح معرّف ملف المزامنة القديم', 'رح يتنشأ/يتلاقى من جديد'); }catch(e){} }
+  if((kinds.sync || kinds.syncid || keysCorrupt.length) && typeof driveSyncPullAndMerge === 'function'){
+    try{
+      var okSync = await driveSyncPullAndMerge(true);
+      if(okSync){ try{ await driveSyncPushNow(); }catch(e){} fixLog('إعادة المزامنة مع درايف', 'سحب + دمج + رفع تمّ بنجاح'); }
+      else warn('إعادة المزامنة', 'ما نجحت - اضغط زر "مزامنة الفريق" وكمّل نافذة جوجل إذا طلبت منك');
+    }catch(e){ warn('إعادة المزامنة', String(e && e.message || e)); }
+  }
+  try{ if(typeof refreshVisibleView === 'function') refreshVisibleView(); }catch(e){}
+  /* إعادة التحقق */
+  var again = [];
+  var used = 0; try{ for(var q = 0; q < localStorage.length; q++){ used += (localStorage.getItem(localStorage.key(q)) || '').length; } }catch(e){}
+  ok('إعادة التحقق بعد الإصلاح', 'التخزين الآن ' + (used / 1048576).toFixed(2) + ' MB' + (MT.fixes.length ? ' - تمّ تنفيذ ' + MT.fixes.length + ' إصلاح' : ''));
+}
+
+/* ------------------------------ التشغيل ------------------------------ */
+async function runMaintenance(){
+  if(MT.running) return;
+  MT.running = true; MT.cancelled = false; MT.results = []; MT.fixes = []; MT.pct = 0; MT.report = null; MT.startedAt = Date.now(); MT.backup = null;
+  plan = [
+    { name: 'فحص البيئة والتخزين', w: 3, fn: stepEnvironment },
+    { name: 'فحص النسخ والملفات', w: 5, fn: stepVersions },
+    { name: 'فحص سلامة بياناتك', w: 6, fn: stepDataIntegrity },
+    { name: 'فحص السيرفر وجوجل درايف والمزامنة', w: 9, fn: stepServer },
+    { name: 'تجربة الداشبورد (نسخة معزولة)', w: 8, fn: stepDashboardSandbox },
+    { name: 'ضغط كل أزرار الداشبورد', w: 14, fn: stepDashboardSweep, prog: true },
+    { name: 'سيناريوهات عرض السعر والمصمم والمرايا', w: 22, fn: stepQuotationScenarios, prog: true },
+    { name: 'ضغط كل أزرار عرض السعر والمصمم', w: 18, fn: stepQuotationSweep, prog: true },
+    { name: 'فحص المشتريات وضغط أزرارها', w: 8, fn: stepProcurementSweep, prog: true },
+    { name: 'الإصلاح التلقائي والتحقق', w: 7, fn: stepFixes },
+  ];
+  totalW = plan.reduce(function(s, p){ return s + p.w; }, 0); doneW = 0;
+  paintProgress(); renderPanel();
+  for(var i = 0; i < plan.length && !MT.cancelled; i++){
+    var st = plan[i]; MT.stepName = st.name; curW = st.w; curGroup = st.name; setProgress(0);
+    var t0 = Date.now(), nBefore = MT.results.length;
+    try{ await st.fn(function(f){ setProgress(f); }); }
+    catch(e){ fail(st.name, 'توقفت الخطوة بخطأ غير متوقع: ' + (e && e.message || e), { code: true }); }
+    doneW += st.w; setProgress(0);
+    st.ms = Date.now() - t0; st.count = MT.results.length - nBefore;
+    await sleep(40);
+    renderPanel(true);
+  }
+  MT.finishedAt = Date.now(); MT.running = false; MT.pct = 100; MT.stepName = '';
+  var c = { ok: 0, warn: 0, fail: 0, info: 0 }; MT.results.forEach(function(r){ c[r.status] = (c[r.status] || 0) + 1; });
+  MT.report = { at: MT.finishedAt, ms: MT.finishedAt - MT.startedAt, ok: c.ok, warn: c.warn, fail: c.fail, info: c.info, fixed: MT.fixes.length, steps: plan.map(function(p){ return { n: p.name, ms: p.ms, c: p.count }; }) };
+  try{
+    var slim = { at: MT.report.at, ok: c.ok, warn: c.warn, fail: c.fail, fixed: MT.fixes.length, top: MT.results.filter(function(r){ return r.status === 'fail' || r.status === 'warn'; }).slice(0, 25).map(function(r){ return [r.status, r.title, String(r.detail).slice(0, 180)]; }) };
+    var payload = JSON.stringify(slim);
+    if(typeof dashSafeSetItem === 'function') dashSafeSetItem(LAST_KEY, payload); else localStorage.setItem(LAST_KEY, payload);
+  }catch(e){}
+  paintProgress(); renderPanel();
+  var toast = '🛠 انتهت الصيانة: ' + c.fail + ' مشكلة، ' + c.warn + ' تنبيه، ' + MT.fixes.length + ' إصلاح تلقائي - اضغط زر الصيانة للتقرير';
+  try{ if(typeof showToast === 'function') showToast(toast); else showMaintToast(toast); }catch(e){ showMaintToast(toast); }
+}
+function showMaintToast(msg){
+  var t = document.createElement('div'); t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:100001;background:#1d2b3a;color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;max-width:420px;box-shadow:0 4px 18px rgba(0,0,0,.3);direction:rtl;';
+  document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 9000);
+}
+
+/* ------------------------------ التقرير ------------------------------ */
+function reportText(){
+  var L = [];
+  var d = new Date(MT.finishedAt || Date.now());
+  L.push('تقرير صيانة نظام ميرزونا — ' + d.toLocaleString('en-GB'));
+  if(MT.report) L.push('النتيجة: ' + MT.report.ok + ' سليم، ' + MT.report.warn + ' تنبيه، ' + MT.report.fail + ' مشكلة، ' + MT.report.fixed + ' إصلاح تلقائي — المدة ' + Math.round(MT.report.ms / 1000) + ' ثانية');
+  L.push('');
+  if(MT.fixes.length){ L.push('== ما تم إصلاحه تلقائيًا =='); MT.fixes.forEach(function(f){ L.push('✔ ' + f.title + (f.detail ? ' — ' + f.detail : '')); }); L.push(''); }
+  var probs = MT.results.filter(function(r){ return r.status === 'fail'; });
+  var warns = MT.results.filter(function(r){ return r.status === 'warn'; });
+  if(probs.length){ L.push('== مشاكل =='); probs.forEach(function(r){ L.push('✖ [' + r.group + '] ' + r.title + (r.detail ? ' — ' + r.detail : '') + (r.code ? '   (خطأ برمجي: بدو تعديل بالكود)' : '')); }); L.push(''); }
+  if(warns.length){ L.push('== تنبيهات =='); warns.forEach(function(r){ L.push('⚠ [' + r.group + '] ' + r.title + (r.detail ? ' — ' + r.detail : '')); }); L.push(''); }
+  L.push('== كل الفحوصات =='); MT.results.forEach(function(r){ L.push((r.status === 'ok' ? '✓' : r.status === 'fail' ? '✖' : r.status === 'warn' ? '⚠' : 'ℹ') + ' [' + r.group + '] ' + r.title + (r.detail ? ' — ' + r.detail : '')); });
+  return L.join('\n');
+}
+function ensurePanel(){
+  var p = document.getElementById('maintPanel'); if(p) return p;
+  p = document.createElement('div'); p.id = 'maintPanel'; p.dir = 'rtl';
+  p.style.cssText = 'position:fixed;top:70px;left:14px;width:min(460px,calc(100vw - 28px));max-height:calc(100vh - 100px);z-index:100000;background:var(--panel,#fff);color:var(--main,#222);border:1px solid var(--line,#ccd);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.28);display:none;flex-direction:column;font-size:13px;';
+  p.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line,#ddd);"><b style="flex:1;">🛠 الصيانة الشاملة</b><span id="maintPanelPct" style="font-weight:700;"></span><button id="maintPanelClose" style="border:0;background:transparent;cursor:pointer;font-size:16px;">✕</button></div>' +
+    '<div style="height:6px;background:var(--line,#e4e7ec);"><div id="maintPanelFill" style="height:100%;width:0;background:var(--aux1,#2b6f93);transition:width .3s;"></div></div>' +
+    '<div id="maintPanelStep" style="padding:6px 12px;color:var(--muted,#667);font-size:12px;min-height:16px;"></div>' +
+    '<div id="maintPanelBody" style="padding:6px 12px 12px;overflow:auto;flex:1;"></div>' +
+    '<div id="maintPanelBtns" style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--line,#ddd);"></div>';
+  document.body.appendChild(p);
+  p.querySelector('#maintPanelClose').onclick = function(){ p.style.display = 'none'; };
+  return p;
+}
+function renderPanel(partial){
+  var p = ensurePanel();
+  var body = p.querySelector('#maintPanelBody'), btns = p.querySelector('#maintPanelBtns');
+  var h = '';
+  if(MT.running){
+    h += '<p style="margin:6px 0;">الصيانة شغّالة بالخلفية وتقدر تكمّل شغلك عادي. الفحوصات الخطرة بتصير بنسخ معزولة ما بتلمس بياناتك الحقيقية.</p>';
+    if(plan.length) h += '<ul style="margin:6px 0;padding:0 16px;">' + plan.map(function(s, i){ var done = s.ms != null; return '<li style="color:' + (done ? 'var(--ok,#2e7d32)' : 'inherit') + ';">' + (done ? '✓ ' : (s.name === MT.stepName ? '⏳ ' : '• ')) + esc(s.name) + '</li>'; }).join('') + '</ul>';
+  } else if(MT.report){
+    var r = MT.report;
+    h += '<div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;">' +
+      '<span style="padding:4px 10px;border-radius:99px;background:#e8f5e9;color:#1b5e20;">✓ ' + r.ok + ' سليم</span>' +
+      '<span style="padding:4px 10px;border-radius:99px;background:#fff8e1;color:#8a5a00;">⚠ ' + r.warn + ' تنبيه</span>' +
+      '<span style="padding:4px 10px;border-radius:99px;background:#ffebee;color:#b71c1c;">✖ ' + r.fail + ' مشكلة</span>' +
+      '<span style="padding:4px 10px;border-radius:99px;background:#e3f2fd;color:#0d47a1;">🔧 ' + r.fixed + ' إصلاح</span></div>' +
+      '<div style="color:var(--muted,#667);font-size:12px;margin-bottom:6px;">انتهت ' + new Date(r.at).toLocaleString('en-GB') + ' — استغرقت ' + Math.round(r.ms / 1000) + ' ثانية</div>';
+    function section(title, arr, color, mapper){ if(!arr.length) return ''; return '<h4 style="margin:12px 0 4px;color:' + color + ';">' + title + ' (' + arr.length + ')</h4>' + arr.map(mapper).join(''); }
+    var row = function(r2, c){ return '<div style="padding:6px 8px;margin:3px 0;border-radius:8px;border-inline-start:3px solid ' + c + ';background:rgba(0,0,0,.035);"><div style="font-weight:600;">' + esc(r2.title) + '</div>' + (r2.detail ? '<div style="font-size:12px;color:var(--muted,#556);word-break:break-word;">' + esc(r2.detail) + '</div>' : '') + '<div style="font-size:11px;color:var(--muted,#889);">' + esc(r2.group) + (r2.code ? ' — خطأ برمجي (لازم تعديل بالكود)' : '') + '</div></div>'; };
+    h += section('✔ ما تم إصلاحه تلقائيًا', MT.fixes, '#1565c0', function(f){ return '<div style="padding:6px 8px;margin:3px 0;border-radius:8px;border-inline-start:3px solid #1565c0;background:rgba(21,101,192,.07);"><b>' + esc(f.title) + '</b><div style="font-size:12px;">' + esc(f.detail) + '</div></div>'; });
+    h += section('✖ مشاكل', MT.results.filter(function(x){ return x.status === 'fail'; }), '#c62828', function(x){ return row(x, '#c62828'); });
+    h += section('⚠ تنبيهات', MT.results.filter(function(x){ return x.status === 'warn'; }), '#b26a00', function(x){ return row(x, '#e0a100'); });
+    var oks = MT.results.filter(function(x){ return x.status === 'ok' || x.status === 'info'; });
+    h += '<details style="margin-top:10px;"><summary style="cursor:pointer;font-weight:600;color:#2e7d32;">✓ كل الفحوصات السليمة (' + oks.length + ')</summary>' + oks.map(function(x){ return '<div style="padding:3px 6px;font-size:12px;">' + (x.status === 'ok' ? '✓ ' : 'ℹ ') + '<b>' + esc(x.title) + '</b>' + (x.detail ? ' — ' + esc(x.detail) : '') + '</div>'; }).join('') + '</details>';
+    if(MT.results.some(function(x){ return x.code; })) h += '<p style="margin-top:10px;padding:8px;border-radius:8px;background:#fff3e0;font-size:12px;">الأخطاء المعلّمة "خطأ برمجي" ما بيقدر الزر يصلحها لحاله لأنها بالكود نفسه - نزّل التقرير وابعته لي وبصلحها.</p>';
+  } else {
+    var last = null; try{ last = JSON.parse(lsGet(LAST_KEY) || 'null'); }catch(e){}
+    h += '<p>اضغط "ابدأ الصيانة" وبيشتغل بالخلفية بدون ما يوقف شغلك.</p>';
+    if(last) h += '<p style="color:var(--muted,#667);font-size:12px;">آخر صيانة: ' + new Date(last.at).toLocaleString('en-GB') + ' — ' + last.fail + ' مشكلة، ' + last.warn + ' تنبيه، ' + last.fixed + ' إصلاح.</p>';
+  }
+  body.innerHTML = h;
+  btns.innerHTML = '';
+  function btn(label, fn, primary){ var b = document.createElement('button'); b.textContent = label; b.className = 'export-btn'; b.style.cssText = 'padding:6px 12px;'; b.onclick = fn; btns.appendChild(b); return b; }
+  if(MT.running) btn('⏹ إيقاف', function(){ MT.cancelled = true; });
+  else {
+    btn(MT.report ? '🔁 إعادة الصيانة' : '▶ ابدأ الصيانة', function(){ runMaintenance(); });
+    if(MT.report){
+      btn('⬇ تنزيل التقرير', function(){ download('merzona-maintenance-report-' + new Date().toISOString().slice(0, 10) + '.txt', reportText(), 'text/plain'); });
+      btn('📋 نسخ', function(){ try{ navigator.clipboard.writeText(reportText()); showMaintToast('انتسخ التقرير'); }catch(e){ showMaintToast('تعذّر النسخ'); } });
+      if(MT.backup) btn('💾 نسخة أمان (قبل الإصلاح)', function(){ download('merzona-safety-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(MT.backup), 'application/json'); });
+    }
+  }
+  paintProgress();
+}
+function download(name, text, type){
+  var blob = new Blob([text], { type: (type || 'text/plain') + ';charset=utf-8' }); var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+}
+
+/* ------------------------------ ربط الواجهة ------------------------------ */
+function init(){
+  var pill = document.getElementById('maintTabBtn'); if(!pill) return;
+  if(!document.getElementById('maintBar')){
+    var bar = document.createElement('div'); bar.id = 'maintBar'; bar.style.cssText = 'position:fixed;top:0;left:0;right:0;height:3px;z-index:100002;display:none;pointer-events:none;background:transparent;';
+    bar.innerHTML = '<div style="height:100%;width:0;background:#2b6f93;transition:width .3s;"></div>'; document.body.appendChild(bar);
+  }
+  pill.addEventListener('click', function(){
+    var p = ensurePanel();
+    if(p.style.display === 'flex' && !MT.running){ p.style.display = 'none'; return; }
+    p.style.display = 'flex'; renderPanel();
+    if(!MT.running && !MT.report){ runMaintenance(); }
+  });
+  paintProgress();
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+window.mzRunMaintenance = runMaintenance;
+})();
+
+</script>
 </body></html>

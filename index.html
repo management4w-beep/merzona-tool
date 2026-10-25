@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-22.1';
+  var CURRENT_VERSION = '2026-10-25.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -1751,7 +1751,7 @@
     <button onclick="resetAll()">Reset form</button>
     <button class="mode-switch-btn" onclick="showModeChooser()">📱💻 Switch layout</button>
     <button onclick="toggleItemsManager()">🗂️ Manage Items</button>
-    <button onclick="mzRestoreLocalDraft()" title="شبكة أمان: بيرجّع آخر نسخة انحفظت تلقائيًا بهالمتصفح (لو الصفحة تسكرت أو تعلقت قبل ما تحفظ) - بدون أي نافذة مزعجة تظهر لحالها">🛟 استرجاع آخر مسودة محلية</button>
+    <button onclick="mzRestoreLocalDraft()" title="شبكة أمان: بيرجّع آخر نسخة مؤقتة من هاد التبويب (لو الصفحة تعلقت/اتحدّثت قبل ما تحفظ). المسودات الفعلية على جوجل درايف - لوحة التحكم > المسودات والتصاميم">🛟 استرجاع آخر نسخة مؤقتة</button>
     <button onclick="mzRunSelfCheck()" title="فحص ذاتي للعرض المفتوح: بيتأكد من الحسابات والأزرار والمواصفات والدفعات والتكرار - قراءة فقط، ما بيغيّر ولا شي">🩺 فحص النظام</button>
     <button onclick="mergeInAnotherQuotation()" title="بيجيب بيانات عرض سعر تاني محفوظ بجوجل درايف (برقمه المرجعي) وبيضيف كل بنوده ومواصفاته فوق هاد العرض المفتوح حاليًا، ليصير مجموع واحد للاثنين سوا">🔗 دمج عرض سعر تاني بهاد العرض</button>
     <button onclick="openVersionHistoryPanel()" title="بيعرض كل النسخ القديمة المحفوظة تلقائيًا لهاد العرض (من كل مرة ضغطتي فيها ☁️ حفظ لجوجل درايف) - فيك تشوفي شو تغيّر بين نسخة ونسخة وترجعي لأي وحدة منهم">🕘 سجل النسخ السابقة</button>
@@ -4628,23 +4628,73 @@ function saveDraftFromSnapshot(snapJson){
     const withTimestamp = '{"savedAt":' + Date.now() + ',' + snapJson.slice(1);
     // 🛠️ 2026-10-08 (اختبار غريب): بعد ريلود/انهيار الصفحة الفاضية الجديدة كانت تكتب لقطتها الفاضية فوق
     // المسودة الحقيقية خلال ثواني - فتضيع نهائيًا. هلق ما منكتب لقطة فاضية فوق مسودة فيها شغل فعلي.
+    // 🆕 2026-10-25 (طلب حمدي): المسودات ما بتنحفظ بالمتصفح بشكل دائم - مكانها جوجل درايف (_Drafts) وبتتفرّغ
+    // أسبوعيًا لسلة محذوفات قابلة للاسترجاع (شوف الداشبورد). هون بس نسخة مؤقتة بـsessionStorage (بتروح لما
+    // التبويب ينسكر) لحماية العمل من ريلود/تعليق الصفحة، + حفظ تلقائي صامت على الدرايف.
     try{
-      const prevRaw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      const prevRaw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
       if(prevRaw && !isDraftMeaningful(JSON.parse(snapJson)) && isDraftMeaningful(JSON.parse(prevRaw))) return;
     }catch(e){}
-    mzSafeSetItem(DRAFT_STORAGE_KEY, withTimestamp);
-  }catch(e){ console.warn('[مسودة محلية] تعذّر الحفظ:', e); }
+    try{ sessionStorage.setItem(DRAFT_STORAGE_KEY, withTimestamp); }catch(e){}
+    mzScheduleDriveAutosave();
+  }catch(e){ console.warn('[مسودة مؤقتة] تعذّر الحفظ:', e); }
 }
 function clearDraft(){
-  try{ localStorage.removeItem(DRAFT_STORAGE_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(DRAFT_STORAGE_KEY); }catch(e){}
+  // (مفتاح localStorage القديم ما منمسحه هون - mzMigrateLegacyLocalDraft بتنقله لدرايف أول، وبعدين بتمسحه)
 }
+/* ---- حفظ تلقائي صامت للمسودة على جوجل درايف (بدل المتصفح) ---- */
+var MZ_AUTOSAVE_DELAY_MS = 45000;
+var __mzAutoTimer = null, __mzAutoBusy = false, __mzAutoLastToast = 0;
+function mzScheduleDriveAutosave(){
+  try{
+    if(__mzAutoTimer) clearTimeout(__mzAutoTimer);
+    __mzAutoTimer = setTimeout(mzRunDriveAutosave, MZ_AUTOSAVE_DELAY_MS);
+  }catch(e){}
+}
+async function mzRunDriveAutosave(){
+  __mzAutoTimer = null;
+  if(__mzAutoBusy) { mzScheduleDriveAutosave(); return; }
+  try{
+    if(!window.__mzIsDirty || !window.__mzIsDirty()) return;
+    if(window.__mzDriveAutosaveDisabled) return;
+    if(!isDraftMeaningful(captureFullQuotationData())) return;
+    __mzAutoBusy = true;
+    const ok = await saveDraftToDrive(null, { silent: true, autosave: true });
+    window.__mzLastAutosave = { at: Date.now(), ok: !!ok };
+  }catch(e){ console.warn('[حفظ تلقائي للمسودة]', e); }
+  finally{ __mzAutoBusy = false; }
+}
+window.mzRunDriveAutosave = mzRunDriveAutosave;
+/* نقل أي مسودة قديمة كانت محفوظة بالمتصفح (localStorage) لجوجل درايف مرة وحدة، وبعدين مسحها من المتصفح */
+async function mzMigrateLegacyLocalDraft(){
+  let raw = null;
+  try{ raw = localStorage.getItem(DRAFT_STORAGE_KEY); }catch(e){}
+  if(!raw) return;
+  let d = null; try{ d = JSON.parse(raw); }catch(e){}
+  if(!d || !isDraftMeaningful(d)){ try{ localStorage.removeItem(DRAFT_STORAGE_KEY); }catch(e){} return; }
+  try{
+    const token = await getGoogleAccessToken(true);
+    const copy = JSON.parse(JSON.stringify(d)); const savedAt = copy.savedAt || Date.now(); delete copy.savedAt;
+    const refRaw = (copy.fields && copy.fields['m-ref']) || '';
+    const client = (copy.fields && copy.fields['m-client']) || '';
+    const branch = getBranchFromRef(refRaw);
+    const folder = await findOrCreateDriveFolder('_Drafts', getDriveRootFolderIdForBranch(branch), token);
+    const id = generateDraftId(); copy.draftId = id;
+    await saveJsonToDriveFolder(id + '.json', { schema:'merzona-draft-v1', draftId:id, label:(refRaw || client || 'مسودة قديمة من المتصفح'), ref:refRaw||null, client:client||null, branch, savedAt, data:copy }, folder, token);
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    window.__mzMigratedLegacyDraft = true;
+    try{ showMerzonaToast('✅ نقلنا مسودة قديمة كانت محفوظة بالمتصفح لجوجل درايف (تبويب المسودات بلوحة التحكم).', true); }catch(e){}
+  }catch(e){ console.warn('[نقل المسودة القديمة] بينعاد لاحقًا:', e && e.message); }
+}
+setTimeout(mzMigrateLegacyLocalDraft, 8000);
 
 // 🛟 2026-10-08: نافذة الاسترجاع التلقائي معطّلة بطلب حمدي (مزعجة)، بس المسودة المحلية لسا بتنحفظ بالخلفية
 // ومحد كان يقراها. هاد زر يدوي (بدون أي ظهور تلقائي) يرجّعها لو انسكرت/تعلّقت الصفحة قبل الحفظ.
 function mzRestoreLocalDraft(){
   let d = null;
-  try{ d = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) || 'null'); }catch(e){}
-  if(!d || !isDraftMeaningful(d)){ alert('ما في مسودة محلية محفوظة بهالمتصفح (أو فاضية).'); return; }
+  try{ d = JSON.parse(sessionStorage.getItem(DRAFT_STORAGE_KEY) || 'null'); }catch(e){}
+  if(!d || !isDraftMeaningful(d)){ alert('ما في نسخة مؤقتة بهالتبويب. المسودات المحفوظة مكانها جوجل درايف - افتحها من تبويب "المسودات والتصاميم" بلوحة التحكم (وإذا انحذفت بالتفريغ الأسبوعي ارجعها من "🗑 سلة المحذوفات" هناك).'); return; }
   const when = d.savedAt ? new Date(d.savedAt).toLocaleString('ar') : 'غير معروف';
   const who = ((d.fields||{})['m-client'] || '').trim() || 'بدون اسم زبون';
   const ref = ((d.fields||{})['m-ref'] || '').trim();
@@ -6263,7 +6313,10 @@ async function saveDraftToDrive(evt, opts){
     }
   }catch(e){
     console.error('[حفظ كمسودة] فشل:', e);
-    if(silent){ showMerzonaToast('⚠️ ما انحفظت المسودة المرتبطة على الدرايف (' + ((e && e.message) || e) + ') — اضغط "💾 حفظ كمسودة" يدويًا.', false); }
+    if(silent && opts && opts.autosave){
+      if(Date.now() - __mzAutoLastToast > 600000){ __mzAutoLastToast = Date.now(); showMerzonaToast('⚠️ الحفظ التلقائي للمسودة على جوجل درايف فشل (' + ((e && e.message) || e) + ') — اضغط "💾 حفظ كمسودة" يدويًا. المسودة ما عاد إلها نسخة دائمة بالمتصفح.', false); }
+    }
+    else if(silent){ showMerzonaToast('⚠️ ما انحفظت المسودة المرتبطة على الدرايف (' + ((e && e.message) || e) + ') — اضغط "💾 حفظ كمسودة" يدويًا.', false); }
     else alert('تعذّر حفظ المسودة: ' + ((e && e.message) || e));
     if(btn){ btn.textContent = originalLabel; btn.disabled = false; }
     return false;
