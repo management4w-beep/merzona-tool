@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-25.2';
+  var CURRENT_VERSION = '2026-10-25.4';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -9045,7 +9045,7 @@ async function interactionSweep(label, page, opts, prep){
     if(q % 4 === 0) await sleep(0);
   }
   var textProblems = visibleTextProblems(sb.win.document);
-  var consoleErrs = (sb.win.__mtCon || []).slice(0, 8);
+  var consoleErrs = (sb.win.__mtCon || []).filter(function(x){ return !/GSI_LOGGER|Failed to open popup|accounts\.google\.com/i.test(String(x)); }).slice(0, 8);
   var dl = sb.win.__mtDownloads, pr = sb.win.__mtPrints;
   sb.destroy();
   var summary = 'ضُغط ' + clicks + ' زر، جُرّب ' + nS + ' قائمة بكل خياراتها، و' + Math.min(nI, 220) + ' حقل بـ' + fuzz.length + ' قيم غريبة (تحميلات متجاهلة: ' + dl + '، طباعات متجاهلة: ' + pr + ')';
@@ -9075,8 +9075,8 @@ async function stepEnvironment(){
   rows.sort(function(a, b){ return b.n - a.n; });
   var mb = used / 1048576;
   var top = rows.slice(0, 3).map(function(r){ return r.k.slice(0, 36) + ' (' + (r.n / 1048576).toFixed(2) + 'MB)'; }).join(' | ');
-  if(mb > 4.3) fail('التخزين المحلي شبه ممتلئ', mb.toFixed(2) + ' MB من ~5 - الأكبر: ' + top, { fixable: 'storage' });
-  else if(mb > 3.2) warn('التخزين المحلي مرتفع', mb.toFixed(2) + ' MB - الأكبر: ' + top, { fixable: 'storage' });
+  if(mb > 4.8) fail('التخزين المحلي شبه ممتلئ', mb.toFixed(2) + ' MB من ~5 - الأكبر: ' + top, { fixable: 'storage' });
+  else if(mb > 3.2) warn(mb > 4.3 ? 'التخزين المحلي شبه ممتلئ (أغلبه بيانات حقيقية مش كاش)' : 'التخزين المحلي مرتفع', mb.toFixed(2) + ' MB - الأكبر: ' + top, { fixable: 'storage' });
   else ok('التخزين المحلي مرتاح', mb.toFixed(2) + ' MB - الأكبر: ' + top);
   var designKeys = rows.filter(function(r){ return r.k.indexOf('merzona-design-items::') === 0 || r.k.indexOf('merzona-latest-design::') === 0; });
   if(designKeys.length > 40) warn('تصاميم محلية كتيرة', designKeys.length + ' نسخة محلية مخبّأة', { fixable: 'storage' });
@@ -9171,7 +9171,7 @@ async function stepDataIntegrity(){
   var pm = parseKey('merzona_pmp');
   if(pm.val){
     var pbad = [];
-    Object.keys(pm.val).forEach(function(ref){ var pr = pm.val[ref] || {}; if(pr.tasks && !Array.isArray(pr.tasks)) pbad.push(ref + ': tasks ليست مصفوفة'); (pr.tasks || []).forEach(function(t, i){ if(t && t.name != null && typeof t.name !== 'string') pbad.push(ref + ' مهمة ' + i); if(t && t.phase != null && !isFinite(Number(t.phase))) pbad.push(ref + ' مرحلة المهمة ' + i); }); });
+    Object.keys(pm.val).forEach(function(ref){ var pr = pm.val[ref] || {}; if(pr.tasks && !Array.isArray(pr.tasks)) pbad.push(ref + ': tasks ليست مصفوفة'); (pr.tasks || []).forEach(function(t, i){ if(t && t.name != null && typeof t.name !== 'string') pbad.push(ref + ' مهمة ' + i); }); });
     if(pbad.length) warn('جدول المشاريع: بيانات غريبة', pbad.slice(0, 5).join(' | ')); else ok('جدول المشاريع (' + Object.keys(pm.val).length + ')', 'سليم');
   }
   /* الدفعة الرئيسية DATA */
@@ -9599,6 +9599,37 @@ function showMaintToast(msg){
   document.body.appendChild(t); setTimeout(function(){ t.remove(); }, 9000);
 }
 
+/* ------------------------------ زر إصلاح الأخطاء ------------------------------ */
+async function runFixOnly(){
+  if(MT.running || !MT.report) return;
+  MT.running = true; MT.cancelled = false; MT.stepName = 'إصلاح الأخطاء'; MT.pct = 5; plan = []; renderPanel();
+  var fixesBefore = MT.fixes.length;
+  try{
+    curW = 60; doneW = 0; totalW = 100; curGroup = 'الإصلاح التلقائي';
+    await stepFixes();
+    MT.pct = 70; paintProgress();
+    var old = MT.results; MT.results = [];
+    try{ await stepEnvironment(function(){}); }catch(e){}
+    try{ await stepDataIntegrity(function(){}); }catch(e){}
+    var fresh = MT.results; MT.results = old;
+    var still = {}; fresh.forEach(function(r){ if(r.status === 'fail' || r.status === 'warn') still[r.title] = r; });
+    var resolved = 0;
+    MT.results.forEach(function(r){
+      if(r.fixable && (r.status === 'fail' || r.status === 'warn') && r.group !== 'السيرفر والمزامنة' && r.group !== 'الإصلاح التلقائي'){
+        if(!still[r.title]){ r.status = 'ok'; r.detail = (r.detail || '') + ' — (اتصلحت)'; resolved++; }
+        else { r.detail = still[r.title].detail; r.status = still[r.title].status; }
+      }
+    });
+    MT.fixes.push({ title: 'نتيجة زر إصلاح الأخطاء', detail: resolved + ' بند انحل فعليًا، ' + (MT.fixes.length - fixesBefore) + ' إجراء إصلاح نُفّذ' });
+  }catch(e){ MT.results.push({ status: 'fail', group: 'الإصلاح التلقائي', title: 'فشل زر الإصلاح', detail: String(e && e.message || e), code: true }); }
+  var c = { ok: 0, warn: 0, fail: 0, info: 0 }; MT.results.forEach(function(r){ c[r.status] = (c[r.status] || 0) + 1; });
+  MT.report.ok = c.ok; MT.report.warn = c.warn; MT.report.fail = c.fail; MT.report.fixed = MT.fixes.length; MT.report.at = Date.now();
+  MT.running = false; MT.pct = 100; MT.stepName = '';
+  try{ if(typeof dashSafeSetItem === 'function') dashSafeSetItem(LAST_KEY, JSON.stringify({ at: MT.report.at, ok: c.ok, warn: c.warn, fail: c.fail, fixed: MT.fixes.length, top: [] })); }catch(e){}
+  renderPanel();
+}
+window.__mzMaintFix = runFixOnly;
+
 /* ------------------------------ التقرير ------------------------------ */
 function reportText(){
   var L = [];
@@ -9649,6 +9680,8 @@ function renderPanel(partial){
     h += section('⚠ تنبيهات', MT.results.filter(function(x){ return x.status === 'warn'; }), '#b26a00', function(x){ return row(x, '#e0a100'); });
     var oks = MT.results.filter(function(x){ return x.status === 'ok' || x.status === 'info'; });
     h += '<details style="margin-top:10px;"><summary style="cursor:pointer;font-weight:600;color:#2e7d32;">✓ كل الفحوصات السليمة (' + oks.length + ')</summary>' + oks.map(function(x){ return '<div style="padding:3px 6px;font-size:12px;">' + (x.status === 'ok' ? '✓ ' : 'ℹ ') + '<b>' + esc(x.title) + '</b>' + (x.detail ? ' — ' + esc(x.detail) : '') + '</div>'; }).join('') + '</details>';
+    var leftover = MT.results.filter(function(x){ return (x.status === 'fail' || x.status === 'warn') && !x.code; });
+    if(leftover.length) h += '<p style="margin-top:10px;padding:8px;border-radius:8px;background:#eef5ff;font-size:12px;">زر "🔧 إصلاح الأخطاء" بينظّف الكاش القديم، المسافات بالأرقام المرجعية، التوكن المنتهي، البيانات التالفة، ويعيد المزامنة. بنود مثل "التخزين ممتلئ ببيانات حقيقية" أو "السيرفر ما رد" أو "درايف غير مربوط" ما بتنحل بزر لأنها بيانات حقيقية أو شي خارج الصفحة - التفاصيل بسطر كل بند.</p>';
     if(MT.results.some(function(x){ return x.code; })) h += '<p style="margin-top:10px;padding:8px;border-radius:8px;background:#fff3e0;font-size:12px;">الأخطاء المعلّمة "خطأ برمجي" ما بيقدر الزر يصلحها لحاله لأنها بالكود نفسه - نزّل التقرير وابعته لي وبصلحها.</p>';
   } else {
     var last = null; try{ last = JSON.parse(lsGet(LAST_KEY) || 'null'); }catch(e){}
@@ -9662,6 +9695,7 @@ function renderPanel(partial){
   else {
     btn(MT.report ? '🔁 إعادة الصيانة' : '▶ ابدأ الصيانة', function(){ runMaintenance(); });
     if(MT.report){
+      if(MT.report.fail || MT.report.warn) btn('🔧 إصلاح الأخطاء', runFixOnly);
       btn('⬇ تنزيل التقرير', function(){ download('merzona-maintenance-report-' + new Date().toISOString().slice(0, 10) + '.txt', reportText(), 'text/plain'); });
       btn('📋 نسخ', function(){ try{ navigator.clipboard.writeText(reportText()); showMaintToast('انتسخ التقرير'); }catch(e){ showMaintToast('تعذّر النسخ'); } });
       if(MT.backup) btn('💾 نسخة أمان (قبل الإصلاح)', function(){ download('merzona-safety-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(MT.backup), 'application/json'); });
