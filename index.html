@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-02.2';
+  var CURRENT_VERSION = '2026-11-02.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -1484,6 +1484,7 @@
   #cameraOverlay{
     display:none;
     position:fixed; inset:0; z-index:10500;
+    height:100vh; height:100dvh;
     background:#000;
     overflow:hidden;
   }
@@ -1597,7 +1598,7 @@
   .camera-bottombar{
     position:absolute; bottom:0; left:0; right:0; z-index:2;
     display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
-    padding:16px; background:linear-gradient(0deg, rgba(0,0,0,0.7), transparent);
+    padding:16px; padding-bottom:max(16px, env(safe-area-inset-bottom)); background:linear-gradient(0deg, rgba(0,0,0,0.7), transparent);
   }
   .camera-wide-btn{
     background:rgba(0,229,255,0.2); border:1px solid #00E5FF; color:#fff;
@@ -20125,7 +20126,38 @@ function setCameraOpacity(){
 }
 
 let camWdWasOpen = false;
+// 🛠️ 2026-11-02 (بلاغ حمدي بسكرين شوت: "مافيني اكبس ايا شي... وين الازرار والخيارات"): الأداة بتنفتح جوا إطار (iframe)
+// بالداشبورد، وعالموبايل هالإطار أطول من الجزء الظاهر من الشاشة (100vh بيحسب كأنو شريط العنوان مخفي + الداشبورد فوقه).
+// شاشة الكاميرا fixed جوا الإطار، فشريط الأزرار تحت ("تأكيد"، أشكال البند...) كان يطلع برا الشاشة ومستحيل توصله.
+// الحل: لما تنفتح الكاميرا منكبّر الإطار نفسه لياخد الشاشة الظاهرة بالضبط (100dvh)، ومنرجعه متل ما كان لما تتسكّر.
+let camFrameSavedStyle = null;
+function camLiftFrame(on){
+  let fe = null;
+  try{ fe = window.frameElement; }catch(e){ fe = null; }
+  if(!fe) return;
+  try{
+    if(on){
+      if(camFrameSavedStyle === null) camFrameSavedStyle = fe.getAttribute('style') || '';
+      fe.style.setProperty('position', 'fixed', 'important');
+      fe.style.setProperty('top', '0', 'important');
+      fe.style.setProperty('left', '0', 'important');
+      fe.style.setProperty('width', '100vw', 'important');
+      fe.style.setProperty('height', '100vh', 'important');
+      fe.style.setProperty('height', '100dvh', 'important');
+      fe.style.setProperty('min-height', '0', 'important');
+      fe.style.setProperty('max-height', 'none', 'important');
+      fe.style.setProperty('margin', '0', 'important');
+      fe.style.setProperty('border-radius', '0', 'important');
+      fe.style.setProperty('z-index', '2147483000', 'important');
+      fe.style.setProperty('display', 'block', 'important');
+    } else if(camFrameSavedStyle !== null){
+      fe.setAttribute('style', camFrameSavedStyle);
+      camFrameSavedStyle = null;
+    }
+  }catch(e){}
+}
 async function openCameraOverlay(){
+  camLiftFrame(true);
   // #cameraOverlay كان جوا #wdOverlay فلما نخفي المصمم كانت شاشة الكاميرا تختفي معه - ننقلها لجسم الصفحة
   { const co = document.getElementById('cameraOverlay'); if(co && co.parentElement !== document.body) document.body.appendChild(co); }
   { const wd = document.getElementById('wdOverlay'); camWdWasOpen = !!wd && wd.style.display === 'block'; }
@@ -20181,6 +20213,7 @@ function cameraSetShape(type){
 }
 
 function closeCameraOverlay(){
+  camLiftFrame(false);
   if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream = null; }
   if(camItem){ items = items.filter(it => it !== camItem); camItem = null; }
   document.getElementById('cameraOverlay').style.display = 'none';
