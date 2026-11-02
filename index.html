@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-25.4';
+  var CURRENT_VERSION = '2026-11-02.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -20085,7 +20085,31 @@ function renderCameraDesign(){
   const outerFrame = `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="none" stroke="url(#frame-${gid})" stroke-width="10"/>`;
   const opacity = (document.getElementById('cameraOpacityRange').value || 70) / 100;
   const cellsGroup = `<g fill-opacity="${opacity}">${glassCells}<g pointer-events="none">${reflections}</g></g>`;
-  svg.innerHTML = `${defs}${cellsGroup}<g pointer-events="none">${boldSymbols}</g>${boldBorders}${outerFrame}${out.splitBtns.join('')}${out.mergeMarkers.join('')}${out.dragHandles.join('')}`;
+  // 🛠️ 2026-11-02 (بلاغ حمدي: "الكاميرا ماعم اقدر اعمل تقسيمات فيها"): السبب إنو أزرار التقسيم كانت بنفس حجم المصمم (20 وحدة)
+  // بس شاشة الكاميرا viewBox تبعها 1000×1000 ممطوط عكامل الشاشة - فعالموبايل كان الزر يطلع تقريبًا 8×16 بكسل وكل ضغطة
+  // بإصبع كانت توقع عالقسم نفسه (فيدوّر شكله بدل ما يقسمه). هلق منرسم أزرار تقسيم خاصة بالكاميرا محسوبة بالبكسل الحقيقي (~44 بكسل).
+  const svgRect = svg.getBoundingClientRect();
+  const pxX = (svgRect.width || 1000) / 1000, pxY = (svgRect.height || 1000) / 1000;
+  const camSplitBtns = out.leafGeoms.map(g => {
+    const leafPxW = g.w * pxX, leafPxH = g.h * pxY;
+    if(leafPxW < 50 || leafPxH < 30) return '';
+    const btnPx = Math.max(26, Math.min(44, (leafPxW - 12) / 2, leafPxH - 8));
+    const bw = btnPx / pxX, bh = btnPx / pxY, gapX = 6 / pxX, padX = 4 / pxX, padY = 4 / pxY;
+    const yTop = g.y + padY;
+    const xCol = g.x + g.w - padX - bw;          // ⇕ فوق/تحت
+    const xRow = xCol - gapX - bw;               // ⇔ يمين/شمال
+    const btn = (bx, dir) => {
+      const cx = bx + bw/2, cy = yTop + bh/2;
+      const icon = dir === 'row'
+        ? `<line x1="${cx}" y1="${yTop+bh*0.2}" x2="${cx}" y2="${yTop+bh*0.8}" stroke="#00E5FF" stroke-width="3" vector-effect="non-scaling-stroke"/>`
+        : `<line x1="${bx+bw*0.2}" y1="${cy}" x2="${bx+bw*0.8}" y2="${cy}" stroke="#00E5FF" stroke-width="3" vector-effect="non-scaling-stroke"/>`;
+      return `<g class="cam-split-btn" onclick="event.stopPropagation();splitLeaf(${camItem.id},'${g.id}','${dir}')" style="cursor:pointer;">
+        <rect x="${bx}" y="${yTop}" width="${bw}" height="${bh}" rx="${6/pxX}" ry="${6/pxY}" fill="rgba(10,23,41,0.85)" stroke="#00E5FF" stroke-width="2" vector-effect="non-scaling-stroke"/>
+        ${icon}</g>`;
+    };
+    return btn(xRow, 'row') + btn(xCol, 'col');
+  }).join('');
+  svg.innerHTML = `${defs}${cellsGroup}<g pointer-events="none">${boldSymbols}</g>${boldBorders}${outerFrame}${out.mergeMarkers.join('')}${out.dragHandles.join('')}${camSplitBtns}`;
   svg.querySelectorAll('.drag-split').forEach(r=>{
     r.addEventListener('pointerdown', (e)=> onDragStart(e, r), { passive:false });
   });
@@ -20159,6 +20183,8 @@ function closeCameraOverlay(){
   if(camWdWasOpen){ const wd = document.getElementById('wdOverlay'); if(wd) wd.style.display = 'block'; camWdWasOpen = false; }
 }
 
+// أزرار التقسيم بالكاميرا محسوبة بالبكسل - لما ينقلب الموبايل (طولي/عرضي) منعيد رسمها
+window.addEventListener('resize', ()=>{ const co = document.getElementById('cameraOverlay'); if(camItem && co && co.style.display === 'block') renderCameraDesign(); });
 window.openCameraOverlay = openCameraOverlay;
 window.closeCameraOverlay = closeCameraOverlay;
 window.cameraConfirmFrame = cameraConfirmFrame;
