@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-02.3';
+  var CURRENT_VERSION = '2026-11-03.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -8837,7 +8837,7 @@ function renderTemplateSections(){
 /* ---------- ITEMS ---------- */
 let items = JSON.parse(JSON.stringify(DESIGN_ITEMS_DEFAULT));
 let camPhase = 1;
-let camFrame = { x0:250, y0:250, x1:750, y1:750 };
+let camFrame = { x0:0.25, y0:0.25, x1:0.75, y1:0.75 };
 let camHandleDrag = null;
 let camItem = null;
 let cameraStream = null;
@@ -20011,111 +20011,159 @@ function svgPointFromEvent(svgEl, e){
   return pt.matrixTransform(svgEl.getScreenCTM().inverse());
 }
 
-function renderCameraFrame(){
+// 🛠️ 2026-11-03 (بلاغ حمدي: "الإطار الأزرق ماعم يتحرك بشكل سلس مع إصبعي" + "التقسيمات تبع الشباك غير واضحة - لازم تكون متل السكتش"):
+// 1) قبل كانت شاشة الكاميرا viewBox ثابت 1000×1000 ممطوط عالشاشة (preserveAspectRatio=none) - فكل الخطوط والرموز والكتابة كانت
+//    تنمط وتنضغط، والخطوط العمودية/الأفقية (التقسيمات) كانت تختفي تقريبًا لأنها مرسومة بتدرّج لوني على خط بلا عرض.
+//    هلق الرسمة بالبكسل الحقيقي للشاشة (camFrame نسب 0..1)، والتقسيمات بلون ثابت واضح متل السكتش (بروفيل ألمنيوم غامق + خط فاتح).
+// 2) سحب الزوايا: بدل ما نعيد بناء كل الـSVG مع كل حركة (وكانت الزاوية يلي تحت الإصبع تنمسح وتنخلق من جديد فيضيع السحب)،
+//    منمسك الإصبع (pointer capture) ومنحدّث المواقع بس، مرة وحدة كل فريم. وفيك تمسك قريب من الزاوية (مساحة لمس أكبر)
+//    أو تسحب المربع كله من نصه لتنقله.
+function camSvgSize(){
   const svg = document.getElementById('cameraOverlaySvg');
-  svg.setAttribute('viewBox', '0 0 1000 1000');
-  const { x0, y0, x1, y1 } = camFrame;
-  const handles = [
-    { id:'tl', x:x0, y:y0 }, { id:'tr', x:x1, y:y0 },
-    { id:'bl', x:x0, y:y1 }, { id:'br', x:x1, y:y1 }
-  ];
-  let html = `<rect x="${Math.min(x0,x1)}" y="${Math.min(y0,y1)}" width="${Math.abs(x1-x0)}" height="${Math.abs(y1-y0)}" fill="rgba(0,220,255,0.28)" stroke="#000000" stroke-width="9"/>
-    <rect x="${Math.min(x0,x1)}" y="${Math.min(y0,y1)}" width="${Math.abs(x1-x0)}" height="${Math.abs(y1-y0)}" fill="none" stroke="#00E5FF" stroke-width="5"/>`;
-  handles.forEach(h=>{
-    html += `<circle class="cam-handle" data-corner="${h.id}" cx="${h.x}" cy="${h.y}" r="28" fill="#00E5FF" stroke="#000000" stroke-width="4" style="touch-action:none;"/>`;
-  });
-  svg.innerHTML = html;
-  svg.querySelectorAll('.cam-handle').forEach(h=> h.addEventListener('pointerdown', camHandleDragStart, { passive:false }));
+  const r = svg.getBoundingClientRect();
+  const W = Math.max(1, r.width || window.innerWidth || 1000), H = Math.max(1, r.height || window.innerHeight || 1000);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  return { svg, W, H };
+}
+function camFramePx(W, H){
+  const x0 = Math.min(camFrame.x0, camFrame.x1)*W, x1 = Math.max(camFrame.x0, camFrame.x1)*W;
+  const y0 = Math.min(camFrame.y0, camFrame.y1)*H, y1 = Math.max(camFrame.y0, camFrame.y1)*H;
+  return { x0, y0, x1, y1, w: x1-x0, h: y1-y0 };
 }
 
+function renderCameraFrame(){
+  const { svg, W, H } = camSvgSize();
+  svg.innerHTML = `
+    <rect id="camFrameFill" fill="rgba(0,220,255,0.22)" style="cursor:move;touch-action:none;"/>
+    <rect id="camFrameOuter" fill="none" stroke="#000" stroke-width="7" pointer-events="none"/>
+    <rect id="camFrameInner" fill="none" stroke="#00E5FF" stroke-width="3.5" pointer-events="none"/>
+    ${['tl','tr','bl','br'].map(c=>`<g class="cam-handle" data-corner="${c}" style="touch-action:none;cursor:pointer;">
+      <circle class="cam-hit" r="40" fill="transparent"/>
+      <circle class="cam-dot" r="17" fill="#00E5FF" stroke="#000" stroke-width="3.5"/></g>`).join('')}`;
+  camUpdateFrameGeometry();
+  svg.querySelectorAll('.cam-handle').forEach(h=> h.addEventListener('pointerdown', camHandleDragStart, { passive:false }));
+  svg.querySelector('#camFrameFill').addEventListener('pointerdown', camHandleDragStart, { passive:false });
+}
+function camUpdateFrameGeometry(){
+  const svg = document.getElementById('cameraOverlaySvg');
+  const vb = svg.viewBox.baseVal; const W = vb.width || 1000, H = vb.height || 1000;
+  const f = camFramePx(W, H);
+  ['camFrameFill','camFrameOuter','camFrameInner'].forEach(id=>{
+    const r = document.getElementById(id); if(!r) return;
+    r.setAttribute('x', f.x0); r.setAttribute('y', f.y0); r.setAttribute('width', f.w); r.setAttribute('height', f.h);
+  });
+  const pos = { tl:[camFrame.x0,camFrame.y0], tr:[camFrame.x1,camFrame.y0], bl:[camFrame.x0,camFrame.y1], br:[camFrame.x1,camFrame.y1] };
+  svg.querySelectorAll('.cam-handle').forEach(g=>{
+    const p = pos[g.dataset.corner];
+    g.querySelectorAll('circle').forEach(c=>{ c.setAttribute('cx', p[0]*W); c.setAttribute('cy', p[1]*H); });
+  });
+}
+
+let camDragRaf = 0, camDragPending = null;
 function camHandleDragStart(e){
   if(typeof e.button === 'number' && e.button !== 0) return; // 🆕 2026-09-25: نفس منطق الزر الأيسر بس
-  e.preventDefault();
-  camHandleDrag = { corner: e.currentTarget.dataset.corner, svg: document.getElementById('cameraOverlaySvg') };
+  if(camPhase !== 1) return;
+  e.preventDefault(); e.stopPropagation();
+  const svg = document.getElementById('cameraOverlaySvg');
+  const corner = e.currentTarget.dataset.corner || 'move';
+  const p = svgPointFromEvent(svg, e);
+  const vb = svg.viewBox.baseVal;
+  camHandleDrag = { corner, svg, pointerId: e.pointerId, startX: p.x/vb.width, startY: p.y/vb.height, startFrame: Object.assign({}, camFrame) };
+  try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
+}
+function camApplyDrag(){
+  camDragRaf = 0;
+  const e = camDragPending; camDragPending = null;
+  if(!camHandleDrag || !e) return;
+  const svg = camHandleDrag.svg, vb = svg.viewBox.baseVal;
+  const p = svgPointFromEvent(svg, e);
+  const c = camHandleDrag.corner;
+  const sf = camHandleDrag.startFrame;
+  // منحرّك بمقدار حركة الإصبع (مش منقفّز الزاوية لتحت الإصبع) - هيك ما في أي نطّة لو مسكت جنب الزاوية مش عليها بالظبط
+  let ddx = p.x/vb.width - camHandleDrag.startX, ddy = p.y/vb.height - camHandleDrag.startY;
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  if(c === 'move'){
+    let dx = ddx, dy = ddy;
+    dx = Math.max(-Math.min(sf.x0,sf.x1), Math.min(1-Math.max(sf.x0,sf.x1), dx));
+    dy = Math.max(-Math.min(sf.y0,sf.y1), Math.min(1-Math.max(sf.y0,sf.y1), dy));
+    camFrame = { x0: sf.x0+dx, y0: sf.y0+dy, x1: sf.x1+dx, y1: sf.y1+dy };
+  } else {
+    if(c==='tl'){ camFrame.x0 = clamp01(sf.x0+ddx); camFrame.y0 = clamp01(sf.y0+ddy); }
+    if(c==='tr'){ camFrame.x1 = clamp01(sf.x1+ddx); camFrame.y0 = clamp01(sf.y0+ddy); }
+    if(c==='bl'){ camFrame.x0 = clamp01(sf.x0+ddx); camFrame.y1 = clamp01(sf.y1+ddy); }
+    if(c==='br'){ camFrame.x1 = clamp01(sf.x1+ddx); camFrame.y1 = clamp01(sf.y1+ddy); }
+  }
+  camUpdateFrameGeometry();
 }
 function camHandleDragMove(e){
   if(!camHandleDrag) return;
+  if(camHandleDrag.pointerId !== undefined && e.pointerId !== camHandleDrag.pointerId) return;
   e.preventDefault();
-  const p = svgPointFromEvent(camHandleDrag.svg, e);
-  const x = Math.max(0, Math.min(1000, p.x)), y = Math.max(0, Math.min(1000, p.y));
-  const c = camHandleDrag.corner;
-  if(c==='tl'){ camFrame.x0 = x; camFrame.y0 = y; }
-  if(c==='tr'){ camFrame.x1 = x; camFrame.y0 = y; }
-  if(c==='bl'){ camFrame.x0 = x; camFrame.y1 = y; }
-  if(c==='br'){ camFrame.x1 = x; camFrame.y1 = y; }
-  renderCameraFrame();
+  camDragPending = e;
+  if(!camDragRaf) camDragRaf = requestAnimationFrame(camApplyDrag);
 }
-function camHandleDragEnd(){ camHandleDrag = null; }
+function camHandleDragEnd(e){
+  if(!camHandleDrag) return;
+  if(e && camHandleDrag.pointerId !== undefined && e.pointerId !== camHandleDrag.pointerId) return;
+  if(camDragPending){ if(camDragRaf){ cancelAnimationFrame(camDragRaf); } camApplyDrag(); }
+  camHandleDrag = null;
+}
 document.addEventListener('pointermove', camHandleDragMove, { passive:false });
 document.addEventListener('pointerup', camHandleDragEnd);
 document.addEventListener('pointercancel', camHandleDragEnd);
 
-function boostStrokeWidth(svgStr, factor){
-  return svgStr.replace(/stroke-width="([\d.]+)"/g, (m, w) => `stroke-width="${(parseFloat(w)*factor).toFixed(1)}"`);
-}
-
 function renderCameraDesign(){
   if(!camItem) return;
-  const svg = document.getElementById('cameraOverlaySvg');
-  svg.setAttribute('viewBox', '0 0 1000 1000');
-  const x0 = Math.min(camFrame.x0, camFrame.x1), y0 = Math.min(camFrame.y0, camFrame.y1);
-  const w = Math.abs(camFrame.x1 - camFrame.x0), h = Math.abs(camFrame.y1 - camFrame.y0);
+  const { svg, W, H } = camSvgSize();
+  const f = camFramePx(W, H);
+  const x0 = f.x0, y0 = f.y0, w = f.w, h = f.h;
   const out = { cells:[], symbols:[], borders:[], dims:[], dragHandles:[], mergeMarkers:[], splitBtns:[], leafGeoms:[] };
   const netMap = computeNetMap(camItem);
-  renderNode(camItem, camItem.layout, x0, y0, w, h, w/camItem.width, isDoorLike(camItem), out, netMap);
+  renderNode(camItem, camItem.layout, x0, y0, w, h, Math.min(w/camItem.width, h/camItem.height), isDoorLike(camItem), out, netMap);
 
-  const gid = 'cam-' + Math.random().toString(36).slice(2,8);
-  const defs = `<defs>
-    <linearGradient id="glass-${gid}" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f5fafb" stop-opacity="0.55"/>
-      <stop offset="35%" stop-color="#e4f0f2" stop-opacity="0.45"/>
-      <stop offset="65%" stop-color="#cfe4e8" stop-opacity="0.4"/>
-      <stop offset="100%" stop-color="#b9d6db" stop-opacity="0.42"/>
-    </linearGradient>
-    <linearGradient id="frame-${gid}" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#3a3d42"/>
-      <stop offset="45%" stop-color="#17181b"/>
-      <stop offset="100%" stop-color="#050506"/>
-    </linearGradient>
-  </defs>`;
-  const glassCells = out.cells.join('').replace(/fill="var\(--wd-cyan-dim\)"/g, `fill="url(#glass-${gid})"`);
-  let reflections = '';
-  out.leafGeoms.forEach(g=>{
-    const s1 = Math.max(4, g.w*0.09), rx1 = g.x+g.w*0.18;
-    const s2 = Math.max(3, g.w*0.05), rx2 = g.x+g.w*0.52;
-    reflections += `<polygon points="${rx1},${g.y} ${rx1+s1},${g.y} ${g.x+g.w*0.02},${g.y+g.h} ${Math.max(g.x,rx1+s1-g.w*0.5)},${g.y+g.h}" fill="#ffffff" opacity="0.28"/>
-      <polygon points="${rx2},${g.y} ${rx2+s2},${g.y} ${g.x+g.w*0.32},${g.y+g.h} ${g.x+g.w*0.27},${g.y+g.h}" fill="#ffffff" opacity="0.14"/>`;
-  });
-  const boldBorders = boostStrokeWidth(out.borders.join(''), 3.2).replace(/stroke="var\(--wd-ink\)"/g, `stroke="url(#frame-${gid})"`);
-  const boldSymbols = boostStrokeWidth(out.symbols.join(''), 2.4);
-  const outerFrame = `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="none" stroke="url(#frame-${gid})" stroke-width="10"/>`;
+  // زجاج: لون سماوي خفيف متل السكتش، والشفافية من السلايدر
   const opacity = (document.getElementById('cameraOpacityRange').value || 70) / 100;
-  const cellsGroup = `<g fill-opacity="${opacity}">${glassCells}<g pointer-events="none">${reflections}</g></g>`;
-  // 🛠️ 2026-11-02 (بلاغ حمدي: "الكاميرا ماعم اقدر اعمل تقسيمات فيها"): السبب إنو أزرار التقسيم كانت بنفس حجم المصمم (20 وحدة)
-  // بس شاشة الكاميرا viewBox تبعها 1000×1000 ممطوط عكامل الشاشة - فعالموبايل كان الزر يطلع تقريبًا 8×16 بكسل وكل ضغطة
-  // بإصبع كانت توقع عالقسم نفسه (فيدوّر شكله بدل ما يقسمه). هلق منرسم أزرار تقسيم خاصة بالكاميرا محسوبة بالبكسل الحقيقي (~44 بكسل).
-  const svgRect = svg.getBoundingClientRect();
-  const pxX = (svgRect.width || 1000) / 1000, pxY = (svgRect.height || 1000) / 1000;
+  const glassCells = out.cells.join('').replace(/fill="var\(--wd-cyan-dim\)"/g, 'fill="rgba(150,215,240,0.55)"');
+  // رموز الفتح (مثلثات/أسهم/F): نفس رموز السكتش بس أعرض شوي، وبحد غامق حواليها حتى تبين فوق أي خلفية
+  const symbols = out.symbols.join('');
+  const symbolsHalo = symbols.replace(/<text[\s\S]*?<\/text>/g, '')
+    .replace(/stroke="var\(--wd-cyan\)"/g, 'stroke="#062033"')
+    .replace(/fill="var\(--wd-cyan\)"/g, 'fill="#062033" stroke="#062033" stroke-width="3"')
+    .replace(/stroke-width="([\d.]+)"/g, (m, sw)=> `stroke-width="${(parseFloat(sw)+3.5).toFixed(1)}"`);
+  const symbolsTop = symbols
+    .replace(/var\(--wd-cyan\)/g, '#7FE3FF')
+    .replace(/stroke-width="([\d.]+)"/g, (m, sw)=> `stroke-width="${(parseFloat(sw)*1.4).toFixed(1)}"`)
+    .replace(/<text /g, '<text paint-order="stroke" stroke="#062033" stroke-width="2.5" stroke-linejoin="round" ');
+  // التقسيمات (القواطع): بروفيل ألمنيوم واضح - خط غامق عريض وجواته خط فاتح، متل خطوط السكتش
+  const borders = out.borders.join('');
+  const bordersDark = borders.replace(/stroke="var\(--wd-ink\)"/g, 'stroke="#15181c"').replace(/stroke-width="([\d.]+)"/g, 'stroke-width="9"').replace(/<line /g, '<line stroke-linecap="square" ');
+  const bordersLight = borders.replace(/stroke="var\(--wd-ink\)"/g, 'stroke="#EAF2FA"').replace(/stroke-width="([\d.]+)"/g, 'stroke-width="2"');
+  const outerFrame = `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="none" stroke="#15181c" stroke-width="14"/>
+    <rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="none" stroke="#EAF2FA" stroke-width="2.5"/>`;
+  const doorSill = isDoorLike(camItem) ? `<line x1="${x0-10}" y1="${y0+h+11}" x2="${x0+w+10}" y2="${y0+h+11}" stroke="#15181c" stroke-width="6"/>` : '';
+
+  // أزرار التقسيم (~44 بكسل) - بلمسة إصبع مريحة
   const camSplitBtns = out.leafGeoms.map(g => {
-    const leafPxW = g.w * pxX, leafPxH = g.h * pxY;
-    if(leafPxW < 50 || leafPxH < 30) return '';
-    const btnPx = Math.max(26, Math.min(44, (leafPxW - 12) / 2, leafPxH - 8));
-    const bw = btnPx / pxX, bh = btnPx / pxY, gapX = 6 / pxX, padX = 4 / pxX, padY = 4 / pxY;
-    const yTop = g.y + padY;
-    const xCol = g.x + g.w - padX - bw;          // ⇕ فوق/تحت
-    const xRow = xCol - gapX - bw;               // ⇔ يمين/شمال
+    if(g.w < 50 || g.h < 30) return '';
+    const b = Math.max(26, Math.min(44, (g.w - 12) / 2, g.h - 8));
+    const yTop = g.y + 6;
+    const xCol = g.x + g.w - 6 - b;          // ⇕ فوق/تحت
+    const xRow = xCol - 6 - b;               // ⇔ يمين/شمال
     const btn = (bx, dir) => {
-      const cx = bx + bw/2, cy = yTop + bh/2;
+      const cx = bx + b/2, cy = yTop + b/2;
       const icon = dir === 'row'
-        ? `<line x1="${cx}" y1="${yTop+bh*0.2}" x2="${cx}" y2="${yTop+bh*0.8}" stroke="#00E5FF" stroke-width="3" vector-effect="non-scaling-stroke"/>`
-        : `<line x1="${bx+bw*0.2}" y1="${cy}" x2="${bx+bw*0.8}" y2="${cy}" stroke="#00E5FF" stroke-width="3" vector-effect="non-scaling-stroke"/>`;
+        ? `<line x1="${cx}" y1="${yTop+b*0.2}" x2="${cx}" y2="${yTop+b*0.8}" stroke="#00E5FF" stroke-width="3"/>`
+        : `<line x1="${bx+b*0.2}" y1="${cy}" x2="${bx+b*0.8}" y2="${cy}" stroke="#00E5FF" stroke-width="3"/>`;
       return `<g class="cam-split-btn" onclick="event.stopPropagation();splitLeaf(${camItem.id},'${g.id}','${dir}')" style="cursor:pointer;">
-        <rect x="${bx}" y="${yTop}" width="${bw}" height="${bh}" rx="${6/pxX}" ry="${6/pxY}" fill="rgba(10,23,41,0.85)" stroke="#00E5FF" stroke-width="2" vector-effect="non-scaling-stroke"/>
-        ${icon}</g>`;
+        <rect x="${bx}" y="${yTop}" width="${b}" height="${b}" rx="6" fill="rgba(10,23,41,0.85)" stroke="#00E5FF" stroke-width="2"/>${icon}</g>`;
     };
     return btn(xRow, 'row') + btn(xCol, 'col');
   }).join('');
-  svg.innerHTML = `${defs}${cellsGroup}<g pointer-events="none">${boldSymbols}</g>${boldBorders}${outerFrame}${out.mergeMarkers.join('')}${out.dragHandles.join('')}${camSplitBtns}`;
+
+  svg.innerHTML = `<g fill-opacity="${opacity}">${glassCells}</g>
+    <g pointer-events="none">${bordersDark}${bordersLight}${outerFrame}${doorSill}${symbolsHalo}${symbolsTop}</g>
+    ${out.mergeMarkers.join('')}${out.dragHandles.join('')}${camSplitBtns}`;
   svg.querySelectorAll('.drag-split').forEach(r=>{
     r.addEventListener('pointerdown', (e)=> onDragStart(e, r), { passive:false });
   });
@@ -20163,7 +20211,7 @@ async function openCameraOverlay(){
   { const wd = document.getElementById('wdOverlay'); camWdWasOpen = !!wd && wd.style.display === 'block'; }
   document.getElementById('wdOverlay').style.display = 'none';
   camPhase = 1;
-  camFrame = { x0:250, y0:250, x1:750, y1:750 };
+  camFrame = { x0:0.25, y0:0.25, x1:0.75, y1:0.75 };
   document.getElementById('cameraPhaseLabel').textContent = 'حرّك زوايا المربع لتطابق الفتحة';
   document.getElementById('cameraPhase1Controls').style.display = 'flex';
   document.getElementById('cameraPhase2Controls').style.display = 'none';
