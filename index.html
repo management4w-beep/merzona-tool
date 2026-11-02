@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-02.1';
+  var CURRENT_VERSION = '2026-11-02.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7607,6 +7607,7 @@ window.wdApplyBack = function(results){
       </select>
       <button class="printBtn" onclick="preparePrint()">🖨️ طباعة / حفظ PDF</button>
       <button class="printBtn" onclick="open3DPreview()">🧊 عرض ثري دي</button>
+      <button class="printBtn" onclick="window.openCameraOverlay()">📷 كاميرا</button>
       <button class="printBtn" onclick="openPurchasingOverlay()">🛒 المشتريات</button>
       <button class="printBtn" onclick="openMfgSizesOverlay()">📐 مقاسات التصنيع</button>
       <!-- 🆕 2026-09-30.15 (طلب حمدي) - اختصار سريع لأزرار الغرفة/المجلس (ثري دي حقيقي، رسم المسقط، رسم السقف) بشريط الأزرار العلوي -->
@@ -7637,6 +7638,10 @@ window.wdApplyBack = function(results){
         <div class="add-row">
           <button onclick="addItem('window')">+ شباك جديد</button>
           <button onclick="addItem('door')">+ باب جديد</button>
+        </div>
+        <!-- 🆕 2026-11-02 (طلب حمدي: "ماعم اقدر اوصل لزر الكاميرا - خلي زر الكاميرا بالمصمم") - زر الكاميرا كان مدفون بقائمة "المزيد" بعرض السعر -->
+        <div class="add-row" style="margin-top:6px;">
+          <button onclick="window.openCameraOverlay()" style="flex:1;border-color:var(--wd-cyan);color:var(--wd-cyan);background:var(--wd-cyan-dim);font-weight:700;">📷 صمّم بالكاميرا</button>
         </div>
         <div class="add-row" style="margin-top:6px;">
           <button onclick="addItem('slidingWindow')">+ شباك سحّاب</button>
