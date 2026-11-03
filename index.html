@@ -8512,6 +8512,7 @@ window.wdApplyBack = function(results){
     <!-- 🆕 2026-11-03 (طلب حمدي: "بدي زر اضغط عليه لحفظ التصميم يللي بخلص منو تبع الكاميرا حتى ينزل بالمصمم") -->
     <button class="camera-btn-small" onclick="cameraSaveToDesigner()" style="background:#16a34a;border-color:#4ade80;">💾 احفظ بالمصمم</button>
     <button class="camera-btn-small" id="camToolsToggleBtn" onclick="cameraToggleTools()" style="background:#00B8D4;border-color:#00E5FF;">✅ خلصت التقسيم</button>
+    <button class="camera-btn-small" id="camZoomBtn" onclick="cameraToggleZoom()" style="background:#7c3aed;border-color:#a78bfa;">🖼️ شوفو عالفتحة</button>
     <button class="camera-btn-small" onclick="cameraBackToFraming()">↩ عدّل الإطار</button>
     <button class="camera-btn-small" onclick="cameraSetShape('window')">شباك</button>
     <button class="camera-btn-small" onclick="cameraSetShape('door')">باب</button>
@@ -20065,6 +20066,32 @@ function camUpdateFrameGeometry(){
 }
 
 let camDragRaf = 0, camDragPending = null;
+// 🆕 2026-11-03 (طلب حمدي: "بس ثبت الاطار ووقت بلش بالتقسيم اقدر كبر التصميم... جدا بعيد وصغير لاقدر قسمو"):
+// بعد تثبيت الإطار التصميم بينفتح مكبّر بنص الشاشة (نفس نسبة الفتحة يلي رسمتها) حتى تقسّم براحتك،
+// ولما تخلص تقسيم (أو تدوس 🔍) بيرجع ينحط فوق الفتحة بالصورة بالمكان المثبّت.
+let camZoomed = false;
+function camCanvasRect(W, H){
+  const f = camFramePx(W, H);
+  if(!camZoomed || f.w < 1 || f.h < 1) return f;
+  let top = 64, bottom = H - 16;
+  try{ const tb = document.querySelector('#cameraOverlay .camera-topbar').getBoundingClientRect(); if(tb.height) top = tb.bottom + 14; }catch(e){}
+  try{ const bb = document.getElementById('cameraPhase2Controls').getBoundingClientRect(); if(bb.height) bottom = bb.top - 14; }catch(e){}
+  const availW = W * 0.94, availH = Math.max(120, bottom - top);
+  const s = Math.min(availW / f.w, availH / f.h);
+  const w = f.w * s, h = f.h * s;
+  const x0 = (W - w) / 2, y0 = top + (availH - h) / 2;
+  return { x0, y0, x1: x0 + w, y1: y0 + h, w, h };
+}
+function cameraUpdateZoomUI(){
+  const b = document.getElementById('camZoomBtn');
+  if(b) b.textContent = camZoomed ? '🖼️ شوفو عالفتحة' : '🔍 كبّر للتقسيم';
+}
+function cameraToggleZoom(){
+  camZoomed = !camZoomed;
+  cameraUpdateZoomUI();
+  renderCameraDesign();
+}
+window.cameraToggleZoom = cameraToggleZoom;
 // إخفاء أزرار التقسيم (| و —) وعلامات الدمج لما يخلص المستخدم تقسيم، حتى يشوف التصميم نضيف فوق الفتحة
 let camHideTools = false;
 function cameraUpdateToolsToggleUI(){
@@ -20078,6 +20105,8 @@ function cameraUpdateToolsToggleUI(){
 }
 function cameraToggleTools(){
   camHideTools = !camHideTools;
+  camZoomed = !camHideTools;
+  cameraUpdateZoomUI();
   cameraUpdateToolsToggleUI();
   renderCameraDesign();
 }
@@ -20180,7 +20209,7 @@ document.addEventListener('pointercancel', camHandleDragEnd);
 function renderCameraDesign(){
   if(!camItem) return;
   const { svg, W, H } = camSvgSize();
-  const f = camFramePx(W, H);
+  const f = camCanvasRect(W, H);
   const x0 = f.x0, y0 = f.y0, w = f.w, h = f.h;
   const out = { cells:[], symbols:[], borders:[], dims:[], dragHandles:[], mergeMarkers:[], splitBtns:[], leafGeoms:[] };
   const netMap = computeNetMap(camItem);
@@ -20207,11 +20236,11 @@ function renderCameraDesign(){
     <rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="none" stroke="#EAF2FA" stroke-width="2.5"/>`;
   const doorSill = isDoorLike(camItem) ? `<line x1="${x0-10}" y1="${y0+h+11}" x2="${x0+w+10}" y2="${y0+h+11}" stroke="#15181c" stroke-width="6"/>` : '';
 
-  // أزرار التقسيم (~44 بكسل) - بلمسة إصبع مريحة
+  // أزرار التقسيم - حجمها على قد القسم (ما بتطلع برّاه ولا بتغطي جيرانه)، وبالأقسام الواطية منحطها بالنص
   const camSplitBtns = camHideTools ? '' : out.leafGeoms.map(g => {
-    if(g.w < 50 || g.h < 30) return '';
-    const b = Math.max(26, Math.min(38, (g.w - 12) / 2, g.h - 8));
-    const yTop = g.y + 6;
+    if(g.w < 40 || g.h < 22) return '';
+    const b = Math.max(16, Math.min(40, (g.w - 18) / 2, g.h - 8));
+    const yTop = (g.h < b + 20) ? g.y + (g.h - b) / 2 : g.y + 6;
     const xCol = g.x + g.w - 6 - b;          // ⇕ فوق/تحت
     const xRow = xCol - 6 - b;               // ⇔ يمين/شمال
     const btn = (bx, dir) => {
@@ -20225,7 +20254,9 @@ function renderCameraDesign(){
     return btn(xRow, 'row') + btn(xCol, 'col');
   }).join('');
 
-  svg.innerHTML = `<g fill-opacity="${opacity}">${glassCells}</g>
+  // 🆕 2026-11-03: وضع التكبير - خلفية معتّمة فوق الصورة حتى يبين التصميم الكبير واضح
+  const zoomBg = camZoomed ? `<rect x="0" y="0" width="${W}" height="${H}" fill="rgba(6,12,22,0.72)" pointer-events="none"/>` : '';
+  svg.innerHTML = `${zoomBg}<g fill-opacity="${camZoomed ? Math.max(opacity, 0.85) : opacity}">${glassCells}</g>
     <g pointer-events="none">${bordersDark}${bordersLight}${outerFrame}${doorSill}${symbolsHalo}${symbolsTop}</g>
     ${camHideTools ? '' : out.mergeMarkers.join('') + out.dragHandles.join('')}${camSplitBtns}`;
   svg.querySelectorAll('.drag-split').forEach(r=>{
@@ -20298,14 +20329,17 @@ function cameraConfirmFrame(){
   camItem.isCameraTemp = true;
   items.push(camItem);
   camHideTools = false;
+  camZoomed = true;
   document.getElementById('cameraPhaseLabel').textContent = 'دوس على أي قسم لتدوير شكله، أو على أيقونة التقسيم';
   document.getElementById('cameraPhase1Controls').style.display = 'none';
   document.getElementById('cameraPhase2Controls').style.display = 'flex';
   cameraUpdateToolsToggleUI();
+  cameraUpdateZoomUI();
   renderCameraDesign();
 }
 
 function cameraBackToFraming(){
+  camZoomed = false;
   camPhase = 1;
   if(camItem){ items = items.filter(it => it !== camItem); camItem = null; }
   document.getElementById('cameraPhaseLabel').textContent = 'حرّك زوايا المربع لتطابق الفتحة';
