@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Merzona — كتالوج الأعمال</title>
+<meta name="description" content="معرض أعمال Merzona للألمنيوم والزجاج: درابزين، واجهات زجاجية، كبائن شاور، برغولات، أبواب ونوافذ.">
+<meta property="og:title" content="Merzona — كتالوج الأعمال">
+<meta property="og:description" content="معرض أعمال Merzona للألمنيوم والزجاج — دمشق · دبي · الشارقة">
+<meta name="theme-color" content="#16191c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Text&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* Merzona public catalog — gallery-first layout: sticky brand bar, catalog chips, cinematic hero, masonry gallery, full-screen viewer */
+:root{
+  --ink:#16191c; --ink-2:#2a2f34; --paper:#f5f4f1; --card:#ffffff; --muted:#6c7378; --line:#e2e0db;
+  --bronze:#a77a45; --bronze-2:#c79a62; --wa:#1fa855;
+  --f-brand:'DM Serif Text',Georgia,'Times New Roman',serif;
+  --f-body:'Tajawal',system-ui,-apple-system,'Segoe UI',Tahoma,sans-serif;
+  --gut:max(16px,env(safe-area-inset-right,0px));
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6}
+img{max-width:100%;display:block}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:var(--gut)}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:30;background:rgba(22,25,28,.92);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);color:#f3f1ec;padding-top:env(safe-area-inset-top,0px)}
+.bar .wrap{display:flex;align-items:center;gap:14px;height:62px}
+.brand{display:flex;align-items:baseline;gap:12px;text-decoration:none;min-width:0}
+.brand b{font-family:var(--f-brand);font-weight:400;font-size:24px;letter-spacing:.2em;direction:ltr}
+.brand span{font-size:13px;color:#b5b2aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:9px 16px;font-weight:700;font-size:14.5px;text-decoration:none;border:0;cursor:pointer;white-space:nowrap}
+.btn-wa{background:var(--wa);color:#fff}
+.btn-wa:hover{filter:brightness(1.08)}
+.btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.28);color:#f3f1ec}
+.btn-ghost:hover{border-color:var(--bronze-2)}
+.btn svg{width:18px;height:18px;flex:none}
+.icon-only{padding:9px}
+@media (max-width:560px){.brand span{display:none}.btn-wa .lbl{display:none}.btn-wa{padding:9px}}
+
+/* chips */
+.chips{background:var(--ink);border-top:1px solid rgba(255,255,255,.06)}
+.chips .wrap{display:flex;gap:8px;overflow-x:auto;padding-top:10px;padding-bottom:12px;scrollbar-width:none}
+.chips .wrap::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid rgba(255,255,255,.18);color:#d9d6cf;background:transparent;border-radius:999px;padding:7px 14px;font-size:14px;text-decoration:none;white-space:nowrap}
+.chip small{color:#8f8c85;margin-inline-start:6px;font-variant-numeric:tabular-nums}
+.chip[aria-current="page"]{background:var(--bronze);border-color:var(--bronze);color:#fff}
+.chip[aria-current="page"] small{color:#f3e4d0}
+
+/* hero */
+.hero{position:relative;background:var(--ink);color:#fff;overflow:hidden}
+.hero .bg{position:absolute;inset:0;background:#2a2f34 center/cover no-repeat;transform:scale(1.04);transition:opacity .6s ease;opacity:0}
+.hero .bg.on{opacity:1}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(22,25,28,.15) 0%,rgba(22,25,28,.35) 45%,rgba(22,25,28,.92) 100%)}
+.hero .wrap{position:relative;z-index:1;min-height:clamp(300px,52vh,520px);display:flex;flex-direction:column;justify-content:flex-end;padding-top:40px;padding-bottom:34px}
+.eyebrow{font-size:13px;letter-spacing:.12em;color:var(--bronze-2);font-weight:700;direction:ltr;text-align:right;text-transform:uppercase}
+.hero h1{margin:6px 0 8px;font-size:clamp(30px,6vw,56px);line-height:1.15;font-weight:800;text-wrap:balance}
+.hero p{margin:0;color:#d9d6cf;font-size:clamp(15px,2vw,18px);max-width:60ch}
+.hero .meta{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:18px;align-items:center}
+.stat{font-size:14px;color:#cfccc5}
+.stat b{color:#fff;font-size:18px;font-variant-numeric:tabular-nums}
+.rule{width:56px;height:2px;background:var(--bronze);margin:14px 0 0}
+
+/* gallery */
+.section{padding-top:28px;padding-bottom:40px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:16px}
+.sec-head h2{margin:0;font-size:20px;font-weight:800}
+.sec-head span{color:var(--muted);font-size:14px}
+.masonry{columns:4 260px;column-gap:12px}
+@media (max-width:640px){.masonry{columns:2;column-gap:8px}}
+.tile{break-inside:avoid;margin:0 0 12px;position:relative;display:block;width:100%;padding:0;border:0;background:#dcd9d3;border-radius:10px;overflow:hidden;cursor:zoom-in}
+@media (max-width:640px){.tile{margin-bottom:8px;border-radius:8px}}
+.tile img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .45s ease,transform .6s ease}
+.tile img.ok{opacity:1}
+.tile:hover img.ok{transform:scale(1.03)}
+.tile .n{position:absolute;bottom:8px;left:8px;background:rgba(22,25,28,.6);color:#fff;font-size:12px;padding:2px 8px;border-radius:999px;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .2s}
+.tile:hover .n,.tile:focus-visible .n{opacity:1}
+.tile.loading::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.5) 50%,transparent 80%);background-size:200% 100%;animation:shimmer 1.3s infinite}
+@keyframes shimmer{from{background-position:150% 0}to{background-position:-50% 0}}
+
+/* catalogs home grid */
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:16px}
+.cat{position:relative;display:block;border-radius:14px;overflow:hidden;background:#2a2f34;color:#fff;text-decoration:none;aspect-ratio:4/3}
+.cat img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .45s,transform .6s}
+.cat img.ok{opacity:1}
+.cat:hover img{transform:scale(1.04)}
+.cat::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(22,25,28,.88))}
+.cat .t{position:absolute;inset:auto 16px 14px 16px;z-index:1}
+.cat .t b{display:block;font-size:20px;font-weight:800}
+.cat .t span{font-size:13px;color:#d9d6cf}
+
+/* contact */
+.contact{background:var(--ink);color:#e9e6df}
+.contact .wrap{display:grid;grid-template-columns:1.3fr 1fr;gap:28px;padding-top:44px;padding-bottom:calc(44px + env(safe-area-inset-bottom,0px))}
+@media (max-width:760px){.contact .wrap{grid-template-columns:1fr}}
+.contact h3{margin:0 0 6px;font-size:24px;font-weight:800;color:#fff}
+.contact p{margin:0 0 18px;color:#b5b2aa}
+.contact dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:15px}
+.contact dt{color:#8f8c85}
+.contact dd{margin:0}
+.ltr{direction:ltr;unicode-bidi:isolate}
+.foot-brand{font-family:var(--f-brand);letter-spacing:.2em;font-size:30px;direction:ltr;text-align:right;color:#fff}
+
+.state{padding:70px 0;text-align:center;color:var(--muted)}
+.state b{display:block;color:var(--ink);font-size:18px;margin-bottom:6px}
+
+/* viewer */
+.lb{position:fixed;inset:0;z-index:100;background:#0d0f11;color:#fff;display:none;flex-direction:column;touch-action:none;user-select:none;-webkit-user-select:none}
+.lb.open{display:flex}
+.lb-top{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) var(--gut) 8px max(16px,env(safe-area-inset-left,0px));position:relative;z-index:3}
+.lb-count{font-variant-numeric:tabular-nums;font-size:15px;color:#d9d6cf;direction:ltr}
+.lb-title{flex:1;min-width:0;font-size:14px;color:#9a978f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-ic{width:42px;height:42px;border-radius:50%;border:0;background:rgba(255,255,255,.08);display:grid;place-items:center;cursor:pointer;color:#fff;text-decoration:none}
+.lb-ic:hover{background:rgba(255,255,255,.16)}
+.lb-ic svg{width:20px;height:20px}
+.lb-stage{flex:1;position:relative;overflow:hidden}
+.lb-track{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;will-change:transform}
+.lb-img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:center center;will-change:transform;pointer-events:none;-webkit-user-drag:none}
+.lb-spin{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.lb-spin i{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:var(--bronze-2);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;width:52px;height:52px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:#fff;display:grid;place-items:center;cursor:pointer}
+.lb-nav:hover{background:rgba(255,255,255,.2)}
+.lb-nav svg{width:24px;height:24px}
+.lb-prev{right:16px}.lb-next{left:16px}
+@media (hover:none){.lb-nav{display:none}}
+.lb-bottom{position:relative;z-index:3;padding:8px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+.lb-actions{display:flex;justify-content:center;gap:10px;margin-bottom:10px;padding:0 16px;flex-wrap:wrap}
+.lb-strip{display:flex;gap:6px;overflow-x:auto;padding:0 16px;scrollbar-width:none;justify-content:flex-start}
+.lb-strip::-webkit-scrollbar{display:none}
+.lb-strip button{flex:none;width:56px;height:56px;border-radius:6px;overflow:hidden;border:2px solid transparent;padding:0;background:#22262a;cursor:pointer;opacity:.55}
+.lb-strip button.on{border-color:var(--bronze-2);opacity:1}
+.lb-strip img{width:100%;height:100%;object-fit:cover}
+.lb-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:12.5px;color:#9a978f;background:rgba(0,0,0,.4);padding:4px 12px;border-radius:999px;pointer-events:none;transition:opacity .4s;white-space:nowrap}
+.toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:.25s;z-index:200;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <a class="brand" href="catalog.html"><b>MERZONA</b><span>ألمنيوم وزجاج · كتالوج الأعمال</span></a>
+    <div class="sp"></div>
+    <button class="btn btn-ghost icon-only" id="shareBtn" type="button" aria-label="مشاركة الكتالوج" title="مشاركة">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+    </button>
+    <a class="btn btn-wa" id="waTop" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.4-.3z"/></svg>
+      <span class="lbl">اطلب عرض سعر</span>
+    </a>
+  </div>
+</header>
+<nav class="chips" aria-label="الكتالوجات"><div class="wrap" id="chips"></div></nav>
+
+<main id="main">
+  <section class="hero" id="hero">
+    <div class="bg" id="heroBg"></div>
+    <div class="wrap">
+      <div class="eyebrow" id="heroEyebrow">MERZONA · ALUMINIUM &amp; GLASS</div>
+      <h1 id="heroTitle">كتالوج الأعمال</h1>
+      <p id="heroText">مشاريع منفّذة بالألمنيوم والزجاج: درابزين، واجهات زجاجية، كبائن شاور، برغولات، أبواب ونوافذ.</p>
+      <div class="rule"></div>
+      <div class="meta" id="heroMeta"></div>
+    </div>
+  </section>
+
+  <section class="section"><div class="wrap" id="content"><div class="state"><b>جارٍ تحميل الكتالوج…</b>لحظات قليلة</div></div></section>
+</main>
+
+<footer class="contact" id="contact">
+  <div class="wrap">
+    <div>
+      <div class="foot-brand">MERZONA</div>
+      <h3>عجبك تصميم؟ خلّينا ننفّذلك ياه</h3>
+      <p>ابعتلنا رقم الصورة أو صورة المكان، ومنرجعلك بعرض سعر وتصميم مناسب لمساحتك.</p>
+      <a class="btn btn-wa" id="waBottom" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/></svg>
+        تواصل معنا على واتساب
+      </a>
+    </div>
+    <dl>
+      <dt>الهاتف</dt><dd class="ltr" id="phoneTxt">+971 50 847 1158</dd>
+      <dt>الفروع</dt><dd>دمشق · دبي · الشارقة</dd>
+      <dt>الموقع</dt><dd class="ltr">www.Merzona.ae</dd>
+      <dt>البريد</dt><dd class="ltr">Info@Merzona.com</dd>
+    </dl>
+  </div>
+</footer>
+
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="عارض الصور">
+  <div class="lb-top">
+    <button class="lb-ic" id="lbClose" type="button" aria-label="إغلاق"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <span class="lb-count" id="lbCount"></span>
+    <span class="lb-title" id="lbTitle"></span>
+    <button class="lb-ic" id="lbZoom" type="button" aria-label="تكبير"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5M11 8v6M8 11h6"/></svg></button>
+    <button class="lb-ic" id="lbShare" type="button" aria-label="مشاركة الصورة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
+  </div>
+  <div class="lb-stage" id="lbStage">
+    <div class="lb-track" id="lbTrack"><img class="lb-img" id="lbImg" alt=""></div>
+    <div class="lb-spin" id="lbSpin"><i></i></div>
+    <button class="lb-nav lb-prev" id="lbPrev" type="button" aria-label="السابقة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button class="lb-nav lb-next" id="lbNext" type="button" aria-label="التالية"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <div class="lb-hint" id="lbHint">اسحب للتقليب · قرّب بإصبعين أو دبل كليك للتكبير</div>
+  </div>
+  <div class="lb-bottom">
+    <div class="lb-actions"><a class="btn btn-wa" id="lbAsk" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/></svg>
+      استفسر عن هالتصميم</a></div>
+    <div class="lb-strip" id="lbStrip"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  /* ===== الإعدادات ===== */
+  var SERVER = 'https://merzona-server-production.up.railway.app';
+  var WA_NUMBER = '971508471158';
+  var LABELS = {
+    'cast aluminum handrails':['درابزين ألمنيوم مصبوب','تصاميم كلاسيكية وحديثة من الألمنيوم المصبوب، بتشطيبات برونزية وسوداء ومزخرفة.'],
+    'curtain wall design':['واجهات زجاجية (كيرتن وول)','واجهات زجاجية للفلل والمباني بأنظمة ألمنيوم معتمدة.'],
+    'forex design':['تصاميم فوركس','تصاميم ديكورية مفرغة لأبواب وقواطع ونوافذ.'],
+    'showers':['كبائن شاور زجاج','كبائن شاور من الزجاج السيكوريت بإكسسوارات ستانلس وأسود وذهبي.'],
+    'glass handrail':['درابزين زجاج','درابزين زجاج للأدراج والبلكونات بتثبيت أرضي وجانبي.'],
+    'pergolas':['برغولات','برغولات ألمنيوم للحدائق والأسطح ومواقف السيارات بإنارة مدمجة.'],
+    'door':['أبواب ألمنيوم','أبواب ألمنيوم مداخل وأبواب داخلية بتصاميم متنوعة.'],
+    'domes':['قباب',''],
+    'cast aluminum doors':['أبواب وبوابات ألمنيوم مصبوب','بوابات خارجية وأبواب ألمنيوم مصبوب بتصاميم حصرية.'],
+    'infographia':['تفاصيل فنية',''],
+    'glass majlis':['مجالس زجاج','مجالس وغرف زجاجية خارجية بإطلالة مفتوحة.'],
+    'sliding':['أبواب ونوافذ سحّاب','أنظمة سحّاب ألمنيوم عازلة للحرارة والصوت.'],
+    'stain glass':['زجاج معشّق','زجاج معشّق ملوّن للنوافذ والأقواس.']
+  };
+  var labelOf = function(name){ var l = LABELS[String(name || '').trim().toLowerCase()]; return l ? l[0] : name; };
+  var blurbOf = function(name){ var l = LABELS[String(name || '').trim().toLowerCase()]; return l && l[1] ? l[1] : 'مشاريع منفّذة من أعمال Merzona.'; };
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var params = new URLSearchParams(location.search);
+  var S = { cats: [], catId: params.get('c') || '', cat: null, items: [], sig: '' };
+
+  function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove('on'); }, 2200); }
+  function waLink(text){ return 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(text); }
+  function pageUrl(extra){ var u = location.origin + location.pathname + (S.catId ? '?c=' + encodeURIComponent(S.catId) : ''); return u + (extra || ''); }
+  async function share(title, url){
+    try{ if(navigator.share){ await navigator.share({ title: title, url: url }); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
+    try{ await navigator.clipboard.writeText(url); toast('انسخ الرابط ✓'); }catch(e){ prompt('انسخ الرابط:', url); }
+  }
+
+  /* ===== الشبكة ===== */
+  async function api(path){
+    var r = await fetch(SERVER + path, { cache: 'no-store' });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+  var imgSrc = function(it, size){ return SERVER + '/public/catalog-image/' + encodeURIComponent(it.id) + '?s=' + size + '&v=' + encodeURIComponent(it.v || ''); };
+
+  /* ===== كاش الصور المعالجة ===== */
+  var dbP = null;
+  function db(){ if(dbP) return dbP; dbP = new Promise(function(res){ try{ var r = indexedDB.open('merzona-public-catalog', 1); r.onupgradeneeded = function(){ r.result.createObjectStore('img'); }; r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ res(null); }; }catch(e){ res(null); } }); return dbP; }
+  async function cget(k){ var d = await db(); if(!d) return null; return new Promise(function(res){ try{ var q = d.transaction('img').objectStore('img').get(k); q.onsuccess = function(){ res(q.result || null); }; q.onerror = function(){ res(null); }; }catch(e){ res(null); } }); }
+  async function cput(k, v){ var d = await db(); if(!d) return; try{ d.transaction('img', 'readwrite').objectStore('img').put(v, k); }catch(e){} }
+
+  /* ===== تنظيف وتحسين الصورة (قص شريط الموبايل والحواف السودا + تصحيح إضاءة وألوان) ===== */
+  function longestRun(arr){ var best = [0, arr.length], bl = 0, s = -1; for(var i = 0; i <= arr.length; i++){ var v = i < arr.length && arr[i]; if(v && s < 0) s = i; if(!v && s >= 0){ if(i - s > bl){ bl = i - s; best = [s, i]; } s = -1; } } return best; }
+  async function bitmap(blob){
+    if(window.createImageBitmap){ try{ return await createImageBitmap(blob); }catch(e){} }
+    return await new Promise(function(res, rej){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = rej; im.src = URL.createObjectURL(blob); });
+  }
+  async function processImage(blob, maxLong){
+    var bmp = await bitmap(blob), W = bmp.width, H = bmp.height, x, y;
+    var aw = Math.min(320, W), ah = Math.max(1, Math.round(H * aw / W));
+    var ac = document.createElement('canvas'); ac.width = aw; ac.height = ah;
+    var ax = ac.getContext('2d', { willReadFrequently: true }); ax.drawImage(bmp, 0, 0, aw, ah);
+    var d = ax.getImageData(0, 0, aw, ah).data, rows = [];
+    for(y = 0; y < ah; y++){ var dk = 0; for(x = 0; x < aw; x++){ var p = (y * aw + x) * 4; if(d[p] + d[p+1] + d[p+2] < 75) dk++; } rows.push(dk / aw < 0.92); }
+    var rr = longestRun(rows), cols = [];
+    for(x = 0; x < aw; x++){ var dc = 0; for(y = rr[0]; y < rr[1]; y++){ var q = (y * aw + x) * 4; if(d[q] + d[q+1] + d[q+2] < 75) dc++; } cols.push(dc / Math.max(1, rr[1] - rr[0]) < 0.92); }
+    var cr = longestRun(cols);
+    var sx = Math.round(cr[0] * W / aw), sy = Math.round(rr[0] * H / ah), sw = Math.round((cr[1] - cr[0]) * W / aw), sh = Math.round((rr[1] - rr[0]) * H / ah);
+    if(sw < W * 0.2 || sh < H * 0.2){ sx = 0; sy = 0; sw = W; sh = H; }
+    var k = Math.min(1, maxLong / Math.max(sw, sh)), ow = Math.round(sw * k), oh = Math.round(sh * k);
+    var oc = document.createElement('canvas'); oc.width = ow; oc.height = oh;
+    var ox = oc.getContext('2d', { willReadFrequently: true }); ox.imageSmoothingQuality = 'high';
+    ox.drawImage(bmp, sx, sy, sw, sh, 0, 0, ow, oh);
+    if(bmp.close) try{ bmp.close(); }catch(e){}
+    var id = ox.getImageData(0, 0, ow, oh), a = id.data, n = ow * oh, hist = new Uint32Array(256), i;
+    for(i = 0; i < a.length; i += 4) hist[(a[i] * 77 + a[i+1] * 150 + a[i+2] * 29) >> 8]++;
+    var acc = 0, lo = 0, hi = 255;
+    for(i = 0; i < 256; i++){ acc += hist[i]; if(acc > n * 0.003){ lo = i; break; } }
+    acc = 0; for(i = 255; i >= 0; i--){ acc += hist[i]; if(acc > n * 0.001){ hi = i; break; } }
+    if(hi - lo < 40){ lo = 0; hi = 255; }
+    var l1 = new Float32Array(256), mean = 0;
+    for(i = 0; i < 256; i++){ var v = (i - lo) / (hi - lo); l1[i] = v < 0 ? 0 : (v > 1 ? 1 : v); mean += l1[i] * hist[i]; }
+    mean /= n;
+    var g = 1; if(mean < 0.47){ g = Math.log(0.5) / Math.log(Math.max(mean, 0.05)); if(g < 0.6) g = 0.6; }
+    var lut = new Uint8ClampedArray(256); for(i = 0; i < 256; i++) lut[i] = Math.round(255 * Math.pow(l1[i], g));
+    for(i = 0; i < a.length; i += 4){ var r = lut[a[i]], gg = lut[a[i+1]], b = lut[a[i+2]], l = 0.299 * r + 0.587 * gg + 0.114 * b; a[i] = l + (r - l) * 1.08; a[i+1] = l + (gg - l) * 1.08; a[i+2] = l + (b - l) * 1.08; }
+    ox.putImageData(id, 0, 0);
+    var out = await new Promise(function(res){ oc.toBlob(res, 'image/jpeg', 0.88); });
+    return { blob: out, w: ow, h: oh };
+  }
+  var urlMem = {}, pend = {}, queue = [], active = 0;
+  function getImage(it, size){
+    var key = it.id + ':' + it.v + ':' + size;
+    if(urlMem[key]) return Promise.resolve(urlMem[key]);
+    if(pend[key]) return pend[key];
+    pend[key] = new Promise(function(resolve, reject){ queue[size > 1200 ? 'unshift' : 'push']({ key: key, it: it, size: size, resolve: resolve, reject: reject }); pump(); });
+    return pend[key];
+  }
+  function pump(){
+    while(active < 5 && queue.length){
+      var job = queue.shift(); active++;
+      (async function(job){
+        try{
+          var c = await cget(job.key);
+          if(!c){
+            var r = await fetch(imgSrc(job.it, job.size));
+            if(!r.ok) throw new Error('img ' + r.status);
+            var raw = await r.blob();
+            try{ c = await processImage(raw, job.size); }catch(e){ c = { blob: raw, w: 0, h: 0 }; }
+            cput(job.key, c);
+          }
+          var res = { url: URL.createObjectURL(c.blob), w: c.w, h: c.h };
+          urlMem[job.key] = res; job.resolve(res);
+        }catch(e){ delete pend[job.key]; job.reject(e); }
+        finally{ active--; pump(); }
+      })(job);
+    }
+  }
+
+  /* ===== العرض ===== */
+  function renderChips(){
+    var h = '<a class="chip" href="catalog.html"' + (S.catId ? '' : ' aria-current="page"') + '>كل الأعمال</a>';
+    S.cats.forEach(function(c){ h += '<a class="chip" href="?c=' + encodeURIComponent(c.id) + '"' + (c.id === S.catId ? ' aria-current="page"' : '') + '>' + esc(labelOf(c.name)) + '<small>' + c.count + '</small></a>'; });
+    $('chips').innerHTML = h;
+    var cur = $('chips').querySelector('[aria-current]'); if(cur && cur.scrollIntoView) try{ cur.scrollIntoView({ inline: 'center', block: 'nearest' }); }catch(e){}
+  }
+  function setHero(title, text, eyebrow, metaHtml, coverItem){
+    $('heroTitle').textContent = title; $('heroText').textContent = text; $('heroEyebrow').textContent = eyebrow; $('heroMeta').innerHTML = metaHtml || '';
+    document.title = 'Merzona — ' + title;
+    if(coverItem) getImage(coverItem, 1600).then(function(r){ var bg = $('heroBg'); bg.style.backgroundImage = 'url("' + r.url + '")'; bg.classList.add('on'); }).catch(function(){});
+  }
+  function lazyFill(root, size){
+    var io = 'IntersectionObserver' in window ? new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ io.unobserve(e.target); load(e.target); } }); }, { rootMargin: '600px 0px' }) : null;
+    function load(img){
+      var it = S.items[img.dataset.i] || S.cats[img.dataset.c] && S.cats[img.dataset.c].cover; if(!it) return;
+      getImage(it, size).then(function(r){
+        img.src = r.url; img.onload = function(){ img.classList.add('ok'); };
+        var t = img.closest('.tile'); if(t){ t.classList.remove('loading'); if(r.w && r.h) t.style.aspectRatio = r.w + ' / ' + r.h; }
+      }).catch(function(){ var t = img.closest('.tile'); if(t) t.classList.remove('loading'); });
+    }
+    root.querySelectorAll('img[data-i],img[data-c]').forEach(function(img){ io ? io.observe(img) : load(img); });
+  }
+  function renderHome(){
+    var total = S.cats.reduce(function(s, c){ return s + c.count; }, 0);
+    setHero('كتالوج أعمال Merzona', 'مشاريع منفّذة بالألمنيوم والزجاج: درابزين، واجهات زجاجية، كبائن شاور، برغولات، أبواب ونوافذ. اختار القسم يلي بيهمك.', 'MERZONA · ALUMINIUM & GLASS',
+      '<span class="stat"><b>' + S.cats.length + '</b> أقسام</span><span class="stat"><b>' + total + '</b> صورة مشاريع</span>', S.cats[0] && S.cats[0].cover);
+    $('content').innerHTML = '<div class="sec-head"><h2>أقسام الأعمال</h2><span>اختار قسم لتتصفح صوره</span></div><div class="cats">' + S.cats.map(function(c, i){
+      return '<a class="cat" href="?c=' + encodeURIComponent(c.id) + '"><img alt="" data-c="' + i + '"><div class="t"><b>' + esc(labelOf(c.name)) + '</b><span>' + c.count + ' صورة</span></div></a>';
+    }).join('') + '</div>';
+    lazyFill($('content'), 900);
+  }
+  function renderCatalog(){
+    var c = S.cat, items = S.items;
+    setHero(labelOf(c.name), blurbOf(c.name), c.name, '<span class="stat"><b>' + items.length + '</b> صورة</span><a class="btn btn-ghost" href="#gallery">تصفّح الأعمال ↓</a>', items[0]);
+    if(!items.length){ $('content').innerHTML = '<div class="state"><b>ما في صور بهالقسم حاليًا</b>رح نضيف أعمال جديدة قريبًا.</div>'; return; }
+    $('content').innerHTML = '<div class="sec-head" id="gallery"><h2>' + esc(labelOf(c.name)) + '</h2><span>اضغط على أي صورة لتكبيرها</span></div><div class="masonry">' + items.map(function(it, i){
+      var ar = it.w && it.h ? it.w + ' / ' + it.h : '4 / 3';
+      return '<button type="button" class="tile loading" data-open="' + i + '" style="aspect-ratio:' + ar + '" aria-label="صورة ' + (i + 1) + '"><img alt="" data-i="' + i + '"><span class="n">' + (i + 1) + '</span></button>';
+    }).join('') + '</div>';
+    lazyFill($('content'), 800);
+  }
+  function setWa(){
+    var t = S.cat ? 'مرحبا Merzona، شفت كتالوج ' + labelOf(S.cat.name) + ' وحابب اطلب عرض سعر.' : 'مرحبا Merzona، شفت كتالوج الأعمال وحابب اطلب عرض سعر.';
+    $('waTop').href = waLink(t + '\n' + pageUrl()); $('waBottom').href = $('waTop').href;
+  }
+
+  async function load(quiet){
+    try{
+      var d = await api('/public/catalogs'); S.cats = d.catalogs || [];
+      if(S.catId){
+        var c = await api('/public/catalogs/' + encodeURIComponent(S.catId));
+        var sig = c.items.map(function(x){ return x.id + x.v; }).join('|');
+        if(quiet && sig === S.sig){ renderChips(); return; }
+        if(quiet && $('lb').classList.contains('open')){ return; }
+        S.cat = c; S.items = c.items; S.sig = sig;
+        renderChips(); renderCatalog();
+      } else { renderChips(); if(!quiet) renderHome(); }
+      setWa();
+      if(!quiet){ var m = location.hash.match(/^#p=(\d+)/); if(m && S.items[m[1] - 1]) openLb(m[1] - 1); }
+    }catch(e){
+      if(quiet) return;
+      $('content').innerHTML = '<div class="state"><b>' + (String(e.message).indexOf('404') >= 0 ? 'ما لقينا هالكتالوج' : 'ما قدرنا نحمّل الكتالوج') + '</b>' +
+        (String(e.message).indexOf('404') >= 0 ? '<a href="catalog.html">شوف كل الأعمال</a>' : 'تأكد من الإنترنت وحدّث الصفحة.') + '</div>';
+    }
+  }
+
+  /* ===== العارض: تقليب + تكبير بالإصبعين + دبل تاب + سحب ===== */
+  var L = { i: 0, scale: 1, tx: 0, ty: 0, ptrs: new Map(), pinch: null, drag: null, lastTap: 0, anim: false };
+  var img = $('lbImg'), stage = $('lbStage'), track = $('lbTrack');
+  function apply(t){ img.style.transition = t ? 'transform .25s ease' : 'none'; img.style.transform = 'translate(' + L.tx + 'px,' + L.ty + 'px) scale(' + L.scale + ')'; }
+  function baseSize(){ var sw = stage.clientWidth, sh = stage.clientHeight, iw = img.naturalWidth || sw, ih = img.naturalHeight || sh, f = Math.min(sw / iw, sh / ih, 1); return { w: iw * f, h: ih * f, sw: sw, sh: sh }; }
+  function clamp(){ var b = baseSize(), mx = Math.max(0, (b.w * L.scale - b.sw) / 2), my = Math.max(0, (b.h * L.scale - b.sh) / 2); L.tx = Math.max(-mx, Math.min(mx, L.tx)); L.ty = Math.max(-my, Math.min(my, L.ty)); }
+  function zoomAt(ns, cx, cy, t){
+    ns = Math.max(1, Math.min(5, ns));
+    var r = stage.getBoundingClientRect(), px = cx - r.left - r.width / 2, py = cy - r.top - r.height / 2;
+    L.tx = px - (px - L.tx) * ns / L.scale; L.ty = py - (py - L.ty) * ns / L.scale; L.scale = ns;
+    if(ns === 1){ L.tx = 0; L.ty = 0; } clamp(); apply(t);
+  }
+  function resetZoom(t){ L.scale = 1; L.tx = 0; L.ty = 0; apply(t); }
+  function show(i, dir){
+    var n = S.items.length; if(!n) return;
+    L.i = (i + n) % n; var it = S.items[L.i];
+    $('lbCount').textContent = (L.i + 1) + ' / ' + n;
+    $('lbTitle').textContent = labelOf(S.cat.name);
+    $('lbAsk').href = waLink('مرحبا Merzona، حابب استفسر عن هالتصميم من كتالوج ' + labelOf(S.cat.name) + ' (صورة رقم ' + (L.i + 1) + '):\n' + pageUrl('#p=' + (L.i + 1)));
+    history.replaceState(null, '', '#p=' + (L.i + 1));
+    resetZoom(false);
+    $('lbSpin').style.display = '';
+    var thumbKey = it.id + ':' + it.v + ':800';
+    if(urlMem[thumbKey]) img.src = urlMem[thumbKey].url;
+    if(dir){ track.style.transition = 'none'; track.style.transform = 'translateX(' + (dir * 40) + 'px)'; track.style.opacity = '0'; requestAnimationFrame(function(){ track.style.transition = 'transform .28s ease, opacity .28s ease'; track.style.transform = 'translateX(0)'; track.style.opacity = '1'; }); }
+    getImage(it, 2000).then(function(r){ if(S.items[L.i] === it){ img.src = r.url; $('lbSpin').style.display = 'none'; } }).catch(function(){ $('lbSpin').style.display = 'none'; });
+    [1, -1, 2].forEach(function(o){ var nb = S.items[(L.i + o + n) % n]; if(nb) getImage(nb, 2000).catch(function(){}); });
+    var strip = $('lbStrip'); strip.querySelectorAll('button').forEach(function(b, k){ b.classList.toggle('on', k === L.i); });
+    var on = strip.children[L.i]; if(on && on.scrollIntoView) try{ on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); }catch(e){}
+  }
+  function openLb(i){
+    var lb = $('lb'); lb.classList.add('open'); document.documentElement.style.overflow = 'hidden';
+    var strip = $('lbStrip');
+    strip.innerHTML = S.items.map(function(it, k){ return '<button type="button" data-k="' + k + '" aria-label="صورة ' + (k + 1) + '"><img alt="" data-si="' + k + '"></button>'; }).join('');
+    strip.querySelectorAll('img[data-si]').forEach(function(im){ var it = S.items[im.dataset.si]; getImage(it, 800).then(function(r){ im.src = r.url; }).catch(function(){}); });
+    show(+i, 0);
+    $('lbHint').style.opacity = '1'; setTimeout(function(){ $('lbHint').style.opacity = '0'; }, 2800);
+    $('lbClose').focus();
+  }
+  function closeLb(){ $('lb').classList.remove('open'); document.documentElement.style.overflow = ''; history.replaceState(null, '', location.pathname + location.search); }
+  function next(){ show(L.i + 1, -1); }
+  function prev(){ show(L.i - 1, 1); }
+
+  stage.addEventListener('pointerdown', function(e){
+    if(e.target.closest('.lb-nav')) return;
+    stage.setPointerCapture && stage.setPointerCapture(e.pointerId);
+    L.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if(L.ptrs.size === 2){
+      var p = Array.from(L.ptrs.values());
+      L.pinch = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s: L.scale, mx: (p[0].x + p[1].x) / 2, my: (p[0].y + p[1].y) / 2, tx: L.tx, ty: L.ty };
+      L.drag = null;
+    } else if(L.ptrs.size === 1){
+      L.drag = { x: e.clientX, y: e.clientY, tx: L.tx, ty: L.ty, t: Date.now(), moved: false };
+    }
+  });
+  stage.addEventListener('pointermove', function(e){
+    if(!L.ptrs.has(e.pointerId)) return;
+    L.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if(L.pinch && L.ptrs.size >= 2){
+      var p = Array.from(L.ptrs.values()), d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), mx = (p[0].x + p[1].x) / 2, my = (p[0].y + p[1].y) / 2;
+      var ns = Math.max(1, Math.min(5, L.pinch.s * d / L.pinch.d)), r = stage.getBoundingClientRect();
+      var px = L.pinch.mx - r.left - r.width / 2, py = L.pinch.my - r.top - r.height / 2;
+      L.scale = ns; L.tx = px - (px - L.pinch.tx) * ns / L.pinch.s + (mx - L.pinch.mx); L.ty = py - (py - L.pinch.ty) * ns / L.pinch.s + (my - L.pinch.my);
+      clamp(); apply(false); return;
+    }
+    if(!L.drag) return;
+    var dx = e.clientX - L.drag.x, dy = e.clientY - L.drag.y;
+    if(Math.abs(dx) > 6 || Math.abs(dy) > 6) L.drag.moved = true;
+    if(L.scale > 1){ L.tx = L.drag.tx + dx; L.ty = L.drag.ty + dy; clamp(); apply(false); }
+    else { track.style.transition = 'none'; track.style.transform = 'translateX(' + dx + 'px)'; track.style.opacity = String(1 - Math.min(Math.abs(dx) / 600, .4)); }
+  });
+  function endPtr(e){
+    if(!L.ptrs.has(e.pointerId)) return;
+    L.ptrs.delete(e.pointerId);
+    if(L.pinch){ if(L.ptrs.size < 2){ L.pinch = null; if(L.scale < 1.05) resetZoom(true); var rest = Array.from(L.ptrs.values())[0]; L.drag = rest ? { x: rest.x, y: rest.y, tx: L.tx, ty: L.ty, t: Date.now(), moved: true } : null; } return; }
+    if(!L.drag) return;
+    var dx = e.clientX - L.drag.x, dy = e.clientY - L.drag.y, dt = Date.now() - L.drag.t, moved = L.drag.moved; L.drag = null;
+    if(L.scale === 1){
+      track.style.transition = 'transform .22s ease, opacity .22s ease';
+      if(Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)){ dx < 0 ? next() : prev(); return; } // RTL: السحب لليسار = الصورة التالية
+      if(dy > 110 && Math.abs(dy) > Math.abs(dx)){ track.style.transform = ''; closeLb(); return; }
+      track.style.transform = 'translateX(0)'; track.style.opacity = '1';
+    }
+    if(!moved && dt < 300){
+      var now = Date.now();
+      if(now - L.lastTap < 320){ L.lastTap = 0; L.scale > 1 ? resetZoom(true) : zoomAt(2.5, e.clientX, e.clientY, true); }
+      else L.lastTap = now;
+    }
+  }
+  stage.addEventListener('pointerup', endPtr);
+  stage.addEventListener('pointercancel', endPtr);
+  stage.addEventListener('wheel', function(e){ e.preventDefault(); zoomAt(L.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY, false); }, { passive: false });
+  window.addEventListener('resize', function(){ if($('lb').classList.contains('open')){ clamp(); apply(false); } });
+  $('lbNext').onclick = next; $('lbPrev').onclick = prev; $('lbClose').onclick = closeLb;
+  $('lbZoom').onclick = function(){ var r = stage.getBoundingClientRect(); L.scale > 1 ? resetZoom(true) : zoomAt(2.5, r.left + r.width / 2, r.top + r.height / 2, true); };
+  $('lbShare').onclick = function(){ share('Merzona — ' + labelOf(S.cat.name), pageUrl('#p=' + (L.i + 1))); };
+  $('lbStrip').addEventListener('click', function(e){ var b = e.target.closest('[data-k]'); if(b) show(+b.dataset.k, +b.dataset.k > L.i ? -1 : 1); });
+  document.addEventListener('keydown', function(e){
+    if(!$('lb').classList.contains('open')) return;
+    if(e.key === 'Escape') closeLb();
+    else if(e.key === 'ArrowLeft') next();
+    else if(e.key === 'ArrowRight') prev();
+    else if(e.key === '+' || e.key === '=') $('lbZoom').click();
+  });
+  $('content').addEventListener('click', function(e){ var t = e.target.closest('[data-open]'); if(t) openLb(+t.dataset.open); });
+  $('shareBtn').onclick = function(){ share(document.title, pageUrl()); };
+
+  // تحديث حي: لما الزبون يرجع للصفحة، وكل دقيقة وهي مفتوحة
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') load(true); });
+  setInterval(function(){ if(document.visibilityState === 'visible') load(true); }, 60000);
+  load(false);
+})();
+</script>
+</body>
+</html>
