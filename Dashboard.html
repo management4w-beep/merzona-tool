@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-25.7';
+  var CURRENT_VERSION = '2026-11-05.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1530,6 +1530,14 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
 
   <div id="catalogsView" style="display:none;">
 
+    <!-- 🆕 2026-11-05: طلب حمدي - قسم الكتالوجات صار قسمين: الكتالوج الفني (كتالوجات الأنظمة + إدارة البنود، متل ما كانوا)
+         وكتالوج الصور (مربوط مباشرة بمجلدات جوجل درايف - أي صورة بتنضاف/بتنحذف بدرايف بتظهر فورًا). -->
+    <div class="mzc-subtabs" role="tablist">
+      <button type="button" id="catSubTech" class="active" role="tab" onclick="mzcShowCatalogPane('tech')">🔧 الكتالوج الفني</button>
+      <button type="button" id="catSubPhotos" role="tab" onclick="mzcShowCatalogPane('photos')">🖼️ كتالوج الصور</button>
+    </div>
+    <div id="catTechPane">
+
     <div class="panel">
       <p class="panel-title">📚 كتالوجات الأنظمة</p>
       <p style="font-size:12.5px;color:var(--muted);margin:-6px 0 12px;">
@@ -1556,6 +1564,474 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       </div>
       <div id="itemsDraftRows"></div>
     </div>
+    </div>
+    <div id="catPhotosPane" style="display:none;">
+
+<!-- ===== 📚 MERZONA CATALOGS - START (2026-11-05: طلب حمدي - قسم كتالوجات مربوط مباشرة بمجلد جوجل درايف) =====
+     الفكرة: مجلد درايف هو المصدر الوحيد للحقيقة. كل مجلد فرعي جوا CATALOG_ROOT = كتالوج لحاله
+     (والمجلدات الفرعية جواته بتنضم لنفس الكتالوج). أي صورة بتنضاف أو بتنحذف من درايف بتظهر/بتختفي
+     فورًا: الكتالوج بيعيد قراءة المجلد كل ما ينفتح، وكل 45 ثانية وهو مفتوح، وكل ما ترجع للصفحة.
+     الصور بتتنظّف تلقائيًا (قص شريط الموبايل والحواف السودا + تفتيح وتصحيح ألوان خفيف) وبتنحفظ نسخة
+     معالجة بالمتصفح (IndexedDB) حتى ما تنزل كل مرة - النسخة بتتجدد لحالها لو الصورة تغيّرت بدرايف.
+     بيستخدم نفس getGoogleAccessToken / fetchWithTimeout تبع النظام (توكن السيرفر). -->
+<style id="mzc-style">
+  #mzc-overlay{position:relative;background:#eceef0;color:#1d2226;direction:rtl;border-radius:12px;overflow:hidden;
+    font-family:'Tajawal','Inter',Tahoma,Arial,sans-serif;display:flex;flex-direction:column;min-height:60vh}
+  .mzc-subtabs{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+  .mzc-subtabs button{font:inherit;font-size:14.5px;font-weight:600;padding:9px 16px;border-radius:999px;border:1px solid var(--line,#c9c9c9);background:#fff;color:inherit;cursor:pointer}
+  .mzc-subtabs button.active{background:#1e2327;color:#fff;border-color:#1e2327}
+  .mzc-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px max(14px,env(safe-area-inset-right,0px)) 10px max(14px,env(safe-area-inset-left,0px));
+    background:#1e2327;color:#f2f2f0;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  .mzc-wm{font-family:'DM Serif Text',Georgia,serif;letter-spacing:.16em;font-size:19px;direction:ltr}
+  .mzc-crumb{font-size:15px;font-weight:700;margin-inline-end:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mzc-bar button,.mzc-bar label.mzc-btn,.mzc-bar a.mzc-btn{font:inherit;font-size:14px;font-weight:500;border:1px solid #4a5258;background:transparent;color:#f2f2f0;
+    padding:7px 12px;border-radius:7px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .mzc-bar button:hover,.mzc-bar label.mzc-btn:hover,.mzc-bar a.mzc-btn:hover{border-color:#a77a45}
+  .mzc-bar button.mzc-primary{background:#a77a45;border-color:#a77a45;color:#fff}
+  .mzc-bar button:disabled{opacity:.5;cursor:default}
+  .mzc-status{font-size:12px;color:#b8bfc3;white-space:nowrap}
+  .mzc-body{flex:1;padding:18px max(14px,env(safe-area-inset-right,0px)) 40px max(14px,env(safe-area-inset-left,0px))}
+  .mzc-wrap{max-width:1180px;margin:0 auto}
+  .mzc-msg{padding:50px 10px;text-align:center;color:#5d666c}
+  .mzc-folders{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr));gap:16px}
+  .mzc-folder{background:#fff;border:1px solid #d3d8db;border-radius:10px;overflow:hidden;cursor:pointer;text-align:right;padding:0;font:inherit;color:inherit;display:flex;flex-direction:column}
+  .mzc-folder:hover{border-color:#a77a45;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+  .mzc-folder .mzc-thumb{aspect-ratio:4/3;background:#d9dcdd center/cover no-repeat}
+  .mzc-folder .mzc-fi{padding:10px 12px 12px;display:grid;gap:2px}
+  .mzc-folder b{font-size:16px}
+  .mzc-folder span{font-size:12.5px;color:#6b7378;direction:ltr;text-align:right}
+  .mzc-folder small{font-size:13px;color:#8a6436;font-weight:700}
+  .mzc-folder.empty{opacity:.55;cursor:default}
+  .mzc-tools-row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-bottom:14px}
+  .mzc-tools-row label{font-size:14px;display:flex;gap:6px;align-items:center}
+  .mzc-tools-row input[type=text]{font:inherit;border:1px solid #c9cfd2;border-radius:7px;padding:6px 10px;min-width:0;width:260px;max-width:100%;background:#fff}
+  .mzc-sheets{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:22px}
+  .mzc-sw{container-type:inline-size;min-width:0}
+  .mzc-sl{font-size:12px;color:#5d666c;margin-bottom:6px}
+  .mzc-sheet{--mm:calc(100cqw / 210);position:relative;width:100%;aspect-ratio:210/297;background:#fbfbfa;box-shadow:0 1px 2px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.08);overflow:hidden}
+  .mzc-sh{position:absolute;top:calc(var(--mm)*12);left:calc(var(--mm)*12);right:calc(var(--mm)*12);height:calc(var(--mm)*10);display:flex;align-items:center;justify-content:space-between;border-bottom:calc(var(--mm)*.35) solid #a77a45}
+  .mzc-sh b{font-family:'DM Serif Text',Georgia,serif;letter-spacing:.2em;font-size:calc(var(--mm)*5);direction:ltr;font-weight:400}
+  .mzc-sh span{font-size:calc(var(--mm)*3.6);color:#6b7378}
+  .mzc-grid{position:absolute;top:calc(var(--mm)*26);bottom:calc(var(--mm)*24);left:calc(var(--mm)*12);right:calc(var(--mm)*12);display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);gap:calc(var(--mm)*4)}
+  .mzc-sf{position:absolute;bottom:calc(var(--mm)*12);left:calc(var(--mm)*12);right:calc(var(--mm)*12);display:flex;justify-content:space-between;font-size:calc(var(--mm)*3.4);color:#6b7378}
+  .mzc-ltr{direction:ltr}
+  .mzc-tile{position:relative;overflow:hidden;background:#d9dcdd;min-width:0;min-height:0}
+  .mzc-tile img{width:100%;height:100%;object-fit:cover;display:block}
+  .mzc-tile.loading::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);animation:mzc-sh 1.2s infinite}
+  @keyframes mzc-sh{from{transform:translateX(100%)}to{transform:translateX(-100%)}}
+  .mzc-acts{position:absolute;inset:auto 5px 5px 5px;display:flex;justify-content:space-between;pointer-events:none}
+  .mzc-acts button,.mzc-acts a{pointer-events:auto;width:28px;height:28px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(20,22,24,.72);color:#fff;cursor:pointer;font-size:13px;text-decoration:none;padding:0}
+  .mzc-acts button:hover{background:#a3352b}
+  .mzc-cimg{position:absolute;inset:0 0 34% 0;background:#cfd3d5}
+  .mzc-cimg img{width:100%;height:100%;object-fit:cover;display:block}
+  .mzc-band{position:absolute;inset:66% 0 0 0;background:#1e2327;color:#f2f2f0;padding:calc(var(--mm)*14) calc(var(--mm)*14) 0;display:flex;flex-direction:column;gap:calc(var(--mm)*3)}
+  .mzc-band .w{font-family:'DM Serif Text',Georgia,serif;font-size:calc(var(--mm)*17);letter-spacing:.16em;direction:ltr;text-align:right;line-height:1}
+  .mzc-band .r{height:calc(var(--mm)*.6);width:calc(var(--mm)*28);background:#a77a45}
+  .mzc-band .s{font-size:calc(var(--mm)*6);font-weight:700}
+  .mzc-band .m{margin-top:auto;padding-bottom:calc(var(--mm)*12);display:flex;justify-content:space-between;font-size:calc(var(--mm)*3.8);color:#b8bfc3}
+  @media (max-width:560px){.mzc-bar button,.mzc-bar label.mzc-btn,.mzc-bar a.mzc-btn{padding:6px 9px;font-size:13px}.mzc-status{width:100%}}
+  @media (prefers-reduced-motion:reduce){.mzc-tile.loading::after{animation:none}}
+</style>
+
+<div id="mzc-overlay">
+  <div class="mzc-bar">
+    <span class="mzc-wm">MERZONA</span>
+    <span class="mzc-crumb" id="mzc-crumb">الكتالوجات</span>
+    <span class="mzc-status" id="mzc-status"></span>
+    <button type="button" id="mzc-back" hidden>→ كل الكتالوجات</button>
+    <button type="button" id="mzc-refresh" title="بيعيد قراءة المجلد من جوجل درايف هلق">🔄 تحديث</button>
+    <label class="mzc-btn" id="mzc-up-lbl" for="mzc-up" hidden title="بيرفع الصور لمجلد هالكتالوج بجوجل درايف مباشرة">⬆️ رفع صور</label>
+    <input type="file" id="mzc-up" accept="image/*" multiple hidden>
+    <a class="mzc-btn" id="mzc-drive" target="_blank" rel="noopener">📂 فتح بدرايف</a>
+    <button type="button" class="mzc-primary" id="mzc-pdf" hidden>⬇️ تحميل PDF</button>
+  </div>
+  <div class="mzc-body"><div class="mzc-wrap" id="mzc-main"></div></div>
+</div>
+
+<script id="mzc-script">
+(function(){
+  'use strict';
+  // 🔧 مجلد الكتالوجات الرئيسي بدرايف (كل مجلد فرعي جواته = كتالوج). غيّره هون لو نقلت المجلد.
+  var CATALOG_ROOT = '13QxtnBbXx3SuOZIu8hA90TiD7T2CiMoC';
+  var PHONE = '+971 50 847 1158';
+  var CITIES = 'دمشق · دبي · الشارقة';
+  var PER_PAGE = 6;
+  var POLL_MS = 20000;
+  var LABELS = {
+    'cast aluminum handrails':'درابزين ألمنيوم مصبوب', 'curtain wall design':'واجهات زجاجية (كيرتن وول)',
+    'forex design':'تصاميم فوركس', 'showers':'كبائن شاور زجاج', 'glass handrail':'درابزين زجاج',
+    'pergolas':'برغولات', 'door':'أبواب ألمنيوم', 'domes':'قباب', 'cast aluminum doors':'أبواب وبوابات ألمنيوم مصبوب',
+    'infographia':'إنفوغرافيك', 'glass majlis':'مجالس زجاج', 'sliding':'أبواب ونوافذ سحّاب', 'stain glass':'زجاج معشّق'
+  };
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var labelOf = function(f){ var k = (f.name || '').trim().toLowerCase(); return LABELS[k] || f.name; };
+  var lsGet = function(k, d){ try{ var v = localStorage.getItem(k); return v == null ? d : v; }catch(e){ return d; } };
+  var lsSet = function(k, v){ try{ localStorage.setItem(k, v); }catch(e){} };
+
+  var S = { view: 'home', folders: [], folder: null, items: [], sig: '', timer: null, busy: false, imgUrls: {} };
+
+  /* ---------- جوجل درايف ---------- */
+  async function token(){ return await getDashGoogleAccessToken(false); }
+  async function drive(path, opts, retried){
+    var t = await token();
+    var o = Object.assign({}, opts || {});
+    o.headers = Object.assign({ Authorization: 'Bearer ' + t }, (opts && opts.headers) || {});
+    o.cache = 'no-store'; // دايمًا نسخة طازة من درايف، بدون كاش المتصفح
+    var res = await dashFetchWithTimeout(path.indexOf('http') === 0 ? path : 'https://www.googleapis.com/drive/v3/' + path, o, 60000);
+    if(res.status === 401 && !retried){
+      try{ dashGoogleAccessToken = null; dashGoogleAccessTokenExpiresAt = 0; localStorage.removeItem(DASH_TOKEN_CACHE_KEY); }catch(e){}
+      return drive(path, opts, true);
+    }
+    if(!res.ok) throw new Error('Google Drive ' + res.status);
+    return res;
+  }
+  async function listChildren(folderId){
+    var out = [], pageToken = '';
+    do{
+      var q = encodeURIComponent("'" + folderId + "' in parents and trashed = false");
+      var url = 'files?q=' + q + '&orderBy=name&pageSize=1000&fields=nextPageToken,files(id,name,mimeType,modifiedTime,md5Checksum)' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+      var data = await (await drive(url)).json();
+      out = out.concat(data.files || []); pageToken = data.nextPageToken || '';
+    } while(pageToken);
+    return out;
+  }
+  // كل الصور جوا المجلد ومجلداته الفرعية (مرتبة: صور المجلد نفسه أولاً بالاسم، بعدين كل مجلد فرعي بالترتيب)
+  async function listImagesDeep(folderId){
+    var kids = await listChildren(folderId);
+    var imgs = kids.filter(function(f){ return /^image\//.test(f.mimeType); });
+    var subs = kids.filter(function(f){ return f.mimeType === 'application/vnd.google-apps.folder'; });
+    for(var i = 0; i < subs.length; i++) imgs = imgs.concat(await listImagesDeep(subs[i].id));
+    return imgs;
+  }
+
+  /* ---------- كاش الصور المعالجة (IndexedDB) ---------- */
+  var dbP = null;
+  function db(){
+    if(dbP) return dbP;
+    dbP = new Promise(function(res){
+      try{
+        var r = indexedDB.open('mz-catalog-cache', 1);
+        r.onupgradeneeded = function(){ r.result.createObjectStore('img'); };
+        r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ res(null); };
+      }catch(e){ res(null); }
+    });
+    return dbP;
+  }
+  async function cacheGet(k){ var d = await db(); if(!d) return null; return new Promise(function(res){ try{ var q = d.transaction('img').objectStore('img').get(k); q.onsuccess = function(){ res(q.result || null); }; q.onerror = function(){ res(null); }; }catch(e){ res(null); } }); }
+  async function cachePut(k, v){ var d = await db(); if(!d) return; try{ d.transaction('img', 'readwrite').objectStore('img').put(v, k); }catch(e){} }
+
+  /* ---------- تنظيف وتحسين الصورة ---------- */
+  function longestRun(arr){ var best = [0, arr.length], bl = 0, s = -1; for(var i = 0; i <= arr.length; i++){ var v = i < arr.length && arr[i]; if(v && s < 0) s = i; if(!v && s >= 0){ if(i - s > bl){ bl = i - s; best = [s, i]; } s = -1; } } return best; }
+  async function loadBitmap(blob){
+    if(window.createImageBitmap){ try{ return await createImageBitmap(blob); }catch(e){} }
+    return await new Promise(function(res, rej){ var u = URL.createObjectURL(blob), im = new Image(); im.onload = function(){ res(im); }; im.onerror = rej; im.src = u; });
+  }
+  async function processImage(blob, enhance){
+    var bmp = await loadBitmap(blob);
+    var W = bmp.width, H = bmp.height;
+    // 1) قص شريط الموبايل والحواف السودا (تحليل على نسخة مصغّرة)
+    var aw = Math.min(320, W), ah = Math.max(1, Math.round(H * aw / W));
+    var ac = document.createElement('canvas'); ac.width = aw; ac.height = ah;
+    var ax = ac.getContext('2d', { willReadFrequently: true }); ax.drawImage(bmp, 0, 0, aw, ah);
+    var d = ax.getImageData(0, 0, aw, ah).data, rows = [], x, y;
+    for(y = 0; y < ah; y++){ var dk = 0; for(x = 0; x < aw; x++){ var p = (y * aw + x) * 4; if(d[p] + d[p+1] + d[p+2] < 75) dk++; } rows.push(dk / aw < 0.92); }
+    var rr = longestRun(rows), cols = [];
+    for(x = 0; x < aw; x++){ var dc = 0; for(y = rr[0]; y < rr[1]; y++){ var q = (y * aw + x) * 4; if(d[q] + d[q+1] + d[q+2] < 75) dc++; } cols.push(dc / Math.max(1, rr[1] - rr[0]) < 0.92); }
+    var cr = longestRun(cols);
+    var sx = Math.round(cr[0] * W / aw), sy = Math.round(rr[0] * H / ah), sw = Math.round((cr[1] - cr[0]) * W / aw), sh = Math.round((rr[1] - rr[0]) * H / ah);
+    if(sw < W * 0.2 || sh < H * 0.2){ sx = 0; sy = 0; sw = W; sh = H; }
+    // 2) مقاس مناسب للطباعة: أطول ضلع بين 1100 و 1600
+    var L = Math.max(sw, sh), k = L > 1600 ? 1600 / L : (L < 1100 ? 1100 / L : 1);
+    var ow = Math.round(sw * k), oh = Math.round(sh * k);
+    var oc = document.createElement('canvas'); oc.width = ow; oc.height = oh;
+    var ox = oc.getContext('2d', { willReadFrequently: true }); ox.imageSmoothingEnabled = true; ox.imageSmoothingQuality = 'high';
+    ox.drawImage(bmp, sx, sy, sw, sh, 0, 0, ow, oh);
+    if(bmp.close) try{ bmp.close(); }catch(e){}
+    // 3) تحسين: مستويات تلقائية + تفتيح الصور الغامقة + ألوان أحيى شوي
+    if(enhance){
+      var id = ox.getImageData(0, 0, ow, oh), a = id.data, n = ow * oh, hist = new Uint32Array(256), i;
+      for(i = 0; i < a.length; i += 4) hist[(a[i] * 77 + a[i+1] * 150 + a[i+2] * 29) >> 8]++;
+      var acc = 0, lo = 0, hi = 255;
+      for(i = 0; i < 256; i++){ acc += hist[i]; if(acc > n * 0.003){ lo = i; break; } }
+      acc = 0; for(i = 255; i >= 0; i--){ acc += hist[i]; if(acc > n * 0.001){ hi = i; break; } }
+      if(hi - lo < 40){ lo = 0; hi = 255; }
+      var lut1 = new Float32Array(256), mean = 0;
+      for(i = 0; i < 256; i++){ var v = (i - lo) / (hi - lo); lut1[i] = v < 0 ? 0 : (v > 1 ? 1 : v); mean += lut1[i] * hist[i]; }
+      mean /= n;
+      var g = 1; if(mean < 0.47){ g = Math.log(0.5) / Math.log(Math.max(mean, 0.05)); if(g < 0.6) g = 0.6; }
+      var lut = new Uint8ClampedArray(256); for(i = 0; i < 256; i++) lut[i] = Math.round(255 * Math.pow(lut1[i], g));
+      for(i = 0; i < a.length; i += 4){
+        var r = lut[a[i]], gg = lut[a[i+1]], b = lut[a[i+2]], l = 0.299 * r + 0.587 * gg + 0.114 * b;
+        a[i] = l + (r - l) * 1.08; a[i+1] = l + (gg - l) * 1.08; a[i+2] = l + (b - l) * 1.08;
+      }
+      ox.putImageData(id, 0, 0);
+    }
+    return await new Promise(function(res){ oc.toBlob(function(b){ res(b); }, 'image/jpeg', 0.86); });
+  }
+
+  // طابور تنزيل/معالجة (4 صور بنفس الوقت)
+  var pending = {}, queue = [], active = 0;
+  function enhanceOn(){ return lsGet('mzc-enhance', '1') === '1'; }
+  function imageUrl(it){
+    var key = it.id + ':' + (it.md5Checksum || it.modifiedTime || '') + ':' + (enhanceOn() ? 'e' : 'o');
+    if(S.imgUrls[key]) return Promise.resolve(S.imgUrls[key]);
+    if(pending[key]) return pending[key];
+    pending[key] = new Promise(function(resolve, reject){ queue.push({ key: key, it: it, resolve: resolve, reject: reject }); pump(); });
+    return pending[key];
+  }
+  function pump(){
+    while(active < 4 && queue.length){
+      var job = queue.shift(); active++;
+      (async function(job){
+        try{
+          var blob = await cacheGet(job.key);
+          if(!blob){
+            var raw = await (await drive('files/' + job.it.id + '?alt=media')).blob();
+            blob = await processImage(raw, enhanceOn());
+            cachePut(job.key, blob);
+          }
+          var u = URL.createObjectURL(blob); S.imgUrls[job.key] = u; job.resolve(u);
+        }catch(e){ delete pending[job.key]; job.reject(e); }
+        finally{ active--; pump(); }
+      })(job);
+    }
+  }
+  function fillImages(root){
+    root.querySelectorAll('img[data-fid]').forEach(function(img){
+      var it = S.items.find(function(x){ return x.id === img.dataset.fid; }) || (S.coverOf && S.coverOf[img.dataset.fid]);
+      if(!it) return;
+      var tile = img.parentElement;
+      imageUrl(it).then(function(u){ img.src = u; tile.classList.remove('loading'); })
+                  .catch(function(){ tile.classList.remove('loading'); tile.title = 'ما قدرنا نحمّل هالصورة'; });
+    });
+  }
+
+  /* ---------- الواجهة ---------- */
+  function setStatus(t){ $('mzc-status').textContent = t || ''; }
+  function stamp(){ var d = new Date(); return 'آخر تحديث ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+  async function showHome(quiet){
+    if(quiet && (S.view !== 'home' || S.busy)) return;
+    S.view = 'home'; S.folder = null; startPoll();
+    $('mzc-crumb').textContent = 'الكتالوجات'; $('mzc-back').hidden = true; $('mzc-up-lbl').hidden = true; $('mzc-pdf').hidden = true;
+    $('mzc-drive').href = 'https://drive.google.com/drive/folders/' + CATALOG_ROOT;
+    var main = $('mzc-main');
+    if(!S.folders.length) main.innerHTML = '<div class="mzc-msg">⏳ عم نقرأ مجلدات الكتالوجات من جوجل درايف…</div>';
+    setStatus('عم نحدّث…'); S.busy = true;
+    try{
+      var kids = await listChildren(CATALOG_ROOT);
+      var folders = kids.filter(function(f){ return f.mimeType === 'application/vnd.google-apps.folder'; });
+      var counted = await Promise.all(folders.map(async function(f){
+        try{ var imgs = await listImagesDeep(f.id); return { f: f, n: imgs.length, cover: imgs[0] || null }; }
+        catch(e){ return { f: f, n: 0, cover: null }; }
+      }));
+      if(S.view !== 'home') return;
+      var hsig = counted.map(function(c){ return c.f.id + ':' + c.f.name + ':' + c.n + ':' + (c.cover ? c.cover.id + (c.cover.md5Checksum || '') : ''); }).join('|');
+      if(quiet && hsig === S.homeSig && main.querySelector('.mzc-folders')){ setStatus(stamp()); return; }
+      S.homeSig = hsig;
+      S.folders = counted; S.coverOf = {};
+      counted.forEach(function(c){ if(c.cover) S.coverOf[c.cover.id] = c.cover; });
+      main.innerHTML = counted.length ? '<div class="mzc-folders">' + counted.map(function(c){
+        return '<button type="button" class="mzc-folder' + (c.n ? '' : ' empty') + '" data-open="' + esc(c.f.id) + '"' + (c.n ? '' : ' disabled') + '>' +
+          '<div class="mzc-thumb mzc-tile' + (c.cover ? ' loading' : '') + '">' + (c.cover ? '<img alt="" data-fid="' + esc(c.cover.id) + '">' : '') + '</div>' +
+          '<div class="mzc-fi"><b>' + esc(labelOf(c.f)) + '</b><span>' + esc(c.f.name) + '</span><small>' + (c.n ? c.n + ' صورة' : 'المجلد فاضي') + '</small></div></button>';
+      }).join('') + '</div>' : '<div class="mzc-msg">ما في مجلدات جوا مجلد الكتالوجات بعد. اعمل مجلد بدرايف وحط فيه صور، ورح يطلع هون.</div>';
+      fillImages(main);
+      setStatus(stamp());
+    }catch(e){
+      console.error('[الكتالوجات]', e);
+      if(!quiet) main.innerHTML = '<div class="mzc-msg">ما قدرنا نوصل لجوجل درايف: ' + esc(e && e.message || e) + '<br>جرّب 🔄 تحديث.</div>';
+      setStatus(quiet ? 'ما زبط التحديث، رح نعيد المحاولة' : '');
+    }finally{ S.busy = false; }
+  }
+
+  async function openFolder(id){
+    var c = S.folders.find(function(x){ return x.f.id === id; }); if(!c) return;
+    S.view = 'folder'; S.folder = c.f; S.items = []; S.sig = '';
+    $('mzc-crumb').textContent = labelOf(c.f); $('mzc-back').hidden = false; $('mzc-up-lbl').hidden = false; $('mzc-pdf').hidden = false;
+    $('mzc-drive').href = 'https://drive.google.com/drive/folders/' + c.f.id;
+    $('mzc-main').innerHTML = '<div class="mzc-msg">⏳ عم نجيب الصور…</div>';
+    await refreshFolder(true);
+    startPoll();
+  }
+
+  async function refreshFolder(force){
+    if(S.view !== 'folder' || !S.folder) return;
+    if(S.busy){ if(force) setTimeout(function(){ refreshFolder(true); }, 400); return; }
+    S.busy = true; setStatus('عم نحدّث…');
+    try{
+      var fid = S.folder.id, imgs = await listImagesDeep(fid);
+      if(!S.folder || S.folder.id !== fid) return;
+      var sig = imgs.map(function(x){ return x.id + ':' + (x.md5Checksum || x.modifiedTime); }).join('|');
+      if(force || sig !== S.sig){ S.items = imgs; S.sig = sig; renderFolder(); }
+      setStatus(stamp() + ' · ' + imgs.length + ' صورة');
+    }catch(e){
+      console.error('[الكتالوجات]', e); setStatus('ما زبط التحديث، رح نعيد المحاولة');
+    }finally{ S.busy = false; }
+  }
+
+  function titleKey(){ return 'mzc-title-' + S.folder.id; }
+  function catTitle(){ return lsGet(titleKey(), labelOf(S.folder)); }
+
+  function renderFolder(){
+    var main = $('mzc-main'), items = S.items, pages = Math.ceil(items.length / PER_PAGE), t = esc(catTitle());
+    var h = '<div class="mzc-tools-row">' +
+      '<label for="mzc-title">عنوان الكتالوج <input type="text" id="mzc-title" value="' + t + '"></label>' +
+      '<label for="mzc-enh"><input type="checkbox" id="mzc-enh"' + (enhanceOn() ? ' checked' : '') + '> تحسين الصور تلقائيًا</label>' +
+      '<span style="font-size:13px;color:#5d666c">' + items.length + ' صورة · ' + (pages + 1) + ' صفحة</span></div>';
+    if(!items.length){ main.innerHTML = h + '<div class="mzc-msg">المجلد فاضي. ارفع صور من زر ⬆️ أو حطها بالمجلد بدرايف، ورح تطلع هون لحالها.</div>'; bindTools(); return; }
+    h += '<div class="mzc-sheets">';
+    h += '<div class="mzc-sw"><div class="mzc-sl">الغلاف</div><div class="mzc-sheet"><div class="mzc-cimg mzc-tile loading"><img alt="" data-fid="' + esc(items[0].id) + '"></div>' +
+         '<div class="mzc-band"><div class="w">MERZONA</div><div class="r"></div><div class="s" data-title>' + t + '</div><div class="m"><span>' + esc(CITIES) + '</span><span class="mzc-ltr">' + esc(PHONE) + '</span></div></div></div></div>';
+    for(var p = 0; p < pages; p++){
+      h += '<div class="mzc-sw"><div class="mzc-sl">صفحة ' + (p + 2) + '</div><div class="mzc-sheet"><div class="mzc-sh"><b>MERZONA</b><span data-title>' + t + '</span></div><div class="mzc-grid">';
+      items.slice(p * PER_PAGE, p * PER_PAGE + PER_PAGE).forEach(function(it){
+        h += '<div class="mzc-tile loading"><img alt="' + esc(it.name) + '" data-fid="' + esc(it.id) + '"><div class="mzc-acts">' +
+             '<a href="https://drive.google.com/file/d/' + esc(it.id) + '/view" target="_blank" rel="noopener" title="فتح الصورة بدرايف">↗</a>' +
+             '<button type="button" data-trash="' + esc(it.id) + '" title="حذف الصورة من درايف (بتنحط بسلة المهملات)">🗑</button></div></div>';
+      });
+      h += '</div><div class="mzc-sf"><span>' + esc(CITIES) + '</span><span class="mzc-ltr">' + esc(PHONE) + '</span><span>' + (p + 2) + '</span></div></div></div>';
+    }
+    main.innerHTML = h + '</div>';
+    bindTools(); fillImages(main);
+  }
+
+  function bindTools(){
+    var ti = $('mzc-title'); if(ti) ti.oninput = function(){ lsSet(titleKey(), ti.value); document.querySelectorAll('#mzc-main [data-title]').forEach(function(el){ el.textContent = ti.value; }); };
+    var en = $('mzc-enh'); if(en) en.onchange = function(){ lsSet('mzc-enhance', en.checked ? '1' : '0'); renderFolder(); };
+  }
+
+  async function trashImage(id){
+    var it = S.items.find(function(x){ return x.id === id; }); if(!it) return;
+    if(!confirm('بدك تحذف "' + it.name + '" من مجلد الكتالوج بدرايف؟\n\nرح تنحط بسلة مهملات جوجل درايف (فيك ترجعها خلال 30 يوم) وتختفي من الكتالوج فورًا.')) return;
+    setStatus('عم نحذف…');
+    try{
+      await drive('files/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+      await refreshFolder(true);
+    }catch(e){ alert('ما زبط الحذف: ' + (e && e.message || e)); setStatus(''); }
+  }
+
+  async function uploadFiles(files){
+    if(!S.folder || !files.length) return;
+    var ok = 0;
+    for(var i = 0; i < files.length; i++){
+      setStatus('عم نرفع ' + (i + 1) + ' من ' + files.length + '…');
+      try{
+        var fd = new FormData();
+        fd.append('metadata', new Blob([JSON.stringify({ name: files[i].name, parents: [S.folder.id] })], { type: 'application/json' }));
+        fd.append('file', files[i]);
+        await drive('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', body: fd });
+        ok++;
+      }catch(e){ console.error('[الكتالوجات] رفع', e); }
+    }
+    if(ok < files.length) alert('انرفع ' + ok + ' من ' + files.length + ' صور. الباقي ما زبط، جرّب ترفعهم مرة تانية.');
+    await refreshFolder(true);
+  }
+
+  /* ---------- PDF ---------- */
+  function loadJsPdf(){
+    if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+    return new Promise(function(res, rej){
+      var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = function(){ window.jspdf ? res(window.jspdf.jsPDF) : rej(new Error('jsPDF')); }; s.onerror = function(){ rej(new Error('ما تحمّلت مكتبة الـPDF')); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadImg(u){ return new Promise(function(res){ var im = new Image(); im.onload = function(){ res(im); }; im.onerror = function(){ res(null); }; im.src = u; }); }
+  function cover(ctx, im, x, y, w, h){ var r = Math.max(w / im.naturalWidth, h / im.naturalHeight), sw = w / r, sh = h / r; ctx.drawImage(im, (im.naturalWidth - sw) / 2, (im.naturalHeight - sh) / 2, sw, sh, x, y, w, h); }
+  function txt(ctx, s, x, y, font, color, align, dir){ ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.direction = dir || 'rtl'; ctx.fillText(s || '', x, y); }
+  async function exportPdf(){
+    var btn = $('mzc-pdf'), orig = btn.textContent; btn.disabled = true;
+    try{
+      var JsPDF = await loadJsPdf();
+      try{ await document.fonts.ready; }catch(e){}
+      var W = 1240, H = 1754, MM = W / 210, items = S.items.slice(), title = catTitle(), pages = Math.ceil(items.length / PER_PAGE);
+      var pdf = new JsPDF({ unit: 'mm', format: 'a4', compress: true });
+      var get = async function(it){ try{ return await loadImg(await imageUrl(it)); }catch(e){ return null; } };
+      var mk = function(){ var c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'); x.fillStyle = '#fbfbfa'; x.fillRect(0, 0, W, H); return [c, x]; };
+      btn.textContent = '⏳ الغلاف…';
+      var cc = mk(), c = cc[1], ih = H * 0.66, im0 = items[0] ? await get(items[0]) : null;
+      c.fillStyle = '#cfd3d5'; c.fillRect(0, 0, W, ih); if(im0) cover(c, im0, 0, 0, W, ih);
+      c.fillStyle = '#1e2327'; c.fillRect(0, ih, W, H - ih);
+      var R = W - 14 * MM;
+      txt(c, 'M E R Z O N A', R, ih + 30 * MM, '400 ' + (15 * MM) + "px 'DM Serif Text', Georgia, serif", '#f2f2f0', 'right', 'ltr');
+      c.fillStyle = '#a77a45'; c.fillRect(R - 28 * MM, ih + 36 * MM, 28 * MM, .6 * MM);
+      txt(c, title, R, ih + 48 * MM, '700 ' + (6 * MM) + "px Tajawal, Tahoma, sans-serif", '#f2f2f0', 'right');
+      txt(c, CITIES, R, H - 12 * MM, '400 ' + (3.8 * MM) + "px Tajawal, Tahoma, sans-serif", '#b8bfc3', 'right');
+      txt(c, PHONE, 14 * MM, H - 12 * MM, '400 ' + (3.8 * MM) + "px Tajawal, Tahoma, sans-serif", '#b8bfc3', 'left', 'ltr');
+      pdf.addImage(cc[0].toDataURL('image/jpeg', .86), 'JPEG', 0, 0, 210, 297);
+      for(var p = 0; p < pages; p++){
+        btn.textContent = '⏳ صفحة ' + (p + 2) + ' من ' + (pages + 1);
+        var chunk = items.slice(p * PER_PAGE, p * PER_PAGE + PER_PAGE), ims = await Promise.all(chunk.map(get));
+        var pc = mk(), x = pc[1], L = 12 * MM, Rr = W - 12 * MM;
+        txt(x, 'M E R Z O N A', Rr, 19 * MM, '400 ' + (5 * MM) + "px 'DM Serif Text', Georgia, serif", '#1d2226', 'right', 'ltr');
+        txt(x, title, L, 18.8 * MM, '400 ' + (3.6 * MM) + "px Tajawal, Tahoma, sans-serif", '#6b7378', 'left');
+        x.fillStyle = '#a77a45'; x.fillRect(L, 22 * MM - .35 * MM, Rr - L, .35 * MM);
+        var top = 26 * MM, bottom = H - 24 * MM, gap = 4 * MM, cw = (Rr - L - gap) / 2, ch = (bottom - top - gap * 2) / 3;
+        ims.forEach(function(im, i){ var col = i % 2, row = Math.floor(i / 2), xx = Rr - cw - col * (cw + gap), yy = top + row * (ch + gap); x.fillStyle = '#d9dcdd'; x.fillRect(xx, yy, cw, ch); if(im) cover(x, im, xx, yy, cw, ch); });
+        var fy = H - 12 * MM, ff = '400 ' + (3.4 * MM) + "px Tajawal, Tahoma, sans-serif";
+        txt(x, CITIES, Rr, fy, ff, '#6b7378', 'right'); txt(x, PHONE, W / 2, fy, ff, '#6b7378', 'center', 'ltr'); txt(x, String(p + 2), L, fy, ff, '#6b7378', 'left', 'ltr');
+        pdf.addPage('a4'); pdf.addImage(pc[0].toDataURL('image/jpeg', .86), 'JPEG', 0, 0, 210, 297);
+      }
+      pdf.save('Merzona - ' + (S.folder.name || 'Catalog') + '.pdf');
+    }catch(e){ alert('ما زبط تجهيز الـPDF: ' + (e && e.message || e)); }
+    finally{ btn.disabled = false; btn.textContent = orig; }
+  }
+
+  /* ---------- تحديث تلقائي ---------- */
+  function refreshNow(){ if(!isOpen()){ stopPoll(); return; } if(S.view === 'folder') refreshFolder(false); else showHome(true); }
+  function startPoll(){ stopPoll(); S.timer = setInterval(function(){ if(document.visibilityState === 'visible') refreshNow(); }, POLL_MS); }
+  function stopPoll(){ if(S.timer){ clearInterval(S.timer); S.timer = null; } }
+  // لما ترجع للصفحة (من تطبيق درايف عالموبايل، أو من تبويب تاني) منحدّث فورًا
+  window.addEventListener('focus', refreshNow);
+  window.addEventListener('pageshow', refreshNow);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') refreshNow(); });
+  function isOpen(){ var ov = $('mzc-overlay'); return !!(ov && ov.offsetParent); }
+
+  /* ---------- فتح/إغلاق ---------- */
+  function openCatalogs(){
+    if(S.view === 'folder' && S.folder){ refreshFolder(false); startPoll(); } else showHome(S.folders.length > 0);
+  }
+  window.openMerzonaCatalogs = openCatalogs;
+
+  $('mzc-back').onclick = function(){ showHome(false); };
+  $('mzc-refresh').onclick = function(){ S.view === 'folder' ? refreshFolder(true) : showHome(false); };
+  $('mzc-pdf').onclick = exportPdf;
+  $('mzc-up').onchange = function(e){ var f = Array.prototype.slice.call(e.target.files || []); e.target.value = ''; uploadFiles(f); };
+  $('mzc-main').addEventListener('click', function(e){
+    var o = e.target.closest('[data-open]'); if(o && !o.disabled){ openFolder(o.dataset.open); return; }
+    var t = e.target.closest('[data-trash]'); if(t){ trashImage(t.dataset.trash); }
+  });
+
+  // حماية: "حفظ لجوجل درايف" بياخد نسخة من الصفحة كلها (buildBakedHtmlSnapshot) - منفضّي محتوى
+  // الكتالوجات مؤقتًا وقتها حتى ما ينخبز جوا ملف عرض السعر (صور مؤقتة/لوحة مفتوحة)، وبعدين منرجّعه.
+  if(typeof window.buildBakedHtmlSnapshot === 'function'){
+    var __origBake = window.buildBakedHtmlSnapshot;
+    window.buildBakedHtmlSnapshot = function(){
+      var ov = $('mzc-overlay'), main = $('mzc-main'), wasOpen = ov.classList.contains('open'), kept = document.createDocumentFragment();
+      while(main.firstChild) kept.appendChild(main.firstChild);
+      ov.classList.remove('open');
+      try{ return __origBake.apply(this, arguments); }
+      finally{ main.appendChild(kept); if(wasOpen) ov.classList.add('open'); }
+    };
+  }
+})();
+</script>
+<!-- ===== 📚 MERZONA CATALOGS - END ===== -->
+
+    </div>
+    <script>
+    function mzcShowCatalogPane(which){
+      var photos = which === 'photos';
+      document.getElementById('catTechPane').style.display = photos ? 'none' : '';
+      document.getElementById('catPhotosPane').style.display = photos ? '' : 'none';
+      document.getElementById('catSubTech').classList.toggle('active', !photos);
+      document.getElementById('catSubPhotos').classList.toggle('active', photos);
+      try{ localStorage.setItem('mzc-catalog-pane', photos ? 'photos' : 'tech'); }catch(e){}
+      if(photos && window.openMerzonaCatalogs) window.openMerzonaCatalogs();
+    }
+    </script>
 
   </div>
 
@@ -2633,6 +3109,7 @@ function showCatalogsView(){
   document.getElementById('catalogsTabBtn').classList.add('active');
   renderCatalogsList();
   renderItemsDraftList();
+  try{ if(localStorage.getItem('mzc-catalog-pane') === 'photos' && window.mzcShowCatalogPane) mzcShowCatalogPane('photos'); }catch(e){}
 }
 function showPmpView(){
   hideAllViews();
