@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-05.1';
+  var CURRENT_VERSION = '2026-11-05.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -21472,7 +21472,7 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
   var PHONE = '+971 50 847 1158';
   var CITIES = 'دمشق · دبي · الشارقة';
   var PER_PAGE = 6;
-  var POLL_MS = 45000;
+  var POLL_MS = 20000;
   var LABELS = {
     'cast aluminum handrails':'درابزين ألمنيوم مصبوب', 'curtain wall design':'واجهات زجاجية (كيرتن وول)',
     'forex design':'تصاميم فوركس', 'showers':'كبائن شاور زجاج', 'glass handrail':'درابزين زجاج',
@@ -21493,6 +21493,7 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
     var t = await token();
     var o = Object.assign({}, opts || {});
     o.headers = Object.assign({ Authorization: 'Bearer ' + t }, (opts && opts.headers) || {});
+    o.cache = 'no-store'; // دايمًا نسخة طازة من درايف، بدون كاش المتصفح
     var res = await fetchWithTimeout(path.indexOf('http') === 0 ? path : 'https://www.googleapis.com/drive/v3/' + path, o, 60000);
     if(res.status === 401 && !retried){
       try{ googleAccessToken = null; googleAccessTokenExpiresAt = 0; localStorage.removeItem(GOOGLE_TOKEN_CACHE_KEY); }catch(e){}
@@ -21626,13 +21627,14 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
   function setStatus(t){ $('mzc-status').textContent = t || ''; }
   function stamp(){ var d = new Date(); return 'آخر تحديث ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 
-  async function showHome(){
-    S.view = 'home'; S.folder = null; stopPoll();
+  async function showHome(quiet){
+    if(quiet && (S.view !== 'home' || S.busy)) return;
+    S.view = 'home'; S.folder = null; startPoll();
     $('mzc-crumb').textContent = 'الكتالوجات'; $('mzc-back').hidden = true; $('mzc-up-lbl').hidden = true; $('mzc-pdf').hidden = true;
     $('mzc-drive').href = 'https://drive.google.com/drive/folders/' + CATALOG_ROOT;
     var main = $('mzc-main');
     if(!S.folders.length) main.innerHTML = '<div class="mzc-msg">⏳ عم نقرأ مجلدات الكتالوجات من جوجل درايف…</div>';
-    setStatus('عم نحدّث…');
+    setStatus('عم نحدّث…'); S.busy = true;
     try{
       var kids = await listChildren(CATALOG_ROOT);
       var folders = kids.filter(function(f){ return f.mimeType === 'application/vnd.google-apps.folder'; });
@@ -21641,6 +21643,9 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
         catch(e){ return { f: f, n: 0, cover: null }; }
       }));
       if(S.view !== 'home') return;
+      var hsig = counted.map(function(c){ return c.f.id + ':' + c.f.name + ':' + c.n + ':' + (c.cover ? c.cover.id + (c.cover.md5Checksum || '') : ''); }).join('|');
+      if(quiet && hsig === S.homeSig && main.querySelector('.mzc-folders')){ setStatus(stamp()); return; }
+      S.homeSig = hsig;
       S.folders = counted; S.coverOf = {};
       counted.forEach(function(c){ if(c.cover) S.coverOf[c.cover.id] = c.cover; });
       main.innerHTML = counted.length ? '<div class="mzc-folders">' + counted.map(function(c){
@@ -21652,9 +21657,9 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
       setStatus(stamp());
     }catch(e){
       console.error('[الكتالوجات]', e);
-      main.innerHTML = '<div class="mzc-msg">ما قدرنا نوصل لجوجل درايف: ' + esc(e && e.message || e) + '<br>جرّب 🔄 تحديث.</div>';
-      setStatus('');
-    }
+      if(!quiet) main.innerHTML = '<div class="mzc-msg">ما قدرنا نوصل لجوجل درايف: ' + esc(e && e.message || e) + '<br>جرّب 🔄 تحديث.</div>';
+      setStatus(quiet ? 'ما زبط التحديث، رح نعيد المحاولة' : '');
+    }finally{ S.busy = false; }
   }
 
   async function openFolder(id){
@@ -21668,7 +21673,8 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
   }
 
   async function refreshFolder(force){
-    if(S.view !== 'folder' || !S.folder || S.busy) return;
+    if(S.view !== 'folder' || !S.folder) return;
+    if(S.busy){ if(force) setTimeout(function(){ refreshFolder(true); }, 400); return; }
     S.busy = true; setStatus('عم نحدّث…');
     try{
       var fid = S.folder.id, imgs = await listImagesDeep(fid);
@@ -21790,16 +21796,20 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
   }
 
   /* ---------- تحديث تلقائي ---------- */
-  function startPoll(){ stopPoll(); S.timer = setInterval(function(){ if(document.visibilityState === 'visible') refreshFolder(false); }, POLL_MS); }
+  function refreshNow(){ if(!isOpen()) return; if(S.view === 'folder') refreshFolder(false); else showHome(true); }
+  function startPoll(){ stopPoll(); S.timer = setInterval(function(){ if(document.visibilityState === 'visible') refreshNow(); }, POLL_MS); }
   function stopPoll(){ if(S.timer){ clearInterval(S.timer); S.timer = null; } }
-  window.addEventListener('focus', function(){ if(isOpen() && S.view === 'folder') refreshFolder(false); });
+  // لما ترجع للصفحة (من تطبيق درايف عالموبايل، أو من تبويب تاني) منحدّث فورًا
+  window.addEventListener('focus', refreshNow);
+  window.addEventListener('pageshow', refreshNow);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') refreshNow(); });
   function isOpen(){ return $('mzc-overlay').classList.contains('open'); }
 
   /* ---------- فتح/إغلاق ---------- */
   function openCatalogs(){
     var ov = $('mzc-overlay'); ov.classList.add('open'); ov.setAttribute('aria-hidden', 'false');
     document.documentElement.style.overflow = 'hidden';
-    if(S.view === 'folder' && S.folder){ refreshFolder(false); startPoll(); } else showHome();
+    if(S.view === 'folder' && S.folder){ refreshFolder(false); startPoll(); } else showHome(S.folders.length > 0);
   }
   function closeCatalogs(){
     var ov = $('mzc-overlay'); ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true');
@@ -21808,8 +21818,8 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
   window.openMerzonaCatalogs = openCatalogs;
 
   $('mzc-close').onclick = closeCatalogs;
-  $('mzc-back').onclick = showHome;
-  $('mzc-refresh').onclick = function(){ S.view === 'folder' ? refreshFolder(true) : showHome(); };
+  $('mzc-back').onclick = function(){ showHome(false); };
+  $('mzc-refresh').onclick = function(){ S.view === 'folder' ? refreshFolder(true) : showHome(false); };
   $('mzc-pdf').onclick = exportPdf;
   $('mzc-up').onchange = function(e){ var f = Array.prototype.slice.call(e.target.files || []); e.target.value = ''; uploadFiles(f); };
   $('mzc-main').addEventListener('click', function(e){
