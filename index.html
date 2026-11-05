@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-05.2';
+  var CURRENT_VERSION = '2026-11-06.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -21457,6 +21457,7 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
     <button type="button" id="mzc-refresh" title="بيعيد قراءة المجلد من جوجل درايف هلق">🔄 تحديث</button>
     <label class="mzc-btn" id="mzc-up-lbl" for="mzc-up" hidden title="بيرفع الصور لمجلد هالكتالوج بجوجل درايف مباشرة">⬆️ رفع صور</label>
     <input type="file" id="mzc-up" accept="image/*" multiple hidden>
+    <button type="button" id="mzc-share" title="رابط صفحة الكتالوج للزبائن - تفاعلية، بتنفتح عالموبايل وبتتحدّث لحالها مع درايف">🔗 رابط للزبون</button>
     <a class="mzc-btn" id="mzc-drive" target="_blank" rel="noopener">📂 فتح بدرايف</a>
     <button type="button" class="mzc-primary" id="mzc-pdf" hidden>⬇️ تحميل PDF</button>
     <button type="button" id="mzc-close">✕ إغلاق</button>
@@ -21821,6 +21822,16 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
   $('mzc-back').onclick = function(){ showHome(false); };
   $('mzc-refresh').onclick = function(){ S.view === 'folder' ? refreshFolder(true) : showHome(false); };
   $('mzc-pdf').onclick = exportPdf;
+  // 🆕 رابط الكتالوج التفاعلي للزبون (catalog.html - صفحة عامة بدون تسجيل دخول، بتقرأ من درايف عبر السيرفر)
+  var PUBLIC_CATALOG_URL = 'https://management4w-beep.github.io/merzona-tool/catalog.html';
+  $('mzc-share').onclick = async function(){
+    var url = PUBLIC_CATALOG_URL + (S.view === 'folder' && S.folder ? '?c=' + encodeURIComponent(S.folder.id) : '');
+    var name = S.view === 'folder' && S.folder ? catTitle() : 'كتالوج الأعمال';
+    var msg = 'تفضل كتالوج ' + name + ' من Merzona:\n' + url;
+    try{ if(navigator.share){ await navigator.share({ title: 'Merzona — ' + name, text: 'تفضل كتالوج ' + name + ' من Merzona:', url: url }); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
+    var copied = false; try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){}
+    if(confirm((copied ? '✅ انسخ رابط الكتالوج:\n' : 'رابط الكتالوج:\n') + url + '\n\nبدك تبعته هلق على واتساب؟')) window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+  };
   $('mzc-up').onchange = function(e){ var f = Array.prototype.slice.call(e.target.files || []); e.target.value = ''; uploadFiles(f); };
   $('mzc-main').addEventListener('click', function(e){
     var o = e.target.closest('[data-open]'); if(o && !o.disabled){ openFolder(o.dataset.open); return; }
