@@ -8,6 +8,9 @@
 <meta property="og:title" content="Merzona — كتالوج الأعمال">
 <meta property="og:description" content="معرض أعمال Merzona للألمنيوم والزجاج — دمشق · دبي · الشارقة">
 <meta name="theme-color" content="#16191c">
+<link rel="icon" type="image/png" href="img/catalog-icon.png">
+<link rel="apple-touch-icon" href="img/catalog-icon.png">
+<meta property="og:image" content="https://management4w-beep.github.io/merzona-tool/img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Text&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -32,9 +35,11 @@ button{font:inherit;color:inherit}
 /* top bar */
 .bar{position:sticky;top:0;z-index:30;background:rgba(22,25,28,.92);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);color:#f3f1ec;padding-top:env(safe-area-inset-top,0px)}
 .bar .wrap{display:flex;align-items:center;gap:14px;height:62px}
-.brand{display:flex;align-items:baseline;gap:12px;text-decoration:none;min-width:0}
-.brand b{font-family:var(--f-brand);font-weight:400;font-size:24px;letter-spacing:.2em;direction:ltr}
-.brand span{font-size:13px;color:#b5b2aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none;min-width:0}
+.brand .logo{display:flex;align-items:center;gap:8px;direction:ltr;flex:none}
+.brand .logo .mk{height:36px;width:auto}
+.brand .logo .wd{height:21px;width:auto}
+.brand > span:not(.logo){font-size:13px;color:#b5b2aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar .sp{flex:1}
 .btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:9px 16px;font-weight:700;font-size:14.5px;text-decoration:none;border:0;cursor:pointer;white-space:nowrap}
 .btn-wa{background:var(--wa);color:#fff}
@@ -43,7 +48,7 @@ button{font:inherit;color:inherit}
 .btn-ghost:hover{border-color:var(--bronze-2)}
 .btn svg{width:18px;height:18px;flex:none}
 .icon-only{padding:9px}
-@media (max-width:560px){.brand span{display:none}.btn-wa .lbl{display:none}.btn-wa{padding:9px}}
+@media (max-width:560px){.brand > span:not(.logo){display:none}.btn-wa .lbl{display:none}.btn-wa{padding:9px}}
 
 /* chips */
 .chips{background:var(--ink);border-top:1px solid rgba(255,255,255,.06)}
@@ -106,7 +111,8 @@ button{font:inherit;color:inherit}
 .contact dt{color:#8f8c85}
 .contact dd{margin:0}
 .ltr{direction:ltr;unicode-bidi:isolate}
-.foot-brand{font-family:var(--f-brand);letter-spacing:.2em;font-size:30px;direction:ltr;text-align:right;color:#fff}
+.foot-brand{display:block;margin-bottom:14px}
+.foot-brand img{height:96px;width:auto}
 
 .state{padding:70px 0;text-align:center;color:var(--muted)}
 .state b{display:block;color:var(--ink);font-size:18px;margin-bottom:6px}
@@ -148,7 +154,7 @@ button{font:inherit;color:inherit}
 
 <header class="bar">
   <div class="wrap">
-    <a class="brand" href="catalog.html"><b>MERZONA</b><span>ألمنيوم وزجاج · كتالوج الأعمال</span></a>
+    <a class="brand" href="catalog.html"><span class="logo" aria-label="Merzona"><img class="mk" src="img/logo-light-mark.png" alt=""><img class="wd" src="img/logo-light-word.png" alt="Merzona"></span><span>ألمنيوم وزجاج · كتالوج الأعمال</span></a>
     <div class="sp"></div>
     <button class="btn btn-ghost icon-only" id="shareBtn" type="button" aria-label="مشاركة الكتالوج" title="مشاركة">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
@@ -179,7 +185,7 @@ button{font:inherit;color:inherit}
 <footer class="contact" id="contact">
   <div class="wrap">
     <div>
-      <div class="foot-brand">MERZONA</div>
+      <div class="foot-brand"><img src="img/logo-light.png" alt="Merzona"></div>
       <h3>عجبك تصميم؟ خلّينا ننفّذلك ياه</h3>
       <p>ابعتلنا رقم الصورة أو صورة المكان، ومنرجعلك بعرض سعر وتصميم مناسب لمساحتك.</p>
       <a class="btn btn-wa" id="waBottom" target="_blank" rel="noopener">
@@ -188,8 +194,8 @@ button{font:inherit;color:inherit}
       </a>
     </div>
     <dl>
-      <dt>الهاتف</dt><dd class="ltr" id="phoneTxt">+971 50 847 1158</dd>
-      <dt>الفروع</dt><dd>دمشق · دبي · الشارقة</dd>
+      <dt>الفرع</dt><dd id="branchTxt">فرع الإمارات · دبي والشارقة</dd>
+      <dt>واتساب</dt><dd class="ltr" id="phoneTxt">+971 50 847 1158</dd>
       <dt>الموقع</dt><dd class="ltr">www.Merzona.ae</dd>
       <dt>البريد</dt><dd class="ltr">Info@Merzona.com</dd>
     </dl>
@@ -225,7 +231,16 @@ button{font:inherit;color:inherit}
   'use strict';
   /* ===== الإعدادات ===== */
   var SERVER = 'https://merzona-server-production.up.railway.app';
-  var WA_NUMBER = '971508471158';
+  // 🆕 الفرع بينختار من رابط المشاركة (?b=sy أو ?b=ae) - كل استفسارات واتساب بتروح لرقم هالفرع
+  var BRANCHES = {
+    ae: { wa: '971508471158', phone: '+971 50 847 1158', label: 'فرع الإمارات · دبي والشارقة' },
+    sy: { wa: '963939919670', phone: '+963 939 919 670', label: 'فرع سوريا · دمشق' }
+  };
+  var BRANCH_KEY = (new URLSearchParams(location.search).get('b') || '').toLowerCase();
+  if(!BRANCHES[BRANCH_KEY]) BRANCH_KEY = 'ae';
+  var BRANCH = BRANCHES[BRANCH_KEY];
+  var WA_NUMBER = BRANCH.wa;
+  var bq = function(first){ return (first ? '?' : '&') + 'b=' + BRANCH_KEY; };
   var LABELS = {
     'cast aluminum handrails':['درابزين ألمنيوم مصبوب','تصاميم كلاسيكية وحديثة من الألمنيوم المصبوب، بتشطيبات برونزية وسوداء ومزخرفة.'],
     'curtain wall design':['واجهات زجاجية (كيرتن وول)','واجهات زجاجية للفلل والمباني بأنظمة ألمنيوم معتمدة.'],
@@ -250,7 +265,7 @@ button{font:inherit;color:inherit}
 
   function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove('on'); }, 2200); }
   function waLink(text){ return 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(text); }
-  function pageUrl(extra){ var u = location.origin + location.pathname + (S.catId ? '?c=' + encodeURIComponent(S.catId) : ''); return u + (extra || ''); }
+  function pageUrl(extra){ var u = location.origin + location.pathname + (S.catId ? '?c=' + encodeURIComponent(S.catId) + bq(false) : bq(true)); return u + (extra || ''); }
   async function share(title, url){
     try{ if(navigator.share){ await navigator.share({ title: title, url: url }); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
     try{ await navigator.clipboard.writeText(url); toast('انسخ الرابط ✓'); }catch(e){ prompt('انسخ الرابط:', url); }
@@ -340,8 +355,8 @@ button{font:inherit;color:inherit}
 
   /* ===== العرض ===== */
   function renderChips(){
-    var h = '<a class="chip" href="catalog.html"' + (S.catId ? '' : ' aria-current="page"') + '>كل الأعمال</a>';
-    S.cats.forEach(function(c){ h += '<a class="chip" href="?c=' + encodeURIComponent(c.id) + '"' + (c.id === S.catId ? ' aria-current="page"' : '') + '>' + esc(labelOf(c.name)) + '<small>' + c.count + '</small></a>'; });
+    var h = '<a class="chip" href="catalog.html' + bq(true) + '"' + (S.catId ? '' : ' aria-current="page"') + '>كل الأعمال</a>';
+    S.cats.forEach(function(c){ h += '<a class="chip" href="?c=' + encodeURIComponent(c.id) + bq(false) + '"' + (c.id === S.catId ? ' aria-current="page"' : '') + '>' + esc(labelOf(c.name)) + '<small>' + c.count + '</small></a>'; });
     $('chips').innerHTML = h;
     var cur = $('chips').querySelector('[aria-current]'); if(cur && cur.scrollIntoView) try{ cur.scrollIntoView({ inline: 'center', block: 'nearest' }); }catch(e){}
   }
@@ -366,7 +381,7 @@ button{font:inherit;color:inherit}
     setHero('كتالوج أعمال Merzona', 'مشاريع منفّذة بالألمنيوم والزجاج: درابزين، واجهات زجاجية، كبائن شاور، برغولات، أبواب ونوافذ. اختار القسم يلي بيهمك.', 'MERZONA · ALUMINIUM & GLASS',
       '<span class="stat"><b>' + S.cats.length + '</b> أقسام</span><span class="stat"><b>' + total + '</b> صورة مشاريع</span>', S.cats[0] && S.cats[0].cover);
     $('content').innerHTML = '<div class="sec-head"><h2>أقسام الأعمال</h2><span>اختار قسم لتتصفح صوره</span></div><div class="cats">' + S.cats.map(function(c, i){
-      return '<a class="cat" href="?c=' + encodeURIComponent(c.id) + '"><img alt="" data-c="' + i + '"><div class="t"><b>' + esc(labelOf(c.name)) + '</b><span>' + c.count + ' صورة</span></div></a>';
+      return '<a class="cat" href="?c=' + encodeURIComponent(c.id) + bq(false) + '"><img alt="" data-c="' + i + '"><div class="t"><b>' + esc(labelOf(c.name)) + '</b><span>' + c.count + ' صورة</span></div></a>';
     }).join('') + '</div>';
     lazyFill($('content'), 900);
   }
@@ -401,7 +416,7 @@ button{font:inherit;color:inherit}
     }catch(e){
       if(quiet) return;
       $('content').innerHTML = '<div class="state"><b>' + (String(e.message).indexOf('404') >= 0 ? 'ما لقينا هالكتالوج' : 'ما قدرنا نحمّل الكتالوج') + '</b>' +
-        (String(e.message).indexOf('404') >= 0 ? '<a href="catalog.html">شوف كل الأعمال</a>' : 'تأكد من الإنترنت وحدّث الصفحة.') + '</div>';
+        (String(e.message).indexOf('404') >= 0 ? '<a href="catalog.html' + bq(true) + '">شوف كل الأعمال</a>' : 'تأكد من الإنترنت وحدّث الصفحة.') + '</div>';
     }
   }
 
@@ -511,6 +526,8 @@ button{font:inherit;color:inherit}
   });
   $('content').addEventListener('click', function(e){ var t = e.target.closest('[data-open]'); if(t) openLb(+t.dataset.open); });
   $('shareBtn').onclick = function(){ share(document.title, pageUrl()); };
+  $('phoneTxt').textContent = BRANCH.phone; $('branchTxt').textContent = BRANCH.label;
+  document.querySelector('.brand').href = 'catalog.html' + bq(true);
 
   // تحديث حي: لما الزبون يرجع للصفحة، وكل دقيقة وهي مفتوحة
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') load(true); });

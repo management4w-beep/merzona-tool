@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-06.1';
+  var CURRENT_VERSION = '2026-11-06.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -21404,6 +21404,11 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
   .mzc-bar button:hover,.mzc-bar label.mzc-btn:hover,.mzc-bar a.mzc-btn:hover{border-color:#a77a45}
   .mzc-bar button.mzc-primary{background:#a77a45;border-color:#a77a45;color:#fff}
   .mzc-bar button:disabled{opacity:.5;cursor:default}
+  .mzc-branch{position:absolute;top:58px;left:14px;z-index:20;background:#fff;color:#1d2226;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:14px;display:grid;gap:8px;min-width:220px}
+  .mzc-branch b{font-size:14px}
+  .mzc-branch button{font:inherit;font-size:15px;padding:10px 12px;border-radius:8px;border:1px solid #d3d8db;background:#f6f7f7;cursor:pointer;text-align:right}
+  .mzc-branch button.last{border-color:#a77a45;background:#fbf4ec}
+  .mzc-branch button.x{background:none;border:0;color:#6b7378;font-size:13px;text-align:center}
   .mzc-status{font-size:12px;color:#b8bfc3;white-space:nowrap}
   .mzc-body{flex:1;overflow:auto;padding:18px max(14px,env(safe-area-inset-right,0px)) 40px max(14px,env(safe-area-inset-left,0px))}
   .mzc-wrap{max-width:1180px;margin:0 auto}
@@ -21824,9 +21829,25 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
   $('mzc-pdf').onclick = exportPdf;
   // 🆕 رابط الكتالوج التفاعلي للزبون (catalog.html - صفحة عامة بدون تسجيل دخول، بتقرأ من درايف عبر السيرفر)
   var PUBLIC_CATALOG_URL = 'https://management4w-beep.github.io/merzona-tool/catalog.html';
+  // 🆕 اختيار الفرع قبل المشاركة: رقم واتساب الاستفسارات بصفحة الزبون بيكون رقم هالفرع (?b=sy / ?b=ae)
+  function lsGet(k, d){ try{ return localStorage.getItem(k) || d; }catch(e){ return d; } }
+  function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+  function chooseBranch(){
+    return new Promise(function(resolve){
+      var old = document.querySelector('.mzc-branch'); if(old) old.remove();
+      var last = lsGet('mzc-share-branch', 'ae'), box = document.createElement('div'); box.className = 'mzc-branch';
+      box.innerHTML = '<b>الرابط لأي فرع؟</b><span style="font-size:12.5px;color:#6b7378">استفسارات الزبون عالواتساب بتوصل لرقم هالفرع</span>' +
+        '<button type="button" data-b="sy"' + (last === 'sy' ? ' class="last"' : '') + '>🇸🇾 فرع سوريا <small dir="ltr">+963 939 919 670</small></button>' +
+        '<button type="button" data-b="ae"' + (last === 'ae' ? ' class="last"' : '') + '>🇦🇪 فرع الإمارات <small dir="ltr">+971 50 847 1158</small></button>' +
+        '<button type="button" class="x" data-b="">إلغاء</button>';
+      box.addEventListener('click', function(e){ var b = e.target.closest('[data-b]'); if(!b) return; box.remove(); if(b.dataset.b) lsSet('mzc-share-branch', b.dataset.b); resolve(b.dataset.b || null); });
+      $('mzc-overlay').appendChild(box);
+    });
+  }
   $('mzc-share').onclick = async function(){
-    var url = PUBLIC_CATALOG_URL + (S.view === 'folder' && S.folder ? '?c=' + encodeURIComponent(S.folder.id) : '');
-    var name = S.view === 'folder' && S.folder ? catTitle() : 'كتالوج الأعمال';
+    var branch = await chooseBranch(); if(!branch) return;
+    var url = PUBLIC_CATALOG_URL + (S.view === 'folder' && S.folder ? '?c=' + encodeURIComponent(S.folder.id) + '&b=' + branch : '?b=' + branch);
+    var name = S.view === 'folder' && S.folder ? catTitle() : 'الأعمال';
     var msg = 'تفضل كتالوج ' + name + ' من Merzona:\n' + url;
     try{ if(navigator.share){ await navigator.share({ title: 'Merzona — ' + name, text: 'تفضل كتالوج ' + name + ' من Merzona:', url: url }); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
     var copied = false; try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){}
