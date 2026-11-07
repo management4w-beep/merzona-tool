@@ -221,5 +221,31 @@ for (const bid of ['uae','syria']) {
   eq(C.integrity(B), [], bid + ' aging book integrity');
 }
 
+// review #2: reserved names never resolve to an account / pollute prototypes
+{
+  const B = C.newBook('uae');
+  for (const code of ['__proto__', 'toString', 'constructor', 'hasOwnProperty']) {
+    const e = C.validateDoc({ type:'journal', date:'2026-11-05', lines:[{ acct:code, dr:100 }, { acct:'1000', cr:100 }] }, B);
+    ok(e.length > 0, 'journal acct ' + code + ' rejected');
+  }
+  B.docs.j = { id:'j', type:'journal', no:'J', date:'2026-11-05', lines:[{ acct:'6900', dr:5, project:'__proto__' }, { acct:'1000', cr:5 }] };
+  C.balances(B, {}); C.projectProfit(B, {}); C.trialBalance(B, {});
+  ok(Object.prototype.dr === undefined && Object.prototype.cr === undefined && ({}).income === undefined, 'no prototype pollution');
+  ok(C.projectProfit(B, {}).some((r) => r.project === '__proto__'), 'project named __proto__ still reported');
+}
+// review #2: VAT report == VAT ledger exactly on foreign-currency docs
+{
+  const B = C.newBook('uae'); B.parties.c = { id:'c', kind:'customer', name:'C' };
+  let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < 300; i++) {
+    const lines = []; const n = 1 + Math.floor(rnd() * 4);
+    for (let j = 0; j < n; j++) lines.push({ desc:'x', qty: 1 + Math.floor(rnd() * 3), price: C.r2(rnd() * 50), acct:'4000', tax: rnd() > 0.3 });
+    B.docs['v' + i] = { id:'v' + i, no:'V' + i, type:'invoice', date:'2026-11-01', partyId:'c', currency: rnd() > 0.5 ? 'USD' : 'AED', fx: 0.27229, taxRate:5, lines };
+  }
+  const S = C.sysAccts(B), bal = C.balances(B, {}), v = C.vatReport(B, {});
+  eq(v.outputVat, bal[S.VAT_OUT].net, 'VAT report output = VAT_OUT ledger (300 mixed-currency invoices)');
+  eq(C.integrity(B), [], 'vat fuzz integrity');
+}
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

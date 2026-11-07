@@ -125,7 +125,7 @@
     journal: { label: 'قيد يومية', prefix: 'JV', party: '' },
   };
 
-  function acctMap(book) { var m = {}; (book.accounts || []).forEach(function (a) { m[a.code] = a; }); return m; }
+  function acctMap(book) { var m = Object.create(null); (book.accounts || []).forEach(function (a) { m[a.code] = a; }); return m; }
   function roleAcct(book, role, fallback) {
     var a = (book.accounts || []).filter(function (x) { return x.role === role; })[0];
     return a ? a.code : fallback;
@@ -180,7 +180,7 @@
        وبالتراكم (مجموع المطبّق لهلق) حتى آخر دفعة تسكّر الباقي بالضبط. الفرق عن سعر اليوم → فروقات صرف. */
   var APPLY_TYPES = { receipt: 1, vpayment: 1, credit: 1, vcredit: 1 };
   function applyIndex(book) {
-    var idx = {};
+    var idx = Object.create(null);
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
       if (!d || d.void || !APPLY_TYPES[d.type]) return;
@@ -212,6 +212,8 @@
       if (cr < 0) { dr = r2(dr - cr); cr = 0; }
       if (!dr && !cr) return;
       var p = { acct: acct, dr: dr, cr: cr, party: (extra && extra.party) || '', project: (extra && extra.project !== undefined ? extra.project : proj) || '', docId: doc.id, date: doc.date, type: doc.type, no: doc.no || '', memo: (extra && extra.memo) || '' };
+      if (extra && extra.li !== undefined) p.li = extra.li;
+      if (extra && extra.isTax) p.isTax = true;
       out.push(p);
     }
     function sumSide(side) { return r2(out.reduce(function (s, p) { return s + p[side]; }, 0)); }
@@ -222,14 +224,14 @@
     // سطور + ضريبة، بعدين تصحيح السنتات لحتى يطلع المجموع = إجمالي المستند بعملة الدفتر
     function linesWithTax(side, taxAcct) {
       var tax = 0, last = -1;
-      (doc.lines || []).forEach(function (l) {
+      (doc.lines || []).forEach(function (l, li) {
         var a = lineAmount(l, t), b = toBase(a, fx);
-        var ex = { memo: l.desc, project: l.project || proj };
+        var ex = { memo: l.desc, project: l.project || proj, li: li };
         if (side === 'dr') P(l.acct, b, 0, ex); else P(l.acct, 0, b, ex);
         if (out.length) last = out.length - 1;
         if (l.tax && rate > 0) tax = r2(tax + r2(a * rate / 100));
       });
-      if (tax) { var tb = toBase(tax, fx); if (side === 'dr') P(taxAcct, tb, 0); else P(taxAcct, 0, tb); }
+      if (tax) { var tb = toBase(tax, fx); if (side === 'dr') P(taxAcct, tb, 0, { isTax: true }); else P(taxAcct, 0, tb, { isTax: true }); }
       var want = toBase(docTotals(doc, book).total, fx);
       var d = r2(want - sumSide(side));
       if (d && last >= 0) { out[last][side] = r2(out[last][side] + d); }
@@ -293,7 +295,7 @@
   }
   // مجموع المطبّق على كل بند - مرّة وحدة (بدل ما نلف على كل المستندات لكل بند)
   function appliedMap(book, asOf) {
-    var m = {};
+    var m = Object.create(null);
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
       if (!d || d.void || !APPLY_TYPES[d.type]) return;
@@ -363,7 +365,7 @@
     }
     if (t === 'receipt' || t === 'vpayment' || t === 'credit' || t === 'vcredit') {
       var want = (t === 'receipt' || t === 'credit') ? 'ar' : 'ap';
-      var appliedSum = 0, seen = {};
+      var appliedSum = 0, seen = Object.create(null);
       (doc.applies || []).forEach(function (ap, i) {
         var tg = own(book.docs, ap.docId);
         var w = 'التطبيق ' + (i + 1);
@@ -448,7 +450,7 @@
       if (!d || d.void) return;
       if (opts.from && d.date < opts.from) return;
       if (opts.to && d.date > opts.to) return;
-      var seen = {};
+      var seen = Object.create(null);
       // مفتاح ثابت للمطابقة البنكية: المستند + الحساب + ترتيب السطر على هالحساب (ما بيتغيّر لو انضاف سطر لحساب تاني)
       docPostings(d, book, idx).forEach(function (p) { var n = seen[p.acct] = (seen[p.acct] || 0) + 1; p.key = d.id + ':' + p.acct + ':' + n; out.push(p); });
     });
@@ -456,7 +458,7 @@
     return out;
   }
   function balances(book, opts) {
-    var A = acctMap(book), bal = {};
+    var A = acctMap(book), bal = Object.create(null);
     (book.accounts || []).forEach(function (a) { bal[a.code] = { code: a.code, name: a.name, type: a.type, role: a.role, dr: 0, cr: 0, net: 0 }; });
     ledger(book, opts).forEach(function (p) {
       if (opts && opts.project && p.project !== opts.project) return;
@@ -523,7 +525,7 @@
   }
   // كشف حساب زبون/مورد (بعملة الدفتر)
   function partyStatement(book, partyId, opts) {
-    var p = book.parties[partyId];
+    var p = own(book.parties, partyId);
     var S = sysAccts(book);
     var code = p && p.kind === 'vendor' ? S.AP : S.AR;
     var r = accountLedger(book, code, { party: partyId, from: opts && opts.from, to: opts && opts.to });
@@ -558,14 +560,14 @@
   }
   function aging(book, kind, asOf) {
     var items = openItems(book, kind, asOf);
-    var by = {};
+    var by = Object.create(null);
     items.forEach(function (it) {
       var r = by[it.partyId] || (by[it.partyId] = { partyId: it.partyId, current: 0, d30: 0, d60: 0, d90: 0, d90p: 0, total: 0 });
       r[it.bucket] = r2(r[it.bucket] + it.openBase); r.total = r2(r.total + it.openBase);
     });
     // متل QuickBooks: الدفعات المقدّمة / الأرصدة غير المطبّقة بتطلع بعمود "credit" (بالسالب)،
     // فمجموع التقرير دايمًا = رصيد حساب الذمم بالدفتر
-    var S = sysAccts(book), ctl = kind === 'ar' ? S.AR : S.AP, led = {};
+    var S = sysAccts(book), ctl = kind === 'ar' ? S.AR : S.AP, led = Object.create(null);
     ledger(book, { to: asOf }).forEach(function (p) {
       if (p.acct !== ctl) return;
       var k = p.party || '';
@@ -584,7 +586,7 @@
   }
   // ربح كل مشروع (عقد): إيرادات - تكاليف مباشرة - مصاريف محمّلة على المشروع
   function projectProfit(book, opts) {
-    var A = acctMap(book), by = {};
+    var A = acctMap(book), by = Object.create(null);
     ledger(book, opts).forEach(function (p) {
       if (!p.project) return;
       var a = A[p.acct]; if (!a) return;
@@ -607,19 +609,21 @@
       if (!d || d.void) return;
       if (opts && opts.from && d.date < opts.from) return;
       if (opts && opts.to && d.date > opts.to) return;
-      var fx = docFx(d, book), rate = num(d.taxRate);
+      var rate = num(d.taxRate);
       var sg = (d.type === 'credit' || d.type === 'vcredit') ? -1 : 1;
       var sales = d.type === 'invoice' || d.type === 'credit' || d.type === 'deposit';
       var purch = d.type === 'bill' || d.type === 'vcredit' || d.type === 'expense';
       if (!sales && !purch) return;
-      (d.lines || []).forEach(function (l) {
-        var amtDoc = lineAmount(l, d.type), a = toBase(amtDoc, fx);
-        var taxed = l.tax && rate > 0, tax = taxed ? toBase(r2(amtDoc * rate / 100), fx) : 0;
-        var acc = A[l.acct] || {};
+      // من القيود نفسها (بعد تقريب السنتات) حتى التقرير = حساب الضريبة بالدفتر بالضبط
+      docPostings(d, book).forEach(function (p) {
+        var amt = r2(Math.abs(p.dr - p.cr));
+        if (p.isTax) { if (sales) out.outputVat = r2(out.outputVat + sg * amt); else out.inputVat = r2(out.inputVat + sg * amt); return; }
+        if (p.li === undefined) return;
+        var l = (d.lines || [])[p.li] || {}, taxed = l.tax && rate > 0, acc = A[l.acct] || {};
         if (sales) {
-          if (taxed) { out.salesTaxable = r2(out.salesTaxable + sg * a); out.outputVat = r2(out.outputVat + sg * tax); }
-          else if (acc.type === 'income') out.salesZero = r2(out.salesZero + sg * a);
-        } else if (taxed) { out.purchasesTaxable = r2(out.purchasesTaxable + sg * a); out.inputVat = r2(out.inputVat + sg * tax); }
+          if (taxed) out.salesTaxable = r2(out.salesTaxable + sg * amt);
+          else if (acc.type === 'income') out.salesZero = r2(out.salesZero + sg * amt);
+        } else if (taxed) out.purchasesTaxable = r2(out.purchasesTaxable + sg * amt);
       });
     });
     out.net = r2(out.outputVat - out.inputVat);
@@ -631,9 +635,9 @@
   }
   // مطابقة البنك: أسطر الحساب مع علامة "مطابَق"
   function reconView(book, code, statementBalance) {
-    var rec = (book.recon && book.recon[code]) || {};
+    var rec = own(book.recon, code) || {};
     var lines = ledger(book, {}).filter(function (p) { return p.acct === code; });
-    var cleared = 0, uncl = [], changed = [], map = {};
+    var cleared = 0, uncl = [], changed = [], map = Object.create(null);
     lines.forEach(function (p) {
       var amt = r2(p.dr - p.cr), m = rec[p.key];
       if (!m) { uncl.push(p); return; }
@@ -655,7 +659,7 @@
     if (!tb.balanced) problems.push('ميزان المراجعة مش موزون: ' + tb.totalDebit + ' / ' + tb.totalCredit);
     var bs = balanceSheet(book);
     if (!bs.balanced) problems.push('الميزانية مش متوازنة: أصول ' + bs.totalAssets + ' ≠ خصوم ' + bs.totalLiabilities + ' + حقوق ' + bs.totalEquity);
-    var seenNo = {}, idx = applyIndex(book);
+    var seenNo = Object.create(null), idx = applyIndex(book);
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
       if (!d) return;
