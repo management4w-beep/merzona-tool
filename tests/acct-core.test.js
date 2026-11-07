@@ -40,8 +40,8 @@ let e = add(U, { type:'receipt', date:'2026-10-06', partyId:'c1', acct:'1010', a
 ok(e.some(x=>x.includes('أكبر من المتبقي')), 'overpay blocked');
 e = add(U, { type:'receipt', date:'2026-10-06', partyId:'c2', acct:'1010', amount:100, applies:[{docId:'i1', amount:100}] });
 ok(e.some(x=>x.includes('مش لنفس الطرف')), 'other party blocked');
-e = add(U, { type:'receipt', date:'2026-09-01', partyId:'c1', acct:'1010', amount:100, applies:[{docId:'i1', amount:100}] });
-ok(e.some(x=>x.includes('قبل تاريخ')), 'receipt before invoice blocked');
+e = add(U, { id:'adv1', type:'receipt', date:'2026-09-01', partyId:'c1', acct:'1010', amount:100, applies:[{docId:'i1', amount:100}] });
+ok(e.length === 0, 'advance receipt dated before invoice is allowed (review #5)'); U.docs.adv1.void = true;
 e = add(U, { type:'receipt', date:'2026-10-06', partyId:'c1', acct:'4000', amount:100, applies:[] });
 ok(e.length > 0, 'receipt into income acct blocked');
 eq(add(U, { type:'receipt', date:'2026-10-20', partyId:'c1', acct:'1000', amount:6025.53, applies:[{docId:'i1', amount:6025.53}] }), [], 'receipt rest');
@@ -198,8 +198,27 @@ for(const bid of ['uae','syria']){
   // الذمم = الفواتير المفتوحة - الدفعات/الإشعارات غير المطبّقة (بعملة الدفتر)
   let unapplied = 0; /* + بنود افتتاحية = صفر هون */
   Object.values(B.docs).forEach(d=>{ if(d.void) return; if(d.type==='receipt'){ const ap = (d.applies||[]).reduce((s,a)=>s+a.amount,0); unapplied += C.r2((d.amount - ap)/C.docFx(d,B)); } if(d.type==='credit'){ const ap = (d.applies||[]).reduce((s,a)=>s+a.amount,0); unapplied += C.r2((C.docTotals(d,B).total - ap)/C.docFx(d,B)); } });
-  ok(Math.abs(C.r2(ag2.totals.total - unapplied) - arNet) < 0.05 * Object.keys(B.docs).length / 100 + 0.05, 'random ' + bid + ' AR subledger ties: ' + arNet + ' vs ' + C.r2(ag2.totals.total - unapplied));
+  const openOnly = C.r2(ag2.totals.total - ag2.totals.credit);
+  ok(Math.abs(C.r2(openOnly - unapplied) - arNet) < 0.05 * Object.keys(B.docs).length / 100 + 0.05, 'random ' + bid + ' AR subledger ties: ' + arNet + ' vs ' + C.r2(openOnly - unapplied));
+  eq(ag2.totals.total, arNet, 'random ' + bid + ' AR aging total = control exactly');
   console.log('random', bid, 'docs', Object.keys(B.docs).length, 'ok', okN, 'rejected', rej);
+}
+
+// aging reconciles to control accounts (advances / overpayments show as unapplied credit, like QuickBooks)
+for (const bid of ['uae','syria']) {
+  const B = C.newBook(bid);
+  B.parties.c = { id:'c', kind:'customer', name:'C' }; B.parties.v = { id:'v', kind:'vendor', name:'V' };
+  const S = C.sysAccts(B), cash = C.moneyAccounts(B)[0].code;
+  B.docs.i1 = { id:'i1', type:'invoice', date:'2026-10-01', due:'2026-10-01', partyId:'c', taxRate:0, lines:[{ desc:'x', qty:1, price:1000, acct:'4000' }], no:'I1' };
+  B.docs.r1 = { id:'r1', type:'receipt', date:'2026-10-05', partyId:'c', acct:cash, amount:1500, applies:[{ docId:'i1', amount:1000 }], no:'R1' };
+  B.docs.j1 = { id:'j1', type:'journal', date:'2026-10-06', lines:[{ acct:S.AP, dr:40, party:'v' }, { acct:cash, cr:40 }], no:'J1' };
+  const bal = C.balances(B, {});
+  const ar = C.aging(B, 'ar', '2026-11-08'), ap = C.aging(B, 'ap', '2026-11-08');
+  eq(ar.totals.total, bal[S.AR].net, bid + ' AR aging total = AR control');
+  eq(ar.totals.credit, -500, bid + ' AR unapplied advance shown');
+  eq(ap.totals.total, bal[S.AP].net, bid + ' AP aging total = AP control');
+  eq(ap.totals.credit, -40, bid + ' AP debit balance shown');
+  eq(C.integrity(B), [], bid + ' aging book integrity');
 }
 
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
