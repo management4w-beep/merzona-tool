@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-07.4';
+  var CURRENT_VERSION = '2026-11-07.5';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1267,7 +1267,55 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
 
   <div id="contractsView" style="display:none;">
 
+    <!-- 🆕 2026-11-07 (طلب حمدي: "بدي يكون في احصائيات وكل شي وبختار الفروع وبتظهر العقود حسب الفرع" - متل عروض الأسعار) -->
     <div class="panel">
+      <p class="panel-title">📊 إحصائيات العقود <span id="ctStatsBranch" style="font-size:12px;color:var(--muted);font-weight:500;"></span></p>
+      <div class="kpis" id="ctStats" style="margin-top:10px;"></div>
+      <div id="ctStatsNote" style="font-size:11.5px;color:var(--muted);margin-top:8px;"></div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;">
+        <p class="panel-title" style="margin:0;">📋 العقود المسجّلة</p>
+        <button id="ctNewContractBtn" class="export-btn" style="background:var(--aux1);color:#fff;">+ عقد جديد / تعديل</button>
+      </div>
+      <div class="controls" style="margin-top:10px;">
+        <input type="text" id="ctSearch" placeholder="ابحث بالاسم أو الرقم المرجعي..." style="flex:1;min-width:180px;">
+        <span class="year-chip active" data-ctyear="all">الكل</span>
+        <span class="year-chip" data-ctyear="2026">2026</span>
+        <span class="year-chip" data-ctyear="2025">2025</span>
+        <span class="year-chip" data-ctyear="2024">2024</span>
+      </div>
+      <div class="controls" style="margin-top:6px;">
+        <span class="year-chip active" data-ctstatus="all">كل الحالات</span>
+        <span class="year-chip" data-ctstatus="overdue">⚠️ فيها متأخرات</span>
+        <span class="year-chip" data-ctstatus="active">⏳ قيد التحصيل</span>
+        <span class="year-chip" data-ctstatus="paid">✅ مدفوعة بالكامل</span>
+        <button id="ctExportBtn" class="export-btn">⬇ تصدير CSV</button>
+        <span class="count-note" id="ctCountNote"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th data-ctkey="ref" style="cursor:pointer;">الرقم المرجعي <span class="ct-arrow" data-ctarrow="ref">▼</span></th>
+              <th data-ctkey="client" style="cursor:pointer;">الزبون <span class="ct-arrow" data-ctarrow="client"></span></th>
+              <th data-ctkey="total" style="cursor:pointer;text-align:left;">قيمة العقد <span class="ct-arrow" data-ctarrow="total"></span></th>
+              <th data-ctkey="received" style="cursor:pointer;text-align:left;">المستلم <span class="ct-arrow" data-ctarrow="received"></span></th>
+              <th data-ctkey="remaining" style="cursor:pointer;text-align:left;">المتبقي <span class="ct-arrow" data-ctarrow="remaining"></span></th>
+              <th data-ctkey="pct" style="cursor:pointer;">التحصيل <span class="ct-arrow" data-ctarrow="pct"></span></th>
+              <th data-ctkey="next" style="cursor:pointer;">الدفعة الجاية <span class="ct-arrow" data-ctarrow="next"></span></th>
+              <th data-ctkey="days" style="cursor:pointer;text-align:left;">أيام العمل <span class="ct-arrow" data-ctarrow="days"></span></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="contractsListBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" id="ctEditorPanel">
       <p class="panel-title">إضافة / تعديل عقد</p>
       <div class="controls" style="flex-wrap:wrap;">
         <input type="text" id="contractRefInput" list="contractRefList" placeholder="اكتب الرقم المرجعي أو اسم الزبون..." autocomplete="off" style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:&#39;Inter&#39;,sans-serif;font-size:13px;background:var(--paper);">
@@ -1325,24 +1373,6 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       </div>
     </div>
 
-    <div class="panel">
-      <p class="panel-title">العقود المسجّلة</p>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th></th>
-              <th>الرقم المرجعي</th>
-              <th>الزبون</th>
-              <th>عدد الدفعات</th>
-              <th style="text-align:left;">أيام العمل المنقضية</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="contractsListBody"></tbody>
-        </table>
-      </div>
-    </div>
 
   </div>
 
@@ -2723,6 +2753,7 @@ function init(){
       render();
       drawChart();
       renderExpectedPayments();
+      try{ const cv = document.getElementById('contractsView'); if(cv && cv.style.display !== 'none') renderContractsList(); }catch(e){}
     });
   });
   document.querySelectorAll('.year-chip[data-range]').forEach(chip=>{
@@ -7583,26 +7614,119 @@ document.getElementById('deleteContractBtn').addEventListener('click', ()=>{
   renderContractsList();
 });
 
-function renderContractsList(){
+// 🆕 2026-11-07: إحصائيات + بحث + سنة + حالة + ترتيب + فلتر الفرع لقائمة العقود (نفس روح سجل العروض)
+let ctSortKey = 'ref', ctSortDir = -1, ctYear = 'all', ctStatus = 'all';
+function ctCurrencyOf(ref){
+  const d = DATA.find(x=> stripRefSpaces(x.ref) === stripRefSpaces(ref));
+  if(d) return getEntryCurrency(d);
+  return getDashBranchFromRef(ref) === 'syria' ? 'usd' : 'aed';
+}
+function ctYearOf(ref){
+  const d = DATA.find(x=> stripRefSpaces(x.ref) === stripRefSpaces(ref));
+  if(d && d.year) return String(d.year);
+  const m = String(ref).match(/(\d{2})\d{4}\b/);
+  return m ? ('20' + m[1]) : '';
+}
+function ctSummarize(ref, c){
+  const tables = getPaymentTables(c);
+  const today = new Date().toISOString().slice(0,10);
+  let total = 0, received = 0, overdue = 0, overdueN = 0, dueThisMonth = 0, payN = 0, next = null;
+  const ym = today.slice(0,7);
+  tables.forEach(t=>{
+    const tt = Number(t.total)||0; total += tt;
+    (t.payments||[]).forEach(p=>{
+      payN++;
+      const amt = Math.round(tt * (Number(p.pct)||0) / 100);
+      const st = getPayStatus(p);
+      if(st === 'received'){ received += amt; return; }
+      if(st !== 'due') return;
+      if(p.dueDate && String(p.dueDate) < today){ overdue += amt; overdueN++; }
+      if(p.dueDate && String(p.dueDate).slice(0,7) === ym) dueThisMonth += amt;
+      if(p.dueDate && (!next || String(p.dueDate) < next.date)) next = { date: String(p.dueDate), amt, desc: p.desc || '' };
+    });
+  });
+  const remaining = Math.max(0, total - received);
+  const pct = total > 0 ? Math.round(received / total * 100) : 0;
+  const status = overdueN > 0 ? 'overdue' : (total > 0 && remaining <= 0.5 ? 'paid' : 'active');
+  return { ref, client: c.client || getClientNameByRef(ref) || '', total, received, remaining, pct, overdue, overdueN, dueThisMonth, payN, tables: tables.length, next,
+           cur: ctCurrencyOf(ref), year: ctYearOf(ref), branch: getDashBranchFromRef(ref), status,
+           days: countWorkingDaysElapsed(getContractStartDateISO(ref)) };
+}
+function ctAllRows(){
   const contracts = loadContracts();
+  return Object.keys(contracts).map(ref=> ctSummarize(ref, contracts[ref] || {}));
+}
+function ctMoney(byCur){
+  const keys = Object.keys(byCur).filter(k=> byCur[k]);
+  if(!keys.length) return '0';
+  return keys.map(k=> fmt(Math.round(byCur[k])) + ' <small style="font-size:12px;color:var(--muted);">' + currencyLabel(k) + '</small>').join('<br>');
+}
+function renderContractsStats(rows){
+  const el = document.getElementById('ctStats'); if(!el) return;
+  const sum = (f)=>{ const o = {}; rows.forEach(r=>{ o[r.cur] = (o[r.cur]||0) + f(r); }); return o; };
+  const overdueRows = rows.filter(r=> r.overdueN > 0);
+  const paidRows = rows.filter(r=> r.status === 'paid');
+  const allTot = rows.reduce((s,r)=> s + r.total, 0), allRec = rows.reduce((s,r)=> s + r.received, 0);
+  const k = (label, value, color, sub)=> '<div class="kpi"><p class="kpi-label">'+label+'</p><p class="kpi-value" style="font-size:18px;'+(color?'color:'+color+';':'')+'">'+value+'</p>'+(sub?'<p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;">'+sub+'</p>':'')+'</div>';
+  el.innerHTML =
+    k('عدد العقود', String(rows.length), '', paidRows.length + ' مدفوعة بالكامل') +
+    k('إجمالي قيمة العقود', ctMoney(sum(r=>r.total))) +
+    k('المستلم', ctMoney(sum(r=>r.received)), 'var(--ok)', allTot > 0 ? Math.round(allRec/allTot*100) + '% من الإجمالي' : '') +
+    k('المتبقي', ctMoney(sum(r=>r.remaining)), 'var(--main)') +
+    k('متأخرات', ctMoney(sum(r=>r.overdue)), overdueRows.length ? 'var(--danger)' : '', overdueRows.length + ' عقد فيه دفعات متأخرة') +
+    k('مستحق هالشهر', ctMoney(sum(r=>r.dueThisMonth)), '', '');
+  const lbl = document.getElementById('ctStatsBranch');
+  if(lbl) lbl.textContent = activeBranch === 'all' ? '(كل الفروع)' : '(' + branchLabel(activeBranch) + ')';
+  const note = document.getElementById('ctStatsNote');
+  if(note) note.textContent = 'كل عقد بعملته: الإمارات بالدرهم، وسوريا حسب عملة عرض السعر. المستلم = الدفعات المعلّمة "مستلمة".';
+}
+function ctFilteredRows(){
+  let rows = ctAllRows();
+  if(activeBranch !== 'all') rows = rows.filter(r=> r.branch === activeBranch);
+  const branchRows = rows.slice();
+  if(ctYear !== 'all') rows = rows.filter(r=> r.year === ctYear);
+  if(ctStatus !== 'all') rows = rows.filter(r=> r.status === ctStatus);
+  const q = ((document.getElementById('ctSearch')||{}).value || '').trim().toLowerCase();
+  if(q) rows = rows.filter(r=> (r.ref + ' ' + r.client).toLowerCase().includes(q));
+  rows.sort((a,b)=>{
+    let va, vb;
+    if(ctSortKey === 'next'){ va = a.next ? a.next.date : '9999'; vb = b.next ? b.next.date : '9999'; return va.localeCompare(vb) * ctSortDir; }
+    va = a[ctSortKey]; vb = b[ctSortKey];
+    if(typeof va === 'number' || typeof vb === 'number') return ((va==null?-1:va) - (vb==null?-1:vb)) * ctSortDir;
+    return String(va||'').localeCompare(String(vb||''), 'ar') * ctSortDir;
+  });
+  return { rows, branchRows };
+}
+function renderContractsList(){
   const tbody = document.getElementById('contractsListBody');
-  const refs = Object.keys(contracts).sort();
-  if(refs.length===0){
-    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">مافي عقود مسجّلة بعد</td></tr>';
+  const { rows, branchRows } = ctFilteredRows();
+  renderContractsStats(branchRows);
+  document.querySelectorAll('.ct-arrow').forEach(a=> a.textContent = '');
+  const arr = document.querySelector('.ct-arrow[data-ctarrow="'+ctSortKey+'"]'); if(arr) arr.textContent = ctSortDir === 1 ? '▲' : '▼';
+  const cn = document.getElementById('ctCountNote'); if(cn) cn.textContent = rows.length + ' عقد';
+  if(rows.length===0){
+    tbody.innerHTML = '<tr><td colspan="10" style="color:var(--muted);text-align:center;padding:16px;">'+(branchRows.length ? 'ما في عقود بهالفلتر' : 'مافي عقود مسجّلة بعد')+'</td></tr>';
+    renderExpectedPayments();
     return;
   }
-  tbody.innerHTML = refs.map(ref=>{
-    const c = contracts[ref];
-    const workDays = countWorkingDaysElapsed(getContractStartDateISO(ref));
-    const daysCell = workDays==null ? '<span style="color:var(--muted);">—</span>' : (workDays+' يوم');
-    const tables = getPaymentTables(c);
-    const totalPayCount = tables.reduce((s,t)=>s+t.payments.length, 0);
-    const countLabel = tables.length>1 ? (totalPayCount+' ('+tables.length+' جداول)') : String(totalPayCount);
+  const today = new Date().toISOString().slice(0,10);
+  tbody.innerHTML = rows.map(r=>{
+    const ref = r.ref, cl = currencyLabel(r.cur);
+    const daysCell = r.days==null ? '<span style="color:var(--muted);">—</span>' : (r.days+' يوم');
+    const barColor = r.status === 'paid' ? 'var(--ok)' : (r.status === 'overdue' ? 'var(--danger)' : 'var(--aux1)');
+    const bar = '<div style="min-width:90px;"><div style="height:7px;background:var(--line);border-radius:4px;overflow:hidden;"><div style="height:100%;width:'+Math.min(100,r.pct)+'%;background:'+barColor+';"></div></div><div style="font-size:11px;color:var(--muted);margin-top:3px;">'+r.pct+'% · '+r.payN+' دفعة'+(r.tables>1?' ('+r.tables+' جداول)':'')+'</div></div>';
+    const nextCell = r.next
+      ? '<span style="font-size:12px;'+(r.next.date < today ? 'color:var(--danger);font-weight:700;' : '')+'">'+(r.next.date < today ? '⚠️ ' : '')+escapeHtml(fmtDueDate(r.next.date))+'</span><div style="font-size:11px;color:var(--muted);">'+fmt(r.next.amt)+' '+cl+'</div>'
+      : (r.status === 'paid' ? '<span style="color:var(--ok);font-size:12px;">✅ خالص</span>' : '<span style="color:var(--muted);">—</span>');
     return '<tr style="cursor:pointer;" data-ref="'+escapeHtml(ref)+'">'+
       '<td><button type="button" class="copy-sign-link-btn" data-sign-ref="'+escapeHtml(ref)+'" title="انسخ رابط التوقيع الإلكتروني حتى تبعتيه للزبون - بيوقّع بأصبعه وبيتحط توقيعه عالملف تلقائيًا" style="font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--aux1);color:var(--aux1);background:#fff;cursor:pointer;white-space:nowrap;">✍️ توقيع إلكتروني</button></td>'+
-      '<td><span class="ref-badge">'+escapeHtml(ref)+'</span></td>'+
-      '<td>'+escapeHtml(c.client)+'</td>'+
-      '<td>'+countLabel+'</td>'+
+      '<td style="white-space:nowrap;"><span class="year-tag">'+escapeHtml(r.year)+'</span><span class="ref-badge">'+escapeHtml(ref)+'</span></td>'+
+      '<td>'+escapeHtml(r.client)+'</td>'+
+      '<td class="num">'+fmt(r.total)+' <small style="color:var(--muted);font-size:10.5px;">'+cl+'</small></td>'+
+      '<td class="num" style="color:var(--ok);">'+fmt(r.received)+'</td>'+
+      '<td class="num">'+fmt(r.remaining)+(r.overdue ? '<div style="font-size:11px;color:var(--danger);">متأخر '+fmt(r.overdue)+'</div>' : '')+'</td>'+
+      '<td>'+bar+'</td>'+
+      '<td>'+nextCell+'</td>'+
       '<td class="num">'+daysCell+'</td>'+
       '<td style="white-space:nowrap;"><button type="button" class="export-btn" data-settlement-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة إنجاز وتسليم جاهزة للتعبئة والطباعة">🧾 إنشاء مخالصة للمشروع</button>'+
       '<button type="button" class="export-btn" data-sewa-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة SEWA (هيئة كهرباء ومياه الشارقة) جاهزة للتعبئة والطباعة">⚡ شهادة SEWA</button>'+
@@ -7616,7 +7740,8 @@ function renderContractsList(){
       const input = document.getElementById('contractRefInput');
       input.value = d ? (d.ref+' — '+getClientName(d)) : currentContractRef;
       input.dispatchEvent(new Event('input'));
-      window.scrollTo({top:0, behavior:'smooth'});
+      const ed = document.getElementById('ctEditorPanel');
+      if(ed) ed.scrollIntoView({behavior:'smooth', block:'start'}); else window.scrollTo({top:0, behavior:'smooth'});
     });
   });
   tbody.querySelectorAll('.copy-sign-link-btn').forEach(btn=>{
@@ -7666,6 +7791,28 @@ function renderContractsList(){
   });
   renderExpectedPayments();
 }
+(function wireContractsListControls(){
+  const q = document.getElementById('ctSearch'); if(q) q.addEventListener('input', renderContractsList);
+  document.querySelectorAll('.year-chip[data-ctyear]').forEach(ch=> ch.addEventListener('click', ()=>{
+    document.querySelectorAll('.year-chip[data-ctyear]').forEach(c=> c.classList.remove('active')); ch.classList.add('active'); ctYear = ch.dataset.ctyear; renderContractsList();
+  }));
+  document.querySelectorAll('.year-chip[data-ctstatus]').forEach(ch=> ch.addEventListener('click', ()=>{
+    document.querySelectorAll('.year-chip[data-ctstatus]').forEach(c=> c.classList.remove('active')); ch.classList.add('active'); ctStatus = ch.dataset.ctstatus; renderContractsList();
+  }));
+  document.querySelectorAll('th[data-ctkey]').forEach(th=> th.addEventListener('click', ()=>{
+    const k = th.dataset.ctkey; if(ctSortKey === k) ctSortDir = -ctSortDir; else { ctSortKey = k; ctSortDir = (k==='client'||k==='next') ? 1 : -1; } renderContractsList();
+  }));
+  const nb = document.getElementById('ctNewContractBtn');
+  if(nb) nb.addEventListener('click', ()=>{ const ed = document.getElementById('ctEditorPanel'); if(ed) ed.scrollIntoView({behavior:'smooth', block:'start'}); const inp = document.getElementById('contractRefInput'); if(inp) setTimeout(()=> inp.focus(), 350); });
+  const ex = document.getElementById('ctExportBtn');
+  if(ex) ex.addEventListener('click', ()=>{
+    const { rows } = ctFilteredRows();
+    const head = ['الرقم المرجعي','الزبون','الفرع','العملة','قيمة العقد','المستلم','المتبقي','المتأخر','نسبة التحصيل','الدفعة الجاية','أيام العمل'];
+    const lines = [head].concat(rows.map(r=> [r.ref, r.client, r.branch, currencyLabel(r.cur), Math.round(r.total), Math.round(r.received), Math.round(r.remaining), Math.round(r.overdue), r.pct + '%', r.next ? r.next.date : '', r.days==null?'':r.days]));
+    const csv = '\ufeff' + lines.map(l=> l.map(v=> '"' + String(v).replace(/"/g,'""') + '"').join(',')).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'})); a.download = 'merzona-contracts.csv'; document.body.appendChild(a); a.click(); a.remove();
+  });
+})();
 
 /* ---------- تحويل عرض سعر لعقد + رابط التوقيع الإلكتروني (مدمجة بتبويب العقود الموجود) ---------- */
 
