@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-07.3';
+  var CURRENT_VERSION = '2026-11-07.4';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -2550,8 +2550,12 @@ function toWaLink(phone){
   if(!phone || phone==='—') return null;
   let digits = phone.replace(/\D/g,'');
   if(digits.startsWith('00')) digits = digits.slice(2);
-  if(digits.startsWith('0')) digits = '971' + digits.slice(1);
-  if(!digits.startsWith('971') && digits.length===9) digits = '971' + digits;
+  // 🔧 2026-11-07 (اكتشاف تدقيق الصيانة): الأرقام السورية المحلية (09xxxxxxxx) كانت تنحوّل لرمز الإمارات 971
+  // فرابط الواتساب يروح لرقم غلط. هلق: 09/9xxxxxxxx = سوريا 963، و05/5xxxxxxxx = الإمارات 971.
+  if(digits.length===10 && digits.startsWith('09')) digits = '963' + digits.slice(1);
+  else if(digits.length===9 && digits.startsWith('9')) digits = '963' + digits;
+  else if(digits.startsWith('0')) digits = '971' + digits.slice(1);
+  if(!digits.startsWith('971') && !digits.startsWith('963') && digits.length===9) digits = '971' + digits;
   if(digits.length < 9) return null;
   return 'https://wa.me/' + digits;
 }
@@ -4063,8 +4067,12 @@ function normalizePhoneDigits(phone){
   if(!phone) return '';
   let digits = String(phone).replace(/\D/g,'');
   if(digits.startsWith('00')) digits = digits.slice(2);
-  if(digits.startsWith('0')) digits = '971' + digits.slice(1);
-  if(!digits.startsWith('971') && digits.length===9) digits = '971' + digits;
+  // 🔧 2026-11-07 (اكتشاف تدقيق الصيانة): الأرقام السورية المحلية (09xxxxxxxx) كانت تنحوّل لرمز الإمارات 971
+  // فرابط الواتساب يروح لرقم غلط. هلق: 09/9xxxxxxxx = سوريا 963، و05/5xxxxxxxx = الإمارات 971.
+  if(digits.length===10 && digits.startsWith('09')) digits = '963' + digits.slice(1);
+  else if(digits.length===9 && digits.startsWith('9')) digits = '963' + digits;
+  else if(digits.startsWith('0')) digits = '971' + digits.slice(1);
+  if(!digits.startsWith('971') && !digits.startsWith('963') && digits.length===9) digits = '971' + digits;
   return digits;
 }
 
@@ -9425,7 +9433,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 'use strict';
 var MT = { running:false, pct:0, stepName:'', results:[], fixes:[], startedAt:0, finishedAt:0, backup:null, report:null, cancelled:false };
 window.__mzMaint = MT;
-setTimeout(function(){ MT.steps = { quoteTotals: stepQuoteTotals, fixes: stepFixes }; }, 0); // للتجربة/التشخيص
+setTimeout(function(){ MT.steps = { audit: stepBusinessAudit, fixes: stepFixes }; }, 0); // للتجربة/التشخيص
 var LAST_KEY = 'merzona_maint_last_v1';
 
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -10121,83 +10129,230 @@ async function stepProcurementSweep(onProg){
 }
 
 
-/* ---------- 🆕 2026-11-07: مطابقة قيم عروض الأسعار (السجل ↔ الملف المحفوظ ↔ الحساب الفعلي جوا الأداة) ----------
-   (حمدي: "ليش ما عرفت هالشي لما عملت صيانة؟" - عرض 260005 قيمته برا غير جوا والصيانة ما انتبهت).
-   الصيانة كانت تفحص الكود والأزرار بس، وما كانت تقارن أرقام العروض الحقيقية. هلق لكل عرض محفوظ بجوجل درايف:
-   1) قيمة السجل ≠ القيمة المحفوظة بملف العرض  → مشكلة، وبتتصلّح تلقائيًا (السجل بياخد قيمة الملف).
-   2) القيمة المحفوظة ≠ يلي بتطلع لما ينفتح العرض بالأداة (إعادة الحساب) → تنبيه بالرقمين، وما منغيّر أسعار
-      لحالنا - لازم تفتح العرض وتراجعه وتحفظه. (قراءة فقط من درايف، والحساب بنسخة معزولة.) */
-async function stepQuoteTotals(onProg){
-  curGroup = 'مطابقة قيم عروض الأسعار';
-  if(typeof getDashGoogleAccessToken !== 'function' || typeof scanDriveFolderForYearRefs !== 'function'){ warn('مطابقة قيم العروض', 'أدوات جوجل درايف مش محمّلة'); return; }
-  var token;
-  try{ token = await getDashGoogleAccessToken(true); }catch(e){ token = null; }
-  if(!token){ warn('مطابقة قيم العروض', 'ما في ربط فعّال بجوجل درايف - اضغط "🔄 مزامنة الفريق" وبعدين أعد الصيانة حتى ينفحص هالجزء'); return; }
+/* ==========================================================================================
+   🔎 2026-11-07: تدقيق بيانات الشغل الحقيقية (حمدي: "الفكرة من الصيانة انو يشيك على السيستم اذا فيه
+   اخطاء بشكل كامل... وغيرها من أمور مخفية ما بعرفها").
+   المبدأ: أي معلومة محفوظة بأكتر من مكان لازم تتطابق، وأي رقم محسوب لازم ينعاد حسابه ويطلع نفسه،
+   وأي رابط بين شي وشي (عقد ← عرض، جدول ← مشروع، ملف ← عقد) لازم يكون موجود فعلًا.
+   - مصدر الحقيقة لعرض السعر = ملفه المحفوظ بجوجل درايف (قراءة فقط).
+   - إعادة الحساب بنسخة معزولة من أداة عرض السعر (ما بتلمس شي حقيقي).
+   - الإصلاح التلقائي بس للأشياء الآمنة (السجل ياخد قيمة الملف، مطابقة درايف، مزامنة الفريق).
+     أي شي فيه قرار (سعر تغيّر، نسب دفعات غلط...) بيطلع بالتقرير بالأرقام وما منلمسه.
+   ========================================================================================== */
+var AUD = null; // نتائج آخر تدقيق (بيستخدمها الإصلاح)
+function audList(arr, n){ n = n || 12; return arr.slice(0, n).join(' ; ') + (arr.length > n ? ' ... (+' + (arr.length - n) + ')' : ''); }
+function audNum(v){ var n = Number(v); return isFinite(n) ? n : NaN; }
+
+async function stepBusinessAudit(onProg){
+  curGroup = 'تدقيق بيانات الشغل';
+  AUD = { listFix: [], infoFix: [], needReconcile: false, needSync: false };
+  var prog = function(f){ if(onProg) onProg(f); };
+  var byRef = {}; DATA.forEach(function(d){ if(d && d.ref) byRef[stripRefSpaces(d.ref)] = d; });
+  var contracts = {}; try{ contracts = loadContracts() || {}; }catch(e){}
+  var clientOv = {}; try{ clientOv = loadClientOverrides() || {}; }catch(e){}
+  var today = new Date().toISOString().slice(0, 10);
+
+  /* ---------- أ) قائمة العروض نفسها (بدون إنترنت) ---------- */
+  var zero = [], yearBad = [], dupRef = {}, dupList = [];
+  DATA.forEach(function(d){
+    if(!d || !d.ref) return;
+    var r = stripRefSpaces(d.ref);
+    var t = audNum(d.total);
+    if(!(t > 0)) zero.push(r + (isNaN(t) ? ' (مش رقم)' : ' (' + fmt(t) + ')'));
+    var m = r.match(/(\d{2})\d{4}\b/); // S-Q-260005 → 26
+    if(m && d.year && String(d.year).slice(-2) !== m[1]) yearBad.push(r + ': السنة ' + d.year);
+    var k = r.toUpperCase(); if(dupRef[k]) dupList.push(r); else dupRef[k] = 1;
+  });
+  if(zero.length) warn('عروض قيمتها صفر أو مش رقم (' + zero.length + ')', audList(zero) + ' - غالبًا ما انحفظ مجموعها صح');
+  else ok('كل العروض إلها قيمة', DATA.length + ' عرض');
+  if(yearBad.length) warn('سنة العرض غير مطابقة لرقمه المرجعي (' + yearBad.length + ')', audList(yearBad));
+  if(dupList.length) fail('رقم مرجعي مكرر بالسجل (' + dupList.length + ')', audList(dupList) + ' - نفس الرقم لعرضين');
+
+  /* ---------- ب) العقود والدفعات ---------- */
+  var orphanC = [], pctBad = [], totBad = [], dueNoDate = [], badDate = [], overdue = [], overdueSum = 0, cVsQ = [];
+  Object.keys(contracts).forEach(function(ref){
+    var c = contracts[ref] || {}; var r = stripRefSpaces(ref);
+    if(!byRef[r] && !c.manual) orphanC.push(r);
+    var tables = []; try{ tables = getPaymentTables(c); }catch(e){}
+    tables.forEach(function(t){
+      var pays = t.payments || [];
+      var tn = r + (tables.length > 1 ? ' / ' + (t.name || '') : '');
+      if(pays.length){
+        var sum = pays.reduce(function(s, p){ return s + (audNum(p.pct) || 0); }, 0);
+        if(Math.abs(sum - 100) > 0.5) pctBad.push(tn + ': مجموع النسب ' + (Math.round(sum * 10) / 10) + '%');
+      }
+      if(!(audNum(t.total) > 0) && pays.length) totBad.push(tn);
+      pays.forEach(function(p){
+        var st = getPayStatus(p);
+        if(p.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(p.dueDate))) badDate.push(tn + ': "' + p.dueDate + '"');
+        if(st === 'due'){
+          if(!p.dueDate) dueNoDate.push(tn + ' - ' + (p.desc || 'دفعة'));
+          else if(String(p.dueDate) < today){ var amt = Math.round((audNum(t.total) || 0) * (audNum(p.pct) || 0) / 100); overdue.push(tn + ' - ' + (p.desc || '') + ' (' + p.dueDate + ') ' + fmt(amt)); overdueSum += amt; }
+        }
+      });
+    });
+  });
+  var nC = Object.keys(contracts).length;
+  if(orphanC.length) warn('عقود بدون عرض سعر بالسجل (' + orphanC.length + ')', audList(orphanC) + ' - يا انحذف عرضها، يا رقمها المرجعي غلط');
+  if(pctBad.length) fail('جداول دفعات نسبها ما بتجمع 100% (' + pctBad.length + ')', audList(pctBad) + ' - المبالغ المتوقعة غلط');
+  if(totBad.length) fail('جداول دفعات بدون قيمة (' + totBad.length + ')', audList(totBad) + ' - كل دفعاتها بتنحسب صفر');
+  if(badDate.length) fail('تواريخ دفعات بصيغة غلط (' + badDate.length + ')', audList(badDate) + ' - ما رح تبين بالدفعات المتوقعة');
+  if(dueNoDate.length) warn('دفعات مستحقة بدون تاريخ (' + dueNoDate.length + ')', audList(dueNoDate) + ' - ما بتطلع بفلتر الأيام/الأسابيع');
+  if(overdue.length) warn('دفعات متأخرة عن موعدها (' + overdue.length + ' - مجموعها ' + fmt(overdueSum) + ')', audList(overdue, 10) + ' - إذا استلمتها علّمها "مستلمة"');
+  if(!orphanC.length && !pctBad.length && !totBad.length && !badDate.length) ok('العقود والدفعات (' + nC + ' عقد)', 'الروابط والنسب والتواريخ سليمة');
+
+  /* ملفات العقود ← عقود موجودة */
+  try{
+    var cf = loadContractFiles() || {}; var orphanF = Object.keys(cf).filter(function(r){ return !contracts[r] && !contracts[stripRefSpaces(r)]; });
+    if(orphanF.length) warn('ملفات عقود لعقد مش موجود (' + orphanF.length + ')', audList(orphanF));
+  }catch(e){}
+  /* جدول المشاريع ← عقود/عروض موجودة */
+  try{
+    var pm = loadPmpProjects() || {}; var orphanP = [], pmBad = [];
+    Object.keys(pm).forEach(function(r){
+      if(!contracts[r] && !byRef[stripRefSpaces(r)]) orphanP.push(r);
+      (pm[r].tasks || []).forEach(function(t){ if(t && (audNum(t.span) <= 0 || isNaN(audNum(t.startWeek)))) pmBad.push(r + ': ' + (t.name || 'مهمة')); });
+    });
+    if(orphanP.length) warn('جداول مشاريع لعقد/عرض مش موجود (' + orphanP.length + ')', audList(orphanP));
+    if(pmBad.length) warn('مهام بالجدولة مدتها أو بدايتها غلط (' + pmBad.length + ')', audList(pmBad));
+  }catch(e){}
+  /* المحذوفات راجعة؟ */
+  try{
+    var tq = loadDiscoveredTombstones() || {}, back = Object.keys(tq).filter(function(r){ return byRef[stripRefSpaces(r)] && byRef[stripRefSpaces(r)].source === 'drive-scan'; });
+    if(back.length) warn('عروض محذوفة رجعت ظهرت (' + back.length + ')', audList(back));
+    var tc = loadContractTombstones() || {}, backC = Object.keys(tc).filter(function(r){ return contracts[r]; });
+    if(backC.length) warn('عقود محذوفة رجعت ظهرت (' + backC.length + ')', audList(backC));
+  }catch(e){}
+  /* أرقام الزبائن */
+  var badPh = [], phoneNames = {};
+  DATA.forEach(function(d){
+    if(!d || !d.phone) return;
+    var name = clientOv[d.ref] || d.client || '';
+    try{ if(!toWaLink(d.phone)) badPh.push(stripRefSpaces(d.ref) + ': ' + d.phone); }catch(e){}
+    var key = String(d.phone).replace(/\D/g, '').slice(-9);
+    if(key.length >= 7 && name){ (phoneNames[key] = phoneNames[key] || {})[name.trim().toLowerCase()] = name.trim(); }
+  });
+  if(badPh.length) warn('أرقام زبائن ما بتفتح واتساب (' + badPh.length + ')', audList(badPh));
+  var multi = Object.keys(phoneNames).filter(function(k){ return Object.keys(phoneNames[k]).length > 1; })
+                    .map(function(k){ return '…' + k.slice(-4) + ': ' + Object.keys(phoneNames[k]).map(function(n){ return phoneNames[k][n]; }).join(' / '); });
+  if(multi.length) info('نفس الرقم بأكتر من اسم زبون (' + multi.length + ')', audList(multi, 8));
+  prog(0.08);
+
+  /* ---------- ج) مقارنة مع جوجل درايف ---------- */
+  var token = null;
+  try{ if(typeof getDashGoogleAccessToken === 'function') token = await getDashGoogleAccessToken(true); }catch(e){}
+  if(!token){ fail('تدقيق العروض مع ملفاتها بجوجل درايف', 'ما انعمل - ما في ربط فعّال بجوجل درايف. اضغط "🔄 مزامنة الفريق" وبعدين أعد الصيانة (هاد أهم جزء بالتدقيق)'); return; }
+
+  /* ج1) مزامنة الفريق: هالجهاز ↔ النسخة المشتركة */
+  try{
+    var remote = await downloadSyncData(token); var diffs = [];
+    (SYNC_KEYS || []).forEach(function(k){
+      var loc = {}; try{ loc = JSON.parse(localStorage.getItem(k) || '{}') || {}; }catch(e){}
+      var rem = (remote && remote[k]) || {};
+      var onlyL = 0, onlyR = 0, chg = 0;
+      Object.keys(loc).forEach(function(r){ if(!(r in rem)) onlyL++; else if(JSON.stringify(loc[r]) !== JSON.stringify(rem[r])) chg++; });
+      Object.keys(rem).forEach(function(r){ if(!(r in loc)) onlyR++; });
+      if(onlyL || onlyR || chg) diffs.push(k.replace('merzona_', '') + ': ' + [onlyL ? onlyL + ' بس هون' : '', onlyR ? onlyR + ' بس عند الفريق' : '', chg ? chg + ' مختلف' : ''].filter(Boolean).join('، '));
+    });
+    if(diffs.length){ AUD.needSync = true; fail('هالجهاز مش متطابق مع نسخة الفريق (' + diffs.length + ' نوع بيانات)', audList(diffs, 8) + ' - رح نعمل مزامنة سحب+دمج+رفع', { fixable: 'sync' }); }
+    else ok('هالجهاز متطابق مع نسخة الفريق', 'كل البيانات المشتركة نفسها');
+  }catch(e){ warn('مقارنة المزامنة', 'تعذّر تنزيل نسخة الفريق: ' + (e && e.message || e)); }
+  prog(0.12);
+
+  /* ج2) مجلدات درايف ↔ السجل */
   var scan;
-  try{ scan = await scanDriveFolderForYearRefs(token); }catch(e){ warn('مطابقة قيم العروض', 'تعذّر فحص مجلدات درايف: ' + (e && e.message || e)); return; }
+  try{ scan = await scanDriveFolderForYearRefs(token); }catch(e){ warn('فحص مجلدات العروض بدرايف', String(e && e.message || e)); return; }
   var entries = (scan && scan.entries) || [];
-  var byRef = {}; DATA.forEach(function(d){ byRef[stripRefSpaces(d.ref)] = d; });
-  var contracts = {}; try{ contracts = loadContracts(); }catch(e){}
-  var contractSum = function(ref){ try{ var c = contracts[ref]; if(!c) return 0; return getPaymentTables(c).reduce(function(s, t){ return s + (t.total || 0); }, 0); }catch(e){ return 0; } };
+  var inDrive = {}, twice = [];
+  entries.forEach(function(e){ var r = stripRefSpaces(e.refFolderName); if(inDrive[r]) twice.push(r + ' (' + inDrive[r].year + ' و ' + e.year + ')'); else inDrive[r] = e; });
+  var missingInList = entries.filter(function(e){ return !byRef[stripRefSpaces(e.refFolderName)]; }).map(function(e){ return e.refFolderName; });
+  var goneFromDrive = scan.hadErrors ? [] : DATA.filter(function(d){ return d && d.source === 'drive-scan' && !inDrive[stripRefSpaces(d.ref)]; }).map(function(d){ return d.ref; });
+  if(missingInList.length){ AUD.needReconcile = true; fail('عروض محفوظة بدرايف وما بتبين بالسجل (' + missingInList.length + ')', audList(missingInList) + ' - رح نعمل مطابقة مع درايف', { fixable: 'reconcile' }); }
+  if(goneFromDrive.length){ AUD.needReconcile = true; warn('عروض بالسجل مجلدها انحذف من درايف (' + goneFromDrive.length + ')', audList(goneFromDrive), { fixable: 'reconcile' }); }
+  if(twice.length) warn('نفس الرقم المرجعي إله أكتر من مجلد بدرايف (' + twice.length + ')', audList(twice) + ' - ممكن واحد يغطي عالتاني');
+  if(!missingInList.length && !goneFromDrive.length) ok('السجل مطابق لمجلدات درايف', entries.length + ' مجلد' + (scan.hadErrors ? ' (الفحص ناقص - في سنة ما انقرت)' : ''));
+
+  /* ج3) تنزيل ملفات بيانات العروض (قراءة فقط) */
   var jobs = entries.filter(function(e){ return byRef[stripRefSpaces(e.refFolderName)]; });
-  if(onProg) onProg(0.05);
-  /* تنزيل ملفات البيانات (قراءة فقط) */
-  var loaded = [], noFile = 0, readErr = 0, idx = 0;
+  var loaded = [], noFile = [], readErr = 0, idx = 0;
   async function worker(){
     while(idx < jobs.length && !MT.cancelled){
       var e = jobs[idx++];
       try{
         var kids = await listDriveFolderChildren(token, e.refFolderId);
         var js = kids.filter(function(f){ return /-data\.json$/.test(f.name) && f.name.indexOf('مدموج') === -1; })
-                     .sort(function(a, b){ return new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0); })[0];
-        if(!js){ noFile++; continue; }
-        var data = JSON.parse(await downloadDriveFileText(token, js.id));
-        loaded.push({ ref: stripRefSpaces(e.refFolderName), data: data });
+                     .sort(function(a, b){ return new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0); });
+        if(!js.length){ noFile.push(e.refFolderName); continue; }
+        var data = JSON.parse(await downloadDriveFileText(token, js[0].id));
+        loaded.push({ ref: stripRefSpaces(e.refFolderName), data: data || {}, nJson: js.length });
       }catch(err){ readErr++; }
-      if(onProg) onProg(0.05 + 0.5 * idx / Math.max(1, jobs.length));
+      prog(0.12 + 0.43 * idx / Math.max(1, jobs.length));
     }
   }
   await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);
-  /* 1) السجل ↔ الملف */
-  var listFix = [], contractNote = [];
+  if(readErr) warn('ملفات عروض ما انقرت (' + readErr + ')', 'مشكلة شبكة غالبًا - أعد الصيانة بعد شوي');
+
+  /* ج4) السجل ↔ الملف (القيمة، الزبون، الهاتف، العملة، الرقم المرجعي) */
+  var refBad = [], curBad = [], contractNote = [], emptyFile = [];
   loaded.forEach(function(x){
-    var d = byRef[x.ref]; var saved = Number(x.data && x.data.grandTotal);
-    if(!d || !(saved > 0)) return;
-    if(Math.abs((Number(d.total) || 0) - saved) < 1) return;
-    var cs = contractSum(d.ref);
-    if(cs > 0){ if(Math.abs(cs - saved) >= 1) contractNote.push(d.ref + ': العقد ' + fmt(cs) + ' / العرض ' + fmt(saved)); return; }
-    listFix.push({ ref: d.ref, from: Number(d.total) || 0, to: Math.round(saved * 100) / 100 });
+    var d = byRef[x.ref]; if(!d) return;
+    var f = x.data.fields || {}, saved = audNum(x.data.grandTotal);
+    if(!Object.keys(f).length && !(saved > 0)){ emptyFile.push(x.ref); return; }
+    var fRef = stripRefSpaces(f['m-ref'] || '');
+    if(fRef && fRef.toUpperCase() !== x.ref.toUpperCase()) refBad.push(x.ref + ': جوا الملف مكتوب ' + fRef);
+    if(saved > 0 && Math.abs((audNum(d.total) || 0) - saved) >= 1){
+      var cs = 0; try{ var c = contracts[d.ref]; if(c) cs = getPaymentTables(c).reduce(function(s, t){ return s + (t.total || 0); }, 0); }catch(e){}
+      if(cs > 0){ if(Math.abs(cs - saved) >= 1) contractNote.push(d.ref + ': العقد ' + fmt(cs) + ' / العرض ' + fmt(saved)); }
+      else AUD.listFix.push({ ref: d.ref, from: audNum(d.total) || 0, to: Math.round(saved * 100) / 100 });
+    }
+    if(!clientOv[d.ref]){
+      var fc = String(f['m-client'] || '').trim(), fp = String(f['m-number'] || '').trim();
+      var ch = {};
+      if(fc && fc !== String(d.client || '').trim()) ch.client = fc;
+      if(fp && fp.replace(/\D/g, '') !== String(d.phone || '').replace(/\D/g, '')) ch.phone = fp;
+      if(Object.keys(ch).length) AUD.infoFix.push({ ref: d.ref, ch: ch, was: { client: d.client, phone: d.phone } });
+    }
+    if(getEntryBranch(d) === 'syria' && f['m-currency'] && f['m-currency'] !== getEntryCurrency(d)) curBad.push({ ref: d.ref, to: f['m-currency'], from: getEntryCurrency(d) });
   });
-  if(listFix.length){
-    fail('قيمة العرض بالسجل غير مطابقة لملفه (' + listFix.length + ')',
-      listFix.slice(0, 15).map(function(f){ return f.ref + ': بالسجل ' + fmt(f.from) + ' ← بالملف ' + fmt(f.to); }).join(' ; ') + (listFix.length > 15 ? ' ...' : '') + ' - رح تتصلّح تلقائيًا',
-      { fixable: 'qtotal', list: listFix });
-  } else ok('قيمة كل عرض بالسجل مطابقة لملفه', loaded.length + ' عرض انفحص' + (noFile ? '، ' + noFile + ' بدون ملف بيانات (عروض قديمة)' : '') + (readErr ? '، ' + readErr + ' تعذّرت قراءته' : ''));
-  if(contractNote.length) info('عروض محوّلة لعقود وقيمتها صارت قيمة العقد', contractNote.slice(0, 10).join(' ; '));
-  if(readErr) warn('مطابقة قيم العروض', 'تعذّرت قراءة ' + readErr + ' ملف من درايف (شبكة؟) - أعد الصيانة بعد شوي');
-  /* 2) الملف ↔ إعادة الحساب جوا الأداة (نسخة معزولة) */
+  if(AUD.listFix.length) fail('قيمة العرض بالسجل غير مطابقة لملفه (' + AUD.listFix.length + ')',
+    audList(AUD.listFix.map(function(f){ return f.ref + ': بالسجل ' + fmt(f.from) + ' ← بالملف ' + fmt(f.to); })) + ' - رح تتصلّح', { fixable: 'qtotal' });
+  else ok('قيمة كل عرض بالسجل = قيمة ملفه', loaded.length + ' ملف انقرا');
+  if(AUD.infoFix.length) fail('اسم/هاتف الزبون بالسجل غير مطابق لملف العرض (' + AUD.infoFix.length + ')',
+    audList(AUD.infoFix.map(function(f){ return f.ref + ': ' + Object.keys(f.ch).map(function(k){ return (f.was[k] || '—') + ' ← ' + f.ch[k]; }).join('، '); })) + ' - رح تتصلّح', { fixable: 'qinfo' });
+  if(curBad.length){ AUD.curFix = curBad; fail('عملة العرض بالسجل غير مطابقة لملفه (' + curBad.length + ')', audList(curBad.map(function(c){ return c.ref + ': ' + c.from + ' ← ' + c.to; })) + ' - رح تتصلّح', { fixable: 'qcur' }); }
+  if(refBad.length) fail('ملف عرض محفوظ بمجلد رقم تاني (' + refBad.length + ')', audList(refBad) + ' - غالبًا انحفظ فوق عرض تاني');
+  if(contractNote.length) info('عروض صارت عقود وقيمة العقد غير العرض (' + contractNote.length + ')', audList(contractNote));
+  if(emptyFile.length) warn('ملفات عروض فاضية (' + emptyFile.length + ')', audList(emptyFile));
+  if(noFile.length) info('عروض قديمة بدون ملف بيانات (' + noFile.length + ')', 'ما فينا نتحقق منها - انحفظت قبل نظام الملفات: ' + audList(noFile, 8));
+
+  /* ج5) الملف ↔ إعادة الحساب جوا الأداة (نسخة معزولة) */
   if(!loaded.length || MT.cancelled) return;
   var sb;
   try{ sb = await makeSandbox('index.html', { settle: 1800 }); }catch(e){ warn('إعادة حساب العروض', 'تعذّر تحميل أداة عرض السعر بنسخة معزولة: ' + (e && e.message || e)); return; }
-  var drift = [], calcErr = 0;
+  var drift = [], calcErr = [], nanOut = [];
   try{
-    var w = sb.win, doc = w.document;
+    var w = sb.win, doc = w.document, e0 = (w.__mtErr || []).length;
     for(var i = 0; i < loaded.length && !MT.cancelled; i++){
-      var x = loaded[i], saved2 = Number(x.data && x.data.grandTotal);
+      var x = loaded[i], saved2 = audNum(x.data.grandTotal);
       if(!(saved2 > 0)) continue;
       try{
+        var before = (w.__mtErr || []).length;
         w.applyFullQuotationData(JSON.parse(JSON.stringify(x.data)));
         await sleep(25);
         var g = doc.getElementById('sum-grand');
-        var now = w.parseMoney ? w.parseMoney(g ? g.textContent : '') : parseFloat(String(g && g.textContent || '').replace(/,/g, ''));
-        if(isFinite(now) && Math.abs(now - saved2) >= 1) drift.push(x.ref + ': محفوظ ' + fmt(saved2) + ' ← بينفتح ' + fmt(now));
-      }catch(err){ calcErr++; }
-      if(i % 10 === 0 && onProg) onProg(0.55 + 0.45 * i / loaded.length);
+        var txt = g ? g.textContent : '';
+        var now = w.parseMoney ? w.parseMoney(txt) : parseFloat(String(txt).replace(/,/g, ''));
+        if(/NaN|undefined|Infinity/.test(txt) || !isFinite(now)) nanOut.push(x.ref);
+        else if(Math.abs(now - saved2) >= 1) drift.push(x.ref + ': محفوظ ' + fmt(saved2) + ' ← بينفتح ' + fmt(now));
+        if((w.__mtErr || []).length > before) calcErr.push(x.ref + ': ' + ((w.__mtErr[before] || {}).m || 'خطأ'));
+      }catch(err){ calcErr.push(x.ref + ': ' + (err && err.message || err)); }
+      if(i % 10 === 0) prog(0.55 + 0.45 * i / loaded.length);
     }
   }finally{ sb.destroy(); }
-  if(drift.length) warn('عروض بيتغيّر مجموعها لما تنفتح (' + drift.length + ')', drift.slice(0, 15).join(' ; ') + (drift.length > 15 ? ' ...' : '') + ' - افتح كل عرض وراجعه واحفظه (ما منغيّر أسعار تلقائيًا)');
-  else ok('مجموع كل العروض ثابت لما تنفتح', 'نفس القيمة المحفوظة بالضبط');
-  if(calcErr) warn('إعادة حساب العروض', calcErr + ' عرض ما قدرنا نعيد حسابه بالنسخة المعزولة');
+  if(drift.length) warn('عروض مجموعها بيتغيّر لما تنفتح (' + drift.length + ')', audList(drift, 15) + ' - افتح كل واحد وراجعه واحفظه (ما منغيّر أسعار لحالنا)');
+  else ok('مجموع كل العروض ثابت لما تنفتح', 'إعادة الحساب طلعت نفس المحفوظ');
+  if(nanOut.length) fail('عروض بيطلع مجموعها مش رقم لما تنفتح (' + nanOut.length + ')', audList(nanOut));
+  if(calcErr.length) fail('عروض بتعطي خطأ برمجي لما تنفتح (' + calcErr.length + ')', audList(calcErr, 8), { code: true });
 }
 
 /* ------------------------------ الإصلاحات الآمنة ------------------------------ */
@@ -10227,13 +10382,41 @@ async function stepFixes(){
     var after = 0; try{ for(var j = 0; j < localStorage.length; j++){ after += (localStorage.getItem(localStorage.key(j)) || '').length; } }catch(e){}
     if(removed > 0) fixLog('تنظيف التصاميم المحلية القديمة', 'حُذفت ' + removed + ' نسخة مخبّأة (بقي آخر 12) - وفّرت ' + ((before - after) / 1048576).toFixed(2) + ' MB');
   }
-  if(kinds.qtotal){
+  if(kinds.reconcile && typeof reconcileWithDrive === 'function'){
+    try{ var nBefore = DATA.length; await reconcileWithDrive(true); fixLog('مطابقة السجل مع مجلدات درايف', 'السجل كان ' + nBefore + ' عرض وصار ' + DATA.length); }catch(e){ warn('مطابقة درايف', String(e && e.message || e)); }
+  }
+  if(kinds.qtotal && AUD && AUD.listFix.length){
     try{
-      var qn = 0;
-      MT.results.forEach(function(r){ if(r.fixable === 'qtotal' && r.list) r.list.forEach(function(f){ setQuoteTotalOverride(f.ref, f.to); qn++; }); });
-      if(qn){ try{ render(); updateKpis(); }catch(e){} fixLog('تصحيح قيم العروض بالسجل', qn + ' عرض صارت قيمته بالسجل نفس قيمة ملفه المحفوظ'); }
+      AUD.listFix.forEach(function(f){ setQuoteTotalOverride(f.ref, f.to); try{ mzApplyQuoteTotalFromTool(f.ref, f.to); }catch(e){} });
+      fixLog('تصحيح قيم العروض بالسجل', AUD.listFix.length + ' عرض صارت قيمته نفس ملفه المحفوظ: ' + audList(AUD.listFix.map(function(f){ return f.ref + ' ' + fmt(f.from) + '→' + fmt(f.to); }), 8));
     }catch(e){ fail('تعذّر تصحيح قيم العروض', e.message); }
   }
+  if(kinds.qinfo && AUD && AUD.infoFix.length){
+    try{
+      var disc = loadDiscoveredQuotations(), ov = loadClientOverrides(), ovCh = false;
+      AUD.infoFix.forEach(function(f){
+        var d = DATA.find(function(x){ return x.ref === f.ref; }); if(!d) return;
+        Object.assign(d, f.ch);
+        var k = Object.keys(disc).find(function(r){ return stripRefSpaces(r) === stripRefSpaces(f.ref); });
+        if(k) Object.assign(disc[k], f.ch);
+        else if(f.ch.client){ ov[f.ref] = f.ch.client; ovCh = true; } // صف جاي من السيرفر: منثبّت الاسم كتصحيح
+      });
+      saveDiscoveredQuotations(disc); if(ovCh) saveClientOverrides(ov);
+      fixLog('تصحيح أسماء/هواتف الزبائن بالسجل', AUD.infoFix.length + ' عرض صار متل ملفه');
+    }catch(e){ fail('تعذّر تصحيح بيانات الزبائن', e.message); }
+  }
+  if(kinds.qcur && AUD && AUD.curFix && AUD.curFix.length){
+    try{
+      var disc2 = loadDiscoveredQuotations();
+      AUD.curFix.forEach(function(c){
+        var d = DATA.find(function(x){ return x.ref === c.ref; }); if(d) d.currency = c.to;
+        var k = Object.keys(disc2).find(function(r){ return stripRefSpaces(r) === stripRefSpaces(c.ref); }); if(k) disc2[k].currency = c.to;
+      });
+      saveDiscoveredQuotations(disc2);
+      fixLog('تصحيح عملة العروض بالسجل', AUD.curFix.length + ' عرض');
+    }catch(e){ fail('تعذّر تصحيح العملة', e.message); }
+  }
+  try{ render(); updateKpis(); }catch(e){}
   if(kinds.token){ try{ localStorage.removeItem('merzona_dash_gtoken_v1'); fixLog('مسح توكن جوجل المنتهي', 'بيتجدد لحاله'); }catch(e){} }
   keysCorrupt.forEach(function(k){
     try{
@@ -10252,6 +10435,16 @@ async function stepFixes(){
     }catch(e){ warn('إعادة المزامنة', String(e && e.message || e)); }
   }
   try{ if(typeof refreshVisibleView === 'function') refreshVisibleView(); }catch(e){}
+  /* إعادة التحقق: منعيد تدقيق بيانات الشغل بعد الإصلاح ومنقول شو ضل */
+  if(kinds.qtotal || kinds.qinfo || kinds.qcur || kinds.reconcile || kinds.sync){
+    var keep = MT.results.length, savedAud = AUD;
+    try{ await stepBusinessAudit(null); }catch(e){}
+    var left = MT.results.slice(keep).filter(function(r){ return r.status === 'fail' && r.fixable; });
+    MT.results.length = keep; AUD = savedAud;
+    curGroup = 'الإصلاح التلقائي';
+    if(left.length) warn('بعد الإصلاح لسا في ' + left.length + ' مشكلة', left.map(function(r){ return r.title; }).join(' | '));
+    else ok('إعادة تدقيق بيانات الشغل بعد الإصلاح', 'كل يلي انصلّح صار مطابق');
+  }
   /* إعادة التحقق */
   var again = [];
   var used = 0; try{ for(var q = 0; q < localStorage.length; q++){ used += (localStorage.getItem(localStorage.key(q)) || '').length; } }catch(e){}
@@ -10267,7 +10460,7 @@ async function runMaintenance(){
     { name: 'فحص النسخ والملفات', w: 5, fn: stepVersions },
     { name: 'فحص سلامة بياناتك', w: 6, fn: stepDataIntegrity },
     { name: 'فحص السيرفر وجوجل درايف والمزامنة', w: 9, fn: stepServer },
-    { name: 'مطابقة قيم عروض الأسعار مع ملفاتها', w: 12, fn: stepQuoteTotals, prog: true },
+    { name: 'تدقيق بيانات الشغل (عروض، عقود، دفعات، درايف، مزامنة)', w: 16, fn: stepBusinessAudit, prog: true },
     { name: 'تجربة الداشبورد (نسخة معزولة)', w: 8, fn: stepDashboardSandbox },
     { name: 'ضغط كل أزرار الداشبورد', w: 14, fn: stepDashboardSweep, prog: true },
     { name: 'سيناريوهات عرض السعر والمصمم والمرايا', w: 22, fn: stepQuotationScenarios, prog: true },
