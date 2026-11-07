@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-07.1';
+  var CURRENT_VERSION = '2026-11-07.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -4532,6 +4532,8 @@ function applyFullQuotationData(data){
     // مقارنة المجموع المحفوظ بالمحسوب: أي فرق = تنبيه ظاهر فورًا (مو بصمت)
     try{
       const savedG = parseFloat(data.grandTotal), nowG = parseMoney(document.getElementById('sum-grand').textContent);
+      // القيمة المحفوظة بالملف هي يلي لازم تنعرض بسجل العروض (مش القديمة يلي انقرت أول مرة)
+      if(!(data.isDraft || data.draftId) && data.fields && data.fields['m-ref']) mzReportQuoteTotal(data.fields['m-ref'], savedG > 0 ? savedG : nowG);
       if(savedG > 0 && Math.abs(savedG - nowG) > 0.05){
         mzShowNotice('⚠️ <b>المجموع تغيّر عند الفتح:</b> المحفوظ <b>' + fmtMoney(savedG) + '</b> ← الآن <b>' + fmtMoney(nowG) + '</b>.'
           + (__healedThird ? '<br>السبب: ثلث المساحة (قاعدة فرع سوريا) كان مفقودًا من هالعرض فتم تفعيله تلقائيًا. تقدر تطفيه من خانة "إضافة ثلث المساحة" إذا كان مقصودًا.' : '<br>راجع الأسعار والمقاسات قبل الإرسال.'));
@@ -4539,6 +4541,26 @@ function applyFullQuotationData(data){
     }catch(e){}
   }catch(e){ console.error('applyFullQuotationData failed', e); }
 }
+
+// 🆕 2026-11-07 (حمدي: "عرض السعر 260005 القيمة داخل العرض غير مطابقة للقيمة في الخارج"): السبب إنو قائمة
+// "سجل العروض" بالداشبورد كانت تاخد قيمة العرض مرة وحدة بس (أول ما ينكشف المجلد بجوجل درايف)، وأي تعديل وحفظ
+// بعدها ما كان يوصلها أبدًا. هلق الأداة بتبلّغ الداشبورد بالقيمة: لما ينفتح عرض محفوظ (القيمة المحفوظة بالملف)
+// ولما ينحفظ (القيمة الجديدة). بنفس الوقت منسجلها بالمتصفح، حتى لو الأداة مفتوحة لحالها والداشبورد مسكّر.
+function mzReportQuoteTotal(ref, total){
+  try{
+    ref = String(ref || '').replace(/\s+/g, '');
+    total = Math.round(Number(total) * 100) / 100;
+    if(!ref || !Number.isFinite(total) || total <= 0) return;
+    const KEY = 'merzona_quote_saved_totals';
+    let pend = {}; try{ pend = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; }catch(e){}
+    pend[ref] = { total, at: Date.now() };
+    try{ localStorage.setItem(KEY, JSON.stringify(pend)); }catch(e){}
+    const msg = { type: 'mz-quote-total', ref, total };
+    try{ if(window.parent && window.parent !== window) window.parent.postMessage(msg, location.origin); }catch(e){}
+    try{ if(window.opener) window.opener.postMessage(msg, location.origin); }catch(e){}
+  }catch(e){}
+}
+window.mzReportQuoteTotal = mzReportQuoteTotal;
 
 // 🆕 2026-09-24: طلب حمدي - "لازم يكون فيه سجل للمسودات تبع عروض الأسعار... وسجل للتصاميم" (سجلّين
 // متزامنين مع جوجل درايف، جوا Dashboard.html). هاد المعرّف (draftId) بيربط أي "حفظة كمسودة" بنفس
@@ -6917,6 +6939,7 @@ async function saveToGoogleDriveInner(){
       const dataBlob = new Blob([JSON.stringify(fullData)], {type:'application/json'});
       const dataUploadResult = await uploadOrUpdateFileInDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
       quotationDataJsonFileId = dataUploadResult && dataUploadResult.id;
+      mzReportQuoteTotal(refRaw, fullData.grandTotal);
     }catch(e){ console.warn('تعذّر حفظ ملف بيانات JSON الإضافي (مش عائق - نسخة HTML اتحفظت تمام):', e); }
 
     // 🆕 2026-09-30 (طلب حمدي صراحة: "ميزة الهيتوري HISTORY يللي طلبتها منك انك تبنيها لحتى اعرف شو
