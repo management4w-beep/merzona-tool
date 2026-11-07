@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-06.2';
+  var CURRENT_VERSION = '2026-11-07.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -2378,6 +2378,9 @@ function mzApplySeed(rows){
   try{ mzApplySeed(JSON.parse(localStorage.getItem(MZ_SEED_CACHE_KEY) || 'null')); }catch(e){}
 })();
 function mzRefreshAfterSeed(){
+  // 🔧 2026-11-07: القائمة الجاية من السيرفر كانت تمسح القيم المصححة (overrides) - منرجّع نطبّقها
+  try{ applyQuoteTotalOverridesToData(); }catch(e){}
+  try{ mzApplyPendingQuoteTotals(); }catch(e){}
   try{ updateKpis(); }catch(e){}
   try{ render(); }catch(e){}
   try{ drawChart(); }catch(e){}
@@ -2492,6 +2495,46 @@ function recomputeAllQuoteTotalOverrides(){
   }catch(e){ console.warn('[تصحيح قيمة العرض] صار خطأ:', e); }
 }
 applyQuoteTotalOverridesToData();
+
+// 🆕 2026-11-07: استقبال قيمة العرض من أداة عرض السعر (لما ينفتح عرض محفوظ أو ينحفظ) وتحديث سجل العروض فورًا.
+// الأداة بتسجّل القيمة كمان بالمتصفح (merzona_quote_saved_totals)، فمنطبّقها كمان وقت فتح الداشبورد.
+const MZ_SAVED_TOTALS_KEY = 'merzona_quote_saved_totals';
+function mzApplyQuoteTotalFromTool(ref, total){
+  ref = stripRefSpaces(String(ref || ''));
+  total = Number(total);
+  if(!ref || !Number.isFinite(total) || total <= 0) return false;
+  const d = DATA.find(x=> stripRefSpaces(x.ref) === ref);
+  if(!d) return false;
+  if(Math.abs((Number(d.total) || 0) - total) < 0.5) return true;
+  setQuoteTotalOverride(d.ref, total);
+  try{
+    const disc = loadDiscoveredQuotations();
+    const k = Object.keys(disc).find(r=> stripRefSpaces(r) === ref);
+    if(k){ disc[k].total = total; saveDiscoveredQuotations(disc); }
+  }catch(e){}
+  return true;
+}
+function mzApplyPendingQuoteTotals(){
+  let pend = {}; try{ pend = JSON.parse(localStorage.getItem(MZ_SAVED_TOTALS_KEY) || '{}') || {}; }catch(e){ return; }
+  let changed = false;
+  Object.keys(pend).forEach(ref=>{
+    const before = JSON.stringify(DATA.find(x=> stripRefSpaces(x.ref) === stripRefSpaces(ref)) || null);
+    if(mzApplyQuoteTotalFromTool(ref, pend[ref] && pend[ref].total)){
+      if(before !== JSON.stringify(DATA.find(x=> stripRefSpaces(x.ref) === stripRefSpaces(ref)) || null)) changed = true;
+      delete pend[ref];
+    }
+  });
+  try{ localStorage.setItem(MZ_SAVED_TOTALS_KEY, JSON.stringify(pend)); }catch(e){}
+  if(changed){ try{ render(); }catch(e){} try{ updateKpis(); }catch(e){} }
+}
+window.addEventListener('message', (e)=>{
+  if(e.origin !== location.origin) return;
+  const m = e.data;
+  if(!m || m.type !== 'mz-quote-total') return;
+  mzApplyPendingQuoteTotals();
+});
+window.addEventListener('storage', (e)=>{ if(e.key === MZ_SAVED_TOTALS_KEY) mzApplyPendingQuoteTotals(); });
+setTimeout(mzApplyPendingQuoteTotals, 0);
 
 const TOTAL_2026_FOLDERS = 89; // مؤكد فعليًا من Google Drive (كل مجلدات السنة، لحد آب/أغسطس)
 // 🆕 2026-09-23: طلب حمدي - نسبة التغطية لازم تحترم فلتر الفرع كمان. رقم فرع سوريا (1) مؤكد فعليًا
