@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-07.2';
+  var CURRENT_VERSION = '2026-11-07.3';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -9425,6 +9425,7 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 'use strict';
 var MT = { running:false, pct:0, stepName:'', results:[], fixes:[], startedAt:0, finishedAt:0, backup:null, report:null, cancelled:false };
 window.__mzMaint = MT;
+setTimeout(function(){ MT.steps = { quoteTotals: stepQuoteTotals, fixes: stepFixes }; }, 0); // للتجربة/التشخيص
 var LAST_KEY = 'merzona_maint_last_v1';
 
 function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -10119,6 +10120,86 @@ async function stepProcurementSweep(onProg){
   await interactionSweep('المشتريات', 'procurement.html', { settle: 1500, onProg: onProg, batch: 40 });
 }
 
+
+/* ---------- 🆕 2026-11-07: مطابقة قيم عروض الأسعار (السجل ↔ الملف المحفوظ ↔ الحساب الفعلي جوا الأداة) ----------
+   (حمدي: "ليش ما عرفت هالشي لما عملت صيانة؟" - عرض 260005 قيمته برا غير جوا والصيانة ما انتبهت).
+   الصيانة كانت تفحص الكود والأزرار بس، وما كانت تقارن أرقام العروض الحقيقية. هلق لكل عرض محفوظ بجوجل درايف:
+   1) قيمة السجل ≠ القيمة المحفوظة بملف العرض  → مشكلة، وبتتصلّح تلقائيًا (السجل بياخد قيمة الملف).
+   2) القيمة المحفوظة ≠ يلي بتطلع لما ينفتح العرض بالأداة (إعادة الحساب) → تنبيه بالرقمين، وما منغيّر أسعار
+      لحالنا - لازم تفتح العرض وتراجعه وتحفظه. (قراءة فقط من درايف، والحساب بنسخة معزولة.) */
+async function stepQuoteTotals(onProg){
+  curGroup = 'مطابقة قيم عروض الأسعار';
+  if(typeof getDashGoogleAccessToken !== 'function' || typeof scanDriveFolderForYearRefs !== 'function'){ warn('مطابقة قيم العروض', 'أدوات جوجل درايف مش محمّلة'); return; }
+  var token;
+  try{ token = await getDashGoogleAccessToken(true); }catch(e){ token = null; }
+  if(!token){ warn('مطابقة قيم العروض', 'ما في ربط فعّال بجوجل درايف - اضغط "🔄 مزامنة الفريق" وبعدين أعد الصيانة حتى ينفحص هالجزء'); return; }
+  var scan;
+  try{ scan = await scanDriveFolderForYearRefs(token); }catch(e){ warn('مطابقة قيم العروض', 'تعذّر فحص مجلدات درايف: ' + (e && e.message || e)); return; }
+  var entries = (scan && scan.entries) || [];
+  var byRef = {}; DATA.forEach(function(d){ byRef[stripRefSpaces(d.ref)] = d; });
+  var contracts = {}; try{ contracts = loadContracts(); }catch(e){}
+  var contractSum = function(ref){ try{ var c = contracts[ref]; if(!c) return 0; return getPaymentTables(c).reduce(function(s, t){ return s + (t.total || 0); }, 0); }catch(e){ return 0; } };
+  var jobs = entries.filter(function(e){ return byRef[stripRefSpaces(e.refFolderName)]; });
+  if(onProg) onProg(0.05);
+  /* تنزيل ملفات البيانات (قراءة فقط) */
+  var loaded = [], noFile = 0, readErr = 0, idx = 0;
+  async function worker(){
+    while(idx < jobs.length && !MT.cancelled){
+      var e = jobs[idx++];
+      try{
+        var kids = await listDriveFolderChildren(token, e.refFolderId);
+        var js = kids.filter(function(f){ return /-data\.json$/.test(f.name) && f.name.indexOf('مدموج') === -1; })
+                     .sort(function(a, b){ return new Date(b.modifiedTime || 0) - new Date(a.modifiedTime || 0); })[0];
+        if(!js){ noFile++; continue; }
+        var data = JSON.parse(await downloadDriveFileText(token, js.id));
+        loaded.push({ ref: stripRefSpaces(e.refFolderName), data: data });
+      }catch(err){ readErr++; }
+      if(onProg) onProg(0.05 + 0.5 * idx / Math.max(1, jobs.length));
+    }
+  }
+  await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);
+  /* 1) السجل ↔ الملف */
+  var listFix = [], contractNote = [];
+  loaded.forEach(function(x){
+    var d = byRef[x.ref]; var saved = Number(x.data && x.data.grandTotal);
+    if(!d || !(saved > 0)) return;
+    if(Math.abs((Number(d.total) || 0) - saved) < 1) return;
+    var cs = contractSum(d.ref);
+    if(cs > 0){ if(Math.abs(cs - saved) >= 1) contractNote.push(d.ref + ': العقد ' + fmt(cs) + ' / العرض ' + fmt(saved)); return; }
+    listFix.push({ ref: d.ref, from: Number(d.total) || 0, to: Math.round(saved * 100) / 100 });
+  });
+  if(listFix.length){
+    fail('قيمة العرض بالسجل غير مطابقة لملفه (' + listFix.length + ')',
+      listFix.slice(0, 15).map(function(f){ return f.ref + ': بالسجل ' + fmt(f.from) + ' ← بالملف ' + fmt(f.to); }).join(' ; ') + (listFix.length > 15 ? ' ...' : '') + ' - رح تتصلّح تلقائيًا',
+      { fixable: 'qtotal', list: listFix });
+  } else ok('قيمة كل عرض بالسجل مطابقة لملفه', loaded.length + ' عرض انفحص' + (noFile ? '، ' + noFile + ' بدون ملف بيانات (عروض قديمة)' : '') + (readErr ? '، ' + readErr + ' تعذّرت قراءته' : ''));
+  if(contractNote.length) info('عروض محوّلة لعقود وقيمتها صارت قيمة العقد', contractNote.slice(0, 10).join(' ; '));
+  if(readErr) warn('مطابقة قيم العروض', 'تعذّرت قراءة ' + readErr + ' ملف من درايف (شبكة؟) - أعد الصيانة بعد شوي');
+  /* 2) الملف ↔ إعادة الحساب جوا الأداة (نسخة معزولة) */
+  if(!loaded.length || MT.cancelled) return;
+  var sb;
+  try{ sb = await makeSandbox('index.html', { settle: 1800 }); }catch(e){ warn('إعادة حساب العروض', 'تعذّر تحميل أداة عرض السعر بنسخة معزولة: ' + (e && e.message || e)); return; }
+  var drift = [], calcErr = 0;
+  try{
+    var w = sb.win, doc = w.document;
+    for(var i = 0; i < loaded.length && !MT.cancelled; i++){
+      var x = loaded[i], saved2 = Number(x.data && x.data.grandTotal);
+      if(!(saved2 > 0)) continue;
+      try{
+        w.applyFullQuotationData(JSON.parse(JSON.stringify(x.data)));
+        await sleep(25);
+        var g = doc.getElementById('sum-grand');
+        var now = w.parseMoney ? w.parseMoney(g ? g.textContent : '') : parseFloat(String(g && g.textContent || '').replace(/,/g, ''));
+        if(isFinite(now) && Math.abs(now - saved2) >= 1) drift.push(x.ref + ': محفوظ ' + fmt(saved2) + ' ← بينفتح ' + fmt(now));
+      }catch(err){ calcErr++; }
+      if(i % 10 === 0 && onProg) onProg(0.55 + 0.45 * i / loaded.length);
+    }
+  }finally{ sb.destroy(); }
+  if(drift.length) warn('عروض بيتغيّر مجموعها لما تنفتح (' + drift.length + ')', drift.slice(0, 15).join(' ; ') + (drift.length > 15 ? ' ...' : '') + ' - افتح كل عرض وراجعه واحفظه (ما منغيّر أسعار تلقائيًا)');
+  else ok('مجموع كل العروض ثابت لما تنفتح', 'نفس القيمة المحفوظة بالضبط');
+  if(calcErr) warn('إعادة حساب العروض', calcErr + ' عرض ما قدرنا نعيد حسابه بالنسخة المعزولة');
+}
+
 /* ------------------------------ الإصلاحات الآمنة ------------------------------ */
 function takeBackup(){
   var snap = {};
@@ -10145,6 +10226,13 @@ async function stepFixes(){
     var removed = dashStorageSweep(12);
     var after = 0; try{ for(var j = 0; j < localStorage.length; j++){ after += (localStorage.getItem(localStorage.key(j)) || '').length; } }catch(e){}
     if(removed > 0) fixLog('تنظيف التصاميم المحلية القديمة', 'حُذفت ' + removed + ' نسخة مخبّأة (بقي آخر 12) - وفّرت ' + ((before - after) / 1048576).toFixed(2) + ' MB');
+  }
+  if(kinds.qtotal){
+    try{
+      var qn = 0;
+      MT.results.forEach(function(r){ if(r.fixable === 'qtotal' && r.list) r.list.forEach(function(f){ setQuoteTotalOverride(f.ref, f.to); qn++; }); });
+      if(qn){ try{ render(); updateKpis(); }catch(e){} fixLog('تصحيح قيم العروض بالسجل', qn + ' عرض صارت قيمته بالسجل نفس قيمة ملفه المحفوظ'); }
+    }catch(e){ fail('تعذّر تصحيح قيم العروض', e.message); }
   }
   if(kinds.token){ try{ localStorage.removeItem('merzona_dash_gtoken_v1'); fixLog('مسح توكن جوجل المنتهي', 'بيتجدد لحاله'); }catch(e){} }
   keysCorrupt.forEach(function(k){
@@ -10179,6 +10267,7 @@ async function runMaintenance(){
     { name: 'فحص النسخ والملفات', w: 5, fn: stepVersions },
     { name: 'فحص سلامة بياناتك', w: 6, fn: stepDataIntegrity },
     { name: 'فحص السيرفر وجوجل درايف والمزامنة', w: 9, fn: stepServer },
+    { name: 'مطابقة قيم عروض الأسعار مع ملفاتها', w: 12, fn: stepQuoteTotals, prog: true },
     { name: 'تجربة الداشبورد (نسخة معزولة)', w: 8, fn: stepDashboardSandbox },
     { name: 'ضغط كل أزرار الداشبورد', w: 14, fn: stepDashboardSweep, prog: true },
     { name: 'سيناريوهات عرض السعر والمصمم والمرايا', w: 22, fn: stepQuotationScenarios, prog: true },
