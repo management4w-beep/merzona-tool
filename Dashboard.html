@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-07.5';
+  var CURRENT_VERSION = '2026-11-07.6';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -7729,7 +7729,8 @@ function renderContractsList(){
       '<td>'+nextCell+'</td>'+
       '<td class="num">'+daysCell+'</td>'+
       '<td style="white-space:nowrap;"><button type="button" class="export-btn" data-settlement-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة إنجاز وتسليم جاهزة للتعبئة والطباعة">🧾 إنشاء مخالصة للمشروع</button>'+
-      '<button type="button" class="export-btn" data-sewa-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة SEWA (هيئة كهرباء ومياه الشارقة) جاهزة للتعبئة والطباعة">⚡ شهادة SEWA</button>'+
+      // شهادة SEWA (هيئة كهرباء ومياه الشارقة) بس لفرع الإمارات - ما إلها معنى لعقود سوريا
+      (r.branch === 'syria' ? '' : '<button type="button" class="export-btn" data-sewa-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة SEWA (هيئة كهرباء ومياه الشارقة) جاهزة للتعبئة والطباعة">⚡ شهادة SEWA</button>')+
       '<span data-del-contract="'+escapeHtml(ref)+'" title="حذف هالعقد نهائيًا" style="cursor:pointer;color:var(--danger);font-size:15px;">🗑</span></td>'+
       '</tr>';
   }).join('');
@@ -8129,6 +8130,7 @@ function formatSewaDate(d){
 const SEWA_DEFAULT_BODY1 = 'With reference to the above mentioned project, we wish to inform you that, we have fabricated and installed windows / Doors work as per the requirement of SEWA (Sharjah Electrical & Water Authority). Our Aluminium Profile is up to the SEWA standards and requirements and bearing following characteristics:';
 const SEWA_DEFAULT_BULLETS = ['Zero Air permeability ensuring water tightness','Fire retardant','Thermal insulation','Energy saving'];
 function openSewaForContract(ref){
+  if(getDashBranchFromRef(ref) === 'syria'){ alert('شهادة SEWA خاصة بالإمارات (الشارقة) - ما بتنطبق على عقود فرع سوريا.'); return; }
   hideAllViews();
   document.getElementById('sewaView').style.display = 'block';
   const mainLogo = document.querySelector('.header img[alt="Merzona logo"]');
