@@ -26,6 +26,7 @@
     var s = n < 0 ? -1 : 1;
     return s * Math.round((Math.abs(n) + 1e-9) * 100) / 100;
   }
+  function own(o, k) { return o && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined; }
   function num(v) { var n = Number(v); return isFinite(n) ? n : 0; }
   function isNum(v) { return v !== '' && v !== null && v !== undefined && isFinite(Number(v)); }
   var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -173,8 +174,34 @@
 
   /* --------------------------- تحويل المستند لقيود ---------------------------
      كل سطر قيد: { acct, dr, cr, party, project, docId, memo } بعملة الدفتر الأساسية.
-     الموازنة مضمونة بالبناء: سطر الذمم/الصندوق بياخد مجموع باقي الأسطر بالضبط. */
-  function docPostings(doc, book) {
+     - مجموع الذمم = تحويل "إجمالي المستند" لعملة الدفتر، وفرق السنتات (لو في) بينحط على آخر سطر،
+       فالفاتورة المدفوعة بالكامل بتسكّر ذمتها بالضبط بدون ولا سنت باقي.
+     - الدفعة المطبّقة على فاتورة بتسكّر من ذمتها بسعر صرف الفاتورة المحفوظ مع التطبيق (ap.fx)،
+       وبالتراكم (مجموع المطبّق لهلق) حتى آخر دفعة تسكّر الباقي بالضبط. الفرق عن سعر اليوم → فروقات صرف. */
+  var APPLY_TYPES = { receipt: 1, vpayment: 1, credit: 1, vcredit: 1 };
+  function applyIndex(book) {
+    var idx = {};
+    Object.keys(book.docs).forEach(function (id) {
+      var d = book.docs[id];
+      if (!d || d.void || !APPLY_TYPES[d.type]) return;
+      (d.applies || []).forEach(function (ap) { (idx[ap.docId] = idx[ap.docId] || []).push({ key: (d.date || '') + '|' + d.id, amt: num(ap.amount), docId: d.id }); });
+    });
+    return idx;
+  }
+  function targetFx(book, ap) {
+    if (ap && Number(ap.fx) > 0) return Number(ap.fx);
+    var t = own(book.docs, ap.docId);
+    return t ? docFx(t, book) : 1;
+  }
+  // كم بتسكّر هالتطبيق من الذمة بعملة الدفتر (تراكمي)
+  function applyBase(book, doc, ap, idx) {
+    var tfx = targetFx(book, ap);
+    var myKey = (doc.date || '') + '|' + (doc.id || '~');
+    var before = 0;
+    (idx[ap.docId] || []).forEach(function (x) { if (x.docId !== doc.id && x.key < myKey) before = r2(before + x.amt); });
+    return r2(toBase(r2(before + num(ap.amount)), tfx) - toBase(before, tfx));
+  }
+  function docPostings(doc, book, idx) {
     var S = sysAccts(book);
     var fx = docFx(doc, book);
     var out = [];
@@ -189,106 +216,57 @@
     }
     function sumSide(side) { return r2(out.reduce(function (s, p) { return s + p[side]; }, 0)); }
     var t = doc.type, rate = num(doc.taxRate);
+    var applies = APPLY_TYPES[t] ? (doc.applies || []) : [];
+    if (applies.length && !idx) idx = applyIndex(book);
 
-    if (t === 'invoice' || t === 'credit') {
-      var sign = t === 'invoice' ? 1 : -1; // الإشعار الدائن عكس الفاتورة
-      var taxBase = 0;
+    // سطور + ضريبة، بعدين تصحيح السنتات لحتى يطلع المجموع = إجمالي المستند بعملة الدفتر
+    function linesWithTax(side, taxAcct) {
+      var tax = 0, last = -1;
       (doc.lines || []).forEach(function (l) {
-        var a = lineAmount(l, t);
-        var b = toBase(a, fx);
-        if (sign > 0) P(l.acct, 0, b, { memo: l.desc }); else P(l.acct, b, 0, { memo: l.desc });
-        if (l.tax && rate > 0) taxBase = r2(taxBase + r2(a * rate / 100));
+        var a = lineAmount(l, t), b = toBase(a, fx);
+        var ex = { memo: l.desc, project: l.project || proj };
+        if (side === 'dr') P(l.acct, b, 0, ex); else P(l.acct, 0, b, ex);
+        if (out.length) last = out.length - 1;
+        if (l.tax && rate > 0) tax = r2(tax + r2(a * rate / 100));
       });
-      if (taxBase) { var tb = toBase(taxBase, fx); if (sign > 0) P(S.VAT_OUT, 0, tb); else P(S.VAT_OUT, tb, 0); }
-      var bal = sign > 0 ? sumSide('cr') : sumSide('dr');
-      if (sign > 0) P(S.AR, bal, 0, { party: doc.partyId }); else P(S.AR, 0, bal, { party: doc.partyId });
-      // الإشعار الدائن المطبّق على فاتورة بسعر صرف مختلف: فرق الصرف
-      if (t === 'credit') applyFxDiff(doc, book, out, P, S, 'AR', fx);
-    } else if (t === 'bill' || t === 'vcredit') {
-      var sg = t === 'bill' ? 1 : -1;
-      var taxB = 0;
-      (doc.lines || []).forEach(function (l) {
-        var a = lineAmount(l, t);
-        var b = toBase(a, fx);
-        if (sg > 0) P(l.acct, b, 0, { memo: l.desc, project: l.project || proj }); else P(l.acct, 0, b, { memo: l.desc, project: l.project || proj });
-        if (l.tax && rate > 0) taxB = r2(taxB + r2(a * rate / 100));
-      });
-      if (taxB) { var tb2 = toBase(taxB, fx); if (sg > 0) P(S.VAT_IN, tb2, 0); else P(S.VAT_IN, 0, tb2); }
-      var bal2 = sg > 0 ? sumSide('dr') : sumSide('cr');
-      if (sg > 0) P(S.AP, 0, bal2, { party: doc.partyId }); else P(S.AP, bal2, 0, { party: doc.partyId });
-      if (t === 'vcredit') applyFxDiff(doc, book, out, P, S, 'AP', fx);
-    } else if (t === 'expense') {
-      var taxE = 0;
-      (doc.lines || []).forEach(function (l) {
-        var a = lineAmount(l, t);
-        P(l.acct, toBase(a, fx), 0, { memo: l.desc, project: l.project || proj });
-        if (l.tax && rate > 0) taxE = r2(taxE + r2(a * rate / 100));
-      });
-      if (taxE) P(S.VAT_IN, toBase(taxE, fx), 0);
-      P(doc.acct, 0, sumSide('dr'), { party: doc.partyId || '' });
-    } else if (t === 'deposit') {
-      var taxD = 0;
-      (doc.lines || []).forEach(function (l) {
-        var a = lineAmount(l, t);
-        P(l.acct, 0, toBase(a, fx), { memo: l.desc, project: l.project || proj });
-        if (l.tax && rate > 0) taxD = r2(taxD + r2(a * rate / 100));
-      });
-      if (taxD) P(S.VAT_OUT, 0, toBase(taxD, fx));
-      P(doc.acct, sumSide('cr'), 0, { party: doc.partyId || '' });
-    } else if (t === 'receipt') {
-      // نقبض بسعر صرف اليوم، ونسكّر الفواتير بسعر صرفها الأصلي، والفرق لحساب فروقات الصرف
-      var cashB = toBase(doc.amount, fx);
-      P(doc.acct, cashB, 0, { party: doc.partyId });
-      var arCr = 0;
-      (doc.applies || []).forEach(function (ap) {
-        var inv = book.docs[ap.docId];
-        var ifx = inv ? docFx(inv, book) : fx;
-        arCr = r2(arCr + toBase(ap.amount, ifx));
-      });
-      var applied = r2((doc.applies || []).reduce(function (s, ap) { return s + num(ap.amount); }, 0));
-      var unapplied = r2(num(doc.amount) - applied);
-      arCr = r2(arCr + toBase(unapplied, fx));
-      P(S.AR, 0, arCr, { party: doc.partyId });
-      var diff = r2(cashB - arCr);
-      if (diff) { if (diff > 0) P(S.FX, 0, diff); else P(S.FX, -diff, 0); }
-    } else if (t === 'vpayment') {
-      var cashP = toBase(doc.amount, fx);
-      var apDr = 0;
-      (doc.applies || []).forEach(function (ap) {
-        var bill = book.docs[ap.docId];
-        var bfx = bill ? docFx(bill, book) : fx;
-        apDr = r2(apDr + toBase(ap.amount, bfx));
-      });
-      var appliedP = r2((doc.applies || []).reduce(function (s, ap) { return s + num(ap.amount); }, 0));
-      apDr = r2(apDr + toBase(r2(num(doc.amount) - appliedP), fx));
-      P(S.AP, apDr, 0, { party: doc.partyId });
-      P(doc.acct, 0, cashP, { party: doc.partyId });
-      var d2 = r2(apDr - cashP);
-      if (d2) { if (d2 > 0) P(S.FX, 0, d2); else P(S.FX, -d2, 0); }
+      if (tax) { var tb = toBase(tax, fx); if (side === 'dr') P(taxAcct, tb, 0); else P(taxAcct, 0, tb); }
+      var want = toBase(docTotals(doc, book).total, fx);
+      var d = r2(want - sumSide(side));
+      if (d && last >= 0) { out[last][side] = r2(out[last][side] + d); }
+      return want;
+    }
+
+    if (t === 'invoice') { var v1 = linesWithTax('cr', S.VAT_OUT); P(S.AR, v1, 0, { party: doc.partyId }); }
+    else if (t === 'credit') { var v2 = linesWithTax('dr', S.VAT_OUT); creditSide(v2, 'AR'); }
+    else if (t === 'bill') { var v3 = linesWithTax('dr', S.VAT_IN); P(S.AP, 0, v3, { party: doc.partyId }); }
+    else if (t === 'vcredit') { var v4 = linesWithTax('cr', S.VAT_IN); creditSide(v4, 'AP'); }
+    else if (t === 'expense') { var v5 = linesWithTax('dr', S.VAT_IN); P(doc.acct, 0, v5, { party: doc.partyId || '' }); }
+    else if (t === 'deposit') { var v6 = linesWithTax('cr', S.VAT_OUT); P(doc.acct, v6, 0, { party: doc.partyId || '' }); }
+    else if (t === 'receipt' || t === 'vpayment') {
+      var cash = toBase(doc.amount, fx);
+      var rel = 0, appliedAmt = 0;
+      applies.forEach(function (ap) { rel = r2(rel + applyBase(book, doc, ap, idx)); appliedAmt = r2(appliedAmt + num(ap.amount)); });
+      rel = r2(rel + toBase(r2(num(doc.amount) - appliedAmt), fx));
+      var diff = r2(cash - rel);
+      if (t === 'receipt') { P(doc.acct, cash, 0, { party: doc.partyId }); P(S.AR, 0, rel, { party: doc.partyId }); if (diff) { if (diff > 0) P(S.FX, 0, diff); else P(S.FX, -diff, 0); } }
+      else { P(S.AP, rel, 0, { party: doc.partyId }); P(doc.acct, 0, cash, { party: doc.partyId }); if (diff) { if (diff < 0) P(S.FX, 0, -diff); else P(S.FX, diff, 0); } }
     } else if (t === 'transfer') {
       var amt = toBase(doc.amount, fx);
       P(doc.to, amt, 0); P(doc.from, 0, amt);
     } else if (t === 'journal') {
       (doc.lines || []).forEach(function (l) { P(l.acct, num(l.dr), num(l.cr), { party: l.party || '', project: l.project || proj, memo: l.memo || '' }); });
     }
-    return out;
-  }
-  // فرق صرف لما الإشعار الدائن يطبّق على فاتورة إلها سعر صرف تاني
-  function applyFxDiff(doc, book, out, P, S, side, fx) {
-    var diff = 0;
-    (doc.applies || []).forEach(function (ap) {
-      var target = book.docs[ap.docId]; if (!target) return;
-      var tfx = docFx(target, book);
-      diff = r2(diff + (toBase(ap.amount, tfx) - toBase(ap.amount, fx)));
-    });
-    if (!diff) return;
-    var ctrl = side === 'AR' ? S.AR : S.AP;
-    if (side === 'AR') {
-      // الإشعار سكّر ذمة أكبر (بسعرها الأصلي) من قيمته بسعر اليوم: نزيد دائن الذمة ونقيد الفرق
-      P(ctrl, 0, diff, { party: doc.partyId }); if (diff > 0) P(S.FX, diff, 0); else P(S.FX, 0, -diff);
-    } else {
-      P(ctrl, diff, 0, { party: doc.partyId }); if (diff > 0) P(S.FX, 0, diff); else P(S.FX, -diff, 0);
+    // الإشعار (دائن/مدين): الجزء المطبّق بيسكّر الذمة بسعر الفاتورة، والباقي بسعر الإشعار، والفرق → فروقات صرف
+    function creditSide(totalBase, side) {
+      var rel = 0, appliedAmt = 0;
+      applies.forEach(function (ap) { rel = r2(rel + applyBase(book, doc, ap, idx)); appliedAmt = r2(appliedAmt + num(ap.amount)); });
+      var totalDoc = docTotals(doc, book).total;
+      rel = r2(rel + toBase(r2(totalDoc - appliedAmt), fx));
+      var diff = r2(rel - totalBase);
+      if (side === 'AR') { P(S.AR, 0, rel, { party: doc.partyId }); if (diff) { if (diff > 0) P(S.FX, diff, 0); else P(S.FX, 0, -diff); } }
+      else { P(S.AP, rel, 0, { party: doc.partyId }); if (diff) { if (diff > 0) P(S.FX, 0, diff); else P(S.FX, -diff, 0); } }
     }
+    return out;
   }
 
   /* ---------------------------------- التحقق ---------------------------------- */
@@ -302,16 +280,27 @@
   }
   function itemTotal(d, book) { return d.type === 'journal' ? r2(num(d.openItem && d.openItem.amount)) : docTotals(d, book).total; }
   function openBalanceOf(book, targetId, excludeDocId) {
-    var target = book.docs[targetId];
+    var target = own(book.docs, targetId);
     if (!target || target.void || !itemKind(target)) return 0;
     var total = itemTotal(target, book);
     var used = 0;
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
-      if (!d || d.void || id === excludeDocId) return;
+      if (!d || d.void || id === excludeDocId || !APPLY_TYPES[d.type]) return;
       (d.applies || []).forEach(function (ap) { if (ap.docId === targetId) used = r2(used + num(ap.amount)); });
     });
     return r2(total - used);
+  }
+  // مجموع المطبّق على كل بند - مرّة وحدة (بدل ما نلف على كل المستندات لكل بند)
+  function appliedMap(book, asOf) {
+    var m = {};
+    Object.keys(book.docs).forEach(function (id) {
+      var d = book.docs[id];
+      if (!d || d.void || !APPLY_TYPES[d.type]) return;
+      if (asOf && d.date > asOf) return;
+      (d.applies || []).forEach(function (ap) { m[ap.docId] = r2((m[ap.docId] || 0) + num(ap.amount)); });
+    });
+    return m;
   }
 
   function validateDoc(doc, book, opts) {
@@ -321,6 +310,10 @@
     if (!doc || !def) return ['نوع المستند غير معروف'];
     var A = acctMap(book);
     if (!isDate(doc.date)) E.push('التاريخ غلط');
+    if (doc.due !== undefined && doc.due !== '' && doc.due !== null && !isDate(doc.due)) E.push('تاريخ الاستحقاق غلط');
+    if (doc.due && isDate(doc.due) && isDate(doc.date) && doc.due < doc.date) E.push('تاريخ الاستحقاق قبل تاريخ المستند');
+    if (doc.openItem && doc.openItem.due && !isDate(doc.openItem.due)) E.push('تاريخ استحقاق البند غلط');
+    (doc.applies || []).forEach(function (ap) { if (ap && ap.fx !== undefined && !(Number(ap.fx) > 0)) E.push('سعر صرف التطبيق غلط'); });
     var lock = book.settings && book.settings.lockDate;
     if (lock && isDate(doc.date) && doc.date <= lock) E.push('الفترة مقفلة لغاية ' + lock + ' - ما فيك تضيف أو تعدّل قبلها');
     if (opts.prevDate && lock && opts.prevDate <= lock) E.push('المستند الأصلي ضمن فترة مقفلة (' + lock + ')');
@@ -330,7 +323,7 @@
     var fx = docFx(doc, book);
     if (!(fx > 0)) E.push('سعر الصرف لازم يكون رقم أكبر من صفر');
     if (def.party) {
-      var p = book.parties[doc.partyId];
+      var p = Object.prototype.hasOwnProperty.call(book.parties, doc.partyId) ? book.parties[doc.partyId] : null;
       if (!p) E.push(def.party === 'customer' ? 'لازم تختار زبون' : 'لازم تختار مورد');
       else if (p.kind !== def.party && p.kind !== 'both') E.push(def.party === 'customer' ? 'الطرف المختار مش زبون' : 'الطرف المختار مش مورد');
     }
@@ -372,7 +365,7 @@
       var want = (t === 'receipt' || t === 'credit') ? 'ar' : 'ap';
       var appliedSum = 0, seen = {};
       (doc.applies || []).forEach(function (ap, i) {
-        var tg = book.docs[ap.docId];
+        var tg = own(book.docs, ap.docId);
         var w = 'التطبيق ' + (i + 1);
         if (seen[ap.docId]) E.push(w + ': نفس الفاتورة مكررة'); seen[ap.docId] = 1;
         if (!tg || tg.void) { E.push(w + ': الفاتورة مش موجودة أو ملغاة'); return; }
@@ -382,12 +375,13 @@
         if (!isNum(ap.amount) || num(ap.amount) <= 0) E.push(w + ': المبلغ لازم يكون أكبر من صفر');
         var open = openBalanceOf(book, ap.docId, doc.id);
         if (num(ap.amount) > open + 0.004) E.push(w + ': المبلغ (' + r2(ap.amount) + ') أكبر من المتبقي على ' + (tg.no || 'الفاتورة') + ' (' + open + ')');
-        if (tg.date && isDate(doc.date) && doc.date < tg.date && t !== 'credit' && t !== 'vcredit') { /* مسموح: دفعة مسبقة بتاريخ أقدم؟ لا - منمنعها لوضوح الكشوف */ E.push(w + ': تاريخ السند قبل تاريخ الفاتورة ' + (tg.no || '')); }
+        // دفعة مقدمة (سند أقدم من الفاتورة) مسموحة - شائعة بالمقاولات
         appliedSum = r2(appliedSum + num(ap.amount));
       });
       var limit = (t === 'credit' || t === 'vcredit') ? docTotals(doc, book).total : num(doc.amount);
       if (appliedSum > limit + 0.004) E.push('مجموع المطبّق (' + appliedSum + ') أكبر من مبلغ المستند (' + r2(limit) + ')');
     }
+    if (!APPLY_TYPES[t] && doc.applies && doc.applies.length) E.push('هالنوع من المستندات ما بيتطبّق على فواتير');
     if (t === 'transfer') {
       var f = chkAcct(doc.from, 'من حساب', ['asset']), to = chkAcct(doc.to, 'لحساب', ['asset']);
       if (f && !isMoneyAcct(f)) E.push('"من" لازم يكون صندوق أو بنك');
@@ -408,8 +402,9 @@
         if (d && c) E.push(w + ': يا مدين يا دائن، مش التنين');
         if (!d && !c) E.push(w + ': السطر فاضي');
         if (a && (a.code === S.AR || a.code === S.AP)) {
-          var pp = book.parties[l.party];
+          var pp = Object.prototype.hasOwnProperty.call(book.parties, l.party) ? book.parties[l.party] : null;
           if (!pp) E.push(w + ': حساب ' + a.name + ' لازم معه ' + (a.code === S.AR ? 'زبون' : 'مورد'));
+          else if (pp.kind !== 'both' && pp.kind !== (a.code === S.AR ? 'customer' : 'vendor')) E.push(w + ': ' + pp.name + ' مش ' + (a.code === S.AR ? 'زبون' : 'مورد'));
         }
         dr = r2(dr + d); cr = r2(cr + c);
       });
@@ -418,7 +413,7 @@
         var oi = doc.openItem, ctl = oi.kind === 'ar' ? S.AR : oi.kind === 'ap' ? S.AP : '';
         if (!ctl) E.push('نوع البند المفتوح غلط');
         if (!isNum(oi.amount) || num(oi.amount) <= 0) E.push('مبلغ البند المفتوح غلط');
-        if (!book.parties[doc.partyId]) E.push('البند المفتوح لازم إلو طرف');
+        if (!own(book.parties, doc.partyId)) E.push('البند المفتوح لازم إلو طرف');
         var lineAmt = 0;
         (doc.lines || []).forEach(function (l) { if (l.acct === ctl && l.party === doc.partyId) lineAmt = r2(lineAmt + (oi.kind === 'ar' ? num(l.dr) - num(l.cr) : num(l.cr) - num(l.dr))); });
         if (num(oi.amount) > lineAmt + 0.004) E.push('مبلغ البند المفتوح أكبر من قيده');
@@ -440,20 +435,22 @@
   function dependents(book, docId) {
     return Object.keys(book.docs).filter(function (id) {
       var d = book.docs[id];
-      return d && !d.void && (d.applies || []).some(function (ap) { return ap.docId === docId; });
+      return d && !d.void && APPLY_TYPES[d.type] && (d.applies || []).some(function (ap) { return ap.docId === docId; });
     }).map(function (id) { return book.docs[id]; });
   }
 
   /* ---------------------------------- الدفتر العام ---------------------------------- */
   function ledger(book, opts) {
     opts = opts || {};
-    var out = [];
+    var out = [], idx = applyIndex(book);
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
       if (!d || d.void) return;
       if (opts.from && d.date < opts.from) return;
       if (opts.to && d.date > opts.to) return;
-      docPostings(d, book).forEach(function (p, i) { p.key = d.id + ':' + i; out.push(p); });
+      var seen = {};
+      // مفتاح ثابت للمطابقة البنكية: المستند + الحساب + ترتيب السطر على هالحساب (ما بيتغيّر لو انضاف سطر لحساب تاني)
+      docPostings(d, book, idx).forEach(function (p) { var n = seen[p.acct] = (seen[p.acct] || 0) + 1; p.key = d.id + ':' + p.acct + ':' + n; out.push(p); });
     });
     out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.docId < b.docId ? -1 : a.docId > b.docId ? 1 : 0); });
     return out;
@@ -541,24 +538,20 @@
   function openItems(book, kind, asOf) {
     var want = kind === 'ap' ? 'ap' : 'ar';
     var today = asOf || new Date().toISOString().slice(0, 10);
-    var out = [];
+    var out = [], am = appliedMap(book, asOf);
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
       if (!d || d.void || itemKind(d) !== want) return;
       if (asOf && d.date > asOf) return;
       var total = itemTotal(d, book);
-      var used = 0;
-      Object.keys(book.docs).forEach(function (j) {
-        var x = book.docs[j]; if (!x || x.void) return; if (asOf && x.date > asOf) return;
-        (x.applies || []).forEach(function (ap) { if (ap.docId === id) used = r2(used + num(ap.amount)); });
-      });
+      var used = am[id] || 0;
       var open = r2(total - used);
       if (open <= 0.004) return;
-      var due = d.due || d.date;
+      var due = d.due || (d.openItem && d.openItem.due) || d.date;
       var days = Math.floor((Date.parse(today) - Date.parse(due)) / 86400000);
       var bucket = days <= 0 ? 'current' : days <= 30 ? 'd30' : days <= 60 ? 'd60' : days <= 90 ? 'd90' : 'd90p';
       var fx = docFx(d, book);
-      out.push({ id: d.id, no: d.no, date: d.date, due: due, partyId: d.partyId, project: d.project || '', currency: d.currency || book.base, total: total, paid: used, open: open, openBase: toBase(open, fx), days: days, bucket: bucket });
+      out.push({ id: d.id, no: d.no, date: d.date, due: due, partyId: d.partyId, project: d.project || '', currency: d.currency || book.base, total: total, paid: used, open: open, openBase: r2(toBase(total, fx) - toBase(used, fx)), days: days, bucket: bucket });
     });
     out.sort(function (a, b) { return a.due < b.due ? -1 : 1; });
     return out;
@@ -570,8 +563,22 @@
       var r = by[it.partyId] || (by[it.partyId] = { partyId: it.partyId, current: 0, d30: 0, d60: 0, d90: 0, d90p: 0, total: 0 });
       r[it.bucket] = r2(r[it.bucket] + it.openBase); r.total = r2(r.total + it.openBase);
     });
-    var rows = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.total - a.total; });
-    var tot = { current: 0, d30: 0, d60: 0, d90: 0, d90p: 0, total: 0 };
+    // متل QuickBooks: الدفعات المقدّمة / الأرصدة غير المطبّقة بتطلع بعمود "credit" (بالسالب)،
+    // فمجموع التقرير دايمًا = رصيد حساب الذمم بالدفتر
+    var S = sysAccts(book), ctl = kind === 'ar' ? S.AR : S.AP, led = {};
+    ledger(book, { to: asOf }).forEach(function (p) {
+      if (p.acct !== ctl) return;
+      var k = p.party || '';
+      led[k] = r2((led[k] || 0) + (kind === 'ar' ? p.dr - p.cr : p.cr - p.dr));
+    });
+    Object.keys(by).forEach(function (k) { by[k].credit = 0; });
+    Object.keys(led).forEach(function (k) {
+      var r = by[k] || (by[k] = { partyId: k, current: 0, d30: 0, d60: 0, d90: 0, d90p: 0, total: 0, credit: 0 });
+      var diff = r2(led[k] - r.total);
+      if (Math.abs(diff) > 0.004) { r.credit = diff; r.total = r2(r.total + diff); }
+    });
+    var rows = Object.keys(by).map(function (k) { return by[k]; }).filter(function (r) { return Math.abs(r.total) > 0.004 || Math.abs(r.credit) > 0.004 || r.current || r.d30 || r.d60 || r.d90 || r.d90p; }).sort(function (a, b) { return b.total - a.total; });
+    var tot = { current: 0, d30: 0, d60: 0, d90: 0, d90p: 0, credit: 0, total: 0 };
     rows.forEach(function (r) { Object.keys(tot).forEach(function (k) { tot[k] = r2(tot[k] + r[k]); }); });
     return { rows: rows, totals: tot, items: items };
   }
@@ -590,8 +597,10 @@
       .sort(function (a, b) { return b.income - a.income; });
   }
   // تقرير ضريبة القيمة المضافة (الإمارات)
+  // تقرير ضريبة القيمة المضافة (الإمارات) - محسوب من المستندات نفسها (مش من حركة الحساب)،
+  // فقيد تسديد الضريبة للهيئة ما بيأثر عليه، والإيداعات غير الإيرادية (رأس مال، قروض) ما بتنعد مبيعات.
   function vatReport(book, opts) {
-    var S = sysAccts(book);
+    var A = acctMap(book);
     var out = { outputVat: 0, inputVat: 0, salesTaxable: 0, salesZero: 0, purchasesTaxable: 0, net: 0 };
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
@@ -600,15 +609,19 @@
       if (opts && opts.to && d.date > opts.to) return;
       var fx = docFx(d, book), rate = num(d.taxRate);
       var sg = (d.type === 'credit' || d.type === 'vcredit') ? -1 : 1;
-      if (d.type === 'invoice' || d.type === 'credit' || d.type === 'deposit') {
-        (d.lines || []).forEach(function (l) { var a = toBase(lineAmount(l, d.type), fx); if (l.tax && rate > 0) out.salesTaxable = r2(out.salesTaxable + sg * a); else out.salesZero = r2(out.salesZero + sg * a); });
-      } else if (d.type === 'bill' || d.type === 'vcredit' || d.type === 'expense') {
-        (d.lines || []).forEach(function (l) { if (l.tax && rate > 0) out.purchasesTaxable = r2(out.purchasesTaxable + sg * toBase(lineAmount(l, d.type), fx)); });
-      }
+      var sales = d.type === 'invoice' || d.type === 'credit' || d.type === 'deposit';
+      var purch = d.type === 'bill' || d.type === 'vcredit' || d.type === 'expense';
+      if (!sales && !purch) return;
+      (d.lines || []).forEach(function (l) {
+        var amtDoc = lineAmount(l, d.type), a = toBase(amtDoc, fx);
+        var taxed = l.tax && rate > 0, tax = taxed ? toBase(r2(amtDoc * rate / 100), fx) : 0;
+        var acc = A[l.acct] || {};
+        if (sales) {
+          if (taxed) { out.salesTaxable = r2(out.salesTaxable + sg * a); out.outputVat = r2(out.outputVat + sg * tax); }
+          else if (acc.type === 'income') out.salesZero = r2(out.salesZero + sg * a);
+        } else if (taxed) { out.purchasesTaxable = r2(out.purchasesTaxable + sg * a); out.inputVat = r2(out.inputVat + sg * tax); }
+      });
     });
-    var bal = balances(book, opts);
-    out.outputVat = bal[S.VAT_OUT] ? bal[S.VAT_OUT].net : 0;
-    out.inputVat = bal[S.VAT_IN] ? bal[S.VAT_IN].net : 0;
     out.net = r2(out.outputVat - out.inputVat);
     return out;
   }
@@ -620,10 +633,17 @@
   function reconView(book, code, statementBalance) {
     var rec = (book.recon && book.recon[code]) || {};
     var lines = ledger(book, {}).filter(function (p) { return p.acct === code; });
-    var cleared = 0, uncl = [];
-    lines.forEach(function (p) { var amt = r2(p.dr - p.cr); if (rec[p.key]) cleared = r2(cleared + amt); else uncl.push(p); });
+    var cleared = 0, uncl = [], changed = [], map = {};
+    lines.forEach(function (p) {
+      var amt = r2(p.dr - p.cr), m = rec[p.key];
+      if (!m) { uncl.push(p); return; }
+      var parts = String(m).split('|'), markedAmt = parts.length > 1 ? r2(parts[1]) : null;
+      // العلامة محفوظة مع المبلغ وقت المطابقة: لو المبلغ تغيّر بعدها ما منعدّها مطابقة
+      if (markedAmt !== null && markedAmt !== amt) { changed.push(p); uncl.push(p); return; }
+      map[p.key] = parts[0]; cleared = r2(cleared + amt);
+    });
     var bookBal = r2(lines.reduce(function (s, p) { return s + p.dr - p.cr; }, 0));
-    return { lines: lines, clearedMap: rec, clearedBalance: cleared, bookBalance: bookBal, uncleared: uncl, difference: isNum(statementBalance) ? r2(num(statementBalance) - cleared) : null };
+    return { lines: lines, clearedMap: map, clearedBalance: cleared, bookBalance: bookBal, uncleared: uncl, changed: changed, difference: isNum(statementBalance) ? r2(num(statementBalance) - cleared) : null };
   }
 
   /* --------------------------- فحص سلامة الدفتر كامل ---------------------------
@@ -635,24 +655,33 @@
     if (!tb.balanced) problems.push('ميزان المراجعة مش موزون: ' + tb.totalDebit + ' / ' + tb.totalCredit);
     var bs = balanceSheet(book);
     if (!bs.balanced) problems.push('الميزانية مش متوازنة: أصول ' + bs.totalAssets + ' ≠ خصوم ' + bs.totalLiabilities + ' + حقوق ' + bs.totalEquity);
-    var seenNo = {};
+    var seenNo = {}, idx = applyIndex(book);
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
       if (!d) return;
       if (d.id !== id) problems.push('مستند رقمه الداخلي غلط: ' + id);
       if (d.no) { if (seenNo[d.no]) problems.push('رقم مستند مكرر: ' + d.no); seenNo[d.no] = 1; }
       if (d.void) return;
-      var ps = docPostings(d, book);
+      var ps = docPostings(d, book, idx);
       var D = 0, C = 0;
       ps.forEach(function (p) { D = r2(D + p.dr); C = r2(C + p.cr); if (!A[p.acct]) problems.push((d.no || id) + ': حساب مش موجود ' + p.acct); });
       if (D !== C) problems.push((d.no || id) + ': قيوده مش موزونة');
-      (d.applies || []).forEach(function (ap) { var tg = book.docs[ap.docId]; if (!tg) problems.push((d.no || id) + ': مطبّق على مستند مش موجود'); else if (tg.void) problems.push((d.no || id) + ': مطبّق على ' + (tg.no || '') + ' وهي ملغاة'); });
-    });
-    ['ar', 'ap'].forEach(function (tp) {
-      Object.keys(book.docs).forEach(function (id) {
-        var d = book.docs[id]; if (!d || d.void || itemKind(d) !== tp) return;
-        if (openBalanceOf(book, id) < -0.004) problems.push((d.no || id) + ': مدفوع أكتر من قيمته');
+      if (!APPLY_TYPES[d.type] && d.applies && d.applies.length) problems.push((d.no || id) + ': فيه تطبيق على فواتير وهو مش سند');
+      if (APPLY_TYPES[d.type]) (d.applies || []).forEach(function (ap) {
+        var tg = own(book.docs, ap.docId);
+        if (!tg) { problems.push((d.no || id) + ': مطبّق على مستند مش موجود'); return; }
+        if (tg.void) problems.push((d.no || id) + ': مطبّق على ' + (tg.no || '') + ' وهي ملغاة');
+        var want = (d.type === 'receipt' || d.type === 'credit') ? 'ar' : 'ap';
+        if (itemKind(tg) !== want) problems.push((d.no || id) + ': مطبّق على مستند من نوع غلط');
+        if (tg.partyId !== d.partyId) problems.push((d.no || id) + ': مطبّق على ' + (tg.no || '') + ' وهي لطرف تاني');
+        if ((tg.currency || book.base) !== (d.currency || book.base)) problems.push((d.no || id) + ': مطبّق على ' + (tg.no || '') + ' بعملة تانية');
+        if (ap.fx !== undefined && Math.abs(Number(ap.fx) - docFx(tg, book)) > 1e-9) problems.push((d.no || id) + ': سعر صرف ' + (tg.no || '') + ' تغيّر بعد ما انطبق عليها');
       });
+    });
+    var am = appliedMap(book);
+    Object.keys(book.docs).forEach(function (id) {
+      var d = book.docs[id]; if (!d || d.void || !itemKind(d)) return;
+      if (r2(itemTotal(d, book) - (am[id] || 0)) < -0.004) problems.push((d.no || id) + ': مدفوع أكتر من قيمته');
     });
     // رصيد الذمم = مجموع أرصدة الفواتير المفتوحة (بعملة الدفتر) - الدفعات المقدمة
     return problems;
@@ -676,7 +705,7 @@
     VERSION: VERSION, BOOKS: BOOKS, CURRENCY_LABEL: CURRENCY_LABEL, TYPES: TYPES, TYPE_LABEL: TYPE_LABEL, DOC_TYPES: DOC_TYPES, SYS: SYS,
     r2: r2, num: num, isDate: isDate, debitNormal: debitNormal,
     defaultChart: defaultChart, newBook: newBook, acctMap: acctMap, sysAccts: sysAccts, isMoneyAcct: isMoneyAcct,
-    docFx: docFx, docTotals: docTotals, itemKind: itemKind, itemTotal: itemTotal, docPostings: docPostings, validateDoc: validateDoc, openBalanceOf: openBalanceOf, dependents: dependents,
+    docFx: docFx, docTotals: docTotals, itemKind: itemKind, itemTotal: itemTotal, APPLY_TYPES: APPLY_TYPES, appliedMap: appliedMap, applyIndex: applyIndex, docPostings: docPostings, validateDoc: validateDoc, openBalanceOf: openBalanceOf, dependents: dependents,
     ledger: ledger, balances: balances, trialBalance: trialBalance, profitLoss: profitLoss, balanceSheet: balanceSheet,
     accountLedger: accountLedger, partyStatement: partyStatement, openItems: openItems, aging: aging, projectProfit: projectProfit,
     vatReport: vatReport, moneyAccounts: moneyAccounts, reconView: reconView, integrity: integrity, nextNo: nextNo, fmt: fmt,

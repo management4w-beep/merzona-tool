@@ -10448,6 +10448,14 @@ async function stepBusinessAudit(onProg){
       if(od.length) info('المحاسبة - ' + bname + ': فواتير زبائن متأخرة أكتر من 30 يوم (' + od.length + ')', audList(od.map(function(i){ return i.no + ' · ' + i.days + ' يوم · ' + fmt(i.openBase); }), 8));
       var susp = window.AcctCore.balances(jb.book, {});
       ['1390', '2150'].forEach(function(c){ if(susp[c] && Math.abs(susp[c].net) > 0.004) warn('المحاسبة - ' + bname + ': ' + susp[c].name, 'رصيد ' + fmt(susp[c].net) + ' لسا ما اتحدد لشو - صنّفو بقيد تسوية لما تعرف'); });
+      // نسخة جوجل درايف: الملف على درايف لازم يكون نفس الملف على السيرفر بالضبط (md5)
+      if(nd || jb.book.rev){
+        var dc = await fetch(srv + '/acct/' + bid + '/drive-check', { headers: hdr, cache: 'no-store' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+        if(!dc) warn('المحاسبة - ' + bname + ': نسخة درايف', 'ما قدرنا نفحص');
+        else if(dc.ok) ok('المحاسبة - ' + bname + ': نسخة درايف مطابقة', (dc.status && dc.status.at ? 'آخر رفع ' + String(dc.status.at).slice(0, 16).replace('T', ' ') : '') + ' · مجلد Merzona Accounting');
+        else if(dc.pending) info('المحاسبة - ' + bname + ': نسخة درايف', 'في تعديل جديد عم ينرفع لدرايف (خلال دقيقة)');
+        else fail('المحاسبة - ' + bname + ': نسخة درايف مش مطابقة للسيرفر', dc.error ? ('السبب: ' + String(dc.error).replace(/[<>&]/g, '')) : audList((dc.files || []).filter(function(f){ return !f.match; }).map(function(f){ return f.name + (f.remote ? ' (مختلف)' : ' (مش موجود على درايف)'); }), 5) + (dc.status && dc.status.error ? '<br>آخر خطأ: ' + String(dc.status.error).replace(/[<>&]/g, '') : ''));
+      }
     }
   }catch(e){ warn('فحص الدفاتر المحاسبية', String(e && e.message || e)); }
 
