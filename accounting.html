@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="only light">
+<meta name="supported-color-schemes" content="light">
+<!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
+<style id="mz-gate-style">body{display:none!important;}</style>
+<script id="mz-error-reporter">
+/* 🐞 تسجيل أخطاء تلقائي (2026-10-06): أي خطأ جافاسكربت بالصفحة بيتبعت للسيرفر (من جهاز معتمد بس) مع اسم الصفحة والنسخة ورقم العرض،
+   وبيتخزّن كمان نسخة بالمتصفح (localStorage: mz-err-log، آخر 30). ما بيعطّل أي شي لو فشل. */
+(function(){
+  if(window.__mzErrReporter) return; window.__mzErrReporter = true;
+  var PAGE = 'accounting';
+  var ENDPOINT = 'https://merzona-server-production.up.railway.app/client-error';
+  var seen = {}, sent = 0, winStart = Date.now();
+  var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to load resource|NetworkError|Load failed|Failed to fetch|AbortError|aborted|ERR_TUNNEL|net::ERR/i;
+  function dev(){ try{ return localStorage.getItem('merzona-device-token') || ''; }catch(e){ return ''; } }
+  function refVal(){ try{ var el = document.getElementById('m-ref'); return el ? (el.value || '') : ''; }catch(e){ return ''; } }
+  function keep(rec){
+    try{
+      var arr = JSON.parse(localStorage.getItem('mz-err-log') || '[]'); arr.push(rec);
+      localStorage.setItem('mz-err-log', JSON.stringify(arr.slice(-30)));
+    }catch(e){}
+  }
+  function report(kind, msg, stack, src){
+    try{
+      msg = String(msg == null ? '' : msg).slice(0, 500);
+      if(!msg || NOISE.test(msg)) return;
+      var key = kind + '|' + msg.slice(0, 120); if(seen[key]) return; seen[key] = 1;
+      var now = Date.now(); if(now - winStart > 600000){ winStart = now; sent = 0; } if(++sent > 10) return;
+      var rec = { kind: kind, msg: msg, stack: String(stack || '').slice(0, 1500), src: String(src || '').slice(0, 200), page: PAGE, v: window.__mzVersion || '', ref: refVal(), ua: (navigator.userAgent || '').slice(0, 160), t: new Date().toISOString() };
+      keep(rec);
+      var d = dev(); if(!d) return;
+      fetch(ENDPOINT + '?device=' + encodeURIComponent(d), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec), keepalive: true }).catch(function(){});
+    }catch(e){}
+  }
+  window.addEventListener('error', function(e){
+    if(!e || (e.target && e.target !== window)) return; // أخطاء تحميل ملفات/صور = ضجيج شبكة، منتجاهلها
+    report('error', e.message, e.error && e.error.stack, (e.filename || '') + ':' + (e.lineno || ''));
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e && e.reason; report('promise', (r && r.message) ? r.message : r, r && r.stack);
+  });
+  var origErr = console.error;
+  console.error = function(){
+    try{
+      var parts = [], st = '';
+      for(var i = 0; i < arguments.length; i++){
+        var x = arguments[i];
+        if(x && x.message){ parts.push(x.message); if(!st && x.stack) st = x.stack; }
+        else if(typeof x === 'string' || typeof x === 'number') parts.push(String(x));
+      }
+      report('console', parts.join(' '), st);
+    }catch(e){}
+    return origErr.apply(console, arguments);
+  };
+})();
+</script>
+<script>
+(function(){
+  // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
+  var ACCESS_SERVER_URL = 'https://merzona-server-production.up.railway.app';
+
+  var DEVICE_KEY = 'merzona-device-token';
+  var STATUS_KEY = 'merzona-access-status';
+  // 🆕 2026-08-26: طبقة حسابات المستخدمين (يوزرنيم/باسوورد) فوق موافقة الواتساب. TOOL_PERMISSION_KEY
+  // بيحدد شو اسم الصلاحية يلي هالملف بالذات لازم يتحقق منها (نفس مفاتيح PERMISSION_KEYS بالسيرفر) -
+  // لازم يبقى 'procurement' هون بالضبط (بملف procurement.html)، وبملفات Dashboard.html/index.html
+  // القيمة المكافئة هي 'dashboard'/'quotation' على التوالي.
+  var SESSION_KEY = 'merzona-session-token';
+  // 🆕 2026-08-26: اسم المستخدم (يوزرنيم) محفوظ محليًا بعد إنشاء/تسجيل الدخول - نفس الفكرة يلي
+  // بأداة عرض الأسعار (index.html)، محفوظ هون كمان للتناسق (ما بتستخدمو هالأداة حاليًا).
+  var USERNAME_KEY = 'merzona-username';
+  var TOOL_PERMISSION_KEY = 'accounting';
+  var POLL_MS = 4000;
+  var REVALIDATE_MS = 5 * 60 * 1000; // كل قد ايش نتأكد من السيرفر إنو الجهاز المعتمد لسا مسموح (يلتقط أي إلغاء وصول بسرعة معقولة حتى لو الصفحة ضلت مفتوحة)
+
+  // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
+  // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
+  // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
+  var CURRENT_VERSION = '2026-11-08.1';
+  window.__mzVersion = CURRENT_VERSION;
+  var TOOL_KEY = 'accounting';
+  var VERSION_URL = 'version.json';
+  var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
+  var VERSION_CHECK_TIMEOUT_MS = 4000;
+
+  function checkForUpdate(onDone){
+    var bust = Date.now() + '-' + Math.random().toString(16).slice(2);
+    var settled = false;
+    var timer = setTimeout(function(){ if(!settled){ settled = true; onDone(); } }, VERSION_CHECK_TIMEOUT_MS);
+    fetch(VERSION_URL + '?_=' + bust, { cache: 'no-store' })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        if(settled) return; settled = true; clearTimeout(timer);
+        var remoteVersion = data && data[TOOL_KEY];
+        if(!remoteVersion || remoteVersion === CURRENT_VERSION){
+          try{ sessionStorage.removeItem(RELOAD_GUARD_KEY); }catch(e){}
+          onDone();
+          return;
+        }
+        // في نسخة أحدث منشورة على جيت هاب من يلي المتصفح فاتحها حاليًا - منعمل reload بس مع رابط
+        // مختلف (cache-busting) حتى نجبر المتصفح ياخد نسخة الملف الجديدة فعليًا من الشبكة مباشرة،
+        // بدل ما يكتفي بالنسخة القديمة المخزنة عندو محليًا.
+        var guard = null;
+        try{ guard = JSON.parse(sessionStorage.getItem(RELOAD_GUARD_KEY) || 'null'); }catch(e){}
+        if(guard && guard.version === remoteVersion && (Date.now() - guard.at) < 60000){
+          // جربنا نحدّث لهاي النسخة قبل شوي وما زبط (يمكن لسا عم تنتشر على سيرفرات جيت هاب) - منكمل
+          // بالنسخة الحالية حتى ما تعلق الأداة بحلقة تحديث متكررة، ومنعاود نحاول بعد شوي من جديد.
+          onDone();
+          return;
+        }
+        try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
+        var _qs = ''; try { var _u = new URLSearchParams(location.search); _u.set('_cb', bust); _qs = '?' + _u.toString(); } catch (e) { _qs = '?_cb=' + bust; }
+        location.replace(location.pathname + _qs + (location.hash || ''));
+      })
+      .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); onDone(); } });
+  }
+
+  function showCheckingUpdate(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:13px;color:#9aa0aa">🔄 جاري التحقق من آخر نسخة...</div>';
+  }
+
+  function getDeviceToken(){
+    var t = null;
+    try{ t = localStorage.getItem(DEVICE_KEY); }catch(e){}
+    if(!t){
+      t = (crypto.randomUUID ? crypto.randomUUID() : ('dev-' + Date.now() + '-' + Math.random().toString(16).slice(2)));
+      try{ localStorage.setItem(DEVICE_KEY, t); }catch(e){}
+    }
+    return t;
+  }
+
+  function reveal(){
+    var st = document.getElementById('mz-gate-style'); if(st) st.remove();
+    var ov = document.getElementById('mz-gate-overlay'); if(ov) ov.remove();
+  }
+
+  // ============================================================================
+  // 🆕 2026-08-26: حسابات المستخدمين (يوزرنيم/باسوورد) - طبقة إضافية فوق موافقة الواتساب
+  // أعلاه. ما بتشتغل إلا بعد ما الجهاز يصير "approved". مسار المالك (#owner=) ما بيمرق من
+  // هون إطلاقًا - بيرجع reveal() مباشرة (شوف init() تحت).
+  // ============================================================================
+  function getSessionToken(){
+    try{ return localStorage.getItem(SESSION_KEY); }catch(e){ return null; }
+  }
+  function setSessionToken(t, username){
+    try{
+      localStorage.setItem(SESSION_KEY, t);
+      if(username) localStorage.setItem(USERNAME_KEY, username);
+    }catch(e){}
+  }
+
+  // متل api() تمامًا بس ما بترمي خطأ عالحالات 4xx/5xx - بترجع نفس جسم JSON يلي بعتو السيرفر
+  // (فيه رسالة الخطأ بالعربي بحقل error) حتى نقدر نعرضها للمستخدم بدل رسالة عامة.
+  function apiUsers(path, opts){
+    return fetch(ACCESS_SERVER_URL + path, opts).then(function(r){
+      return r.json().catch(function(){ return {}; });
+    });
+  }
+
+  function showBlockedNoPermission(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px;color:#e0554f">ما عندك صلاحية</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">حسابك مسموح بالدخول، بس ما عندك صلاحية لهاد الجزء تحديدًا. تواصل مع الإدارة إذا حابب توصلها.</div>';
+  }
+
+  function proceedIfPermitted(permissions){
+    if(permissions && permissions[TOOL_PERMISSION_KEY]){
+      reveal();
+    } else {
+      showBlockedNoPermission();
+    }
+  }
+
+  function showAccountError(box, msg){
+    var err = box.querySelector('#mz-acct-err');
+    if(err) err.textContent = msg || 'صار في خطأ - جرب كمان شوي';
+  }
+
+  function showCreateAccountForm(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">آخر خطوة - أنشئ حسابك 🔐</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اختار اسم مستخدم وكلمة مرور خاصين فيك، رح تحتاجهم بالمرات الجاية</div>' +
+      '<input id="mz-acct-user" type="text" placeholder="اسم المستخدم" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass" type="password" placeholder="كلمة المرور (6 أحرف عالأقل)" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass2" type="password" placeholder="أعد كتابة كلمة المرور" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-acct-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">إنشاء الحساب</button>' +
+      '<div id="mz-acct-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-acct-btn');
+    var userInput = box.querySelector('#mz-acct-user');
+    var passInput = box.querySelector('#mz-acct-pass');
+    var pass2Input = box.querySelector('#mz-acct-pass2');
+    function submit(){
+      var username = (userInput.value || '').trim();
+      var password = passInput.value || '';
+      var password2 = pass2Input.value || '';
+      if(!username || username.length < 2){ showAccountError(box, 'اكتب اسم مستخدم صحيح'); return; }
+      if(password.length < 6){ showAccountError(box, 'كلمة المرور لازم تكون 6 أحرف عالأقل'); return; }
+      if(password !== password2){ showAccountError(box, 'كلمتا المرور مش متطابقتين'); return; }
+      btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
+      apiUsers('/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, username: username, password: password })
+      }).then(function(r){
+        if(r && r.token){
+          setSessionToken(r.token, r.username);
+          proceedIfPermitted(r.isAdmin ? { accounting: true } : r.permissions);
+        } else {
+          btn.disabled = false; btn.textContent = 'إنشاء الحساب';
+          showAccountError(box, (r && r.error) || 'صار في خطأ');
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'إنشاء الحساب';
+        showAccountError(box, 'تعذر الاتصال بالسيرفر');
+      });
+    }
+    btn.addEventListener('click', submit);
+    pass2Input.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ userInput.focus(); }, 50);
+  }
+
+  function showLoginForm(deviceToken, prefillUsername){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    var safePrefill = prefillUsername ? String(prefillUsername).replace(/"/g,'&quot;') : '';
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">سجّل الدخول 🔐</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اكتب اسم المستخدم وكلمة المرور يلي أنشأتهم قبل هيك</div>' +
+      '<input id="mz-acct-user" type="text" placeholder="اسم المستخدم" value="' + safePrefill + '" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass" type="password" placeholder="كلمة المرور" autocomplete="current-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-acct-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">دخول</button>' +
+      '<div id="mz-acct-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-acct-btn');
+    var userInput = box.querySelector('#mz-acct-user');
+    var passInput = box.querySelector('#mz-acct-pass');
+    function submit(){
+      var username = (userInput.value || '').trim();
+      var password = passInput.value || '';
+      if(!username || !password){ showAccountError(box, 'عبي الاسم وكلمة المرور'); return; }
+      btn.disabled = true; btn.textContent = 'جاري الدخول...';
+      apiUsers('/users/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      }).then(function(r){
+        if(r && r.token){
+          setSessionToken(r.token, r.username);
+          proceedIfPermitted(r.isAdmin ? { accounting: true } : r.permissions);
+        } else {
+          btn.disabled = false; btn.textContent = 'دخول';
+          showAccountError(box, (r && r.error) || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'دخول';
+        showAccountError(box, 'تعذر الاتصال بالسيرفر');
+      });
+    }
+    btn.addEventListener('click', submit);
+    passInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ passInput.focus(); }, 50);
+  }
+
+  // هاد يلي بيستبدل استدعاءات reveal() المباشرة (ما عدا مسار المالك #owner=) - بيتحقق أول
+  // شي إذا الجهاز عملّو حساب يوزرنيم/باسوورد، وإذا لأ بيطلب منه ينشئ واحد قبل ما يفوت.
+  function revealWithAccountCheck(deviceToken){
+    apiUsers('/users/status?deviceToken=' + encodeURIComponent(deviceToken)).then(function(r){
+      if(r && r.isOwnerDevice){
+        // جهاز المالك المعتمد أصلاً (دخل قبل هيك عن طريق #owner=) - فوري وبدون أي حساب.
+        reveal();
+      } else if(r && r.hasAccount){
+        var token = getSessionToken();
+        if(!token){ showLoginForm(deviceToken, r.username); return; }
+        apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
+          if(me && me.permissions){ proceedIfPermitted(me.isAdmin ? { accounting: true } : me.permissions); }
+          else { showLoginForm(deviceToken, r.username); }
+        }).catch(function(){ showLoginForm(deviceToken, r.username); });
+      } else if(r && r.hasAccount === false){
+        showCreateAccountForm(deviceToken);
+      } else {
+        // رد غير متوقع (مثلاً الجهاز مش approved من نظام الواتساب لأي سبب) - منكمل بالوضع
+        // القديم حتى ما حدا ينحبس برا الأداة بسبب ميزة جديدة.
+        reveal();
+      }
+    }).catch(function(){
+      reveal();
+    });
+  }
+
+  function getOwnerTokenFromHash(){
+    var m = /[#&]owner=([^&]+)/.exec(location.hash);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function clearOwnerHash(){
+    if(location.hash.indexOf('owner=') !== -1){
+      try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    }
+  }
+
+  function api(path, opts){
+    return fetch(ACCESS_SERVER_URL + path, opts).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  function buildOverlayShell(){
+    var existing = document.getElementById('mz-gate-overlay');
+    if(existing) return existing;
+    var overlay = document.createElement('div');
+    overlay.id = 'mz-gate-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:#0f1115;color:#eee;display:flex;align-items:center;justify-content:center;z-index:2147483647;font-family:Tahoma,Arial,sans-serif;direction:rtl;';
+    var box = document.createElement('div');
+    box.className = 'mz-gate-box';
+    box.style.cssText = 'background:#1b1e24;padding:32px 28px;border-radius:12px;max-width:340px;width:90%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)';
+    overlay.appendChild(box);
+    document.documentElement.appendChild(overlay);
+    return overlay;
+  }
+
+  function showMisconfigured(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:16px;font-weight:700;margin-bottom:10px">نظام الدخول مش جاهز بعد</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">تواصل مع الإدارة لتفعيل رابط سيرفر الموافقات.</div>';
+  }
+
+  function showRequestForm(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">أداة ميرزونا محمية</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اكتب اسمك واطلب الدخول - رح توصل موافقة الإدارة على الواتس اب</div>' +
+      '<input id="mz-gate-name" type="text" placeholder="اسمك" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-gate-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">طلب الدخول</button>' +
+      '<div id="mz-gate-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-gate-btn');
+    var nameInput = box.querySelector('#mz-gate-name');
+    var err = box.querySelector('#mz-gate-err');
+    function submit(){
+      var name = (nameInput.value || '').trim();
+      btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+      // منبعت نفس القيمة المكتوبة كـ adminToken كمان مع الاسم - السيرفر بتجاهلها إذا مش نفس
+      // كلمة سر المالك بالضبط، وبيوافق فورًا بدون انتظار الواتس اب إذا كانت مطابقة. هيك صاحبة
+      // الأداة فيها تكتب كلمة السر مكان الاسم وتفتح مباشرة، بدون الحاجة لرابط #owner= الخاص.
+      api('/access/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, name: name, adminToken: name })
+      }).then(function(r){
+        if(r.status === 'approved'){
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          revealWithAccountCheck(deviceToken);
+        } else {
+          showWaiting(deviceToken);
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'طلب الدخول';
+        err.textContent = 'تعذر الاتصال بسيرفر الموافقات - جرب كمان شوي';
+      });
+    }
+    btn.addEventListener('click', submit);
+    nameInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ nameInput.focus(); }, 50);
+  }
+
+  function showWaiting(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">بانتظار موافقة الإدارة ⏳</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">وصل طلبك - الصفحة رح تفتح تلقائيًا أول ما توافق الإدارة</div>';
+    var poll = setInterval(function(){
+      api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+        if(r.status === 'approved'){
+          clearInterval(poll);
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          revealWithAccountCheck(deviceToken);
+        } else if(r.status === 'denied' || r.status === 'revoked'){
+          clearInterval(poll);
+          try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
+          showRejected();
+        }
+      }).catch(function(){ /* السيرفر مش متاح مؤقتًا - منستمر نحاول بصمت */ });
+    }, POLL_MS);
+  }
+
+  function showRejected(){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px;color:#e0554f">ما توفرت الموافقة</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">تواصل مع الإدارة، أو جرب تطلب دخول من جديد</div>' +
+      '<button id="mz-gate-retry" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">حاول من جديد</button>';
+    box.querySelector('#mz-gate-retry').addEventListener('click', function(){ location.reload(); });
+  }
+
+  function init(){
+    var deviceToken = getDeviceToken();
+    var ownerToken = getOwnerTokenFromHash();
+
+    var cachedStatus = null;
+    try{ cachedStatus = localStorage.getItem(STATUS_KEY); }catch(e){}
+
+    if(!ACCESS_SERVER_URL){
+      if(cachedStatus === 'approved'){ reveal(); return; }
+      showMisconfigured();
+      return;
+    }
+
+    if(ownerToken){
+      api('/access/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, name: 'Owner', adminToken: ownerToken })
+      }).then(function(r){
+        clearOwnerHash();
+        if(r.status === 'approved'){
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          reveal();
+        } else {
+          showRequestForm(deviceToken);
+        }
+      }).catch(function(){ clearOwnerHash(); showRequestForm(deviceToken); });
+      return;
+    }
+
+    if(cachedStatus === 'approved'){
+      revealWithAccountCheck(deviceToken); // نفتح فورًا (تفاؤلي)، وبنتأكد بالخلفية بشكل دوري إذا لسا الموافقة سارية
+      function revalidate(){
+        api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+          if(r.status !== 'approved'){
+            try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
+            location.reload();
+          }
+        }).catch(function(){});
+      }
+      revalidate();
+      setInterval(revalidate, REVALIDATE_MS);
+      return;
+    }
+
+    api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+      if(r.status === 'approved'){
+        try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+        revealWithAccountCheck(deviceToken);
+      } else if(r.status === 'pending'){
+        showWaiting(deviceToken);
+      } else {
+        showRequestForm(deviceToken);
+      }
+    }).catch(function(){
+      showRequestForm(deviceToken);
+    });
+  }
+
+  function boot(){
+    showCheckingUpdate();
+    checkForUpdate(init);
+  }
+  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); } else { boot(); }
+})();
+</script>
+<!-- ===== MERZONA ACCESS GATE - END ===== -->
+<title>المحاسبة - ميرزونا</title>
+<script src="acct-core.js?v=2026-11-08.1"></script>
+<style>
+  :root{
+    --bg:#f4f6f9; --panel:#fff; --line:#d9dee7; --text:#0f172a; --muted:#5b6475;
+    --main:#0f6fb3; --main-d:#0b5a92; --ok:#15803d; --danger:#c62828; --warn:#b45309; --soft:#eef5fb;
+  }
+  :root{color-scheme:only light;}
+  html{background:var(--bg);color:var(--text);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:Tahoma,"Segoe UI",Arial,sans-serif;font-size:14px;}
+  input,select,textarea{background:#fff;color:var(--text);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;font-size:13.5px;max-width:100%;}
+  input:focus,select:focus,textarea:focus{outline:2px solid #9cc8ea;border-color:var(--main);}
+  input.num{direction:ltr;text-align:left;font-family:Consolas,Menlo,monospace;}
+  button{font:inherit;font-size:13px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:7px;padding:7px 12px;white-space:nowrap;}
+  button:hover{background:#f2f5f9;}
+  button.pri{background:var(--main);color:#fff;border-color:var(--main-d);}
+  button.pri:hover{background:var(--main-d);}
+  button.dng{color:var(--danger);border-color:#efb7b7;}
+  button.sm{padding:4px 8px;font-size:12px;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  .wrap{max-width:1280px;margin:0 auto;padding:12px 16px 60px;}
+  header.top{background:linear-gradient(90deg,#0b1f33,#0f6fb3);color:#fff;padding:12px 16px;}
+  header.top .in{max-width:1280px;margin:0 auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  header.top h1{font-size:18px;margin:0;flex:1;min-width:160px;}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.4);color:#fff;background:transparent;cursor:pointer;font-size:13px;}
+  .chip.on{background:#fff;color:#0b1f33;font-weight:700;}
+  nav.tabs{display:flex;gap:4px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:0 12px;position:sticky;top:0;z-index:5;}
+  nav.tabs button{border:none;border-bottom:3px solid transparent;border-radius:0;padding:12px 12px;background:transparent;color:var(--muted);}
+  nav.tabs button.on{color:var(--main);border-bottom-color:var(--main);font-weight:700;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:12px;}
+  .panel h2{font-size:15px;margin:0 0 10px;}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .grow{flex:1;}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;border-inline-start:4px solid var(--main);}
+  .kpi .l{font-size:12px;color:var(--muted);}
+  .kpi .v{font-size:19px;font-weight:700;margin-top:4px;direction:ltr;text-align:right;font-family:Consolas,Menlo,monospace;}
+  .kpi .s{font-size:11.5px;color:var(--muted);margin-top:3px;}
+  .tw{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{background:#f3f6fa;text-align:right;font-weight:700;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  td{padding:7px 8px;border-bottom:1px solid #edf0f4;vertical-align:top;}
+  tr.click{cursor:pointer;} tr.click:hover td{background:#f7fafd;}
+  td.n,th.n{text-align:left;direction:ltr;font-family:Consolas,Menlo,monospace;white-space:nowrap;}
+  tr.tot td{font-weight:700;background:#f8fafc;border-top:2px solid var(--line);}
+  tr.sub td{font-weight:700;color:var(--main-d);}
+  .muted{color:var(--muted);} .ok{color:var(--ok);} .dng{color:var(--danger);} .wrn{color:var(--warn);}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;background:#eef2f7;color:#334155;white-space:nowrap;}
+  .tag.ok{background:#e6f4ea;color:var(--ok);} .tag.dng{background:#fdecec;color:var(--danger);} .tag.wrn{background:#fff4e5;color:var(--warn);} .tag.void{background:#eee;color:#888;text-decoration:line-through;}
+  .empty{color:var(--muted);text-align:center;padding:24px;}
+  .bar{display:flex;gap:6px;flex-wrap:wrap;}
+  /* نافذة المستند */
+  .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:18px 10px;}
+  .modal{background:#fff;border-radius:14px;width:100%;max-width:980px;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+  .modal .mh{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);}
+  .modal .mh h3{margin:0;font-size:16px;flex:1;}
+  .modal .mb{padding:14px 16px;}
+  .modal .mf{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-start;}
+  .fg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;}
+  .fg label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);}
+  .lines td{padding:4px;} .lines input,.lines select{width:100%;}
+  .errs{background:#fdecec;border:1px solid #f3b4b4;color:#8a1c1c;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;}
+  .errs li{margin:2px 0;}
+  .note{background:#eef5fb;border:1px solid #cfe3f3;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#0b3a5c;}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 16px;border-radius:10px;z-index:99;font-size:13px;max-width:90vw;}
+  .state{padding:40px 16px;text-align:center;}
+  .hide{display:none!important;}
+  .lnk{color:var(--main);cursor:pointer;text-decoration:underline dotted;}
+  @media (max-width:640px){ .wrap{padding:10px 10px 60px;} .kpi .v{font-size:16px;} .modal .mb{padding:12px;} th,td{padding:6px;} }
+  /* الطباعة */
+  #printArea{display:none;}
+  @media print{
+    body > *:not(#printArea){display:none!important;}
+    #printArea{display:block!important;padding:0;}
+    @page{size:A4;margin:14mm;}
+  }
+  .pdoc{font-size:12.5px;color:#000;}
+  .pdoc h1{font-size:20px;margin:0;} .pdoc table th{background:#eee;}
+  .pdoc .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px;gap:20px;}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <h1>📒 المحاسبة — ميرزونا</h1>
+  <span id="bookChips"></span>
+  <button class="chip" id="reloadBtn" title="تحديث من السيرفر">🔄</button>
+</div></header>
+<nav class="tabs" id="tabs"></nav>
+<div class="wrap" id="app"><div class="state">⏳ جاري تحميل الدفتر...</div></div>
+<div id="printArea"></div>
+
+<script>
+(function(){
+'use strict';
+var C = window.AcctCore;
+var SERVER = 'https://merzona-server-production.up.railway.app';
+var LS_BOOK = 'merzona-acct-book', LS_TAB = 'merzona-acct-tab';
+var S = { bookId: lsGet(LS_BOOK) || 'uae', book: null, me: null, tab: lsGet(LS_TAB) || 'home', busy: false, filters: {} };
+var app = document.getElementById('app');
+
+function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function today(){ var d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+function money(n, cur){ return C.fmt(n, cur); }
+function base(){ return S.book ? S.book.base : 'AED'; }
+function toast(msg, ms){ var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(function(){ t.remove(); }, ms || 2600); }
+function acctName(code){ var a = (S.book.accounts || []).find(function(x){ return x.code === code; }); return a ? a.code + ' · ' + a.name : code; }
+function partyName(id){ var p = S.book.parties[id]; return p ? p.name : (id ? '؟' : ''); }
+function isAdmin(){ return S.me && S.me.admin; }
+
+/* ---------------------------- الاتصال بالسيرفر ---------------------------- */
+function headers(){
+  return { 'Content-Type': 'application/json', 'x-device': lsGet('merzona-device-token') || '', 'x-session': lsGet('merzona-session-token') || '' };
+}
+function api(method, path, body){
+  return fetch(SERVER + path, { method: method, headers: headers(), body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
+    .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ j.__status = r.status; return j; }); });
+}
+function load(keepTab){
+  app.innerHTML = '<div class="state">⏳ جاري تحميل ' + esc(C.BOOKS[S.bookId].name) + '...</div>';
+  return api('GET', '/acct/' + S.bookId).then(function(r){
+    if(r.__status !== 200){
+      var msg = r.error === 'login-required' ? 'لازم تسجّل دخول بحسابك أول (من الداشبورد).' :
+                r.error === 'no-accounting-permission' ? 'ما عندك صلاحية المحاسبة. الأدمن بيفتحها من صفحة المستخدمين.' :
+                r.error === 'unauthorized' ? 'هالجهاز مش معتمد.' : 'تعذّر تحميل الدفتر (' + (r.error || r.__status) + ').';
+      app.innerHTML = '<div class="state dng">⚠️ ' + esc(msg) + '<br><br><button onclick="location.reload()">إعادة المحاولة</button></div>';
+      return;
+    }
+    S.book = r.book; S.me = r.me;
+    // فحص سلامة محلي كمان (نفس الكود يلي بالسيرفر)
+    var probs = C.integrity(S.book);
+    if(probs.length) toast('⚠️ فحص السلامة: ' + probs[0], 6000);
+    render();
+  }).catch(function(){
+    app.innerHTML = '<div class="state dng">⚠️ ما في اتصال بالسيرفر. تأكد من النت وجرّب مرة تانية.<br><br><button onclick="location.reload()">إعادة المحاولة</button></div>';
+  });
+}
+function op(name, data, okMsg){
+  if(S.busy) return Promise.resolve(null);
+  S.busy = true;
+  return api('POST', '/acct/' + S.bookId + '/op', { op: name, data: data, baseRev: S.book.rev }).then(function(r){
+    S.busy = false;
+    if(r.__status === 200){ if(okMsg) toast(okMsg); return load(true).then(function(){ return r; }); }
+    if(r.__status === 409){ toast('في تعديل من جهاز تاني - حدّثنا الدفتر، جرّب مرة تانية'); return load(true).then(function(){ return null; }); }
+    var errs = r.errors || r.problems || [r.error || ('خطأ ' + r.__status)];
+    return { errors: errs };
+  }).catch(function(){ S.busy = false; return { errors: ['ما في اتصال بالسيرفر - ما انحفظ شي'] }; });
+}
+
+/* ---------------------------- الهيكل ---------------------------- */
+var TABS = [
+  ['home','🏠 الرئيسية'],['sales','🧾 المبيعات'],['purch','🛒 المشتريات والمصاريف'],['bank','🏦 البنوك والصناديق'],
+  ['parties','👥 الزبائن والموردين'],['journal','📒 القيود والأستاذ'],['reports','📊 التقارير'],['settings','⚙️ الإعدادات']
+];
+function renderChrome(){
+  document.getElementById('bookChips').innerHTML = Object.keys(C.BOOKS).map(function(id){
+    var b = C.BOOKS[id];
+    return '<button class="chip' + (id === S.bookId ? ' on' : '') + '" data-book="' + id + '">' + (id === 'uae' ? '🇦🇪' : '🇸🇾') + ' ' + esc(b.name) + ' · ' + b.base + '</button> ';
+  }).join('');
+  document.querySelectorAll('[data-book]').forEach(function(b){ b.onclick = function(){ S.bookId = b.dataset.book; lsSet(LS_BOOK, S.bookId); S.filters = {}; renderChrome(); load(); }; });
+  document.getElementById('tabs').innerHTML = TABS.map(function(t){ return '<button data-tab="' + t[0] + '" class="' + (t[0] === S.tab ? 'on' : '') + '">' + t[1] + '</button>'; }).join('');
+  document.querySelectorAll('[data-tab]').forEach(function(b){ b.onclick = function(){ S.tab = b.dataset.tab; lsSet(LS_TAB, S.tab); renderChrome(); render(); }; });
+}
+document.getElementById('reloadBtn').onclick = function(){ load(true); };
+
+function render(){
+  renderChrome();
+  if(!S.book) return;
+  var fn = { home: vHome, sales: vSales, purch: vPurch, bank: vBank, parties: vParties, journal: vJournal, reports: vReports, settings: vSettings }[S.tab] || vHome;
+  try{ app.innerHTML = ''; fn(); }
+  catch(e){ console.error(e); app.innerHTML = '<div class="state dng">صار خطأ بالعرض: ' + esc(e.message) + '</div>'; }
+}
+function el(html){ var d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
+function panel(title, inner){ var p = el('<div class="panel">' + (title ? '<h2>' + title + '</h2>' : '') + '</div>'); if(typeof inner === 'string') p.insertAdjacentHTML('beforeend', inner); else if(inner) p.appendChild(inner); app.appendChild(p); return p; }
+function quickActions(types){
+  return '<div class="bar">' + types.map(function(t){ return '<button class="pri sm" data-new="' + t + '">+ ' + esc(C.DOC_TYPES[t].label) + '</button>'; }).join('') + '</div>';
+}
+function bindNew(root){ (root || app).querySelectorAll('[data-new]').forEach(function(b){ b.onclick = function(){ openDoc({ type: b.dataset.new }); }; }); }
+
+/* ---------------------------- الرئيسية ---------------------------- */
+function vHome(){
+  var B = S.book, cur = base();
+  var bal = C.balances(B, {}), SA = C.sysAccts(B);
+  var money_ = C.moneyAccounts(B).filter(function(a){ return !a.archived; });
+  var cash = C.r2(money_.reduce(function(s, a){ return s + a.balance; }, 0));
+  var ar = bal[SA.AR] ? bal[SA.AR].net : 0, ap = bal[SA.AP] ? bal[SA.AP].net : 0;
+  var t = today(), m0 = t.slice(0,8) + '01', y0 = t.slice(0,4) + '-01-01';
+  var plM = C.profitLoss(B, { from: m0, to: t }), plY = C.profitLoss(B, { from: y0, to: t });
+  var ag = C.aging(B, 'ar', t), overdue = C.r2(ag.totals.d30 + ag.totals.d60 + ag.totals.d90 + ag.totals.d90p);
+  var vat = B.base === 'AED' && C.num(B.settings.vatRate) > 0 ? C.vatReport(B, {}) : null;
+  var k = function(l, v, s, color){ return '<div class="kpi" style="' + (color ? 'border-inline-start-color:' + color : '') + '"><div class="l">' + l + '</div><div class="v">' + v + '</div>' + (s ? '<div class="s">' + s + '</div>' : '') + '</div>'; };
+  panel('', '<div class="kpis">' +
+    k('النقدية (صناديق + بنوك)', money(cash, cur), money_.length + ' حساب', '#0f6fb3') +
+    k('مستحق من الزبائن', money(ar, cur), overdue ? '<span class="dng">متأخر: ' + money(overdue, cur) + '</span>' : 'ما في متأخرات', '#15803d') +
+    k('مستحق للموردين', money(ap, cur), '', '#b45309') +
+    k('صافي ربح هالشهر', money(plM.netProfit, cur), 'إيرادات ' + money(plM.totalIncome), plM.netProfit < 0 ? '#c62828' : '#15803d') +
+    k('صافي ربح السنة', money(plY.netProfit, cur), 'من ' + y0, plY.netProfit < 0 ? '#c62828' : '#15803d') +
+    (vat ? k('ضريبة مستحقة للهيئة', money(vat.net, cur), 'مخرجات ' + money(vat.outputVat) + ' − مدخلات ' + money(vat.inputVat), '#7c3aed') : '') +
+  '</div>');
+  var p = panel('إجراءات سريعة', quickActions(['invoice','receipt','expense','bill','vpayment','transfer','journal'])); bindNew(p);
+  panel('🏦 الصناديق والبنوك', money_.length ? '<div class="tw"><table><tr><th>الحساب</th><th class="n">الرصيد</th></tr>' + money_.map(function(a){
+    return '<tr class="click" data-acc="' + a.code + '"><td>' + esc(a.name) + ' <span class="tag">' + (a.role === 'cash' ? 'صندوق' : 'بنك') + '</span></td><td class="n ' + (a.balance < 0 ? 'dng' : '') + '">' + money(a.balance, cur) + '</td></tr>';
+  }).join('') + '</table></div>' : '<div class="empty">ما في حسابات</div>');
+  app.querySelectorAll('[data-acc]').forEach(function(r){ r.onclick = function(){ S.tab = 'bank'; S.filters.bankAcct = r.dataset.acc; render(); }; });
+  var od = ag.items.filter(function(i){ return i.days > 0; }).sort(function(a, b){ return b.days - a.days; }).slice(0, 8);
+  var p2 = panel('⚠️ فواتير متأخرة', od.length ? '<div class="tw"><table><tr><th>الفاتورة</th><th>الزبون</th><th>تاريخ الاستحقاق</th><th class="n">المتبقي</th><th>التأخير</th></tr>' + od.map(function(i){
+    return '<tr class="click" data-doc="' + i.id + '"><td>' + esc(i.no) + '</td><td>' + esc(partyName(i.partyId)) + '</td><td>' + i.due + '</td><td class="n">' + money(i.open, i.currency) + '</td><td class="dng">' + i.days + ' يوم</td></tr>';
+  }).join('') + '</table></div>' : '<div class="empty">ما في فواتير متأخرة 👍</div>');
+  bindDocRows(p2);
+  var probs = C.integrity(S.book);
+  panel('🛡️ سلامة الدفتر', probs.length ? '<ul class="dng">' + probs.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' :
+    '<span class="ok">✅ الدفتر سليم: ميزان المراجعة موزون، الميزانية متوازنة، وكل المستندات قيودها صحيحة.</span>' + (S.book.importedAt ? ' <span class="muted">(فيه بيانات منقولة من QuickBooks بتاريخ ' + esc(S.book.importedAt.slice(0,10)) + ')</span>' : ''));
+}
+
+/* ---------------------------- قوائم المستندات ---------------------------- */
+function docStatus(d){
+  if(d.void) return '<span class="tag void">ملغى</span>';
+  var k = C.itemKind(d);
+  if(k){
+    var open = C.openBalanceOf(S.book, d.id), tot = C.itemTotal(d, S.book);
+    if(open <= 0.004) return '<span class="tag ok">مدفوعة</span>';
+    var due = d.due || (d.openItem && d.openItem.due) || d.date;
+    if(due < today()) return '<span class="tag dng">متأخرة</span>';
+    return open < tot ? '<span class="tag wrn">مدفوعة جزئيًا</span>' : '<span class="tag">مفتوحة</span>';
+  }
+  if(d.type === 'receipt' || d.type === 'vpayment' || d.type === 'credit' || d.type === 'vcredit'){
+    var lim = (d.type === 'receipt' || d.type === 'vpayment') ? C.num(d.amount) : C.docTotals(d, S.book).total;
+    var ap = C.r2((d.applies || []).reduce(function(s, a){ return s + C.num(a.amount); }, 0));
+    return ap < lim - 0.004 ? '<span class="tag wrn">غير مطبّق ' + money(lim - ap) + '</span>' : '<span class="tag ok">مطبّق</span>';
+  }
+  return '';
+}
+function docList(types, title){
+  var f = S.filters[title] || (S.filters[title] = { q: '', type: '', status: '', from: '', to: '' });
+  var docs = Object.keys(S.book.docs).map(function(k){ return S.book.docs[k]; }).filter(function(d){ return types.indexOf(d.type) !== -1 || (d.type === 'journal' && d.openItem && types.indexOf(d.openItem.kind === 'ar' ? 'invoice' : 'bill') !== -1); });
+  var box = el('<div class="panel"><div class="row" style="margin-bottom:10px;">' +
+    '<input class="grow" placeholder="بحث: رقم، اسم، مشروع، ملاحظة..." data-f="q" value="' + esc(f.q) + '">' +
+    '<select data-f="type"><option value="">كل الأنواع</option>' + types.map(function(t){ return '<option value="' + t + '"' + (f.type === t ? ' selected' : '') + '>' + C.DOC_TYPES[t].label + '</option>'; }).join('') + '<option value="journal"' + (f.type === 'journal' ? ' selected' : '') + '>أرصدة افتتاحية منقولة</option></select>' +
+    '<select data-f="status"><option value="">كل الحالات</option><option value="open"' + (f.status === 'open' ? ' selected' : '') + '>مفتوحة</option><option value="overdue"' + (f.status === 'overdue' ? ' selected' : '') + '>متأخرة</option><option value="paid"' + (f.status === 'paid' ? ' selected' : '') + '>مدفوعة</option><option value="void"' + (f.status === 'void' ? ' selected' : '') + '>ملغاة</option></select>' +
+    '<input type="date" data-f="from" value="' + esc(f.from) + '" title="من"><input type="date" data-f="to" value="' + esc(f.to) + '" title="لـ">' +
+    '<button class="sm" data-csv>⬇ CSV</button></div><div class="tw"><table></table></div></div>');
+  app.appendChild(box);
+  function draw(){
+    var q = f.q.trim().toLowerCase(), t = today();
+    var rows = docs.filter(function(d){
+      if(f.type && d.type !== f.type) return false;
+      if(f.from && d.date < f.from) return false; if(f.to && d.date > f.to) return false;
+      if(f.status === 'void' && !d.void) return false;
+      if(f.status && f.status !== 'void'){
+        if(d.void) return false;
+        var k = C.itemKind(d); if(!k) return false;
+        var open = C.openBalanceOf(S.book, d.id);
+        if(f.status === 'paid' && open > 0.004) return false;
+        if(f.status === 'open' && open <= 0.004) return false;
+        if(f.status === 'overdue' && (open <= 0.004 || (d.due || (d.openItem && d.openItem.due) || d.date) >= t)) return false;
+      }
+      if(q){ var hay = [d.no, partyName(d.partyId), d.project, d.memo, d.notes, d.payee, d.ref, (d.lines || []).map(function(l){ return l.desc; }).join(' ')].join(' ').toLowerCase(); if(hay.indexOf(q) === -1) return false; }
+      return true;
+    }).sort(function(a, b){ return a.date < b.date ? 1 : a.date > b.date ? -1 : (a.no < b.no ? 1 : -1); });
+    var tbl = box.querySelector('table');
+    if(!rows.length){ tbl.innerHTML = '<tr><td class="empty">ما في مستندات</td></tr>'; return; }
+    var sum = 0;
+    tbl.innerHTML = '<tr><th>التاريخ</th><th>الرقم</th><th>النوع</th><th>الطرف / البيان</th><th>المشروع</th><th class="n">المبلغ</th><th class="n">المتبقي</th><th>الحالة</th></tr>' +
+      rows.map(function(d){
+        var tot = d.type === 'journal' ? (d.openItem ? d.openItem.amount : C.docTotals(d, S.book).total) : C.docTotals(d, S.book).total;
+        var cur = d.currency || base();
+        var k = C.itemKind(d), open = k && !d.void ? C.openBalanceOf(S.book, d.id) : null;
+        if(!d.void && cur === base()) sum = C.r2(sum + tot);
+        return '<tr class="click" data-doc="' + d.id + '"><td>' + d.date + '</td><td>' + esc(d.no) + '</td><td>' + esc(d.type === 'journal' ? 'رصيد منقول' : C.DOC_TYPES[d.type].label) + '</td><td>' + esc(partyName(d.partyId) || d.payee || d.memo || '') + '</td><td>' + esc(d.project || '') + '</td><td class="n">' + money(tot, cur) + '</td><td class="n">' + (open == null ? '' : money(open, cur)) + '</td><td>' + docStatus(d) + '</td></tr>';
+      }).join('') + '<tr class="tot"><td colspan="5">' + rows.length + ' مستند</td><td class="n">' + money(sum, base()) + '</td><td colspan="2"></td></tr>';
+    bindDocRows(box);
+  }
+  box.querySelectorAll('[data-f]').forEach(function(i){ i.oninput = i.onchange = function(){ f[i.dataset.f] = i.value; draw(); }; });
+  box.querySelector('[data-csv]').onclick = function(){ csvFromTable(box.querySelector('table'), title + '.csv'); };
+  draw();
+}
+function bindDocRows(root){ root.querySelectorAll('[data-doc]').forEach(function(r){ r.onclick = function(){ viewDoc(r.dataset.doc); }; }); }
+function vSales(){ var p = panel('المبيعات', quickActions(['invoice','receipt','credit','deposit'])); bindNew(p); docList(['invoice','credit','receipt','deposit'], 'sales'); }
+function vPurch(){ var p = panel('المشتريات والمصاريف', quickActions(['bill','vpayment','expense','vcredit'])); bindNew(p); docList(['bill','vcredit','vpayment','expense'], 'purch'); }
+
+/* ---------------------------- البنوك ---------------------------- */
+function vBank(){
+  var B = S.book, cur = base();
+  var accs = C.moneyAccounts(B);
+  var p = panel('🏦 الصناديق والبنوك', '<div class="bar" style="margin-bottom:10px;"><button class="pri sm" data-new="transfer">+ تحويل بين حسابين</button>' + (isAdmin() ? '<button class="sm" id="addMoneyAcc">+ صندوق أو بنك جديد</button>' : '') + '</div>' +
+    '<div class="kpis">' + accs.filter(function(a){ return !a.archived; }).map(function(a){ return '<div class="kpi click" data-acc="' + a.code + '" style="cursor:pointer;' + (S.filters.bankAcct === a.code ? 'background:#eef5fb;' : '') + '"><div class="l">' + (a.role === 'cash' ? '💵 ' : '🏦 ') + esc(a.name) + '</div><div class="v ' + (a.balance < 0 ? 'dng' : '') + '">' + money(a.balance, cur) + '</div></div>'; }).join('') + '</div>');
+  bindNew(p);
+  p.querySelectorAll('[data-acc]').forEach(function(c){ c.onclick = function(){ S.filters.bankAcct = c.dataset.acc; S.filters.recon = false; render(); }; });
+  var add = p.querySelector('#addMoneyAcc'); if(add) add.onclick = function(){ editAccount(null, 'bank'); };
+  var code = S.filters.bankAcct || (accs[0] && accs[0].code);
+  if(!code) return;
+  var recon = !!S.filters.recon;
+  var L = C.accountLedger(B, code, {});
+  var rv = C.reconView(B, code, S.filters.stmt);
+  var box = panel('سجل حركات: ' + esc(acctName(code)), '<div class="row" style="margin-bottom:8px;"><button class="sm ' + (recon ? 'pri' : '') + '" id="reconBtn">' + (recon ? '✔ وضع المطابقة شغّال' : '🔍 مطابقة مع كشف البنك') + '</button>' +
+    (recon ? '<label>رصيد كشف البنك: <input class="num" id="stmtBal" style="width:140px" value="' + esc(S.filters.stmt == null ? '' : S.filters.stmt) + '"></label><span>المطابَق: <b class="n">' + money(rv.clearedBalance, cur) + '</b></span>' + (rv.difference != null ? '<span>الفرق: <b class="n ' + (rv.difference ? 'dng' : 'ok') + '">' + money(rv.difference, cur) + '</b>' + (rv.difference ? '' : ' ✅ مطابق') + '</span>' : '') : '') +
+    '<span class="grow"></span><button class="sm" data-csv>⬇ CSV</button></div><div class="tw"><table></table></div>');
+  var rows = L.rows.slice().reverse();
+  var tbl = box.querySelector('table');
+  tbl.innerHTML = '<tr>' + (recon ? '<th>✔</th>' : '') + '<th>التاريخ</th><th>المستند</th><th>البيان</th><th class="n">داخل</th><th class="n">خارج</th><th class="n">الرصيد</th></tr>' + (rows.length ? rows.map(function(p_){
+    var d = S.book.docs[p_.docId] || {};
+    var ck = rv.clearedMap[p_.key];
+    return '<tr class="' + (recon ? '' : 'click') + '" data-doc="' + (recon ? '' : p_.docId) + '">' + (recon ? '<td><input type="checkbox" data-key="' + p_.key + '"' + (ck ? ' checked' : '') + '></td>' : '') + '<td>' + p_.date + '</td><td>' + esc(p_.no) + '</td><td>' + esc(partyName(d.partyId) || d.payee || d.memo || p_.memo || C.DOC_TYPES[d.type] && C.DOC_TYPES[d.type].label || '') + '</td><td class="n ok">' + (p_.dr ? money(p_.dr) : '') + '</td><td class="n dng">' + (p_.cr ? money(p_.cr) : '') + '</td><td class="n">' + money(p_.balance) + '</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="empty">ما في حركات</td></tr>');
+  if(!recon) bindDocRows(box);
+  box.querySelector('#reconBtn').onclick = function(){ S.filters.recon = !recon; render(); };
+  box.querySelector('[data-csv]').onclick = function(){ csvFromTable(tbl, 'account-' + code + '.csv'); };
+  if(recon){
+    var sb = box.querySelector('#stmtBal'); sb.onchange = function(){ S.filters.stmt = sb.value === '' ? null : C.num(sb.value); render(); };
+    box.querySelectorAll('[data-key]').forEach(function(c){ c.onchange = function(){ var keys = {}; keys[c.dataset.key] = c.checked ? today() : null; op('setRecon', { acct: code, keys: keys }); }; });
+  }
+}
+
+/* ---------------------------- الزبائن والموردين ---------------------------- */
+function vParties(){
+  var B = S.book, SA = C.sysAccts(B), cur = base();
+  var f = S.filters.parties || (S.filters.parties = { q: '', kind: '' });
+  var bal = {};
+  C.ledger(B, {}).forEach(function(p){ if(!p.party) return; if(p.acct === SA.AR) bal[p.party] = C.r2((bal[p.party] || 0) + p.dr - p.cr); if(p.acct === SA.AP) bal[p.party] = C.r2((bal[p.party] || 0) - (p.cr - p.dr)); });
+  var box = panel('👥 الزبائن والموردين', '<div class="row" style="margin-bottom:10px;"><input class="grow" placeholder="بحث بالاسم أو الهاتف..." id="pq" value="' + esc(f.q) + '"><select id="pk"><option value="">الكل</option><option value="customer">زبائن</option><option value="vendor">موردين</option></select><button class="pri sm" id="addCust">+ زبون</button><button class="pri sm" id="addVend">+ مورد</button><button class="sm" id="impCust" title="من سجل عروض الأسعار والعقود بالداشبورد">⤵ استيراد زبائن من العقود</button></div><div class="tw"><table></table></div>');
+  box.querySelector('#pk').value = f.kind;
+  function draw(){
+    var q = f.q.trim().toLowerCase();
+    var list = Object.keys(B.parties).map(function(k){ return B.parties[k]; }).filter(function(p){
+      if(f.kind && p.kind !== f.kind && p.kind !== 'both') return false;
+      return !q || (p.name + ' ' + (p.phone || '') + ' ' + (p.email || '')).toLowerCase().indexOf(q) !== -1;
+    }).sort(function(a, b){ return Math.abs(bal[b.id] || 0) - Math.abs(bal[a.id] || 0) || a.name.localeCompare(b.name, 'ar'); });
+    box.querySelector('table').innerHTML = '<tr><th>الاسم</th><th>النوع</th><th>الهاتف</th><th class="n">الرصيد</th><th></th></tr>' + (list.length ? list.map(function(p){
+      var b = bal[p.id] || 0;
+      return '<tr><td>' + esc(p.name) + (p.inactive ? ' <span class="tag void">موقوف</span>' : '') + '</td><td>' + (p.kind === 'customer' ? 'زبون' : p.kind === 'vendor' ? 'مورد' : 'زبون ومورد') + '</td><td class="n">' + esc(p.phone || '') + '</td><td class="n ' + (b > 0 ? 'ok' : b < 0 ? 'dng' : '') + '">' + money(b, cur) + '</td><td class="bar"><button class="sm" data-st="' + p.id + '">📄 كشف حساب</button><button class="sm" data-ed="' + p.id + '">✎</button></td></tr>';
+    }).join('') : '<tr><td colspan="5" class="empty">ما في نتائج</td></tr>');
+    box.querySelectorAll('[data-st]').forEach(function(b_){ b_.onclick = function(){ statement(b_.dataset.st); }; });
+    box.querySelectorAll('[data-ed]').forEach(function(b_){ b_.onclick = function(){ editParty(B.parties[b_.dataset.ed]); }; });
+  }
+  box.querySelector('#pq').oninput = function(){ f.q = this.value; draw(); };
+  box.querySelector('#pk').onchange = function(){ f.kind = this.value; draw(); };
+  box.querySelector('#addCust').onclick = function(){ editParty({ kind: 'customer' }); };
+  box.querySelector('#addVend').onclick = function(){ editParty({ kind: 'vendor' }); };
+  box.querySelector('#impCust').onclick = importCustomersFromContracts;
+  draw();
+}
+function editParty(p, after){
+  p = p || {};
+  var m = modal((p.id ? 'تعديل ' : 'إضافة ') + (p.kind === 'vendor' ? 'مورد' : 'زبون'),
+    '<div class="fg"><label>الاسم *<input id="pn" value="' + esc(p.name || '') + '"></label><label>النوع<select id="pkk"><option value="customer">زبون</option><option value="vendor">مورد</option><option value="both">زبون ومورد</option></select></label>' +
+    '<label>الهاتف<input id="pph" class="num" value="' + esc(p.phone || '') + '"></label><label>الإيميل<input id="pem" class="num" value="' + esc(p.email || '') + '"></label>' +
+    '<label>الرقم الضريبي (TRN)<input id="ptrn" class="num" value="' + esc(p.trn || '') + '"></label><label>العنوان<input id="pad" value="' + esc(p.address || '') + '"></label>' +
+    '<label>ملاحظات<input id="pno" value="' + esc(p.notes || '') + '"></label>' + (p.id ? '<label><span><input type="checkbox" id="pin"' + (p.inactive ? ' checked' : '') + '> موقوف (ما بيطلع بالقوائم)</span></label>' : '') + '</div>',
+    [['💾 حفظ', 'pri', function(){
+      var data = { id: p.id, name: m.q('#pn').value, kind: m.q('#pkk').value, phone: m.q('#pph').value, email: m.q('#pem').value, trn: m.q('#ptrn').value, address: m.q('#pad').value, notes: m.q('#pno').value, inactive: p.id ? m.q('#pin').checked : false, refs: p.refs };
+      op('saveParty', data, '✅ انحفظ').then(function(r){ if(r && r.errors) m.errors(r.errors); else if(r){ m.close(); if(after) after(r.party); } });
+    }]]);
+  m.q('#pkk').value = p.kind || 'customer';
+}
+function importCustomersFromContracts(){
+  var names = {};
+  try{ var c = JSON.parse(lsGet('merzona_contracts') || '{}'); Object.keys(c).forEach(function(ref){ var cl = (c[ref].client || '').trim(); var br = /^S/i.test(ref) ? 'syria' : 'uae'; if(cl && br === S.bookId) (names[cl] = names[cl] || []).push(ref); }); }catch(e){}
+  var exist = {}; Object.keys(S.book.parties).forEach(function(k){ exist[S.book.parties[k].name.trim().toLowerCase()] = 1; });
+  var list = Object.keys(names).filter(function(n){ return !exist[n.toLowerCase()]; });
+  if(!list.length){ toast('ما في زبائن جدد بالعقود لهالفرع'); return; }
+  if(!confirm('رح نضيف ' + list.length + ' زبون من العقود:\n' + list.slice(0, 15).join('\n') + (list.length > 15 ? '\n...' : ''))) return;
+  var i = 0;
+  (function next(){
+    if(i >= list.length){ toast('✅ انضافوا'); return; }
+    var n = list[i++];
+    api('POST', '/acct/' + S.bookId + '/op', { op: 'saveParty', data: { name: n, kind: 'customer', refs: names[n] } }).then(function(){ if(i >= list.length) load(true); next(); });
+  })();
+}
+function statement(pid){
+  var B = S.book, p = B.parties[pid], cur = base();
+  var st = C.partyStatement(B, pid, {});
+  var html = '';
+  [['ar', 'ذمم مدينة (له عندنا)'], ['ap', 'ذمم دائنة (إلو علينا)']].forEach(function(x){
+    var L = st[x[0]]; if(!L) return;
+    html += '<h3 style="margin:10px 0 6px;">' + x[1] + '</h3><div class="tw"><table><tr><th>التاريخ</th><th>المستند</th><th>البيان</th><th class="n">مدين</th><th class="n">دائن</th><th class="n">الرصيد</th></tr>' +
+      L.rows.map(function(r){ var d = B.docs[r.docId] || {}; return '<tr class="click" data-doc="' + r.docId + '"><td>' + r.date + '</td><td>' + esc(r.no) + '</td><td>' + esc(d.type === 'journal' ? (d.memo || 'رصيد منقول') : (C.DOC_TYPES[d.type] || {}).label) + '</td><td class="n">' + (r.dr ? money(r.dr) : '') + '</td><td class="n">' + (r.cr ? money(r.cr) : '') + '</td><td class="n">' + money(r.balance) + '</td></tr>'; }).join('') +
+      '<tr class="tot"><td colspan="5">الرصيد الختامي</td><td class="n">' + money(L.closing, cur) + '</td></tr></table></div>';
+  });
+  var items = C.openItems(B, 'ar').concat(C.openItems(B, 'ap')).filter(function(i){ return i.partyId === pid; });
+  if(items.length) html += '<h3 style="margin:12px 0 6px;">المستندات المفتوحة</h3><table><tr><th>الرقم</th><th>التاريخ</th><th>الاستحقاق</th><th class="n">القيمة</th><th class="n">المتبقي</th></tr>' + items.map(function(i){ return '<tr><td>' + esc(i.no) + '</td><td>' + i.date + '</td><td>' + i.due + '</td><td class="n">' + money(i.total, i.currency) + '</td><td class="n">' + money(i.open, i.currency) + '</td></tr>'; }).join('') + '</table>';
+  var m = modal('📄 كشف حساب: ' + esc(p.name), html || '<div class="empty">ما في حركات</div>', [['🖨 طباعة', '', function(){ printHtml('<h1>كشف حساب</h1><p><b>' + esc(p.name) + '</b> — ' + esc(B.settings.companyName) + ' — ' + today() + '</p>' + html); }]]);
+  bindDocRows(m.body);
+}
+
+/* ---------------------------- القيود والأستاذ ---------------------------- */
+function vJournal(){
+  var p = panel('📒 قيود اليومية', quickActions(['journal'])); bindNew(p);
+  docList(['journal'], 'journal');
+  var B = S.book;
+  var code = S.filters.glAcct || '';
+  var box = panel('دفتر الأستاذ', '<div class="row" style="margin-bottom:8px;"><select id="glA" class="grow"><option value="">— اختار حساب —</option>' + acctOptions(code) + '</select><input type="date" id="glF" value="' + esc(S.filters.glFrom || '') + '"><input type="date" id="glT" value="' + esc(S.filters.glTo || '') + '"><button class="sm" data-csv>⬇ CSV</button></div><div class="tw"><table></table></div>');
+  box.querySelector('#glA').onchange = function(){ S.filters.glAcct = this.value; render(); };
+  box.querySelector('#glF').onchange = function(){ S.filters.glFrom = this.value; render(); };
+  box.querySelector('#glT').onchange = function(){ S.filters.glTo = this.value; render(); };
+  var tbl = box.querySelector('table');
+  box.querySelector('[data-csv]').onclick = function(){ csvFromTable(tbl, 'ledger-' + code + '.csv'); };
+  if(!code){ tbl.innerHTML = '<tr><td class="empty">اختار حساب لتشوف حركاتو</td></tr>'; return; }
+  var L = C.accountLedger(B, code, { from: S.filters.glFrom, to: S.filters.glTo });
+  tbl.innerHTML = '<tr><th>التاريخ</th><th>المستند</th><th>الطرف</th><th>البيان</th><th>المشروع</th><th class="n">مدين</th><th class="n">دائن</th><th class="n">الرصيد</th></tr>' +
+    '<tr class="sub"><td colspan="7">رصيد أول المدة</td><td class="n">' + money(L.opening) + '</td></tr>' +
+    L.rows.map(function(r){ return '<tr class="click" data-doc="' + r.docId + '"><td>' + r.date + '</td><td>' + esc(r.no) + '</td><td>' + esc(partyName(r.party)) + '</td><td>' + esc(r.memo || (C.DOC_TYPES[r.type] || {}).label || '') + '</td><td>' + esc(r.project) + '</td><td class="n">' + (r.dr ? money(r.dr) : '') + '</td><td class="n">' + (r.cr ? money(r.cr) : '') + '</td><td class="n">' + money(r.balance) + '</td></tr>'; }).join('') +
+    '<tr class="tot"><td colspan="7">الرصيد الختامي</td><td class="n">' + money(L.closing, base()) + '</td></tr>';
+  bindDocRows(box);
+}
+function acctOptions(sel, filter){
+  var groups = {};
+  (S.book.accounts || []).forEach(function(a){ if(a.archived && a.code !== sel) return; if(filter && !filter(a)) return; (groups[a.type] = groups[a.type] || []).push(a); });
+  return C.TYPES.filter(function(t){ return groups[t]; }).map(function(t){ return '<optgroup label="' + C.TYPE_LABEL[t] + '">' + groups[t].map(function(a){ return '<option value="' + a.code + '"' + (a.code === sel ? ' selected' : '') + '>' + esc(a.code + ' · ' + a.name) + '</option>'; }).join('') + '</optgroup>'; }).join('');
+}
+
+/* ---------------------------- التقارير ---------------------------- */
+var REPORTS = [['pl','الأرباح والخسائر'],['bs','الميزانية العمومية'],['tb','ميزان المراجعة'],['cf','التدفق النقدي'],['arag','أعمار ذمم الزبائن'],['apag','أعمار ذمم الموردين'],['proj','ربح المشاريع'],['vat','ضريبة القيمة المضافة'],['sales','المبيعات حسب الزبون'],['exp','المصاريف حسب الحساب'],['audit','سجل التدقيق']];
+function vReports(){
+  var B = S.book, cur = base(), f = S.filters.rep || (S.filters.rep = { r: 'pl', from: today().slice(0,4) + '-01-01', to: today(), project: '' });
+  var box = panel('📊 التقارير', '<div class="row" style="margin-bottom:10px;"><select id="rr">' + REPORTS.filter(function(r){ return r[0] !== 'vat' || C.num(B.settings.vatRate) > 0 || B.base === 'AED'; }).map(function(r){ return '<option value="' + r[0] + '"' + (f.r === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('') + '</select>' +
+    '<label>من <input type="date" id="rf" value="' + esc(f.from) + '"></label><label>لـ <input type="date" id="rt" value="' + esc(f.to) + '"></label>' +
+    '<input id="rp" placeholder="مشروع (اختياري)" list="projList" value="' + esc(f.project) + '" style="width:150px">' + projDatalist() +
+    '<span class="grow"></span><button class="sm" id="rprint">🖨 طباعة</button><button class="sm" id="rcsv">⬇ CSV</button></div><div id="rout"></div>');
+  ['rr','rf','rt','rp'].forEach(function(id){ box.querySelector('#' + id).onchange = function(){ f.r = box.querySelector('#rr').value; f.from = box.querySelector('#rf').value; f.to = box.querySelector('#rt').value; f.project = box.querySelector('#rp').value.trim(); render(); }; });
+  var out = box.querySelector('#rout');
+  var opts = { from: f.from || undefined, to: f.to || undefined, project: f.project || undefined };
+  var title = (REPORTS.find(function(r){ return r[0] === f.r; }) || [])[1];
+  var line = function(l, v, cls){ return '<tr class="' + (cls || '') + '"><td>' + l + '</td><td class="n">' + money(v) + '</td></tr>'; };
+  var html = '';
+  if(f.r === 'pl'){
+    var pl = C.profitLoss(B, opts);
+    html = '<table>' + '<tr class="sub"><td colspan="2">الإيرادات</td></tr>' + pl.income.map(function(x){ return line(esc(x.code + ' ' + x.name), x.amount); }).join('') + line('إجمالي الإيرادات', pl.totalIncome, 'tot') +
+      '<tr class="sub"><td colspan="2">التكاليف المباشرة</td></tr>' + pl.cogs.map(function(x){ return line(esc(x.code + ' ' + x.name), x.amount); }).join('') + line('إجمالي التكاليف المباشرة', pl.totalCogs, 'tot') + line('مجمل الربح', pl.grossProfit, 'tot') +
+      '<tr class="sub"><td colspan="2">المصاريف</td></tr>' + pl.expense.map(function(x){ return line(esc(x.code + ' ' + x.name), x.amount); }).join('') + line('إجمالي المصاريف', pl.totalExpense, 'tot') +
+      line('<b>صافي الربح</b>', pl.netProfit, 'tot') + '</table>';
+  } else if(f.r === 'bs'){
+    var bs = C.balanceSheet(B, f.to || today());
+    var sec = function(t, arr, tot){ return '<tr class="sub"><td colspan="2">' + t + '</td></tr>' + arr.map(function(x){ return line(esc((x.code ? x.code + ' ' : '') + x.name), x.amount); }).join('') + line('إجمالي ' + t, tot, 'tot'); };
+    html = '<p class="muted">كما في ' + esc(f.to || today()) + '</p><table>' + sec('الأصول', bs.assets, bs.totalAssets) + sec('الخصوم', bs.liabilities, bs.totalLiabilities) + sec('حقوق الملكية', bs.equity, bs.totalEquity) +
+      line('الخصوم + حقوق الملكية', C.r2(bs.totalLiabilities + bs.totalEquity), 'tot') + '</table>' + (bs.balanced ? '<p class="ok">✅ الميزانية متوازنة</p>' : '<p class="dng">⚠️ الميزانية مش متوازنة</p>');
+  } else if(f.r === 'tb'){
+    var tb = C.trialBalance(B, { to: f.to || undefined });
+    html = '<p class="muted">لغاية ' + esc(f.to || today()) + '</p><table><tr><th>الحساب</th><th class="n">مدين</th><th class="n">دائن</th></tr>' + tb.rows.map(function(r){ return '<tr class="click" data-gl="' + r.code + '"><td>' + esc(r.code + ' ' + r.name) + '</td><td class="n">' + (r.debit ? money(r.debit) : '') + '</td><td class="n">' + (r.credit ? money(r.credit) : '') + '</td></tr>'; }).join('') +
+      '<tr class="tot"><td>المجموع</td><td class="n">' + money(tb.totalDebit) + '</td><td class="n">' + money(tb.totalCredit) + '</td></tr></table>' + (tb.balanced ? '<p class="ok">✅ موزون</p>' : '<p class="dng">⚠️ مش موزون</p>');
+  } else if(f.r === 'cf'){
+    // تدفق نقدي (طريقة مباشرة): كل حركة على صندوق/بنك مصنّفة حسب الحساب المقابل
+    var A = C.acctMap(B), cats = { op_in: 0, op_out: 0, inv: 0, fin: 0, tr: 0 }, open = 0, close = 0;
+    var moneyCodes = (B.accounts || []).filter(C.isMoneyAcct).map(function(a){ return a.code; });
+    var byDoc = {};
+    C.ledger(B, {}).forEach(function(p){ (byDoc[p.docId] = byDoc[p.docId] || []).push(p); });
+    Object.keys(byDoc).forEach(function(id){
+      var ps = byDoc[id], cashPs = ps.filter(function(p){ return moneyCodes.indexOf(p.acct) !== -1; });
+      if(!cashPs.length) return;
+      var dt = ps[0].date, delta = C.r2(cashPs.reduce(function(s, p){ return s + p.dr - p.cr; }, 0));
+      if(f.from && dt < f.from){ open = C.r2(open + delta); return; }
+      if(f.to && dt > f.to) return;
+      var others = ps.filter(function(p){ return moneyCodes.indexOf(p.acct) === -1; });
+      if(!others.length){ cats.tr = C.r2(cats.tr + delta); return; }
+      var t = (A[others[0].acct] || {}).type, code = others[0].acct;
+      var bucket = (t === 'equity' || (t === 'liability' && /^24/.test(code))) ? 'fin' : (t === 'asset' && /^15/.test(code)) ? 'inv' : (delta >= 0 ? 'op_in' : 'op_out');
+      cats[bucket] = C.r2(cats[bucket] + delta);
+    });
+    close = C.r2(open + cats.op_in + cats.op_out + cats.inv + cats.fin + cats.tr);
+    html = '<table>' + line('النقدية أول المدة', open, 'sub') + line('مقبوضات تشغيلية', cats.op_in) + line('مدفوعات تشغيلية', cats.op_out) + line('صافي التدفق التشغيلي', C.r2(cats.op_in + cats.op_out), 'tot') +
+      line('أنشطة استثمارية (أصول ثابتة)', cats.inv) + line('أنشطة تمويلية (رأس مال، مسحوبات، قروض)', cats.fin) + (cats.tr ? line('تحويلات داخلية (صافي)', cats.tr) : '') + line('<b>النقدية آخر المدة</b>', close, 'tot') + '</table>';
+  } else if(f.r === 'arag' || f.r === 'apag'){
+    var ag = C.aging(B, f.r === 'arag' ? 'ar' : 'ap', f.to || today());
+    html = '<table><tr><th>' + (f.r === 'arag' ? 'الزبون' : 'المورد') + '</th><th class="n">غير مستحق</th><th class="n">1-30</th><th class="n">31-60</th><th class="n">61-90</th><th class="n">+90</th><th class="n">المجموع</th></tr>' +
+      ag.rows.map(function(r){ return '<tr><td>' + esc(partyName(r.partyId)) + '</td><td class="n">' + money(r.current) + '</td><td class="n">' + money(r.d30) + '</td><td class="n">' + money(r.d60) + '</td><td class="n">' + money(r.d90) + '</td><td class="n dng">' + money(r.d90p) + '</td><td class="n"><b>' + money(r.total) + '</b></td></tr>'; }).join('') +
+      '<tr class="tot"><td>المجموع</td><td class="n">' + money(ag.totals.current) + '</td><td class="n">' + money(ag.totals.d30) + '</td><td class="n">' + money(ag.totals.d60) + '</td><td class="n">' + money(ag.totals.d90) + '</td><td class="n">' + money(ag.totals.d90p) + '</td><td class="n">' + money(ag.totals.total, cur) + '</td></tr></table>' +
+      '<p class="muted">الأعمار حسب تاريخ الاستحقاق. الدفعات المقدمة غير المطبّقة ما بتطلع هون (بتبين بكشف الحساب).</p>';
+  } else if(f.r === 'proj'){
+    var pp = C.projectProfit(B, opts);
+    html = '<table><tr><th>المشروع</th><th class="n">الإيرادات</th><th class="n">تكاليف مباشرة</th><th class="n">مصاريف</th><th class="n">الربح</th><th class="n">الهامش</th></tr>' +
+      (pp.length ? pp.map(function(r){ return '<tr><td>' + esc(r.project) + '</td><td class="n">' + money(r.income) + '</td><td class="n">' + money(r.cogs) + '</td><td class="n">' + money(r.expense) + '</td><td class="n ' + (r.profit < 0 ? 'dng' : 'ok') + '">' + money(r.profit) + '</td><td class="n">' + r.margin + '%</td></tr>'; }).join('') : '<tr><td colspan="6" class="empty">ما في حركات مربوطة بمشاريع - حط رقم العقد بخانة "المشروع" بالفواتير والمصاريف</td></tr>') + '</table>';
+  } else if(f.r === 'vat'){
+    var v = C.vatReport(B, opts);
+    html = '<table>' + line('مبيعات خاضعة للضريبة (5%)', v.salesTaxable) + line('مبيعات معفاة / صفرية', v.salesZero) + line('ضريبة المخرجات', v.outputVat, 'sub') +
+      line('مشتريات ومصاريف خاضعة للضريبة', v.purchasesTaxable) + line('ضريبة المدخلات (قابلة للاسترداد)', v.inputVat, 'sub') + line('<b>صافي الضريبة المستحقة للهيئة</b>', v.net, 'tot') + '</table>' +
+      '<p class="muted">هالأرقام بتعبيها بإقرار VAT 201 على بوابة EmaraTax. ملاحظة: ضريبة المخرجات والمدخلات هون هي حركة الفترة بالحسابات.</p>';
+  } else if(f.r === 'sales' || f.r === 'exp'){
+    var by = {};
+    C.ledger(B, opts).forEach(function(p){
+      var a = C.acctMap(B)[p.acct]; if(!a) return;
+      if(opts.project && p.project !== opts.project) return;
+      if(f.r === 'sales' && a.type === 'income'){ var d = B.docs[p.docId] || {}; var k = partyName(d.partyId) || d.payee || 'بدون زبون'; by[k] = C.r2((by[k] || 0) + p.cr - p.dr); }
+      if(f.r === 'exp' && (a.type === 'expense' || a.type === 'cogs')){ var k2 = a.code + ' ' + a.name; by[k2] = C.r2((by[k2] || 0) + p.dr - p.cr); }
+    });
+    var keys = Object.keys(by).sort(function(a, b){ return by[b] - by[a]; });
+    var tot = C.r2(keys.reduce(function(s, k){ return s + by[k]; }, 0));
+    html = '<table><tr><th>' + (f.r === 'sales' ? 'الزبون' : 'الحساب') + '</th><th class="n">المبلغ</th><th class="n">%</th></tr>' + keys.map(function(k){ return '<tr><td>' + esc(k) + '</td><td class="n">' + money(by[k]) + '</td><td class="n">' + (tot ? Math.round(by[k] / tot * 1000) / 10 : 0) + '%</td></tr>'; }).join('') + '<tr class="tot"><td>المجموع</td><td class="n">' + money(tot, cur) + '</td><td></td></tr></table>';
+  } else if(f.r === 'audit'){
+    html = '<div class="empty">⏳ جاري التحميل...</div>';
+    api('GET', '/acct/' + S.bookId + '/audit?limit=500').then(function(r){
+      var OPN = { saveDoc: 'حفظ مستند', voidDoc: 'إلغاء مستند', saveParty: 'زبون/مورد', saveAccount: 'حساب', saveSettings: 'إعدادات', setRecon: 'مطابقة بنك', importOpening: 'استيراد' };
+      out.innerHTML = '<table><tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>المرجع</th><th>تفاصيل</th></tr>' + (r.items || []).map(function(x){
+        var det = x.op === 'saveDoc' ? (x.before ? 'تعديل' : 'جديد') + (x.after ? ' · ' + money(C.docTotals(x.after, B).total, x.after.currency || cur) : '') : x.op === 'voidDoc' ? (x.reason || '') : x.op === 'importOpening' ? (x.count + ' مستند') : '';
+        return '<tr><td class="n">' + esc((x.at || '').replace('T', ' ').slice(0, 16)) + '</td><td>' + esc(x.user || '') + '</td><td>' + esc(OPN[x.op] || x.op) + '</td><td>' + esc(x.no || x.id || '') + '</td><td>' + esc(det) + '</td></tr>';
+      }).join('') + '</table>';
+    });
+  }
+  out.innerHTML = html;
+  out.querySelectorAll('[data-gl]').forEach(function(r){ r.onclick = function(){ S.tab = 'journal'; S.filters.glAcct = r.dataset.gl; S.filters.glTo = f.to; S.filters.glFrom = ''; render(); }; });
+  box.querySelector('#rprint').onclick = function(){ printHtml('<div class="hd"><div><h1>' + esc(title) + '</h1><div>' + esc(B.settings.companyName) + ' — ' + esc(C.BOOKS[S.bookId].name) + '</div></div><div>' + esc((f.from ? 'من ' + f.from + ' ' : '') + 'لغاية ' + (f.to || today())) + (f.project ? '<br>المشروع: ' + esc(f.project) : '') + '<br>العملة: ' + cur + '</div></div>' + out.innerHTML); };
+  box.querySelector('#rcsv').onclick = function(){ var t = out.querySelector('table'); if(t) csvFromTable(t, f.r + '.csv'); };
+}
+
+/* ---------------------------- الإعدادات ---------------------------- */
+function vSettings(){
+  var B = S.book, st = B.settings, adm = isAdmin();
+  var p = panel('⚙️ إعدادات ' + esc(C.BOOKS[S.bookId].name), (adm ? '' : '<div class="note">الإعدادات ودليل الحسابات للأدمن بس.</div>') +
+    '<div class="fg" style="margin-top:8px;"><label>اسم الشركة (بيطلع بالفواتير)<input id="sN" value="' + esc(st.companyName) + '"' + (adm ? '' : ' disabled') + '></label>' +
+    '<label>الرقم الضريبي TRN<input id="sT" class="num" value="' + esc(st.trn) + '"' + (adm ? '' : ' disabled') + '></label>' +
+    '<label>العنوان<input id="sA" value="' + esc(st.address) + '"' + (adm ? '' : ' disabled') + '></label>' +
+    (S.bookId === 'uae' ? '<label>نسبة الضريبة % (للمستندات الجديدة)<input id="sV" class="num" value="' + esc(st.vatRate) + '"' + (adm ? '' : ' disabled') + '></label>' : '') +
+    '<label>قفل الفترة لغاية (ما حدا بيعدّل قبلها)<input type="date" id="sL" value="' + esc(st.lockDate) + '"' + (adm ? '' : ' disabled') + '></label>' +
+    '<label>ملاحظة أسفل الفاتورة<input id="sI" value="' + esc(st.invoiceNote) + '"' + (adm ? '' : ' disabled') + '></label></div>' +
+    (adm ? '<div class="row" style="margin-top:10px;"><button class="pri" id="sSave">💾 حفظ الإعدادات</button></div>' : ''));
+  if(adm) p.querySelector('#sSave').onclick = function(){
+    var v = S.bookId === 'uae' ? p.querySelector('#sV').value : 0;
+    op('saveSettings', { companyName: p.querySelector('#sN').value, trn: p.querySelector('#sT').value, address: p.querySelector('#sA').value, vatRate: v, lockDate: p.querySelector('#sL').value, invoiceNote: p.querySelector('#sI').value }, '✅ انحفظت').then(function(r){ if(r && r.errors) alert(r.errors.join('\n')); });
+  };
+  var bal = C.balances(B, {});
+  var box = panel('📚 دليل الحسابات', (adm ? '<div class="bar" style="margin-bottom:8px;"><button class="pri sm" id="aAdd">+ حساب جديد</button></div>' : '') + '<div class="tw"><table><tr><th>الرقم</th><th>الاسم</th><th>النوع</th><th class="n">الرصيد</th><th></th></tr>' +
+    (B.accounts || []).map(function(a){ var b = bal[a.code]; return '<tr><td class="n">' + esc(a.code) + '</td><td>' + esc(a.name) + (a.role ? ' <span class="tag">' + ({ cash: 'صندوق', bank: 'بنك', ar: 'نظام: ذمم زبائن', ap: 'نظام: ذمم موردين', vat_in: 'نظام: ضريبة مدخلات', vat_out: 'نظام: ضريبة مخرجات', fx: 'نظام: فروقات صرف', opening: 'نظام: افتتاحي', retained: 'أرباح مدوّرة' }[a.role] || a.role) + '</span>' : '') + (a.archived ? ' <span class="tag void">مؤرشف</span>' : '') + '</td><td>' + C.TYPE_LABEL[a.type] + '</td><td class="n">' + money(b ? b.net : 0) + '</td><td>' + (adm ? '<button class="sm" data-acc="' + esc(a.code) + '">✎</button>' : '') + '</td></tr>'; }).join('') + '</table></div>');
+  if(adm){ box.querySelector('#aAdd').onclick = function(){ editAccount(null); }; box.querySelectorAll('[data-acc]').forEach(function(b){ b.onclick = function(){ editAccount(B.accounts.find(function(a){ return a.code === b.dataset.acc; })); }; }); }
+  if(adm && !Object.keys(B.docs).length && !B.importedAt){
+    var ib = panel('⤵ استيراد بيانات افتتاحية (مرة وحدة بس)', '<div class="note">هالخيار بيظهر بس لدفتر جديد ما انعمل عليه أي شي. اختار ملف الاستيراد (JSON) يلي جهّزناه من QuickBooks. السيرفر بيتحقق إنو ميزان المراجعة بعد الاستيراد مطابق رقم برقم، وإلا بيرفض الملف كامل.</div><div class="row" style="margin-top:10px;"><input type="file" id="impF" accept=".json,application/json"><button class="pri" id="impB">استيراد</button></div><div id="impOut" style="margin-top:8px;"></div>');
+    ib.querySelector('#impB').onclick = function(){
+      var file = ib.querySelector('#impF').files[0]; if(!file){ alert('اختار الملف'); return; }
+      var rd = new FileReader();
+      rd.onload = function(){
+        var data; try{ data = JSON.parse(rd.result); }catch(e){ alert('الملف مش JSON صحيح'); return; }
+        if(data.book && data.book !== S.bookId){ alert('هالملف لدفتر ' + data.book + ' - بدّل الدفتر فوق أول'); return; }
+        if(!confirm('رح نستورد ' + (data.docs || []).length + ' مستند و ' + Object.keys(data.parties || {}).length + ' طرف و ' + (data.accounts || []).length + ' حساب. متأكد؟')) return;
+        ib.querySelector('#impOut').innerHTML = '⏳ جاري الاستيراد والتحقق...';
+        op('importOpening', data, '✅ انستوردت البيانات').then(function(r){ if(r && r.errors) ib.querySelector('#impOut').innerHTML = '<div class="errs"><b>انرفض الاستيراد، وما تغيّر شي:</b><ul>' + r.errors.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>'; });
+      };
+      rd.readAsText(file);
+    };
+  }
+}
+function editAccount(a, role){
+  var isNew = !a; a = a || { type: 'asset', role: role || '' };
+  var m = modal(isNew ? 'حساب جديد' : 'تعديل حساب', '<div class="fg"><label>الرقم *<input id="ac" class="num" value="' + esc(a.code || '') + '"' + (isNew ? '' : ' disabled') + '></label><label>الاسم *<input id="an" value="' + esc(a.name || '') + '"></label>' +
+    '<label>النوع<select id="at">' + C.TYPES.map(function(t){ return '<option value="' + t + '"' + (a.type === t ? ' selected' : '') + '>' + C.TYPE_LABEL[t] + '</option>'; }).join('') + '</select></label>' +
+    (isNew ? '<label>هل هو صندوق/بنك؟<select id="ar"><option value="">لا</option><option value="cash"' + (a.role === 'cash' ? ' selected' : '') + '>صندوق</option><option value="bank"' + (a.role === 'bank' ? ' selected' : '') + '>بنك</option></select></label>' : '') +
+    (!isNew ? '<label><span><input type="checkbox" id="aa"' + (a.archived ? ' checked' : '') + '> مؤرشف</span></label>' : '') + '</div>',
+    [['💾 حفظ', 'pri', function(){
+      var data = { code: m.q('#ac').value.trim(), name: m.q('#an').value, type: m.q('#at').value, role: isNew ? m.q('#ar').value : a.role, archived: isNew ? false : m.q('#aa').checked, isNew: isNew };
+      if(data.role && data.type !== 'asset'){ m.errors(['الصندوق/البنك لازم نوعه أصول']); return; }
+      op('saveAccount', data, '✅ انحفظ').then(function(r){ if(r && r.errors) m.errors(r.errors); else if(r) m.close(); });
+    }]]);
+}
+
+/* ---------------------------- نافذة عامة ---------------------------- */
+function modal(title, bodyHtml, buttons){
+  var bg = el('<div class="modal-bg"><div class="modal"><div class="mh"><h3>' + title + '</h3><button class="sm" data-x>✕</button></div><div class="mb"><div class="errbox"></div>' + bodyHtml + '</div><div class="mf"></div></div></div>');
+  document.body.appendChild(bg);
+  var api_ = { el: bg, body: bg.querySelector('.mb'), q: function(s){ return bg.querySelector(s); }, qa: function(s){ return bg.querySelectorAll(s); },
+    close: function(){ bg.remove(); document.removeEventListener('keydown', onKey); },
+    errors: function(list){ var eb = bg.querySelector('.errbox'); eb.innerHTML = list && list.length ? '<div class="errs"><b>ما انحفظ - صحّح هدول:</b><ul>' + list.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>' : ''; if(list && list.length) eb.scrollIntoView({ block: 'nearest' }); } };
+  (buttons || []).forEach(function(b){ var btn = el('<button class="' + (b[1] || '') + '">' + b[0] + '</button>'); btn.onclick = b[2]; bg.querySelector('.mf').appendChild(btn); });
+  var cl = el('<button>إغلاق</button>'); cl.onclick = api_.close; bg.querySelector('.mf').appendChild(cl);
+  bg.querySelector('[data-x]').onclick = api_.close;
+  function onKey(e){ if(e.key === 'Escape') api_.close(); }
+  document.addEventListener('keydown', onKey);
+  return api_;
+}
+
+/* ---------------------------- عرض مستند ---------------------------- */
+function viewDoc(id){
+  var B = S.book, d = B.docs[id]; if(!d) return;
+  var cur = d.currency || base(), t = C.docTotals(d, B);
+  var ps = C.docPostings(d, B);
+  var head = '<div class="fg">' +
+    '<div><span class="muted">الرقم</span><br><b>' + esc(d.no) + '</b> ' + docStatus(d) + '</div><div><span class="muted">التاريخ</span><br>' + d.date + (d.due ? ' · استحقاق ' + d.due : '') + '</div>' +
+    (d.partyId ? '<div><span class="muted">الطرف</span><br>' + esc(partyName(d.partyId)) + '</div>' : '') + (d.project ? '<div><span class="muted">المشروع</span><br>' + esc(d.project) + '</div>' : '') +
+    (d.acct ? '<div><span class="muted">الصندوق/البنك</span><br>' + esc(acctName(d.acct)) + '</div>' : '') + (d.type === 'transfer' ? '<div><span class="muted">من → إلى</span><br>' + esc(acctName(d.from)) + ' → ' + esc(acctName(d.to)) + '</div>' : '') +
+    (cur !== base() ? '<div><span class="muted">العملة</span><br>' + cur + ' · سعر الصرف ' + d.fx + '</div>' : '') + '</div>';
+  var lines = '';
+  if(d.lines && d.type !== 'journal') lines = '<table style="margin-top:12px;"><tr><th>البيان</th><th>الحساب</th>' + (d.type === 'expense' || d.type === 'deposit' ? '' : '<th class="n">الكمية</th><th class="n">السعر</th>') + '<th class="n">المبلغ</th>' + (C.num(d.taxRate) ? '<th>ضريبة</th>' : '') + '</tr>' +
+    d.lines.map(function(l){ var a = d.type === 'expense' || d.type === 'deposit' ? C.num(l.amount) : C.r2(C.num(l.qty === undefined ? 1 : l.qty) * C.num(l.price)); return '<tr><td>' + esc(l.desc || '') + '</td><td>' + esc(acctName(l.acct)) + '</td>' + (d.type === 'expense' || d.type === 'deposit' ? '' : '<td class="n">' + esc(l.qty === undefined ? 1 : l.qty) + '</td><td class="n">' + money(l.price) + '</td>') + '<td class="n">' + money(a) + '</td>' + (C.num(d.taxRate) ? '<td>' + (l.tax ? d.taxRate + '%' : '—') + '</td>' : '') + '</tr>'; }).join('') +
+    '<tr class="tot"><td colspan="' + (d.type === 'expense' || d.type === 'deposit' ? 2 : 4) + '">المجموع قبل الضريبة</td><td class="n">' + money(t.subtotal) + '</td>' + (C.num(d.taxRate) ? '<td></td>' : '') + '</tr>' +
+    (t.tax ? '<tr><td colspan="' + (d.type === 'expense' || d.type === 'deposit' ? 2 : 4) + '">الضريبة</td><td class="n">' + money(t.tax) + '</td><td></td></tr>' : '') +
+    '<tr class="tot"><td colspan="' + (d.type === 'expense' || d.type === 'deposit' ? 2 : 4) + '">الإجمالي</td><td class="n">' + money(t.total, cur) + '</td>' + (C.num(d.taxRate) ? '<td></td>' : '') + '</tr></table>';
+  if(d.type === 'receipt' || d.type === 'vpayment' || d.type === 'transfer') lines += '<p style="font-size:16px;">المبلغ: <b class="n">' + money(d.amount, cur) + '</b></p>';
+  if(d.applies && d.applies.length) lines += '<h3 style="margin:10px 0 6px;">مطبّق على</h3><table><tr><th>المستند</th><th class="n">المبلغ</th></tr>' + d.applies.map(function(a){ var x = B.docs[a.docId] || {}; return '<tr class="click" data-doc="' + a.docId + '"><td>' + esc(x.no || a.docId) + '</td><td class="n">' + money(a.amount, cur) + '</td></tr>'; }).join('') + '</table>';
+  var deps = C.dependents(B, d.id);
+  if(deps.length) lines += '<h3 style="margin:10px 0 6px;">دفعات/إشعارات مطبّقة عليه</h3><table>' + deps.map(function(x){ var a = (x.applies || []).find(function(y){ return y.docId === d.id; }); return '<tr class="click" data-doc="' + x.id + '"><td>' + esc(x.no) + '</td><td>' + x.date + '</td><td class="n">' + money(a ? a.amount : 0, cur) + '</td></tr>'; }).join('') + '</table>';
+  if(d.memo || d.notes) lines += '<p class="muted">' + esc(d.memo || '') + ' ' + esc(d.notes || '') + '</p>';
+  var je = '<details style="margin-top:12px;"><summary class="lnk">القيد المحاسبي (' + base() + ')</summary><table style="margin-top:6px;"><tr><th>الحساب</th><th>الطرف</th><th class="n">مدين</th><th class="n">دائن</th></tr>' + ps.map(function(p){ return '<tr><td>' + esc(acctName(p.acct)) + '</td><td>' + esc(partyName(p.party)) + '</td><td class="n">' + (p.dr ? money(p.dr) : '') + '</td><td class="n">' + (p.cr ? money(p.cr) : '') + '</td></tr>'; }).join('') + '</table></details>';
+  var meta = '<p class="muted" style="font-size:11.5px;">أنشأه ' + esc(d.createdBy || '') + ' ' + esc((d.createdAt || '').slice(0, 16).replace('T', ' ')) + (d.updatedAt ? ' · عدّله ' + esc(d.updatedBy || '') + ' ' + esc(d.updatedAt.slice(0, 16).replace('T', ' ')) : '') + (d.void ? ' · <span class="dng">ألغاه ' + esc(d.voidedBy || '') + ': ' + esc(d.voidReason || '') + '</span>' : '') + (d.source && d.source.qbo ? ' · منقول من QuickBooks' : '') + '</p>';
+  var label = d.type === 'journal' ? (d.openItem ? 'رصيد منقول' : 'قيد يومية') : C.DOC_TYPES[d.type].label;
+  var btns = [];
+  if(['invoice','credit','receipt','bill','vpayment','expense','deposit'].indexOf(d.type) !== -1) btns.push(['🖨 طباعة', '', function(){ printDoc(d); }]);
+  if(!d.void && !(d.source && d.source.qbo)) btns.push(['✎ تعديل', '', function(){ m.close(); openDoc(JSON.parse(JSON.stringify(d))); }]);
+  if(!d.void && C.itemKind(d) === 'ar' && C.openBalanceOf(B, d.id) > 0) btns.push(['💵 قبض دفعة', 'pri', function(){ m.close(); openDoc({ type: 'receipt', partyId: d.partyId, currency: d.currency, fx: d.fx, amount: C.openBalanceOf(B, d.id), applies: [{ docId: d.id, amount: C.openBalanceOf(B, d.id) }], project: d.project }); }]);
+  if(!d.void && C.itemKind(d) === 'ap' && C.openBalanceOf(B, d.id) > 0) btns.push(['💸 دفع', 'pri', function(){ m.close(); openDoc({ type: 'vpayment', partyId: d.partyId, currency: d.currency, fx: d.fx, amount: C.openBalanceOf(B, d.id), applies: [{ docId: d.id, amount: C.openBalanceOf(B, d.id) }], project: d.project }); }]);
+  if(!d.void) btns.push(['⧉ نسخة جديدة', '', function(){ m.close(); var c = JSON.parse(JSON.stringify(d)); delete c.id; delete c.no; delete c.applies; delete c.source; delete c.openItem; c.date = today(); openDoc(c); }]);
+  if(!d.void) btns.push(['🚫 إلغاء', 'dng', function(){
+    var reason = prompt('سبب الإلغاء (المستند بيضل مسجّل كملغى):'); if(reason === null) return;
+    op('voidDoc', { id: d.id, reason: reason }, '✅ انلغى').then(function(r){ if(r && r.errors) m.errors(r.errors); else if(r) m.close(); });
+  }]);
+  btns.push(['🕘 السجل', '', function(){ api('GET', '/acct/' + S.bookId + '/audit?doc=' + encodeURIComponent(d.id)).then(function(r){ alert((r.items || []).map(function(x){ return (x.at || '').slice(0, 16).replace('T', ' ') + ' — ' + (x.user || '') + ' — ' + ({ saveDoc: x.before ? 'تعديل' : 'إنشاء', voidDoc: 'إلغاء: ' + (x.reason || '') }[x.op] || x.op); }).join('\n') || 'ما في سجل'); }); }]);
+  var m = modal(esc(label) + ' ' + esc(d.no), head + lines + je + meta, btns);
+  bindDocRows(m.body);
+}
+
+/* ---------------------------- نموذج المستند ---------------------------- */
+function projDatalist(){
+  var refs = {};
+  try{ var c = JSON.parse(lsGet('merzona_contracts') || '{}'); Object.keys(c).forEach(function(r){ if((/^S/i.test(r) ? 'syria' : 'uae') === S.bookId) refs[r] = c[r].client || ''; }); }catch(e){}
+  Object.keys(S.book.docs).forEach(function(k){ var p = S.book.docs[k].project; if(p && !(p in refs)) refs[p] = ''; });
+  return '<datalist id="projList">' + Object.keys(refs).sort().map(function(r){ return '<option value="' + esc(r) + '">' + esc(refs[r]) + '</option>'; }).join('') + '</datalist>';
+}
+function partySelect(kind, sel){
+  var list = Object.keys(S.book.parties).map(function(k){ return S.book.parties[k]; }).filter(function(p){ return (p.kind === kind || p.kind === 'both') && (!p.inactive || p.id === sel); }).sort(function(a, b){ return a.name.localeCompare(b.name, 'ar'); });
+  return '<option value="">— اختار —</option>' + list.map(function(p){ return '<option value="' + p.id + '"' + (p.id === sel ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('');
+}
+function moneyOptions(sel){ return acctOptions(sel, C.isMoneyAcct); }
+function lineAcctFilter(type){
+  var SA = C.sysAccts(S.book);
+  var allowed = (type === 'invoice' || type === 'credit' || type === 'deposit') ? ['income','liability','equity','asset'] : ['expense','cogs','asset','liability','equity'];
+  return function(a){ return allowed.indexOf(a.type) !== -1 && !C.isMoneyAcct(a) && a.code !== SA.AR && a.code !== SA.AP && a.role !== 'vat_in' && a.role !== 'vat_out'; };
+}
+function defaultLineAcct(type){
+  var A = C.acctMap(S.book);
+  var pref = { invoice: '4000', credit: '4000', deposit: '4100', bill: '5000', vcredit: '5000', expense: '6900' }[type];
+  if(A[pref] && !A[pref].archived) return pref;
+  var f = lineAcctFilter(type); var a = (S.book.accounts || []).find(function(x){ return !x.archived && f(x) && (type === 'invoice' || type === 'credit' || type === 'deposit' ? x.type === 'income' : x.type !== 'asset'); });
+  return a ? a.code : '';
+}
+function openDoc(d){
+  var B = S.book, t = d.type, def = C.DOC_TYPES[t];
+  var isNew = !d.id;
+  d.date = d.date || today();
+  d.currency = d.currency || base();
+  var hasVat = C.num(isNew ? B.settings.vatRate : d.taxRate) > 0;
+  var lineDocs = ['invoice','credit','bill','vcredit','expense','deposit'];
+  var qtyDocs = ['invoice','credit','bill','vcredit'];
+  if(lineDocs.indexOf(t) !== -1 && !(d.lines && d.lines.length)) d.lines = [{ desc: '', qty: 1, price: '', amount: '', acct: defaultLineAcct(t), tax: hasVat }];
+  if(t === 'journal' && !(d.lines && d.lines.length)) d.lines = [{ acct: '', dr: '', cr: '' }, { acct: '', dr: '', cr: '' }];
+  var curs = C.BOOKS[S.bookId].currencies;
+  var h = '<div class="fg">';
+  h += '<label>التاريخ *<input type="date" id="fD" value="' + esc(d.date) + '"></label>';
+  if(def.party) h += '<label>' + (def.party === 'customer' ? 'الزبون *' : 'المورد *') + '<span class="row"><select id="fP" class="grow">' + partySelect(def.party, d.partyId) + '</select><button class="sm" id="fPadd" type="button" title="إضافة جديد">+</button></span></label>';
+  if(t === 'invoice' || t === 'bill') h += '<label>تاريخ الاستحقاق<input type="date" id="fDue" value="' + esc(d.due || '') + '"></label>';
+  if(['receipt','vpayment','expense','deposit'].indexOf(t) !== -1) h += '<label>' + (t === 'receipt' || t === 'deposit' ? 'استلمنا على' : 'دفعنا من') + ' *<select id="fA"><option value="">— اختار —</option>' + moneyOptions(d.acct) + '</select></label>';
+  if(t === 'transfer') h += '<label>من حساب *<select id="fFrom"><option value="">—</option>' + moneyOptions(d.from) + '</select></label><label>إلى حساب *<select id="fTo"><option value="">—</option>' + moneyOptions(d.to) + '</select></label>';
+  if(t === 'expense' || t === 'deposit') h += '<label>' + (t === 'expense' ? 'المدفوع له' : 'من') + '<input id="fPay" value="' + esc(d.payee || '') + '"></label>';
+  if(t !== 'journal') h += '<label>العملة<select id="fC">' + curs.map(function(c){ return '<option' + (c === d.currency ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select></label><label id="fxWrap"' + (d.currency === base() ? ' class="hide"' : '') + '>سعر الصرف (كم ' + '<span id="fxCur">' + esc(d.currency) + '</span> = 1 ' + base() + ') *<input id="fX" class="num" value="' + esc(d.fx || '') + '"></label>';
+  if(t !== 'transfer') h += '<label>المشروع / رقم العقد<input id="fPr" list="projList" value="' + esc(d.project || '') + '"></label>' + projDatalist();
+  if(t === 'receipt' || t === 'vpayment' || t === 'transfer') h += '<label>المبلغ *<input id="fAm" class="num" value="' + esc(d.amount == null ? '' : d.amount) + '"></label>';
+  h += '<label>رقم مرجعي (شيك/حوالة/فاتورة المورد)<input id="fRef" value="' + esc(d.ref || '') + '"></label>';
+  h += '</div>';
+  if(lineDocs.indexOf(t) !== -1){
+    h += '<div class="tw" style="margin-top:12px;"><table class="lines"><thead><tr><th style="min-width:170px">البيان</th><th style="min-width:190px">الحساب</th>' + (qtyDocs.indexOf(t) !== -1 ? '<th style="width:80px" class="n">الكمية</th><th style="width:110px" class="n">السعر</th>' : '<th style="width:120px" class="n">المبلغ</th>') + (hasVat ? '<th style="width:60px">ضريبة</th>' : '') + '<th class="n" style="width:110px">الإجمالي</th><th></th></tr></thead><tbody id="fL"></tbody></table></div><div class="row" style="margin-top:6px;"><button class="sm" id="fAddL" type="button">+ سطر</button>' + (t === 'invoice' ? '<button class="sm" id="fFromC" type="button">⤵ من دفعة عقد</button>' : '') + '<span class="grow"></span><div id="fTot" class="n"></div></div>';
+  }
+  if(t === 'journal') h += '<div class="tw" style="margin-top:12px;"><table class="lines"><thead><tr><th style="min-width:200px">الحساب</th><th style="min-width:150px">الطرف (للذمم)</th><th class="n" style="width:120px">مدين</th><th class="n" style="width:120px">دائن</th><th>بيان</th><th></th></tr></thead><tbody id="fL"></tbody></table></div><div class="row" style="margin-top:6px;"><button class="sm" id="fAddL" type="button">+ سطر</button><span class="grow"></span><div id="fTot" class="n"></div></div>';
+  if(['receipt','vpayment','credit','vcredit'].indexOf(t) !== -1) h += '<div id="fApWrap" style="margin-top:12px;"></div>';
+  h += '<label style="display:block;margin-top:10px;font-size:12px;color:var(--muted);">ملاحظات<textarea id="fN" rows="2" style="width:100%;">' + esc(d.notes || d.memo || '') + '</textarea></label>';
+  var m = modal((isNew ? 'جديد: ' : 'تعديل: ') + esc(def.label) + (d.no ? ' ' + esc(d.no) : ''), h, [['💾 حفظ', 'pri', save]]);
+  var q = m.q;
+  // سطور
+  function drawLines(){
+    var tb = q('#fL'); if(!tb) return;
+    if(t === 'journal'){
+      var SA = C.sysAccts(B);
+      tb.innerHTML = d.lines.map(function(l, i){
+        var ctl = l.acct === SA.AR ? 'customer' : l.acct === SA.AP ? 'vendor' : '';
+        return '<tr><td><select data-i="' + i + '" data-k="acct"><option value="">—</option>' + acctOptions(l.acct) + '</select></td><td>' + (ctl ? '<select data-i="' + i + '" data-k="party">' + partySelect(ctl, l.party) + '</select>' : '<span class="muted">—</span>') + '</td><td><input class="num" data-i="' + i + '" data-k="dr" value="' + esc(l.dr == null ? '' : l.dr) + '"></td><td><input class="num" data-i="' + i + '" data-k="cr" value="' + esc(l.cr == null ? '' : l.cr) + '"></td><td><input data-i="' + i + '" data-k="memo" value="' + esc(l.memo || '') + '"></td><td><button class="sm dng" data-del="' + i + '" type="button">✕</button></td></tr>';
+      }).join('');
+    } else {
+      var f = lineAcctFilter(t);
+      tb.innerHTML = d.lines.map(function(l, i){
+        var amt = qtyDocs.indexOf(t) !== -1 ? C.r2(C.num(l.qty === undefined || l.qty === '' ? 1 : l.qty) * C.num(l.price)) : C.r2(C.num(l.amount));
+        return '<tr><td><input data-i="' + i + '" data-k="desc" value="' + esc(l.desc || '') + '"></td><td><select data-i="' + i + '" data-k="acct"><option value="">—</option>' + acctOptions(l.acct, f) + '</select></td>' +
+          (qtyDocs.indexOf(t) !== -1 ? '<td><input class="num" data-i="' + i + '" data-k="qty" value="' + esc(l.qty == null ? '' : l.qty) + '"></td><td><input class="num" data-i="' + i + '" data-k="price" value="' + esc(l.price == null ? '' : l.price) + '"></td>' : '<td><input class="num" data-i="' + i + '" data-k="amount" value="' + esc(l.amount == null ? '' : l.amount) + '"></td>') +
+          (hasVat ? '<td style="text-align:center"><input type="checkbox" data-i="' + i + '" data-k="tax"' + (l.tax ? ' checked' : '') + '></td>' : '') +
+          '<td class="n" data-amt="' + i + '">' + money(amt) + '</td><td><button class="sm dng" data-del="' + i + '" type="button">✕</button></td></tr>';
+      }).join('');
+    }
+    tb.querySelectorAll('[data-k]').forEach(function(inp){
+      var ev = inp.tagName === 'SELECT' || inp.type === 'checkbox' ? 'onchange' : 'oninput';
+      inp[ev] = function(){
+        var l = d.lines[+inp.dataset.i], k = inp.dataset.k;
+        l[k] = inp.type === 'checkbox' ? inp.checked : inp.value;
+        if(t === 'journal' && k === 'acct'){ delete l.party; drawLines(); return; }
+        if(t === 'journal' && (k === 'dr' || k === 'cr') && inp.value !== ''){ var o = k === 'dr' ? 'cr' : 'dr'; if(l[o] !== '' && l[o] != null){ l[o] = ''; var oi = tb.querySelector('[data-i="' + inp.dataset.i + '"][data-k="' + o + '"]'); if(oi) oi.value = ''; } }
+        var cell = tb.querySelector('[data-amt="' + inp.dataset.i + '"]');
+        if(cell) cell.textContent = money(qtyDocs.indexOf(t) !== -1 ? C.r2(C.num(l.qty === undefined || l.qty === '' ? 1 : l.qty) * C.num(l.price)) : C.num(l.amount));
+        totals();
+      };
+    });
+    tb.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(){ if(d.lines.length <= (t === 'journal' ? 2 : 1)) return; d.lines.splice(+b.dataset.del, 1); drawLines(); }; });
+    totals();
+  }
+  function totals(){
+    var el_ = q('#fTot'); if(!el_) return;
+    if(t === 'journal'){
+      var dr = 0, cr = 0; d.lines.forEach(function(l){ dr = C.r2(dr + C.num(l.dr)); cr = C.r2(cr + C.num(l.cr)); });
+      el_.innerHTML = 'مدين ' + money(dr) + ' · دائن ' + money(cr) + (dr === cr ? ' <span class="ok">✔ موزون</span>' : ' <span class="dng">الفرق ' + money(C.r2(dr - cr)) + '</span>');
+      return;
+    }
+    var tmp = collect(true); var tt = C.docTotals(tmp, B);
+    el_.innerHTML = 'قبل الضريبة ' + money(tt.subtotal) + (tt.tax ? ' · ضريبة ' + money(tt.tax) : '') + ' · <b>الإجمالي ' + money(tt.total, q('#fC') ? q('#fC').value : base()) + '</b>';
+    if(t === 'credit' || t === 'vcredit') drawApplies();
+  }
+  var addL = q('#fAddL'); if(addL) addL.onclick = function(){ d.lines.push(t === 'journal' ? { acct: '', dr: '', cr: '' } : { desc: '', qty: 1, price: '', amount: '', acct: defaultLineAcct(t), tax: hasVat }); drawLines(); };
+  // من دفعة عقد
+  var fc = q('#fFromC'); if(fc) fc.onclick = function(){
+    var ref = q('#fPr').value.trim();
+    var cs = {}; try{ cs = JSON.parse(lsGet('merzona_contracts') || '{}'); }catch(e){}
+    var c = cs[ref]; if(!c){ alert('اكتب رقم العقد بخانة "المشروع" أول (لازم يكون عقد مسجّل)'); return; }
+    var rows = [];
+    (c.paymentTables || [{ total: c.total, payments: c.payments || [] }]).forEach(function(tb_, ti){ (tb_.payments || []).forEach(function(p, pi){ rows.push({ label: (tb_.name ? tb_.name + ' / ' : '') + (p.desc || 'دفعة') + ' · ' + p.pct + '% = ' + money(C.r2(C.num(tb_.total) * C.num(p.pct) / 100)), amt: C.r2(C.num(tb_.total) * C.num(p.pct) / 100), desc: p.desc || 'دفعة', ti: ti, pi: pi }); }); });
+    if(!rows.length){ alert('العقد ما فيه دفعات'); return; }
+    var pick = prompt('اختار رقم الدفعة:\n' + rows.map(function(r, i){ return (i + 1) + ') ' + r.label; }).join('\n')); if(pick === null) return;
+    var r = rows[parseInt(pick, 10) - 1]; if(!r){ alert('رقم غلط'); return; }
+    var incl = hasVat ? confirm('مبلغ الدفعة (' + money(r.amt) + ') شامل الضريبة؟\nموافق = شامل (منطلّع الضريبة منو)\nإلغاء = غير شامل (منضيف الضريبة فوقو)') : false;
+    var price = incl ? C.r2(r.amt / (1 + C.num(B.settings.vatRate) / 100)) : r.amt;
+    d.lines = d.lines.filter(function(l){ return l.desc || C.num(l.price); });
+    d.lines.push({ desc: r.desc + ' - عقد ' + ref, qty: 1, price: price, acct: defaultLineAcct('invoice'), tax: hasVat });
+    d.source = { contract: ref, table: r.ti, payment: r.pi };
+    if(!q('#fP').value && c.client){ var pm = Object.keys(B.parties).find(function(k){ return B.parties[k].name.trim().toLowerCase() === String(c.client).trim().toLowerCase(); }); if(pm) q('#fP').value = pm; }
+    drawLines();
+  };
+  // عملة
+  var fC = q('#fC'); if(fC) fC.onchange = function(){ q('#fxWrap').classList.toggle('hide', fC.value === base()); q('#fxCur').textContent = fC.value; d.applies = []; drawApplies(); totals(); };
+  // طرف جديد
+  var pa = q('#fPadd'); if(pa) pa.onclick = function(){ editParty({ kind: def.party }, function(p){ var s = q('#fP'); s.innerHTML = partySelect(def.party, p.id); s.value = p.id; drawApplies(); }); };
+  var fP = q('#fP'); if(fP) fP.onchange = function(){ d.applies = []; drawApplies(); };
+  // التطبيق على فواتير مفتوحة
+  function drawApplies(){
+    var w = q('#fApWrap'); if(!w) return;
+    var pid = q('#fP') && q('#fP').value; var cur = q('#fC') ? q('#fC').value : base();
+    if(!pid){ w.innerHTML = '<div class="muted">اختار ' + (def.party === 'customer' ? 'الزبون' : 'المورد') + ' لتشوف فواتيره المفتوحة</div>'; return; }
+    var kind = def.party === 'customer' ? 'ar' : 'ap';
+    var items = C.openItems(B, kind).filter(function(i){ return i.partyId === pid && i.currency === cur; });
+    // لو عم نعدّل سند: منرجّع يلي كان مطبّق منو
+    (d.applies || []).forEach(function(a){ if(!items.some(function(i){ return i.id === a.docId; })){ var x = B.docs[a.docId]; if(x) items.push({ id: x.id, no: x.no, date: x.date, due: x.due || x.date, open: 0, currency: x.currency || base(), total: C.itemTotal(x, B) }); } });
+    items.forEach(function(i){ var a = (d.applies || []).find(function(y){ return y.docId === i.id; }); i.max = C.r2(C.openBalanceOf(B, i.id, d.id)); i.cur = a ? a.amount : ''; });
+    if(!items.length){ w.innerHTML = '<div class="note">ما في فواتير مفتوحة لهالطرف بهالعملة' + (t === 'receipt' || t === 'vpayment' ? ' - المبلغ رح ينسجّل كدفعة مقدمة (رصيد للطرف) وفيك تطبقه بعدين.' : '.') + '</div>'; return; }
+    w.innerHTML = '<h3 style="margin:0 0 6px;font-size:14px;">تطبيق على الفواتير المفتوحة</h3><div class="tw"><table><tr><th>الفاتورة</th><th>التاريخ</th><th>الاستحقاق</th><th class="n">المتبقي</th><th class="n" style="width:140px">المطبّق</th></tr>' + items.map(function(i){
+      return '<tr><td>' + esc(i.no) + '</td><td>' + i.date + '</td><td>' + i.due + '</td><td class="n">' + money(i.max, cur) + '</td><td><input class="num" data-ap="' + i.id + '" data-max="' + i.max + '" value="' + esc(i.cur) + '"></td></tr>';
+    }).join('') + '</table></div><div class="row" style="margin-top:6px;"><button class="sm" id="fAuto" type="button">⚡ وزّع تلقائيًا (الأقدم أول)</button><span class="grow"></span><span id="fApSum" class="n"></span></div>';
+    function sync(){
+      d.applies = []; var s = 0;
+      w.querySelectorAll('[data-ap]').forEach(function(inp){ var v = C.r2(C.num(inp.value)); if(v > 0){ d.applies.push({ docId: inp.dataset.ap, amount: v }); s = C.r2(s + v); } });
+      var lim = t === 'receipt' || t === 'vpayment' ? C.num(q('#fAm').value) : C.docTotals(collect(true), B).total;
+      w.querySelector('#fApSum').innerHTML = 'المطبّق ' + money(s) + ' من ' + money(lim) + (s > lim + 0.004 ? ' <span class="dng">أكتر من المبلغ!</span>' : lim - s > 0.004 ? ' · <span class="wrn">غير مطبّق ' + money(C.r2(lim - s)) + '</span>' : ' <span class="ok">✔</span>');
+    }
+    w.querySelectorAll('[data-ap]').forEach(function(inp){ inp.oninput = sync; });
+    w.querySelector('#fAuto').onclick = function(){
+      var left = t === 'receipt' || t === 'vpayment' ? C.num(q('#fAm').value) : C.docTotals(collect(true), B).total;
+      Array.prototype.slice.call(w.querySelectorAll('[data-ap]')).sort(function(a, b){ return 0; }).forEach(function(inp){ var mx = C.num(inp.dataset.max); var v = C.r2(Math.min(mx, left)); inp.value = v > 0 ? v : ''; left = C.r2(left - Math.max(0, v)); });
+      sync();
+    };
+    sync();
+  }
+  var fAm = q('#fAm'); if(fAm) fAm.oninput = function(){ var s = q('#fApSum'); if(s) drawApplies(); };
+  function collect(soft){
+    var o = { type: t, date: q('#fD').value };
+    if(d.id) o.id = d.id;
+    if(q('#fP')) o.partyId = q('#fP').value;
+    if(q('#fDue')) o.due = q('#fDue').value;
+    if(q('#fA')) o.acct = q('#fA').value;
+    if(q('#fFrom')){ o.from = q('#fFrom').value; o.to = q('#fTo').value; }
+    if(q('#fPay')) o.payee = q('#fPay').value;
+    if(q('#fC')){ o.currency = q('#fC').value; if(o.currency !== base()) o.fx = C.num(q('#fX').value); }
+    else o.currency = base();
+    if(q('#fPr')) o.project = q('#fPr').value.trim();
+    if(q('#fAm')) o.amount = q('#fAm').value === '' ? '' : C.num(q('#fAm').value);
+    o.ref = q('#fRef').value; o.notes = q('#fN').value;
+    if(d.lines) o.lines = d.lines.map(function(l){
+      if(t === 'journal') return { acct: l.acct, party: l.party || '', dr: l.dr === '' || l.dr == null ? '' : C.num(l.dr), cr: l.cr === '' || l.cr == null ? '' : C.num(l.cr), memo: l.memo || '' };
+      var x = { desc: l.desc || '', acct: l.acct, tax: !!l.tax };
+      if(qtyDocs.indexOf(t) !== -1){ x.qty = l.qty === '' || l.qty == null ? 1 : C.num(l.qty); x.price = l.price === '' ? '' : C.num(l.price); } else x.amount = l.amount === '' ? '' : C.num(l.amount);
+      return x;
+    });
+    if(t === 'journal') o.lines = o.lines.filter(function(l){ return l.acct || l.dr !== '' || l.cr !== ''; });
+    else if(o.lines) o.lines = o.lines.filter(function(l){ return l.acct || l.desc || l.price !== '' && l.price != null || l.amount !== '' && l.amount != null; });
+    if(['receipt','vpayment','credit','vcredit'].indexOf(t) !== -1) o.applies = (d.applies || []).slice();
+    if(d.source) o.source = d.source;
+    o.taxRate = isNew ? C.num(B.settings.vatRate) : C.num(d.taxRate);
+    return o;
+  }
+  function save(){
+    var o = collect();
+    // نفس فحص السيرفر بالضبط قبل ما نبعت (السيرفر بيعيد الفحص)
+    var errs = C.validateDoc(o, B, { prevDate: isNew ? null : d.date });
+    if(errs.length){ m.errors(errs); return; }
+    var btn = m.el.querySelector('.mf .pri'); btn.disabled = true; btn.textContent = '⏳ جاري الحفظ...';
+    op('saveDoc', o).then(function(r){
+      btn.disabled = false; btn.textContent = '💾 حفظ';
+      if(r && r.errors){ m.errors(r.errors); return; }
+      if(r && r.doc){ m.close(); toast('✅ انحفظ ' + r.doc.no); viewDoc(r.doc.id); }
+    });
+  }
+  drawLines(); drawApplies();
+}
+
+/* ---------------------------- طباعة ---------------------------- */
+function printHtml(inner){
+  var pa = document.getElementById('printArea');
+  pa.innerHTML = '<div class="pdoc" dir="rtl">' + inner + '</div>';
+  setTimeout(function(){ window.print(); }, 50);
+}
+function printDoc(d){
+  var B = S.book, st = B.settings, cur = d.currency || base(), t = C.docTotals(d, B), p = B.parties[d.partyId] || {};
+  var uaeTax = S.bookId === 'uae' && C.num(d.taxRate) > 0;
+  var titles = { invoice: uaeTax ? 'فاتورة ضريبية · Tax Invoice' : 'فاتورة · Invoice', credit: uaeTax ? 'إشعار دائن ضريبي · Tax Credit Note' : 'إشعار دائن · Credit Note', receipt: 'سند قبض · Receipt Voucher', vpayment: 'سند صرف · Payment Voucher', bill: 'فاتورة مورد · Bill', expense: 'سند مصروف · Expense', deposit: 'سند قبض · Deposit' };
+  var html = '<div class="hd"><div><h1>' + esc(st.companyName || 'Merzona') + '</h1>' + (st.address ? '<div>' + esc(st.address) + '</div>' : '') + (st.trn ? '<div>TRN: ' + esc(st.trn) + '</div>' : '') + '</div><div style="text-align:left"><h1>' + titles[d.type] + '</h1><div>No: <b>' + esc(d.no) + '</b></div><div>Date: ' + d.date + '</div>' + (d.due ? '<div>Due: ' + d.due + '</div>' : '') + '</div></div>';
+  if(d.partyId) html += '<p><b>' + (C.DOC_TYPES[d.type].party === 'vendor' ? 'المورد' : 'الزبون') + ':</b> ' + esc(p.name) + (p.trn ? ' · TRN: ' + esc(p.trn) : '') + (p.phone ? ' · ' + esc(p.phone) : '') + (p.address ? '<br>' + esc(p.address) : '') + '</p>';
+  if(d.project) html += '<p><b>المشروع / العقد:</b> ' + esc(d.project) + '</p>';
+  if(d.lines && d.lines.length){
+    var q = ['invoice','credit','bill','vcredit'].indexOf(d.type) !== -1;
+    html += '<table border="1" cellspacing="0" cellpadding="6" style="width:100%;border-collapse:collapse;"><tr><th>#</th><th>البيان · Description</th>' + (q ? '<th>الكمية</th><th>السعر</th>' : '') + '<th>المبلغ · Amount</th>' + (uaeTax ? '<th>VAT ' + d.taxRate + '%</th>' : '') + '</tr>' +
+      d.lines.map(function(l, i){ var a = q ? C.r2(C.num(l.qty === undefined ? 1 : l.qty) * C.num(l.price)) : C.num(l.amount); return '<tr><td>' + (i + 1) + '</td><td>' + esc(l.desc || '') + '</td>' + (q ? '<td class="n">' + esc(l.qty === undefined ? 1 : l.qty) + '</td><td class="n">' + money(l.price) + '</td>' : '') + '<td class="n">' + money(a) + '</td>' + (uaeTax ? '<td class="n">' + (l.tax ? money(C.r2(a * d.taxRate / 100)) : '0.00') + '</td>' : '') + '</tr>'; }).join('') + '</table>';
+    html += '<table style="width:320px;margin-top:10px;margin-right:auto;"><tr><td>المجموع قبل الضريبة · Subtotal</td><td class="n">' + money(t.subtotal, cur) + '</td></tr>' + (uaeTax ? '<tr><td>ضريبة القيمة المضافة · VAT</td><td class="n">' + money(t.tax, cur) + '</td></tr>' : '') + '<tr><td><b>الإجمالي · Total</b></td><td class="n"><b>' + money(t.total, cur) + '</b></td></tr></table>';
+  } else {
+    html += '<p style="font-size:16px;">المبلغ · Amount: <b>' + money(d.amount, cur) + '</b></p>' + (d.acct ? '<p>' + (d.type === 'receipt' ? 'استلمنا على' : 'دفعنا من') + ': ' + esc(acctName(d.acct)) + '</p>' : '');
+    if(d.applies && d.applies.length) html += '<p>مقابل: ' + d.applies.map(function(a){ var x = B.docs[a.docId] || {}; return esc(x.no || '') + ' (' + money(a.amount) + ')'; }).join('، ') + '</p>';
+  }
+  if(d.ref) html += '<p>المرجع: ' + esc(d.ref) + '</p>';
+  if(d.notes) html += '<p>' + esc(d.notes) + '</p>';
+  if(st.invoiceNote && (d.type === 'invoice' || d.type === 'credit')) html += '<p style="margin-top:20px;font-size:11px;">' + esc(st.invoiceNote) + '</p>';
+  html += '<div style="display:flex;justify-content:space-between;margin-top:50px;"><div>التوقيع: ____________</div><div>الختم: ____________</div></div>';
+  printHtml(html);
+}
+
+/* ---------------------------- CSV ---------------------------- */
+function csvFromTable(tbl, name){
+  var rows = Array.prototype.map.call(tbl.querySelectorAll('tr'), function(tr){ return Array.prototype.map.call(tr.querySelectorAll('th,td'), function(c){ var inp = c.querySelector('input'); var v = inp ? (inp.type === 'checkbox' ? (inp.checked ? '✔' : '') : inp.value) : c.innerText; return '"' + String(v).replace(/\s+/g, ' ').trim().replace(/"/g, '""') + '"'; }).join(','); });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + rows.join('\n')], { type: 'text/csv;charset=utf-8' })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+window.__acct = { S: S, load: load, render: render, openDoc: openDoc, viewDoc: viewDoc };
+renderChrome();
+if(!C){ app.innerHTML = '<div class="state dng">ملف الحسابات (acct-core.js) ما تحمّل - حدّث الصفحة.</div>'; }
+else {
+  // منستنى بوابة الدخول (موافقة الجهاز + تسجيل الدخول) تخلص قبل ما نحمّل الدفتر
+  (function waitGate(){ if(document.getElementById('mz-gate-style')) return setTimeout(waitGate, 300); load(); })();
+}
+})();
+</script>
+</body>
+</html>

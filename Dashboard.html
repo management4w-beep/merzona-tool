@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-07.6';
+  var CURRENT_VERSION = '2026-11-08.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -568,6 +568,8 @@ body.designer-fullscreen #designerFrame{flex:1;height:auto;min-height:0;border-r
 #procurementView .procurement-frame-wrap{padding:0 14px 14px;}
 #procurementFrame{width:100%;height:calc(100vh - 150px);min-height:640px;border:0;border-radius:10px;background:#fff;display:block;box-shadow:0 1px 3px rgba(0,0,0,.08);}
 #procurementLoading{text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;}
+#accountingFrame{width:100%;height:calc(100vh - 150px);min-height:640px;border:0;border-radius:10px;background:#fff;display:block;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+#accountingLoading{text-align:center;padding:60px 20px;color:var(--muted);font-size:13px;}
 #procurementToolbar{display:flex;justify-content:flex-end;padding:0 0 8px;}
 #procurementFullscreenBtn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--main);font-size:12.5px;font-weight:500;cursor:pointer;}
 #procurementFullscreenBtn:hover{background:var(--aux1);color:#fff;border-color:var(--aux1);}
@@ -1030,6 +1032,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
              كاحتياط بس مش ظاهر بالواجهة، حتى لو حابب حمدي يرجعه بالمستقبل يكفي يشيل "display:none" هون. -->
         <span class="nav-pill" id="designerTabBtn" style="display:none;">🎨 (تصميم/Sketch)</span>
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
+        <span class="nav-pill" id="accountingTabBtn" style="display:none;">📒 المحاسبة</span>
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 ملفات الإمارات</a>
         <a href="https://drive.google.com/drive/folders/1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS" target="_blank" class="nav-pill">📁 ملفات سوريا</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
@@ -2368,6 +2371,17 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     </div>
   </div>
 
+  <!-- 📒 2026-11-08: النظام المحاسبي (دفترين: الإمارات وسوريا) - صفحة accounting.html جوا إطار -->
+  <div id="accountingView" style="display:none;">
+    <div class="procurement-frame-wrap">
+      <div id="accountingLoading">⏳ عم يتحمّل النظام المحاسبي...</div>
+      <div id="accountingFailMsg" style="display:none;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
+        تعذّر تحميل المحاسبة جوّا الصفحة.<br>
+        <a href="https://management4w-beep.github.io/merzona-tool/accounting.html" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
+      </div>
+      <iframe id="accountingFrame" src="" style="display:none;" title="المحاسبة"></iframe>
+    </div>
+  </div>
   <div id="procurementView" style="display:none;">
     <div class="procurement-frame-wrap">
       <div id="procurementToolbar">
@@ -3163,6 +3177,7 @@ function hideAllViews(){
   document.getElementById('quotationView').style.display = 'none';
   document.getElementById('designerView').style.display = 'none';
   document.getElementById('procurementView').style.display = 'none';
+  { const av = document.getElementById('accountingView'); if(av) av.style.display = 'none'; const ab = document.getElementById('accountingTabBtn'); if(ab) ab.classList.remove('active'); }
   document.getElementById('settlementView').style.display = 'none';
   document.getElementById('sewaView').style.display = 'none';
   document.getElementById('usersView').style.display = 'none';
@@ -3327,6 +3342,22 @@ function showDesignerView(){
 }
 
 // المشتريات - نفس نمط عرض السعر تماماً (iframe محمّل مرة وحدة، lazy load)
+const ACCOUNTING_TOOL_URL = 'https://management4w-beep.github.io/merzona-tool/accounting.html';
+function showAccountingView(){
+  hideAllViews();
+  const view = document.getElementById('accountingView'), frame = document.getElementById('accountingFrame');
+  const loading = document.getElementById('accountingLoading'), failMsg = document.getElementById('accountingFailMsg');
+  view.style.display = 'block';
+  document.getElementById('accountingTabBtn').classList.add('active');
+  if(!frame.getAttribute('data-loaded')){
+    loading.style.display = ''; failMsg.style.display = 'none';
+    const failTimer = setTimeout(()=>{ loading.style.display = 'none'; failMsg.style.display = 'block'; }, 12000);
+    frame.addEventListener('load', ()=>{ clearTimeout(failTimer); loading.style.display = 'none'; failMsg.style.display = 'none'; frame.style.display = 'block'; }, {once:true});
+    frame.addEventListener('error', ()=>{ clearTimeout(failTimer); loading.style.display = 'none'; failMsg.style.display = 'block'; }, {once:true});
+    frame.src = ACCOUNTING_TOOL_URL;
+    frame.setAttribute('data-loaded', '1');
+  }
+}
 const PROCUREMENT_TOOL_URL = 'https://management4w-beep.github.io/merzona-tool/procurement.html';
 function showProcurementView(){
   hideAllViews();
@@ -3441,6 +3472,10 @@ document.getElementById('designerTabBtn').addEventListener('click', ()=>{
   const inDesigner = document.getElementById('designerView').style.display !== 'none';
   if(inDesigner) showDashboardView(); else showDesignerView();
 });
+document.getElementById('accountingTabBtn').addEventListener('click', ()=>{
+  const inAcc = document.getElementById('accountingView').style.display !== 'none';
+  if(inAcc) showDashboardView(); else showAccountingView();
+});
 document.getElementById('procurementTabBtn').addEventListener('click', ()=>{
   const inProcurement = document.getElementById('procurementView').style.display !== 'none';
   if(inProcurement) showDashboardView(); else showProcurementView();
@@ -3493,6 +3528,7 @@ const MERZONA_PERMISSION_COLUMNS = [
   { key: 'files', label: 'ملفات' },
   { key: 'teamSync', label: 'مزامنة' },
   { key: 'manageUsers', label: 'إدارة مستخدمين' },
+  { key: 'accounting', label: 'محاسبة' },
 ];
 
 function merzonaServerUrl(){ return window.MERZONA_ACCESS_SERVER_URL || ''; }
@@ -3633,6 +3669,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     quotationTabBtn: 'quotation',
     quotationsTabBtn: 'quotationsLog',
     procurementTabBtn: 'procurement',
+    accountingTabBtn: 'accounting',
     contractsTabBtn: 'contracts',
     payrollTabBtn: 'payroll',
     clientsTabBtn: 'clients',
@@ -3710,6 +3747,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     { view: 'draftsDesignsView', perm: 'quotationsLog' },
     { view: 'quotationView', perm: 'quotation' },
     { view: 'procurementView', perm: 'procurement' },
+    { view: 'accountingView', perm: 'accounting' },
     { view: 'usersView', perm: 'manageUsers' },
   ];
   mzViewPermMap.forEach(function(v){
@@ -10386,6 +10424,32 @@ async function stepBusinessAudit(onProg){
                     .map(function(k){ return '…' + k.slice(-4) + ': ' + Object.keys(phoneNames[k]).map(function(n){ return phoneNames[k][n]; }).join(' / '); });
   if(multi.length) info('نفس الرقم بأكتر من اسم زبون (' + multi.length + ')', audList(multi, 8));
   prog(0.08);
+
+  /* ---------- 📒 الدفاتر المحاسبية (من السيرفر): نفس فحص السلامة يلي بيعملو السيرفر بعد كل حفظ ---------- */
+  try{
+    if(!window.AcctCore){
+      await new Promise(function(res){ var sc = document.createElement('script'); sc.src = 'acct-core.js?_=' + Date.now(); sc.onload = res; sc.onerror = res; document.head.appendChild(sc); });
+    }
+    var srv = window.MERZONA_ACCESS_SERVER_URL || 'https://merzona-server-production.up.railway.app';
+    var hdr = { 'x-device': localStorage.getItem('merzona-device-token') || '', 'x-session': localStorage.getItem('merzona-session-token') || '' };
+    for(var bi = 0; bi < 2; bi++){
+      var bid = ['uae', 'syria'][bi], bname = bid === 'uae' ? 'دفتر الإمارات' : 'دفتر سوريا';
+      var rr = await fetch(srv + '/acct/' + bid, { headers: hdr, cache: 'no-store' }).catch(function(){ return null; });
+      if(!rr){ warn('المحاسبة - ' + bname, 'ما في اتصال بالسيرفر'); continue; }
+      if(rr.status === 403 || rr.status === 401){ info('المحاسبة - ' + bname, 'ما انفحص (ما عندك صلاحية المحاسبة)'); continue; }
+      var jb = await rr.json().catch(function(){ return null; });
+      if(!jb || !jb.book || !window.AcctCore){ warn('المحاسبة - ' + bname, 'تعذّر قراءة الدفتر'); continue; }
+      var probs = window.AcctCore.integrity(jb.book);
+      var nd = Object.keys(jb.book.docs || {}).length;
+      if(probs.length) fail('المحاسبة - ' + bname + ': مشاكل بالدفتر (' + probs.length + ')', audList(probs, 8));
+      else ok('المحاسبة - ' + bname + ' سليم', nd + ' مستند · ميزان المراجعة موزون والميزانية متوازنة');
+      var odAg = window.AcctCore.aging(jb.book, 'ar');
+      var od = odAg.items.filter(function(i){ return i.days > 30; });
+      if(od.length) info('المحاسبة - ' + bname + ': فواتير زبائن متأخرة أكتر من 30 يوم (' + od.length + ')', audList(od.map(function(i){ return i.no + ' · ' + i.days + ' يوم · ' + fmt(i.openBase); }), 8));
+      var susp = window.AcctCore.balances(jb.book, {});
+      ['1390', '2150'].forEach(function(c){ if(susp[c] && Math.abs(susp[c].net) > 0.004) warn('المحاسبة - ' + bname + ': ' + susp[c].name, 'رصيد ' + fmt(susp[c].net) + ' لسا ما اتحدد لشو - صنّفو بقيد تسوية لما تعرف'); });
+    }
+  }catch(e){ warn('فحص الدفاتر المحاسبية', String(e && e.message || e)); }
 
   /* ---------- ج) مقارنة مع جوجل درايف ---------- */
   var token = null;
