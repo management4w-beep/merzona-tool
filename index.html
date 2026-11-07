@@ -11313,7 +11313,7 @@ function buildHandrailPanelsMm(it){
       for(let i=0;i<n;i++){
         const isLastPanelOfSeg = (i === n-1);
         const jumpMm = (i === 0 && riseCm > 0) ? riseCm*10 : 0;
-        const pm = { w: pw, type: seg.type, segId: seg.id, riseCm, jumpMm, inclined, mergeWithNext: (isLastPanelOfSeg && !isLastSeg) ? !!seg.mergedWithNext : false };
+        const pm = { w: pw, type: seg.type, segId: seg.id, riseCm, jumpMm, inclined, panelDiag: Math.max(0, seg.panelDiag||0), mergeWithNext: (isLastPanelOfSeg && !isLastSeg) ? !!seg.mergedWithNext : false };
         // 🆕 2026-10-10: "مثلث فقط" - الزجاج فوق القطر بس. s0/s1 = نسبة بداية/نهاية اللوح من عرض الجزء (بدون الفواصل)
         if((seg.type === 'flight' || inclined) && seg.tri){ pm.tri = true; pm.triS0 = (i*pw)/(n*pw); pm.triS1 = ((i+1)*pw)/(n*pw); pm.triTotW = n*pw; pm.triDiag = Math.max(0, seg.triDiag||0); }
         panelsMm.push(pm);
@@ -11369,6 +11369,10 @@ function buildHandrailSVG(it){
   // مدموجين بصريًا بمضلع واحد (بدون خط فاصل) بيضلوا كل واحد فيهم إله سطر قياس طول لحاله تحت الرسمة
   const segRanges = {};
 
+  // 🆕 2026-11-07 (طلب حمدي: "ماعم اقدر حط المقاسات عند الضغط على المقاس في الصورة"): كل مقاس بالرسمة صار بينضغط
+  // وبيفتح نافذة تكتب فيها الرقم الجديد. HIT = منطقة لمس شفافة أكبر من النص حتى تنضغط بسهولة عالموبايل
+  const HE = (kind, segId, cur) => `style="cursor:pointer;" onclick="event.stopPropagation();hrEditDim(${it.id},'${segId||''}','${kind}',${Math.round(cur||0)})"`;
+  const HIT = (kind, segId, cur, x0, y0, w0, h0) => `<rect x="${x0}" y="${y0}" width="${w0}" height="${h0}" fill="transparent" ${HE(kind, segId, cur)}/>`;
   panelsMm.forEach((p, idx)=>{
     const pw = p.w*hScale;
     // 🆕 2026-09-23: "قفزة" ارتفاع الاستراحة المائلة بتنطبق دفعة وحدة قبل أول لوح فيها - الأرض
@@ -11409,21 +11413,22 @@ function buildHandrailSVG(it){
       const eAng = Math.atan2(yT1-yT0, pw)*180/Math.PI;
       const edgeRiseSuffix2 = (p.type==='landing' && p.riseCm > 0) ? ` (+${p.riseCm}سم)` : '';
       diagonalSvg += `<line x1="${x}" y1="${yD0}" x2="${x+pw}" y2="${yD1}" stroke="#e53935" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
-        <g transform="translate(${x+pw/2},${(yT0+yT1)/2}) rotate(${eAng})"><text x="0" y="-8" font-size="11" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.w)} mm${edgeRiseSuffix2}</text></g>`;
+        <g transform="translate(${x+pw/2},${(yT0+yT1)/2}) rotate(${eAng})" ${HE('panelW', p.segId, p.w)}>${HIT('panelW', p.segId, p.w, -44, -26, 88, 26)}<text x="0" y="-8" font-size="11" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.w)} mm${edgeRiseSuffix2}</text></g>`;
       if(p.triS1 >= 0.9999){
         const dAng = Math.atan2(yD1-tc.ys, (x+pw)-tc.xs)*180/Math.PI;
         const dLen = Math.sqrt(tc.w*tc.w + (tc.w*rakeSlope+glassH)*(tc.w*rakeSlope+glassH));
-        diagonalSvg += `<g transform="translate(${(tc.xs+x+pw)/2},${(tc.ys+yD1)/2}) rotate(${dAng})"><rect x="-30" y="-19" width="60" height="14" fill="var(--wd-bg-deep, #0b1220)" opacity="0.85" rx="3"/><text x="0" y="-8" font-size="11" font-weight="700" fill="#ff6659" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.triDiag>0 ? p.triDiag : dLen)} mm</text></g>`;
+        diagonalSvg += `<g transform="translate(${(tc.xs+x+pw)/2},${(tc.ys+yD1)/2}) rotate(${dAng})" ${HE('triDiag', p.segId, p.triDiag>0 ? p.triDiag : dLen)}>${HIT('triDiag', p.segId, 0, -40, -26, 80, 28)}<rect x="-30" y="-19" width="60" height="14" fill="var(--wd-bg-deep, #0b1220)" opacity="0.85" rx="3"/><text x="0" y="-8" font-size="11" font-weight="700" fill="#ff6659" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.triDiag>0 ? p.triDiag : dLen)} mm</text></g>`;
       }
       if(pw > 26){
         const tcx = x+pw/2, tcy = (yT0+yT1+yD0+yD1)/4;
         const tLbl = `${Math.round(p.w)}×${Math.round(glassH*(1-p.triS0))}${p.triS1<0.9999 ? '→'+Math.round(glassH*(1-p.triS1)) : ' ◥'}`;
         const tBw = Math.max(56, tLbl.length*6.4 + 16);
-        panelLabelsSvg += `<rect x="${tcx-tBw/2}" y="${tcy-11}" width="${tBw}" height="18" rx="4" fill="var(--wd-bg-deep, #0b1220)" opacity="0.88"/><text x="${tcx}" y="${tcy+3}" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="var(--wd-font-mono)" style="pointer-events:none;">${tLbl}</text>`;
+        panelLabelsSvg += `<rect x="${tcx-tBw/2}" y="${tcy-11}" width="${tBw}" height="18" rx="4" fill="var(--wd-bg-deep, #0b1220)" opacity="0.88" ${HE('panelW', p.segId, p.w)}/><text x="${tcx}" y="${tcy+3}" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="var(--wd-font-mono)" style="pointer-events:none;">${tLbl}</text>`;
       }
     } else if(p.type==='flight' || p.inclined){
       const riseMm = p.w*rakeSlope;
-      const diagMm = Math.sqrt(p.w*p.w + (riseMm+glassH)*(riseMm+glassH)); // طول القطر (الخط الأحمر) من زاوية لزاوية مقابلة
+      const diagCalc = Math.sqrt(p.w*p.w + (riseMm+glassH)*(riseMm+glassH));
+      const diagMm = p.panelDiag > 0 ? p.panelDiag : diagCalc; // 🆕 2026-11-07: القطر المقاس بالموقع (إذا انكتب) بيغلب المحسوب // طول القطر (الخط الأحمر) من زاوية لزاوية مقابلة
       const topDx = pw, topDy = (yT1-yT0);
       const edgeAngleDeg = Math.atan2(topDy,topDx)*180/Math.PI;
       const edgeMidX = x+pw/2, edgeMidY = (yT0+yT1)/2;
@@ -11433,11 +11438,13 @@ function buildHandrailSVG(it){
       // لو استراحة مائلة، منضيف فرق الارتفاع يلي كاتبه حمدي مباشرة لنص قياس الحافة (حتى ما تضيع هالمعلومة)
       const edgeRiseSuffix = (p.type==='landing' && p.riseCm > 0) ? ` (+${p.riseCm}سم)` : '';
       diagonalSvg += `<line x1="${x}" y1="${yB0}" x2="${x+pw}" y2="${yT1}" stroke="#e53935" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
-        <g transform="translate(${edgeMidX},${edgeMidY}) rotate(${edgeAngleDeg})">
+        <g transform="translate(${edgeMidX},${edgeMidY}) rotate(${edgeAngleDeg})" ${HE('panelW', p.segId, p.w)}>
+          ${HIT('panelW', p.segId, p.w, -44, -26, 88, 26)}
           <text x="0" y="-8" font-size="11" font-weight="700" fill="var(--wd-ink)" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(p.w)} mm${edgeRiseSuffix}</text>
         </g>
-        <g transform="translate(${diagMidX},${diagMidY}) rotate(${diagAngleDeg})">
-          <rect x="-30" y="-19" width="60" height="14" fill="var(--wd-bg-deep, #0b1220)" opacity="0.85" rx="3"/>
+        <g transform="translate(${diagMidX},${diagMidY}) rotate(${diagAngleDeg})" ${HE('diag', p.segId, diagMm)}>
+          ${HIT('diag', p.segId, diagMm, -40, -26, 80, 28)}
+          <rect x="-30" y="-19" width="60" height="14" fill="var(--wd-bg-deep, #0b1220)" opacity="0.85" rx="3" stroke="${p.panelDiag > 0 ? '#4ade80' : 'none'}" stroke-width="1"/>
           <text x="0" y="-8" font-size="11" font-weight="700" fill="#ff6659" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(diagMm)} mm</text>
         </g>`;
     } else if(pw > 26){
@@ -11451,7 +11458,7 @@ function buildHandrailSVG(it){
       const riseLabel = (p.type==='landing' && p.riseCm > 0) ? (p.inclined ? ` (+${p.riseCm}سم↗ مائلة)` : ` (+${p.riseCm}سم⬆)`) : '';
       const flatLabelText = `${Math.round(p.w)}×${Math.round(glassH)}${riseLabel}`;
       const flatBadgeW = Math.max(56, flatLabelText.length*6.4 + 16);
-      panelLabelsSvg += `<rect x="${cx-flatBadgeW/2}" y="${cy-11}" width="${flatBadgeW}" height="18" rx="4" fill="var(--wd-bg-deep, #0b1220)" opacity="0.88"/>
+      panelLabelsSvg += `<rect x="${cx-flatBadgeW/2}" y="${cy-11}" width="${flatBadgeW}" height="18" rx="4" fill="var(--wd-bg-deep, #0b1220)" opacity="0.88" ${HE('panelW', p.segId, p.w)}/>
       <text x="${cx}" y="${cy+3}" font-size="10.5" font-weight="700" fill="#ffffff" text-anchor="middle" font-family="var(--wd-font-mono)" style="pointer-events:none;">${flatLabelText}</text>`;
     }
     bottomPts.push([x,yB0], [x+pw,yB1]);
@@ -11523,7 +11530,8 @@ function buildHandrailSVG(it){
       segDimSvg += `<line x1="${range.start}" y1="${segDimY}" x2="${range.end}" y2="${segDimY}" stroke="${dimColor}" stroke-width="1"/>
         <line x1="${range.start}" y1="${segDimY-5}" x2="${range.start}" y2="${segDimY+5}" stroke="${dimColor}" stroke-width="1"/>
         <line x1="${range.end}" y1="${segDimY-5}" x2="${range.end}" y2="${segDimY+5}" stroke="${dimColor}" stroke-width="1"/>
-        <text x="${midX}" y="${segDimY+18}" fill="${dimColor}" font-size="11" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr">${Math.round(seg.totalLength)} mm</text>
+        ${HIT('segLen', seg.id, seg.totalLength, midX-60, segDimY+2, 120, 24)}
+        <text x="${midX}" y="${segDimY+18}" fill="${dimColor}" font-size="13" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" ${HE('segLen', seg.id, seg.totalLength)}>${Math.round(seg.totalLength)} mm</text>
         ${seg.type==='landing' ? `<text x="${midX}" y="${segDimY+31}" fill="${dimColor}" font-size="9.5" text-anchor="middle">${it.hrKind==='flat' ? 'مستقيم' : 'استراحة'}</text>` : ''}`;
     });
   }
@@ -11535,7 +11543,8 @@ function buildHandrailSVG(it){
     <line x1="${drawW+24}" y1="${lastPanelYB1}" x2="${drawW+24}" y2="${lastPanelYB1-drawH}" stroke="var(--wd-amber)" stroke-width="1"/>
     <line x1="${drawW+20}" y1="${lastPanelYB1}" x2="${drawW+28}" y2="${lastPanelYB1}" stroke="var(--wd-amber)" stroke-width="1"/>
     <line x1="${drawW+20}" y1="${lastPanelYB1-drawH}" x2="${drawW+28}" y2="${lastPanelYB1-drawH}" stroke="var(--wd-amber)" stroke-width="1"/>
-    <text x="${drawW+37}" y="${lastPanelYB1-drawH/2}" fill="var(--wd-amber)" font-size="14" font-weight="700" font-family="var(--wd-font-mono)" text-anchor="middle" direction="ltr" transform="rotate(90, ${drawW+37}, ${lastPanelYB1-drawH/2})">${Math.round(glassH)} mm</text>
+    ${HIT('height', '', glassH, drawW+12, lastPanelYB1-drawH, 44, drawH)}
+    <text ${HE('height', '', glassH)} x="${drawW+37}" y="${lastPanelYB1-drawH/2}" fill="var(--wd-amber)" font-size="14" font-weight="700" font-family="var(--wd-font-mono)" text-anchor="middle" direction="ltr" transform="rotate(90, ${drawW+37}, ${lastPanelYB1-drawH/2})">${Math.round(glassH)} mm</text>
   `;
 
   const maxBox = getScreenMaxDimPx(it) + 160;
@@ -11576,6 +11585,50 @@ function editHandrailTotal(id){
   renderGallery();
 }
 window.editHandrailTotal = editHandrailTotal;
+
+// 🆕 2026-11-07: تعديل أي مقاس بالضغط عليه برسمة الهاندريل (ارتفاع الزجاج / عرض اللوح / طول الجزء / القطر)
+function hrEditDim(itemId, segId, kind, cur){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const seg = segId ? ensureHandrailSegments(it).find(s=>s.id===segId) : null;
+  const titles = {
+    height: 'ارتفاع الزجاج',
+    panelW: 'عرض اللوح الواحد',
+    segLen: seg && seg.type === 'landing' ? (it.hrKind==='flat' ? 'طول الجزء المستقيم' : 'طول الاستراحة') : 'طول الجزء المائل',
+    diag: 'القطر المقاس بالموقع (اتركه فاضي ليرجع محسوب)',
+    triDiag: 'قطر المثلث (اتركه فاضي ليرجع محسوب)'
+  };
+  const allowEmpty = kind === 'diag' || kind === 'triDiag';
+  const val = prompt(`${titles[kind] || 'المقاس'} بالمليمتر - تقدر تكتب مثلاً 1200+350:`, cur ? String(cur) : '');
+  if(val === null) return;
+  let n = String(val).trim() === '' ? 0 : (evalMeasureExpr(val) ?? parseFloat(val));
+  if(!Number.isFinite(n) || n < 0 || n > 1e7 || (n === 0 && !allowEmpty)){ alert('رقم غير صحيح'); return; }
+  pushHistory();
+  const gap = HANDRAIL_GAP_MM;
+  if(kind === 'height'){
+    it.hrGlassHeight = Math.max(50, n);
+    const el = document.getElementById('inHrHeight'); if(el) el.value = it.hrGlassHeight;
+  } else if(kind === 'segLen' && seg){
+    seg.totalLength = Math.max(1, n);
+  } else if(kind === 'panelW'){
+    if(seg){
+      const cnt = Math.max(1, seg.panelCount || 1);
+      seg.totalLength = cnt * n + (cnt - 1) * gap; // نفس عدد الألواح، والطول بيتعدّل
+    } else {
+      const cnt = Math.max(1, it.hrPanelCount || 1);
+      if(it.hrDimMode === 'panel') it.hrPanelWidth = n;
+      else it.hrTotalLength = cnt * n + (cnt - 1) * gap;
+    }
+  } else if(kind === 'diag' && seg){
+    seg.panelDiag = n > 0 ? n : 0;
+  } else if(kind === 'triDiag' && seg){
+    seg.triDiag = n > 0 ? n : 0;
+  }
+  syncHandrailDims(it);
+  if(it.id === selectedId){ try{ loadSelectedIntoControls(); }catch(e){} }
+  try{ renderHandrailSegmentsUI(it); }catch(e){}
+  renderGallery();
+}
+window.hrEditDim = hrEditDim;
 
 /* ---------- MIRROR (مرآة) ---------- */
 // 🆕 2026-10-17 (طلب حمدي): تصميم مرايا بالمصمم - أشكال (مستطيل/مدوّر الزوايا/بيضاوي/دائرة/قوس/معيّن/شكل حر عضوي)
@@ -19043,7 +19096,8 @@ function buildHandrailPrintSVG(it, pageItemCount){
     }
     const cx = x+pw/2, cy = (yT0+yT1+yD0+yD1)/4;
     const riseLabel = (p.type==='landing' && p.riseCm > 0) ? (p.inclined ? ` (+${p.riseCm}سم↗ مائلة)` : ` (+${p.riseCm}سم⬆)`) : '';
-    if(pw > 26) panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="11" fill="#2b6f93" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(p.w)}×${Math.round(glassH)}${p.tri ? '→'+Math.round(glassH*(1-p.triS1)) : ''}${riseLabel}</text>`;
+    if(pw > 26) panelLabelsSvg += `<text x="${cx}" y="${cy}" font-size="11" fill="#2b6f93" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(p.w)}×${Math.round(glassH)}${p.tri ? '→'+Math.round(glassH*(1-p.triS1)) : ''}${riseLabel}</text>`
+      + ((!p.tri && p.panelDiag > 0 && pw > 26) ? `<text x="${cx}" y="${cy+14}" font-size="10" fill="#c0392b" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" direction="ltr">⟋ ${Math.round(p.panelDiag)} mm</text>` : '');
     if(p.tri && p.triS1 >= 0.9999){
       const tc = triCtx[p.segId];
       const dAng = Math.atan2(yD1-tc.ys, (x+pw)-tc.xs)*180/Math.PI;
