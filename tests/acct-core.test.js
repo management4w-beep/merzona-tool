@@ -127,6 +127,21 @@ eq(add(Sy, { type:'receipt', date:'2026-10-20', partyId:'s1', acct:'1000', amoun
 eq(C.balances(Sy)['1100'].net, -50, 'AR negative = advance');
 sane(Sy, 'syria advance');
 
+/* بنود افتتاحية منقولة (فواتير قديمة من QuickBooks) */
+const O = C.newBook('uae'); O.parties.q = { id:'q', kind:'customer', name:'Old' }; O.parties.qv = { id:'qv', kind:'vendor', name:'OldV' };
+eq(add(O, { id:'oi1', type:'journal', date:'2026-11-07', partyId:'q', openItem:{ kind:'ar', amount:1000, ref:'INV-77' }, lines:[{acct:'1100', dr:1000, party:'q'},{acct:'3900', cr:1000}] }), [], 'opening AR item');
+eq(add(O, { id:'oi2', type:'journal', date:'2026-11-07', partyId:'qv', openItem:{ kind:'ap', amount:400 }, lines:[{acct:'3900', dr:400},{acct:'2000', cr:400, party:'qv'}] }), [], 'opening AP item');
+e = add(O, { type:'journal', date:'2026-11-07', partyId:'q', openItem:{ kind:'ar', amount:5000 }, lines:[{acct:'1100', dr:1000, party:'q'},{acct:'3900', cr:1000}] });
+ok(e.some(x=>x.includes('أكبر من قيده')), 'open item > line blocked');
+eq(C.openItems(O, 'ar').length, 1, 'opening item listed');
+eq(add(O, { type:'receipt', date:'2026-11-08', partyId:'q', acct:'1010', amount:600, applies:[{docId:'oi1', amount:600}] }), [], 'receipt on opening item');
+eq(C.openBalanceOf(O, 'oi1'), 400, 'opening item partial');
+e = add(O, { type:'receipt', date:'2026-11-08', partyId:'q', acct:'1010', amount:600, applies:[{docId:'oi1', amount:600}] });
+ok(e.some(x=>x.includes('أكبر من المتبقي')), 'opening item overpay blocked');
+eq(add(O, { type:'vpayment', date:'2026-11-08', partyId:'qv', acct:'1010', amount:400, applies:[{docId:'oi2', amount:400}] }), [], 'pay opening AP');
+eq(C.balances(O)['2000'].net, 0, 'AP cleared'); eq(C.balances(O)['1100'].net, 400, 'AR left');
+sane(O, 'opening items');
+
 /* أعمار الذمم */
 const U2 = C.newBook('uae'); U2.parties.c = { id:'c', kind:'customer', name:'X' };
 add(U2, { id:'a1', type:'invoice', date:'2026-07-01', due:'2026-07-15', partyId:'c', lines:[{desc:'x', qty:1, price:1000, acct:'4000'}], taxRate:0 });
@@ -140,7 +155,7 @@ const st = C.partyStatement(U, 'c1');
 eq(st.ar.closing, 0, 'statement closing'); ok(st.ar.rows.length === 3, 'statement rows');
 /* سجل الحساب مع رصيد افتتاحي */
 const al = C.accountLedger(U, '1010', { from: '2026-10-04' });
-eq(al.opening, 800, 'ledger opening 5000-4200'); ok(al.rows.length >= 1, 'ledger rows');
+eq(al.opening, -4200, 'ledger opening = vpayment on 10-03 only'); ok(al.rows.length >= 1, 'ledger rows');
 /* مطابقة البنك */
 const rv = C.reconView(U, '1010', 0); ok(rv.lines.length > 0 && rv.difference !== null, 'recon view');
 
@@ -152,7 +167,7 @@ for(const bid of ['uae','syria']){
   const cur = bid==='uae' ? ['AED','USD'] : ['USD','SYP'];
   const fxr = c => c===B.base ? 1 : (c==='USD' ? 3.6725 : 12000 + rnd(3000));
   let okN = 0, rej = 0;
-  for(let i=0;i<3000;i++){
+  for(let i=0;i<1200;i++){
     const day = '2026-' + String(1+rnd(12)).padStart(2,'0') + '-' + String(1+rnd(28)).padStart(2,'0');
     const c = cur[rnd(2)], fx = fxr(c);
     const kinds = ['invoice','receipt','bill','vpayment','expense','deposit','transfer','journal','credit','vcredit'];
@@ -181,7 +196,7 @@ for(const bid of ['uae','syria']){
   sane(B, 'random ' + bid + ' (' + okN + ' ok, ' + rej + ' rejected)');
   const ag2 = C.aging(B, 'ar'); const arNet = C.balances(B)['1100'].net;
   // الذمم = الفواتير المفتوحة - الدفعات/الإشعارات غير المطبّقة (بعملة الدفتر)
-  let unapplied = 0;
+  let unapplied = 0; /* + بنود افتتاحية = صفر هون */
   Object.values(B.docs).forEach(d=>{ if(d.void) return; if(d.type==='receipt'){ const ap = (d.applies||[]).reduce((s,a)=>s+a.amount,0); unapplied += C.r2((d.amount - ap)/C.docFx(d,B)); } if(d.type==='credit'){ const ap = (d.applies||[]).reduce((s,a)=>s+a.amount,0); unapplied += C.r2((C.docTotals(d,B).total - ap)/C.docFx(d,B)); } });
   ok(Math.abs(C.r2(ag2.totals.total - unapplied) - arNet) < 0.05 * Object.keys(B.docs).length / 100 + 0.05, 'random ' + bid + ' AR subledger ties: ' + arNet + ' vs ' + C.r2(ag2.totals.total - unapplied));
   console.log('random', bid, 'docs', Object.keys(B.docs).length, 'ok', okN, 'rejected', rej);

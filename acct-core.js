@@ -292,10 +292,19 @@
   }
 
   /* ---------------------------------- التحقق ---------------------------------- */
+  /* بند مفتوح = فاتورة، فاتورة مورد، أو قيد افتتاحي منقول (رصيد فاتورة قديمة من QuickBooks) */
+  function itemKind(d) {
+    if (!d) return '';
+    if (d.type === 'invoice') return 'ar';
+    if (d.type === 'bill') return 'ap';
+    if (d.type === 'journal' && d.openItem && (d.openItem.kind === 'ar' || d.openItem.kind === 'ap')) return d.openItem.kind;
+    return '';
+  }
+  function itemTotal(d, book) { return d.type === 'journal' ? r2(num(d.openItem && d.openItem.amount)) : docTotals(d, book).total; }
   function openBalanceOf(book, targetId, excludeDocId) {
     var target = book.docs[targetId];
-    if (!target || target.void) return 0;
-    var total = docTotals(target, book).total;
+    if (!target || target.void || !itemKind(target)) return 0;
+    var total = itemTotal(target, book);
     var used = 0;
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
@@ -360,14 +369,14 @@
       if (!isNum(doc.amount) || num(doc.amount) <= 0) E.push('المبلغ لازم يكون أكبر من صفر');
     }
     if (t === 'receipt' || t === 'vpayment' || t === 'credit' || t === 'vcredit') {
-      var want = (t === 'receipt' || t === 'credit') ? 'invoice' : 'bill';
+      var want = (t === 'receipt' || t === 'credit') ? 'ar' : 'ap';
       var appliedSum = 0, seen = {};
       (doc.applies || []).forEach(function (ap, i) {
         var tg = book.docs[ap.docId];
         var w = 'التطبيق ' + (i + 1);
         if (seen[ap.docId]) E.push(w + ': نفس الفاتورة مكررة'); seen[ap.docId] = 1;
         if (!tg || tg.void) { E.push(w + ': الفاتورة مش موجودة أو ملغاة'); return; }
-        if (tg.type !== want) E.push(w + ': نوع المستند المطبّق عليه غلط');
+        if (itemKind(tg) !== want) E.push(w + ': نوع المستند المطبّق عليه غلط');
         if (tg.partyId !== doc.partyId) E.push(w + ': الفاتورة ' + (tg.no || '') + ' مش لنفس الطرف');
         if ((tg.currency || book.base) !== cur) E.push(w + ': عملة الفاتورة ' + (tg.no || '') + ' غير عملة السند');
         if (!isNum(ap.amount) || num(ap.amount) <= 0) E.push(w + ': المبلغ لازم يكون أكبر من صفر');
@@ -405,6 +414,15 @@
         dr = r2(dr + d); cr = r2(cr + c);
       });
       if (dr !== cr) E.push('القيد مش موزون: مدين ' + dr + ' ≠ دائن ' + cr);
+      if (doc.openItem) {
+        var oi = doc.openItem, ctl = oi.kind === 'ar' ? S.AR : oi.kind === 'ap' ? S.AP : '';
+        if (!ctl) E.push('نوع البند المفتوح غلط');
+        if (!isNum(oi.amount) || num(oi.amount) <= 0) E.push('مبلغ البند المفتوح غلط');
+        if (!book.parties[doc.partyId]) E.push('البند المفتوح لازم إلو طرف');
+        var lineAmt = 0;
+        (doc.lines || []).forEach(function (l) { if (l.acct === ctl && l.party === doc.partyId) lineAmt = r2(lineAmt + (oi.kind === 'ar' ? num(l.dr) - num(l.cr) : num(l.cr) - num(l.dr))); });
+        if (num(oi.amount) > lineAmt + 0.004) E.push('مبلغ البند المفتوح أكبر من قيده');
+      }
     }
     // الضمانة الأخيرة: القيود الناتجة لازم تكون موزونة وأرقامها سليمة
     if (!E.length) {
@@ -521,14 +539,14 @@
   }
   // الفواتير المفتوحة (بعملة الفاتورة) + الأعمار
   function openItems(book, kind, asOf) {
-    var want = kind === 'ap' ? 'bill' : 'invoice';
+    var want = kind === 'ap' ? 'ap' : 'ar';
     var today = asOf || new Date().toISOString().slice(0, 10);
     var out = [];
     Object.keys(book.docs).forEach(function (id) {
       var d = book.docs[id];
-      if (!d || d.void || d.type !== want) return;
+      if (!d || d.void || itemKind(d) !== want) return;
       if (asOf && d.date > asOf) return;
-      var total = docTotals(d, book).total;
+      var total = itemTotal(d, book);
       var used = 0;
       Object.keys(book.docs).forEach(function (j) {
         var x = book.docs[j]; if (!x || x.void) return; if (asOf && x.date > asOf) return;
@@ -630,9 +648,9 @@
       if (D !== C) problems.push((d.no || id) + ': قيوده مش موزونة');
       (d.applies || []).forEach(function (ap) { var tg = book.docs[ap.docId]; if (!tg) problems.push((d.no || id) + ': مطبّق على مستند مش موجود'); else if (tg.void) problems.push((d.no || id) + ': مطبّق على ' + (tg.no || '') + ' وهي ملغاة'); });
     });
-    ['invoice', 'bill'].forEach(function (tp) {
+    ['ar', 'ap'].forEach(function (tp) {
       Object.keys(book.docs).forEach(function (id) {
-        var d = book.docs[id]; if (!d || d.void || d.type !== tp) return;
+        var d = book.docs[id]; if (!d || d.void || itemKind(d) !== tp) return;
         if (openBalanceOf(book, id) < -0.004) problems.push((d.no || id) + ': مدفوع أكتر من قيمته');
       });
     });
@@ -658,7 +676,7 @@
     VERSION: VERSION, BOOKS: BOOKS, CURRENCY_LABEL: CURRENCY_LABEL, TYPES: TYPES, TYPE_LABEL: TYPE_LABEL, DOC_TYPES: DOC_TYPES, SYS: SYS,
     r2: r2, num: num, isDate: isDate, debitNormal: debitNormal,
     defaultChart: defaultChart, newBook: newBook, acctMap: acctMap, sysAccts: sysAccts, isMoneyAcct: isMoneyAcct,
-    docFx: docFx, docTotals: docTotals, docPostings: docPostings, validateDoc: validateDoc, openBalanceOf: openBalanceOf, dependents: dependents,
+    docFx: docFx, docTotals: docTotals, itemKind: itemKind, itemTotal: itemTotal, docPostings: docPostings, validateDoc: validateDoc, openBalanceOf: openBalanceOf, dependents: dependents,
     ledger: ledger, balances: balances, trialBalance: trialBalance, profitLoss: profitLoss, balanceSheet: balanceSheet,
     accountLedger: accountLedger, partyStatement: partyStatement, openItems: openItems, aging: aging, projectProfit: projectProfit,
     vatReport: vatReport, moneyAccounts: moneyAccounts, reconView: reconView, integrity: integrity, nextNo: nextNo, fmt: fmt,
