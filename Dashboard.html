@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.6';
+  var CURRENT_VERSION = '2026-11-08.7';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -6886,12 +6886,13 @@ recomputeAllQuoteTotalOverrides(); // تصحيح شامل لأي عقد قديم
 // القاعدة هلق: لكل اسم ملف بالعقد بنحتفظ بنسخة درايف وحدة بس، وأي نسخة dataUrl إلها نسخة درايف بتنشال.
 function mzNormalizeContractFileList(arr){
   if(!Array.isArray(arr)) arr = arr ? [arr] : [];
-  var hasDrive = {}, out = [], seenDrive = {};
-  arr.forEach(function(f){ if(f && f.driveFileId) hasDrive[f.name || ''] = true; });
+  // لكل اسم منختار نفس النسخة على كل الأجهزة (أصغر driveFileId) - هيك الأجهزة كلها بتتفق مهما كان ترتيب المزامنة
+  var hasDrive = {}, out = [], seenDrive = {}, best = {};
+  arr.forEach(function(f){ if(f && f.driveFileId){ var n0 = f.name || ''; hasDrive[n0] = true; if(!best[n0] || String(f.driveFileId) < String(best[n0].driveFileId)) best[n0] = f; } });
   arr.forEach(function(f){
     if(!f) return;
     var nm = f.name || '';
-    if(f.driveFileId){ if(seenDrive[nm]) return; seenDrive[nm] = true; out.push(f); return; }
+    if(f.driveFileId){ if(seenDrive[nm]) return; seenDrive[nm] = true; out.push(best[nm]); return; }
     if(f.dataUrl && hasDrive[nm]) return;
     out.push(f);
   });
@@ -6911,6 +6912,46 @@ function mzNormalizeAllContractFiles(){
   }catch(e){ console.warn('[ملفات العقود] تعذّر التنظيف', e && e.message); return { changed: false, error: e && e.message }; }
 }
 window.mzNormalizeAllContractFiles = mzNormalizeAllContractFiles;
+// 🧹 2026-11-08: تنظيف النسخ المكررة يلي انرفعت لدرايف بسبب الباغ فوق. لكل ملف عقد: منجيب كل الملفات
+// بنفس الاسم بنفس مجلد "عقود مرفقة"، منخلي وحدة (أصغر معرّف - نفس اختيار كل الأجهزة) ومنبعت الباقي
+// لسلة المحذوفات بدرايف (بترجع منها لـ30 يوم). ما منلمس أي ملف باسم تاني أو بمجلد تاني.
+async function mzCleanContractDuplicatesOnDrive(silent){
+  const res = { trashed: 0, failed: 0, checked: 0 };
+  const token = await getDashGoogleAccessToken(!!silent);
+  const H = { Authorization: 'Bearer ' + token };
+  const api = async function(url, opt){ const r = await fetch(url, Object.assign({ headers: H }, opt || {})); if(!r.ok) throw new Error('drive-' + r.status); return r.json(); };
+  const files = loadContractFiles(); let changed = false;
+  for(const ref of Object.keys(files)){
+    const list = mzNormalizeContractFileList(getContractFilesList(files, ref));
+    for(let i = 0; i < list.length; i++){
+      const f = list[i]; if(!f || !f.driveFileId || !f.name) continue;
+      try{
+        const meta = await api('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(f.driveFileId) + '?fields=id,parents,trashed');
+        const parent = meta.parents && meta.parents[0]; if(!parent) continue;
+        const q = "'" + parent + "' in parents and name = '" + String(f.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "' and trashed = false";
+        let all = [], pageToken = '';
+        do{
+          const r = await api('https://www.googleapis.com/drive/v3/files?pageSize=200&fields=nextPageToken,files(id,name)&q=' + encodeURIComponent(q) + (pageToken ? '&pageToken=' + pageToken : ''));
+          all = all.concat(r.files || []); pageToken = r.nextPageToken || '';
+        } while(pageToken);
+        res.checked++;
+        if(all.length < 2 && !meta.trashed) continue;
+        const ids = all.map(function(x){ return x.id; }).concat(meta.trashed ? [] : [f.driveFileId]);
+        const keep = ids.sort()[0];
+        for(const x of all){
+          if(x.id === keep) continue;
+          try{ await api('https://www.googleapis.com/drive/v3/files/' + x.id, { method: 'PATCH', headers: Object.assign({ 'Content-Type': 'application/json' }, H), body: JSON.stringify({ trashed: true }) }); res.trashed++; }
+          catch(e){ res.failed++; }
+        }
+        if(keep !== f.driveFileId){ list[i] = { name: f.name, driveFileId: keep, driveViewLink: 'https://drive.google.com/file/d/' + keep + '/view' }; changed = true; }
+      }catch(e){ res.failed++; console.warn('[تنظيف ملفات العقود]', ref, f.name, e && e.message); }
+    }
+    if(changed){ files[ref] = list; }
+  }
+  if(changed) saveContractFiles(files);
+  return res;
+}
+window.mzCleanContractDuplicatesOnDrive = mzCleanContractDuplicatesOnDrive;
 setTimeout(function(){ mzNormalizeAllContractFiles(); }, 3000);
 function getContractFilesList(files, ref){
   const f = files[ref];
@@ -10695,7 +10736,8 @@ async function stepFixes(){
   curGroup = 'الإصلاح التلقائي';
   var kinds = {}, keysCorrupt = [];
   MT.results.forEach(function(r){ if(r.fixable && (r.status === 'fail' || r.status === 'warn')){ kinds[r.fixable] = true; if(r.fixable === 'corrupt' && r.key) keysCorrupt.push(r.key); } });
-  if(!Object.keys(kinds).length){ ok('الإصلاح التلقائي', 'ما في شي يحتاج إصلاح'); return; }
+  var dupPending = false; try{ dupPending = !localStorage.getItem('mz_contract_dup_clean_v1'); }catch(e){}
+  if(!Object.keys(kinds).length && !dupPending){ ok('الإصلاح التلقائي', 'ما في شي يحتاج إصلاح'); return; }
   takeBackup();
   info('نسخة أمان قبل الإصلاح', MT.backup.keys + ' مفتاح - بتقدر تنزّلها من التقرير');
   if(kinds.refws && typeof cleanupAllRefWhitespace === 'function'){
@@ -10703,6 +10745,18 @@ async function stepFixes(){
   }
   if(kinds.storage && typeof mzMigrateContractFiles === 'function'){
     try{ var mg = await mzMigrateContractFiles(true); if(mg.moved) fixLog('نقل ملفات العقود المحلية لجوجل درايف', 'اننقل ' + mg.moved + ' ملف (' + (mg.bytes * 0.75 / 1048576).toFixed(2) + ' MB) وانشال من المتصفح'); else if(mg.failed) warn('نقل ملفات العقود لدرايف', mg.failed + ' ملف ما انرفع - تأكد إنك مربوط بدرايف (زر مزامنة الفريق)'); }catch(e){}
+  }
+  // تنظيف النسخ المكررة لملفات العقود على درايف - مرة وحدة لكل جهاز (بعد باغ إعادة الرفع)
+  if(typeof mzCleanContractDuplicatesOnDrive === 'function'){
+    var dupDone = ''; try{ dupDone = localStorage.getItem('mz_contract_dup_clean_v1') || ''; }catch(e){}
+    if(!dupDone){
+      try{
+        var dc = await mzCleanContractDuplicatesOnDrive(true);
+        if(dc.trashed) fixLog('تنظيف النسخ المكررة لملفات العقود على درايف', 'انبعت ' + dc.trashed + ' نسخة مكررة لسلة المحذوفات بدرايف (بترجع منها لـ30 يوم) - بقيت نسخة وحدة من كل ملف');
+        if(!dc.failed){ try{ localStorage.setItem('mz_contract_dup_clean_v1', new Date().toISOString()); }catch(e){} }
+        else warn('تنظيف النسخ المكررة على درايف', dc.failed + ' ملف ما قدرنا نفحصه - رح نعيد بالصيانة الجاية');
+      }catch(e){ warn('تنظيف النسخ المكررة على درايف', 'ما انعمل: ' + e.message); }
+    }
   }
   if(kinds.storage && typeof dashStorageSweep === 'function'){
     var before = 0; try{ for(var i = 0; i < localStorage.length; i++){ before += (localStorage.getItem(localStorage.key(i)) || '').length; } }catch(e){}
