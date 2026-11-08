@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.2';
+  var CURRENT_VERSION = '2026-11-08.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7718,37 +7718,38 @@ window.wdApplyBack = function(results){
           <button id="btnMirror" onclick="setShape('mirror')" style="flex:1;">🪞 مرآة</button>
         </div>
         <div style="margin-top:10px; display:none;" id="showerDoorBlock">
-          <p class="hint">باب زجاج كامل بدون فريم ألمنيوم - اختار عدد المفصلات تحت.<br><br>
-          <b>اضغط على الباب بالرسمة</b> لتبديل جهة المفصلة (يمين/يسار) ونوع الهاندل مع بعض - بالضبط متل باقي الأبواب.</p>
-          <div style="margin-top:10px;">
-            <label>عدد المفصلات</label>
-            <div class="shape-toggle">
-              <button id="btnShowerHinge2" onclick="onShowerHingeCountChange(2)">2 مفصلات</button>
-              <button id="btnShowerHinge3" onclick="onShowerHingeCountChange(3)" class="active">3 مفصلات</button>
-            </div>
+          <!-- 🚿 2026-11-08 (طلب حمدي: "لازم تغيير جذري يكون عملي وسلس وسهل"): لوحة الشاور صارت 4 خانات بس.
+               العرض الكلي = كل الشاور، بتكتب عرض الباب، والزجاج الثابت بينحسب لحالو. وكل رقم بالرسمة بينكبس ويتعدّل. -->
+          <div class="row2">
+            <div><label>العرض الكلي (مم)</label><input type="text" inputmode="decimal" id="shTotal" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);shOnInput('total')" onblur="evalMeasureField(this);shOnInput('total')"></div>
+            <div><label>الارتفاع (مم)</label><input type="text" inputmode="decimal" id="shHeight" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);shOnInput('height')" onblur="evalMeasureField(this);shOnInput('height')"></div>
           </div>
-          <div style="margin-top:10px;">
-            <button type="button" onclick="splitShowerFixedDoor()" style="width:100%;padding:8px;font-weight:700;">✂️ قسّم الشاور: زجاج ثابت + باب</button>
-            <div id="showerTotalHint" class="hint" style="margin-top:6px;"></div>
+          <label style="margin-top:10px;display:block;">مكان الزجاج الثابت</label>
+          <div class="shape-toggle" id="shModeBtns">
+            <button type="button" data-shm="none" onclick="shSetMode('none')">بدون</button>
+            <button type="button" data-shm="left" onclick="shSetMode('left')">يسار</button>
+            <button type="button" data-shm="right" onclick="shSetMode('right')">يمين</button>
+            <button type="button" data-shm="both" onclick="shSetMode('both')">الجهتين</button>
           </div>
-          <div class="check-row" style="margin-top:10px;">
+          <div class="row2" id="shDoorRow" style="margin-top:10px;">
+            <div><label>عرض الباب (مم)</label><input type="text" inputmode="decimal" id="shDoor" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);shOnInput('door')" onblur="evalMeasureField(this);shOnInput('door')"></div>
+            <div><label>الزجاج الثابت</label><div id="shFixedOut" style="padding:9px 4px;font-weight:700;font-size:15px;"></div></div>
+          </div>
+          <label style="margin-top:10px;display:block;">عدد المفصلات</label>
+          <div class="shape-toggle">
+            <button id="btnShowerHinge2" onclick="onShowerHingeCountChange(2)">2</button>
+            <button id="btnShowerHinge3" onclick="onShowerHingeCountChange(3)" class="active">3</button>
+          </div>
+          <p class="hint" style="margin-top:8px;">💡 كل رقم بالرسمة بينكبس ويتعدّل. كبسة على الباب بتبدّل جهة المفصلة والهاندل.</p>
+          <!-- الخانات القديمة (مخفية - بتضل للتوافق مع التصاميم القديمة) -->
+          <div style="display:none;">
             <input type="checkbox" id="inShowerLeftPanel" onchange="onShowerSidePanelToggle('left')" value="on">
-            <label for="inShowerLeftPanel">إضافة زجاج ثابت يسار الباب</label>
-          </div>
-          <div id="showerLeftBlock" style="display:none;margin-top:6px;margin-bottom:10px;">
-            <label>عرض اللوح الثابت اليسار (مم)</label>
-            <input type="text" inputmode="decimal" id="inShowerLeftWidth" min="100" oninput="restrictMeasureChars(this);onShowerSideWidthChange('left')" onblur="evalMeasureField(this);onShowerSideWidthChange('left')" value="600">
-          </div>
-          <div class="check-row" style="margin-top:6px;">
+            <div id="showerLeftBlock"><input type="text" id="inShowerLeftWidth" oninput="onShowerSideWidthChange('left')" value="600"></div>
             <input type="checkbox" id="inShowerRightPanel" onchange="onShowerSidePanelToggle('right')" value="on">
-            <label for="inShowerRightPanel">إضافة زجاج ثابت يمين الباب</label>
+            <div id="showerRightBlock"><input type="text" id="inShowerRightWidth" oninput="onShowerSideWidthChange('right')" value="600"></div>
+            <div id="showerTotalHint"></div>
           </div>
-          <div id="showerRightBlock" style="display:none;margin-top:6px;">
-            <label>عرض اللوح الثابت اليمين (مم)</label>
-            <input type="text" inputmode="decimal" id="inShowerRightWidth" min="100" oninput="restrictMeasureChars(this);onShowerSideWidthChange('right')" onblur="evalMeasureField(this);onShowerSideWidthChange('right')" value="600">
-          </div>
-          <p class="hint" style="margin-top:8px;">تقدر تفعّل الطرفين مع بعض (زجاج ثابت يمين ويسار الباب بنفس الوقت).</p>
-
+          <details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12.5px;">🌫️ خيارات التضبيب</summary>
           <div style="margin-top:12px; border-top:1px dashed var(--line); padding-top:10px;">
             <label>نمط التضبيب (لما تفعّل 🌫️ مضبب من فوق الرسمة) - بيغطي كامل التركيبة، الباب وأي زجاج ثابت جانبي مع بعض</label>
             <div class="shape-toggle">
@@ -7768,6 +7769,7 @@ window.wdApplyBack = function(results){
             </div>
             <p class="hint" style="margin-top:6px;">"علوي/سفلي شفاف": الجزءين فوق وتحت بيضلوا شفافين بالكامل والوسط بس مضبب.<br>"خطوط علوي/سفلي": نفس المسافتين بس بيصير فيهم خطوط تضبيب متقطعة بدل الشفافية الكاملة، والوسط بيضل مضبب 100%.</p>
           </div>
+          </details>
         </div>
 
         <div style="margin-top:10px; display:none;" id="mirrorBlock">
@@ -8581,11 +8583,83 @@ function isShowerDoor(it){ return it.shapeType === 'showerGlassDoor'; }
    تغيّر عرضو، الباب بيصغر/بيكبر حتى يضل المجموع = مقاس الجدول. البنود القديمة (بدون هالعلامة) بتضل متل ما كانت. */
 function showerPanelsW(it){ return (it.showerLeftPanel ? (it.showerLeftWidth || 0) : 0) + (it.showerRightPanel ? (it.showerRightWidth || 0) : 0); }
 function showerTotalW(it){ return (it.width || 0) + showerPanelsW(it); }
-function showerSetDoorFromTotal(it, total){ it.width = Math.max(300, Math.round((total - showerPanelsW(it)) * 10) / 10); }
+function showerSetDoorFromTotal(it, total){ shApply(it, total, it.width, shMode(it)); }
+function shMode(it){ const L = !!(it.showerLeftPanel && it.showerLeftWidth > 0), R = !!(it.showerRightPanel && it.showerRightWidth > 0); return L && R ? 'both' : (L ? 'left' : (R ? 'right' : 'none')); }
+const r1 = v => Math.round(v * 10) / 10;
+// القاعدة الوحيدة: العرض الكلي ثابت (مقاس الجدول)، عرض الباب بتكتبو، والثابت = الكلي − الباب (بالجهتين: نص نص)
+function shApply(it, T, D, mode){
+  T = Math.max(300, +T || 0); D = +D || 0;
+  it.showerTotalMode = true;
+  if(mode === 'none'){ it.width = r1(T); it.showerLeftPanel = false; it.showerRightPanel = false; return; }
+  const minFixed = mode === 'both' ? 200 : 100;
+  if(!(D >= 300)) D = Math.min(800, Math.round(T / 2));
+  D = Math.min(D, T - minFixed); D = Math.max(Math.min(300, T - minFixed), D);
+  const F = T - D;
+  it.width = r1(D);
+  it.showerLeftPanel = mode === 'left' || mode === 'both';
+  it.showerRightPanel = mode === 'right' || mode === 'both';
+  if(mode === 'both'){ it.showerLeftWidth = r1(F / 2); it.showerRightWidth = r1(F - r1(F / 2)); }
+  else if(mode === 'left') it.showerLeftWidth = r1(F);
+  else it.showerRightWidth = r1(F);
+  if(mode === 'left' || mode === 'right') it.showerHingeSide = mode; // الباب بيتعلّق عالثابت
+}
+function shRefreshPanel(it){
+  if(!it || !isShowerDoor(it)) return;
+  const m = shMode(it), T = showerTotalW(it);
+  const set = (id, v)=>{ const e = document.getElementById(id); if(e && document.activeElement !== e) e.value = Math.round(v * 10) / 10; };
+  set('shTotal', T); set('shHeight', it.height); set('shDoor', it.width);
+  document.querySelectorAll('#shModeBtns [data-shm]').forEach(b=> b.classList.toggle('active', b.dataset.shm === m));
+  document.getElementById('shDoorRow').style.display = m === 'none' ? 'none' : 'grid';
+  const L = it.showerLeftPanel ? it.showerLeftWidth : 0, R = it.showerRightPanel ? it.showerRightWidth : 0;
+  document.getElementById('shFixedOut').textContent = m === 'both' ? (Math.round(L) + ' + ' + Math.round(R) + ' مم') : (Math.round(L + R) + ' مم');
+  const w = document.getElementById('inWidth'), h = document.getElementById('inHeight'); if(w) w.value = it.width; if(h) h.value = it.height;
+}
+function shOnInput(kind){
+  const it = getSelected(); if(!it || !isShowerDoor(it)) return;
+  const num = id => { const e = document.getElementById(id); const v = evalMeasureExpr(e.value) ?? parseFloat(e.value); return Number.isFinite(v) && v > 0 && v < 1e7 ? v : null; };
+  const m = shMode(it), T0 = showerTotalW(it);
+  pushHistory();
+  if(kind === 'height'){ const v = num('shHeight'); if(v) it.height = v; }
+  else if(kind === 'total'){ const v = num('shTotal'); if(v) shApply(it, v, it.width, m); }
+  else if(kind === 'door'){ const v = num('shDoor'); if(v) shApply(it, T0, v, m); }
+  shRefreshPanel(it); renderGallery();
+}
+function shSetMode(m){
+  const it = getSelected(); if(!it || !isShowerDoor(it)) return;
+  pushHistory();
+  const T = showerTotalW(it), cur = shMode(it);
+  shApply(it, T, cur === 'none' ? null : it.width, m);
+  shRefreshPanel(it); renderGallery();
+}
+// تعديل من الرسمة: الكلي / الباب / الثابت
+function shEditDim(id, what){
+  const it = items.find(i=>i.id===id); if(!it) return;
+  if(selectedId !== id){ selectedId = id; }
+  const m = shMode(it), T = showerTotalW(it);
+  const cur = what === 'total' ? T : what === 'door' ? it.width : what === 'left' ? it.showerLeftWidth : what === 'right' ? it.showerRightWidth : it.height;
+  const lbl = what === 'total' ? 'العرض الكلي للشاور' : what === 'door' ? 'عرض الباب' : what === 'height' ? 'الارتفاع' : 'عرض الزجاج الثابت';
+  const v0 = prompt(lbl + ' (مم):', Math.round(cur)); if(v0 === null) return;
+  const v = evalMeasureExpr(v0) ?? parseFloat(v0); if(!Number.isFinite(v) || v <= 0 || v > 1e7) return;
+  pushHistory();
+  if(what === 'height') it.height = v;
+  else if(what === 'total') shApply(it, v, it.width, m);
+  else if(what === 'door') shApply(it, T, v, m);
+  else {
+    // تغيير الثابت بيغيّر الباب (الكلي ثابت). بالجهتين: الجهة التانية بتضل متل ما هي
+    const other = m === 'both' ? (what === 'left' ? it.showerRightWidth : it.showerLeftWidth) : 0;
+    const D = T - v - other;
+    if(D < 300){ alert('الباب رح يصير أصغر من 300 مم - صغّر الثابت'); return; }
+    it.width = r1(D); if(what === 'left') it.showerLeftWidth = r1(v); else it.showerRightWidth = r1(v);
+    it.showerTotalMode = true;
+  }
+  loadSelectedIntoControls(); renderGallery();
+}
+window.shOnInput = shOnInput; window.shSetMode = shSetMode; window.shEditDim = shEditDim;
 function isFullShowerName(n){ return /full\s*shower|partition|شاور.*كامل|دش.*كامل|كامل.*شاور|فواصل|ثابت/i.test(n || ''); }
 // تقسيم بكبسة: زجاج ثابت + باب، والمجموع = المقاس الكلي الحالي
 function splitShowerFixedDoor(id){
   const it = id != null ? items.find(i=>i.id===id) : getSelected(); if(!it || !isShowerDoor(it)) return;
+  if(true){ selectedId = it.id; shSetMode('left'); return; }
   const total = showerTotalW(it);
   const defDoor = Math.min(800, Math.round(total / 2));
   const v = prompt('عرض الكلي ' + Math.round(total) + ' مم.\nقديش عرض الباب؟ (الباقي بيصير زجاج ثابت)', defDoor);
@@ -10417,8 +10491,9 @@ function loadSelectedIntoControls(){
   document.getElementById('mirrorBlock').style.display = isMir ? 'block' : 'none';
   if(isMir) mirrorLoadControls(it);
   document.getElementById('handrailBlock').style.display = hr ? 'block' : 'none';
-  document.getElementById('normalDimsRow').style.display = hr ? 'none' : 'grid';
+  document.getElementById('normalDimsRow').style.display = (hr || isShower) ? 'none' : 'grid';
   document.getElementById('inArch').closest('.check-row').style.display = (hr || isShower || isMir) ? 'none' : 'flex';
+  if(isShower){ if(!it.showerTotalMode) shApply(it, showerTotalW(it), it.width, shMode(it)); setTimeout(function(){ shRefreshPanel(it); }, 0); }
   if(hr){
     document.getElementById('btnHrKindStair').classList.toggle('active', it.hrKind==='staircase');
     document.getElementById('btnHrKindFlat').classList.toggle('active', it.hrKind==='flat');
@@ -18522,7 +18597,7 @@ function buildItemSVG(it){
   const out = { cells:[], symbols:[], borders:[], dragHandles:[], mergeMarkers:[], dims:[], splitBtns:[], leafGeoms:[] };
   const netMap = computeNetMap(it);
   renderNode(it, it.layout, 0, 0, drawW, drawH, scale, isDoor, out, netMap);
-  if(isShowerDoor(it)){ out.splitBtns = []; } // باب شاور: لوح واحد ثابت، بدون أزرار تقسيم (بس بيضل يبيّن رمز جهة المفصلة/الهاندل)
+  if(isShowerDoor(it)){ out.splitBtns = []; out.dims = []; } /* 🚿 أرقام الشاور كلها تحت وفوق (الكلي/الباب/الثابت) - ما منكرر أرقام جوا الباب */ // باب شاور: لوح واحد ثابت، بدون أزرار تقسيم (بس بيضل يبيّن رمز جهة المفصلة/الهاندل)
   out.mergeMarkers.push(...computeCrossMergeMarkers(it, out.leafGeoms));
 
   let archPiece = '';
@@ -18572,6 +18647,22 @@ function buildItemSVG(it){
     <text x="${dimX+13}" y="${drawH/2}" fill="var(--wd-amber)" font-size="16" font-weight="700" font-family="var(--wd-font-mono)" text-anchor="middle" style="cursor:pointer;" transform="rotate(90, ${dimX+13}, ${drawH/2})" onclick="editTotalDim(${it.id},'h',${Math.round(H)})">${Math.round(H)} mm</text>
   `;
 
+  if(isShowerDoor(it)){
+    // 🚿 الشاور: فوق = العرض الكلي (كل التركيبة) - تحت = الباب والثابت. كل رقم بينكبس ويتعدّل (منطقة كبس كبيرة)
+    const x0 = hasLeft ? -leftSidePx - mullionGap : 0, x1 = drawW + (hasRight ? rightSidePx + mullionGap : 0);
+    const T = showerTotalW(it);
+    const hit = (x, y, w, what, txt, fs)=> `<g style="cursor:pointer;" onclick="shEditDim(${it.id},'${what}')"><rect x="${x - w/2}" y="${y - fs - 4}" width="${w}" height="${fs + 12}" rx="6" fill="var(--wd-amber)" fill-opacity="0.12" stroke="var(--wd-amber)" stroke-opacity="0.5"/><text x="${x}" y="${y}" fill="var(--wd-amber)" font-size="${fs}" font-weight="700" font-family="var(--wd-font-mono)" text-anchor="middle">${txt}</text></g>`;
+    dim = `
+    <line x1="${x0}" y1="${dimY}" x2="${x1}" y2="${dimY}" stroke="var(--wd-amber)" stroke-width="1"/>
+    <line x1="${x0}" y1="${dimY-5}" x2="${x0}" y2="${dimY+5}" stroke="var(--wd-amber)" stroke-width="1"/>
+    <line x1="${x1}" y1="${dimY-5}" x2="${x1}" y2="${dimY+5}" stroke="var(--wd-amber)" stroke-width="1"/>
+    ${hit((x0 + x1) / 2, dimY - 9, 150, 'total', 'الكلي ' + Math.round(T), 16)}
+    <line x1="${dimX}" y1="0" x2="${dimX}" y2="${drawH}" stroke="var(--wd-amber)" stroke-width="1"/>
+    <g style="cursor:pointer;" onclick="shEditDim(${it.id},'height')"><rect x="${dimX+2}" y="${drawH/2-45}" width="24" height="90" rx="6" fill="var(--wd-amber)" fill-opacity="0.12" stroke="var(--wd-amber)" stroke-opacity="0.5"/><text x="${dimX+14}" y="${drawH/2}" fill="var(--wd-amber)" font-size="15" font-weight="700" font-family="var(--wd-font-mono)" text-anchor="middle" transform="rotate(90, ${dimX+14}, ${drawH/2})">${Math.round(H)}</text></g>
+    ${(hasLeft || hasRight) ? `<line x1="0" y1="${drawH+18}" x2="${drawW}" y2="${drawH+18}" stroke="var(--wd-amber)" stroke-width="1"/>${hit(drawW/2, drawH + 38, Math.min(Math.max(drawW - 6, 70), 130), 'door', 'باب ' + Math.round(it.width), 14)}` : ''}
+    `;
+  }
+
   // زجاج ثابت جانبي (باب الشاور) - لوح/ألواح ثابتة بجانب الباب، بمفصل بسيط (سيليكون) بينهم - ممكن يمين ويسار مع بعض بنفس الوقت
   let sidePanelSvg = '';
   const buildSidePanel = (sidePx, x0, dividerX, width, editSide)=> `<rect x="${x0}" y="0" width="${sidePx}" height="${drawH}" fill="var(--wd-glass, rgba(120,180,220,0.16))" stroke="var(--wd-ink)" stroke-width="${frameWidth}"/>
@@ -18579,7 +18670,7 @@ function buildItemSVG(it){
       <line x1="${x0}" y1="${drawH+18}" x2="${x0+sidePx}" y2="${drawH+18}" stroke="var(--wd-amber)" stroke-width="1"/>
       <line x1="${x0}" y1="${drawH+14}" x2="${x0}" y2="${drawH+22}" stroke="var(--wd-amber)" stroke-width="1"/>
       <line x1="${x0+sidePx}" y1="${drawH+14}" x2="${x0+sidePx}" y2="${drawH+22}" stroke="var(--wd-amber)" stroke-width="1"/>
-      <text x="${x0+sidePx/2}" y="${drawH+34}" fill="var(--wd-amber)" font-size="13" font-weight="700" font-family="var(--wd-font-mono)" text-anchor="middle" style="cursor:pointer;" onclick="editShowerSideWidth(${it.id},'${editSide}')">${Math.round(width)} mm ثابت</text>`;
+      <g style="cursor:pointer;" onclick="shEditDim(${it.id},'${editSide}')"><rect x="${x0+sidePx/2-Math.min(Math.max(sidePx-6,70),130)/2}" y="${drawH+20}" width="${Math.min(Math.max(sidePx-6,70),130)}" height="26" rx="6" fill="var(--wd-amber)" fill-opacity="0.12" stroke="var(--wd-amber)" stroke-opacity="0.5"/><text x="${x0+sidePx/2}" y="${drawH+38}" fill="var(--wd-amber)" font-size="14" font-weight="700" font-family="var(--wd-font-mono)" text-anchor="middle">ثابت ${Math.round(width)}</text></g>`;
   if(hasLeft){
     sidePanelSvg += buildSidePanel(leftSidePx, -leftSidePx-mullionGap, 0, it.showerLeftWidth, 'left');
   }
