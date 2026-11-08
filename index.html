@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.3';
+  var CURRENT_VERSION = '2026-11-08.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -6740,7 +6740,7 @@ async function saveToGoogleDrive(evt){
     // 🔧 2026-08-24: قبل هيك كان الفشل هون بيسجّل بس بالـ console (يعني مخفي تمامًا عن المستخدم) - فكانت
     // رسائل واتساب ممكن تفشل بصمت من غير ما حدا يعرف أبدًا. هلق منوري تنبيه واضح (بعد رسالة نجاح الحفظ)
     // لو صار فشل، حتى تعرفي فورًا وتقدري تتأكدي من السيرفر أو تبعتي الرسالة يدويًا لو لزم.
-    sendQuotationToWhatsApp(result && result.pdfBlob, result && result.refSafe).catch(e=>{
+    sendQuotationToWhatsApp(result && result.pdfBlob, result && result.refSafe, result && result.pdfLink).catch(e=>{
       console.warn('[WhatsApp] تعذّر إرسال إشعار المجموعة (الحفظ لجوجل درايف نجح رغم هيك):', e);
       // 🔍 لوغ تشخيصي مؤقت (نسخة .17) - عم نطبع كل تفاصيل الخطأ يلي فيك، بالذات e.cause يلي كروم
       // بيحطها أحيانًا وفيها السبب الحقيقي وراء "Failed to fetch" (net::ERR_... مثلًا).
@@ -6793,7 +6793,7 @@ async function checkWhatsAppServerHealth(){
 // ملف الـ PDF يلي اتحفظ بجوجل درايف (إذا انمرر). تجميع البنود المتكررة وحذف المقاسات من
 // الرسالة بيصير على السيرفر (server.js) مش هون - هون بس منجمع ونبعت البيانات الخام.
 // لا تكسر عملية الحفظ لجوجل درايف أبدًا حتى لو فشلت - بترجع فقط بصمت وتسجّل تحذير بالـ console.
-async function sendQuotationToWhatsApp(pdfBlob, refSafe){
+async function sendQuotationToWhatsApp(pdfBlob, refSafe, pdfLink){
   // 🔍 لوغ تشخيصي مؤقت (نسخة .15) - حتى نتأكد إنو الفنكشن فعليًا بلّشت تشتغل
   try{ console.log('[WhatsApp] ▶️ الفنكشن بلّشت (sendQuotationToWhatsApp) - WHATSAPP_NOTIFY_URL:', WHATSAPP_NOTIFY_URL || '(فاضي)'); }catch(e){}
   if(!WHATSAPP_NOTIFY_URL){ try{ console.warn('[WhatsApp] ⛔ توقفت - WHATSAPP_NOTIFY_URL فاضي/غير معرّف'); }catch(e){} return; }
@@ -6837,7 +6837,7 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe){
   // (مثلاً صاحب الأداة عن طريق رابط #owner=) - وقتها السيرفر بيتجاهل السطر بالكامل من رسالة الواتساب.
   let createdByName = '';
   try{ createdByName = localStorage.getItem('merzona-username') || ''; }catch(e){}
-  const bodyStr = JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal, pdfBase64, pdfFilename: (refSafe || ref || 'quotation') + '.pdf', createdBy: createdByName, currency: (function(){ try{ return getCurrentCurrencyConfig().code; }catch(e){ return ''; } })() });
+  const bodyStr = JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal, pdfBase64, pdfFilename: (refSafe || ref || 'quotation') + '.pdf', pdfLink: pdfLink || '', createdBy: createdByName, currency: (function(){ try{ return getCurrentCurrencyConfig().code; }catch(e){ return ''; } })() });
   // 🔍 لوغ تشخيصي مؤقت (نسخة .15) - حتى نعرف بالضبط حجم البيانات يلي عم تنبعت وقت مشكلة "Failed to fetch"
   try{
     console.log('[WhatsApp] 📏 حجم ملف الـ PDF الأصلي:', pdfBlob ? (pdfBlob.size/1024).toFixed(0)+' KB' : 'لا يوجد PDF');
@@ -7274,9 +7274,10 @@ async function saveToGoogleDriveInner(){
         viewportMetaEl.setAttribute('content', originalViewportContent); // نرجّع عرض الـ viewport الأصلي فورًا حتى ما تتأثر تجربة المستخدم بعد الحفظ
       }
     }
-    await uploadOrUpdateFileInDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
-
-    return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe };
+    const pdfUp = await uploadOrUpdateFileInDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
+    // رابط الـPDF على درايف - السيرفر بيحطو بالرسالة إذا واتساب رفض المرفق، حتى الـPDF يوصل للمجموعة دايمًا
+    const pdfLink = pdfUp && pdfUp.id ? (pdfUp.webViewLink || ('https://drive.google.com/file/d/' + pdfUp.id + '/view')) : '';
+    return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe, pdfLink };
 }
 
 populateItemsDatalist();
