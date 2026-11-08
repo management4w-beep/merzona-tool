@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.9';
+  var CURRENT_VERSION = '2026-11-08.10';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -685,6 +685,14 @@ html[data-nav="4"] .nav-row .nav-pill.mz-sys{background:#f8fafc;color:#6b7280}
 html[data-nav="4"] .mz-lay{display:flex}
 html[data-nav="4"] .mz-lay>.nav-pill{height:100%}
 @media (max-width:640px){ html[data-nav="4"] .nav-row{grid-template-columns:repeat(4,1fr);gap:6px} html[data-nav="4"] .nav-row .nav-pill{min-height:68px;padding:8px 2px;font-size:10.5px;border-radius:11px} html[data-nav="4"] .nav-row .nav-pill .mz-ti{font-size:20px} }
+/* 🙈 إخفاء الترويسة (اللوغو والتاريخ) حتى تكبر مساحة الصفحة - بيشتغل مع كل الأنماط */
+html[data-hdr="hide"] .header img[alt="Merzona logo"],html[data-hdr="hide"] .header .updated{display:none!important}
+html[data-hdr="hide"] .header{padding-bottom:6px;margin-bottom:10px;border-bottom-width:1px;align-items:center}
+html[data-hdr="hide"] .nav-row{margin-top:0}
+html[data-hdr="hide"] #quotationFrame,html[data-hdr="hide"] #designerFrame,html[data-hdr="hide"] #procurementFrame,html[data-hdr="hide"] #accountingFrame{height:calc(100vh - 80px)}
+html[data-hdr="hide"][data-nav="3"] #quotationFrame,html[data-hdr="hide"][data-nav="3"] #designerFrame,html[data-hdr="hide"][data-nav="3"] #procurementFrame,html[data-hdr="hide"][data-nav="3"] #accountingFrame{height:calc(100vh - 40px)}
+html[data-hdr="hide"][data-nav="3"] .header{border-bottom:0;padding:0;margin:0}
+.mz-lay-menu hr{border:0;border-top:1px solid var(--line);margin:6px 4px}
 @media print{ .mz-burger{display:none!important} html[data-nav="3"] body{padding-right:0} }
 
 #syncBanner{
@@ -11195,6 +11203,18 @@ window.mzRunMaintenance = runMaintenance;
     b.addEventListener('click', function(e){ e.stopPropagation(); lay.classList.remove('open'); apply(+n, true); });
     menu.appendChild(b);
   });
+  // 🙈 2026-11-08 (طلب حمدي): إخفاء الترويسة حتى تكبر الصفحة - خيار مستقل عن النمط وبيتذكّر على هالجهاز
+  var HKEY = 'mz-hide-header';
+  var sep = document.createElement('hr'); menu.appendChild(sep);
+  var hb = document.createElement('button'); hb.type = 'button'; menu.appendChild(hb);
+  function hdrOn(){ try{ return localStorage.getItem(HKEY) === '1'; }catch(e){ return false; } }
+  function applyHdr(on){
+    if(on) document.documentElement.setAttribute('data-hdr', 'hide'); else document.documentElement.removeAttribute('data-hdr');
+    hb.innerHTML = (on ? '👁 إظهار الترويسة' : '🙈 إخفاء الترويسة') + '<small>' + (on ? 'رجّع اللوغو والتاريخ فوق' : 'شيل اللوغو والتاريخ حتى تكبر الصفحة') + '</small>';
+    hb.classList.toggle('on', on);
+  }
+  hb.addEventListener('click', function(e){ e.stopPropagation(); var on = !hdrOn(); try{ localStorage.setItem(HKEY, on ? '1' : '0'); }catch(_){} applyHdr(on); lay.classList.remove('open'); });
+  applyHdr(hdrOn());
   lay.firstChild.addEventListener('click', function(e){ e.stopPropagation(); closeGroups(); lay.classList.toggle('open'); });
 
   var burger = document.createElement('button'); burger.type = 'button'; burger.className = 'mz-burger'; burger.textContent = '☰'; burger.title = 'القائمة';
@@ -11273,7 +11293,7 @@ window.mzRunMaintenance = runMaintenance;
       GROUPS[GROUPS.length - 1].ids.forEach(function(id){ var x = $(id); if(x) x.classList.add('mz-sys'); });
     }
     row.appendChild(lay);
-    menu.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', +b.dataset.n === n); });
+    menu.querySelectorAll('button[data-n]').forEach(function(b){ b.classList.toggle('on', +b.dataset.n === n); });
     refresh();
     if(save){ try{ localStorage.setItem(KEY, String(n)); }catch(e){} }
   }
