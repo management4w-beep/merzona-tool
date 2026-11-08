@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.1';
+  var CURRENT_VERSION = '2026-11-08.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7727,6 +7727,10 @@ window.wdApplyBack = function(results){
               <button id="btnShowerHinge3" onclick="onShowerHingeCountChange(3)" class="active">3 مفصلات</button>
             </div>
           </div>
+          <div style="margin-top:10px;">
+            <button type="button" onclick="splitShowerFixedDoor()" style="width:100%;padding:8px;font-weight:700;">✂️ قسّم الشاور: زجاج ثابت + باب</button>
+            <div id="showerTotalHint" class="hint" style="margin-top:6px;"></div>
+          </div>
           <div class="check-row" style="margin-top:10px;">
             <input type="checkbox" id="inShowerLeftPanel" onchange="onShowerSidePanelToggle('left')" value="on">
             <label for="inShowerLeftPanel">إضافة زجاج ثابت يسار الباب</label>
@@ -8572,6 +8576,33 @@ const CYCLE_FOLDING = ['fold','tri_right','tri_left'];
 function isSlidingType(it){ return it.shapeType === 'slidingWindow' || it.shapeType === 'slidingDoor'; }
 function isFoldingType(it){ return it.shapeType === 'foldingDoor'; }
 function isShowerDoor(it){ return it.shapeType === 'showerGlassDoor'; }
+/* 🚿 2026-11-08 (طلب حمدي: "بالمصمم لما اختار فل شاور من الجدول ماعم اقدر اقسم الشاور كجزء ثابت وباب"):
+   "وضع المقاس الكلي": مقاس الجدول (العرض) = الشاور كلو (زجاج ثابت + باب). لما تضيف/تشيل لوح ثابت أو
+   تغيّر عرضو، الباب بيصغر/بيكبر حتى يضل المجموع = مقاس الجدول. البنود القديمة (بدون هالعلامة) بتضل متل ما كانت. */
+function showerPanelsW(it){ return (it.showerLeftPanel ? (it.showerLeftWidth || 0) : 0) + (it.showerRightPanel ? (it.showerRightWidth || 0) : 0); }
+function showerTotalW(it){ return (it.width || 0) + showerPanelsW(it); }
+function showerSetDoorFromTotal(it, total){ it.width = Math.max(300, Math.round((total - showerPanelsW(it)) * 10) / 10); }
+function isFullShowerName(n){ return /full\s*shower|partition|شاور.*كامل|دش.*كامل|كامل.*شاور|فواصل|ثابت/i.test(n || ''); }
+// تقسيم بكبسة: زجاج ثابت + باب، والمجموع = المقاس الكلي الحالي
+function splitShowerFixedDoor(id){
+  const it = id != null ? items.find(i=>i.id===id) : getSelected(); if(!it || !isShowerDoor(it)) return;
+  const total = showerTotalW(it);
+  const defDoor = Math.min(800, Math.round(total / 2));
+  const v = prompt('عرض الكلي ' + Math.round(total) + ' مم.\nقديش عرض الباب؟ (الباقي بيصير زجاج ثابت)', defDoor);
+  if(v === null) return;
+  const door = evalMeasureExpr(v) ?? parseFloat(v);
+  if(!Number.isFinite(door) || door < 300 || door > total - 100){ alert('عرض الباب لازم يكون بين 300 و ' + Math.round(total - 100) + ' مم'); return; }
+  const side = confirm('الزجاج الثابت يكون عاليسار؟\n(موافق = يسار الباب، إلغاء = يمين الباب)') ? 'left' : 'right';
+  pushHistory();
+  it.showerTotalMode = true;
+  it.showerLeftPanel = side === 'left'; it.showerRightPanel = side === 'right';
+  if(side === 'left') it.showerLeftWidth = Math.round((total - door) * 10) / 10; else it.showerRightWidth = Math.round((total - door) * 10) / 10;
+  it.width = door;
+  // المفصلة على جهة الزجاج الثابت (الباب بيتعلّق عالثابت)
+  it.showerHingeSide = side;
+  loadSelectedIntoControls(); renderGallery();
+}
+window.splitShowerFixedDoor = splitShowerFixedDoor;
 function isDoorLike(it){ return it.shapeType === 'door' || it.shapeType === 'slidingDoor' || it.shapeType === 'foldingDoor' || it.shapeType === 'showerGlassDoor'; }
 const CYCLE_SHOWER_DOOR = ['shwr_lv','shwr_lh','shwr_rv','shwr_rh']; // مفصلة يسار/يمين × هاندل عمودي بس أو عمودي+أفقي
 function getCycle(it){
@@ -10158,6 +10189,8 @@ function onHandrailHeightChange(){
 function onShowerSidePanelToggle(side){
   const it = getSelected(); if(!it) return;
   pushHistory();
+  if(it.sourceRowUid && !it.showerTotalMode && !it.showerLeftPanel && !it.showerRightPanel) it.showerTotalMode = true; // بند من الجدول: المقاس الكلي ثابت
+  const totalBefore = showerTotalW(it);
   if(side==='left'){
     it.showerLeftPanel = document.getElementById('inShowerLeftPanel').checked;
     document.getElementById('showerLeftBlock').style.display = it.showerLeftPanel ? 'block' : 'none';
@@ -10165,15 +10198,24 @@ function onShowerSidePanelToggle(side){
     it.showerRightPanel = document.getElementById('inShowerRightPanel').checked;
     document.getElementById('showerRightBlock').style.display = it.showerRightPanel ? 'block' : 'none';
   }
+  if(it.showerTotalMode){ showerSetDoorFromTotal(it, totalBefore); document.getElementById('inWidth').value = it.width; updateShowerTotalHint(it); }
   renderGallery();
+}
+function updateShowerTotalHint(it){
+  const el = document.getElementById('showerTotalHint'); if(!el) return;
+  if(!it || !isShowerDoor(it)){ el.textContent = ''; return; }
+  const pw = showerPanelsW(it);
+  el.innerHTML = pw ? ('المقاس الكلي <b>' + Math.round(showerTotalW(it)) + '</b> مم = باب <b>' + Math.round(it.width) + '</b> + ثابت <b>' + Math.round(pw) + '</b>' + (it.showerTotalMode ? '' : ' <span style="opacity:.7">(الثابت فوق عرض الباب)</span>')) : ('عرض الباب ' + Math.round(it.width) + ' مم - بدون زجاج ثابت');
 }
 function onShowerSideWidthChange(side){
   const it = getSelected(); if(!it) return;
+  const totalBefore = showerTotalW(it);
   if(side==='left'){
     it.showerLeftWidth = parseFloat(document.getElementById('inShowerLeftWidth').value) || 600;
   } else {
     it.showerRightWidth = parseFloat(document.getElementById('inShowerRightWidth').value) || 600;
   }
+  if(it.showerTotalMode){ showerSetDoorFromTotal(it, totalBefore); document.getElementById('inWidth').value = it.width; } updateShowerTotalHint(it);
   scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
 function editShowerSideWidth(id, side){
@@ -10183,7 +10225,9 @@ function editShowerSideWidth(id, side){
   if(val===null) return;
   const n = evalMeasureExpr(val) ?? parseFloat(val); if(!Number.isFinite(n) || n<=0 || n>1e7) return;
   pushHistory();
+  const totalBefore = showerTotalW(it);
   if(side==='left') it.showerLeftWidth = n; else it.showerRightWidth = n;
+  if(it.showerTotalMode) showerSetDoorFromTotal(it, totalBefore);
   loadSelectedIntoControls();
   renderGallery();
 }
@@ -10404,6 +10448,7 @@ function loadSelectedIntoControls(){
       document.getElementById('inShowerRightPanel').checked = !!it.showerRightPanel;
       document.getElementById('showerRightBlock').style.display = it.showerRightPanel ? 'block' : 'none';
       document.getElementById('inShowerRightWidth').value = it.showerRightWidth || 600;
+      updateShowerTotalHint(it);
       Object.values(FROST_PATTERN_BTN_IDS).forEach(id=> document.getElementById(id).classList.remove('active'));
       document.getElementById(FROST_PATTERN_BTN_IDS[it.frostPattern||'full']).classList.add('active');
       document.getElementById('inFrostTopH').value = it.frostTopClearH ?? 700;
@@ -19661,9 +19706,19 @@ function cloneLayoutWithFreshIds(node){
     children: node.children.map(ch => ({ frac: ch.frac, node: cloneLayoutWithFreshIds(ch.node) })) };
 }
 
+// شاور كامل من الجدول (عرضه أكبر من باب): منبلّش فيه مقسوم زجاج ثابت + باب 800، والمجموع = مقاس الجدول
+function mzAutoSplitFullShower(it, rd){
+  if(!it || !isShowerDoor(it) || !rd || !rd.w) return;
+  it.showerTotalMode = true;
+  if(rd.w >= 1100 && isFullShowerName(rd.itemName)){
+    const door = 800;
+    it.showerLeftPanel = true; it.showerLeftWidth = rd.w - door; it.showerRightPanel = false;
+    it.width = door; it.showerHingeSide = 'left';
+  }
+}
 function guessShapeTypeFromName(name){
   const s = (name||'').toLowerCase();
-  const hasShower = /shower.*door|باب.*شاور|شاور.*زجاجي/.test(s);
+  const hasShower = /shower|شاور|\(دش\)/.test(s) && !/mirror|مرآ|مراي/.test(s);
   const hasSliding = /sliding|سحاب|سحّاب/.test(s);
   const hasFolding = /folding|فولدينغ|فولدينج/.test(s);
   const hasDoor = /\bdoor\b|باب/.test(s);
@@ -19676,7 +19731,7 @@ function guessShapeTypeFromName(name){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans'];
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
@@ -19721,13 +19776,13 @@ WD.loadFromRows = function(rowData){
       if(adopt){ adopt.sourceRowUid = rd.uid; existingByUid[rd.uid] = adopt; it = adopt; }
     }
     if(it){
-      if(rd.w) it.width = rd.w;
+      if(rd.w){ if(isShowerDoor(it) && it.showerTotalMode) showerSetDoorFromTotal(it, rd.w); else it.width = rd.w; }
       if(rd.h) it.height = rd.h;
       if(rd.itemName) it.label = rd.itemName;
       it.refCode = rd.refCode || it.refCode || '';
     } else if(rd.savedDesign){
       it = buildItemFromSavedDesign(rd.savedDesign, rd.uid, rd.itemName);
-      if(rd.w) it.width = rd.w;
+      if(rd.w){ if(isShowerDoor(it) && it.showerTotalMode) showerSetDoorFromTotal(it, rd.w); else it.width = rd.w; }
       if(rd.h) it.height = rd.h;
       it.refCode = rd.refCode || '';
     } else if((rd.itemName && rd.itemName.trim()) || rd.w || rd.h){
@@ -19742,6 +19797,7 @@ WD.loadFromRows = function(rowData){
       it.sourceRowUid = rd.uid;
       it.label = rd.itemName || it.label;
       it.refCode = rd.refCode || '';
+      mzAutoSplitFullShower(it, rd);
       const hasLouver = /louver|لوفر/i.test(rd.itemName || '');
       if(hasLouver && guessType === 'door' && it.layout.kind === 'leaf'){
         it.layout.type = 'louver'; // اسم البند فيه "لوفر" - نبدأ مباشرة بشكل شرائح اللوفر بدل الشكل الفاضي
@@ -19799,6 +19855,7 @@ WD.resetAllFromRows = function(rowData){
     it.sourceRowUid = rd.uid;
     it.label = rd.itemName || it.label;
     it.refCode = rd.refCode || '';
+    mzAutoSplitFullShower(it, rd);
     if(oldElevationFlags[rd.uid]) it.isRoomWallElevation = true;
     const hasLouver = /louver|لوفر/i.test(rd.itemName || '');
     if(hasLouver && guessType === 'door' && it.layout.kind === 'leaf'){
