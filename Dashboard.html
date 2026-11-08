@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.7';
+  var CURRENT_VERSION = '2026-11-08.8';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -5910,6 +5910,89 @@ async function deleteQuotationByRef(ref, btnEl){
   }
 }
 
+/* 🧹 2026-11-08 (طلب حمدي: "كل شي عروض أسعار فاضية او تجريبية حذفها واحتفظ بالرفرنس لنستخدمه بشكل تلقائي"):
+   - "فاضي" = مجلد العرض على درايف ما فيه ولا ملف (ولا حتى بمجلد فرعي)، وما إلو اسم زبون ولا قيمة بالسجل،
+     وما إلو عقد ولا ملفات عقد ولا جدول مشروع.
+   - "تجريبي" = اسم الزبون أو رقمه فيه test / تجربة / تست، وما إلو عقد.
+   الحذف = نقل المجلد لسلة المحذوفات بدرايف (بيرجع لـ30 يوم) + شيله من السجل. وبما إنو المجلد راح، زر
+   اقتراح الرقم المرجعي بعرض السعر (computeNextReferenceSeq) بيشوف الرقم فاضي وبيعطيه لأول عرض جديد. */
+async function mzFindEmptyTestQuotes(token){
+  const scan = await scanDriveFolderForYearRefs(token);
+  if(scan.hadErrors) throw new Error('فحص درايف ما كمل (مشكلة اتصال) - ما منحذف شي على فحص ناقص. جرّب كمان شوي');
+  const entries = scan.entries;
+  const H = { Authorization: 'Bearer ' + token };
+  async function listUnder(ids){
+    const out = [];
+    for(let i = 0; i < ids.length; i += 30){
+      const part = ids.slice(i, i + 30);
+      const q = encodeURIComponent('(' + part.map(id=> "'" + id + "' in parents").join(' or ') + ') and trashed = false');
+      let pageToken = '';
+      do{
+        const res = await dashFetchWithTimeout('https://www.googleapis.com/drive/v3/files?q=' + q + '&fields=nextPageToken,files(id,name,mimeType,parents)&pageSize=1000' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''), { headers: H }, 30000);
+        if(!res.ok) throw new Error('drive-list-failed-' + res.status);
+        const j = await res.json(); (j.files || []).forEach(f=> out.push(f)); pageToken = j.nextPageToken || '';
+      } while(pageToken);
+    }
+    return out;
+  }
+  const lvl1 = await listUnder(entries.map(e=> e.refFolderId));
+  const isFolder = f=> f.mimeType === 'application/vnd.google-apps.folder';
+  const subIds = lvl1.filter(isFolder).map(f=> f.id);
+  const lvl2 = subIds.length ? await listUnder(subIds) : [];
+  const hasFile = {};
+  const subParent = {}; lvl1.filter(isFolder).forEach(f=>{ subParent[f.id] = (f.parents || [])[0]; });
+  lvl1.filter(f=> !isFolder(f)).forEach(f=> (f.parents || []).forEach(p=>{ hasFile[p] = true; }));
+  lvl2.forEach(f=> (f.parents || []).forEach(p=>{ if(subParent[p]) hasFile[subParent[p]] = true; }));
+  const over = loadClientOverrides() || {}, contracts = loadContracts() || {}, cfiles = loadContractFiles() || {};
+  const disc = loadDiscoveredQuotations() || {};
+  let pmp = {}; try{ pmp = loadPmpProjects() || {}; }catch(e){}
+  const testRe = /\btest\b|تجرب|تجريب|تست/i;
+  const out = [];
+  entries.forEach(e=>{
+    const ref = stripRefSpaces(e.refFolderName);
+    const rec = DATA.find(x=> stripRefSpaces(x.ref) === ref) || {};
+    const dr = disc[ref] || disc[e.refFolderName] || {};
+    const name = String(over[ref] || rec.client || dr.client || '').trim();
+    const phone = String(rec.phone || dr.phone || '').trim();
+    const total = Number(rec.total) || Number(dr.total) || 0;
+    const hasContract = !!contracts[ref];
+    const hasLinked = hasContract || (cfiles[ref] && getContractFilesList(cfiles, ref).length) || !!pmp[ref];
+    if(!hasFile[e.refFolderId] && !name && !(total > 0) && !hasLinked){ out.push({ ref: ref, folderName: e.refFolderName, folderId: e.refFolderId, why: 'فاضي' }); return; }
+    if(!hasContract && (testRe.test(name) || testRe.test(phone))) out.push({ ref: ref, folderName: e.refFolderName, folderId: e.refFolderId, why: 'تجريبي (' + (name || phone) + ')' });
+  });
+  out.sort((a, b)=> a.ref.localeCompare(b.ref));
+  return out;
+}
+async function mzCleanEmptyTestQuotes(){
+  let token;
+  try{ token = await getDashGoogleAccessToken(false); }catch(e){ alert('تعذّر الاتصال بجوجل درايف: ' + (e && e.message || e)); return; }
+  let list;
+  try{ list = await mzFindEmptyTestQuotes(token); }catch(e){ alert('⚠️ ' + (e && e.message || e)); return; }
+  if(!list.length){ alert('✅ ما في عروض أسعار فاضية أو تجريبية.'); return; }
+  const lines = list.slice(0, 40).map(x=> '• ' + x.folderName + ' — ' + x.why).join('\n') + (list.length > 40 ? '\n... و' + (list.length - 40) + ' كمان' : '');
+  if(!confirm('لقينا ' + list.length + ' عرض سعر فاضي أو تجريبي:\n\n' + lines + '\n\nرح تنتقل مجلداتهن لسلة المحذوفات بجوجل درايف (بترجع منها لـ30 يوم)، وتنشال من السجل، وأرقامهن بتصير متاحة لعروض جديدة.\n\nموافق؟')) return;
+  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const discovered = loadDiscoveredQuotations(), tombstones = loadDiscoveredTombstones(), cfiles = loadContractFiles();
+  let ok = 0, failed = [], cfCh = false;
+  for(const x of list){
+    try{
+      const res = await dashFetchWithTimeout('https://www.googleapis.com/drive/v3/files/' + x.folderId, { method: 'PATCH', headers: H, body: JSON.stringify({ trashed: true }) }, 20000);
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const idx = DATA.findIndex(d=> stripRefSpaces(d.ref) === x.ref); if(idx !== -1) DATA.splice(idx, 1);
+      Object.keys(discovered).forEach(k=>{ if(discovered[k] && stripRefSpaces(discovered[k].ref || k) === x.ref) delete discovered[k]; });
+      tombstones[x.ref] = Date.now();
+      if(cfiles[x.ref]){ delete cfiles[x.ref]; cfCh = true; }
+      ok++;
+    }catch(e){ failed.push(x.folderName + ' (' + (e && e.message || e) + ')'); }
+  }
+  saveDiscoveredQuotations(discovered); saveDiscoveredTombstones(tombstones); if(cfCh) saveContractFiles(cfiles);
+  try{ render(); }catch(e){}
+  try{ renderQuotationsTracking(); }catch(e){}
+  alert('✅ انحذف ' + ok + ' عرض سعر فاضي/تجريبي (مجلداتهن بسلة المحذوفات بدرايف).' + (failed.length ? '\n\n⚠️ ما انحذفوا: ' + failed.join('، ') : '') + '\n\nأرقامهن صارت متاحة: زر 🔄 جنب الرقم المرجعي بعرض السعر بيعطيك أصغر رقم فاضي تلقائيًا.');
+}
+window.mzFindEmptyTestQuotes = mzFindEmptyTestQuotes;
+window.mzCleanEmptyTestQuotes = mzCleanEmptyTestQuotes;
+
 function pickPreferredQuotationFile(files){
   // منفضّل ملف بيانات JSON (أدق وأسرع)، وإلا نرجع لملف HTML المخبوز
   // 🛠️ 2026-09-26 (ملاحظة حمدي: "S-Q-260002 هاد الرفرنس التصميم تبعه ماعم يتحدث متل ماعم تقللي") -
@@ -6573,6 +6656,16 @@ async function reconcileWithDrive(silent){
     // ما منحذف (prune) أي عرض سعر "مكتشف" إلا إذا كنا متأكدين إنه فحص كل مجلدات السنين نجح بالكامل -
     // فحص ناقص (هفوة اتصال بسنة وحدة مثلاً) ما لازم يعتبر إنه عروض أسعار صحيحة صارت محذوفة من جوجل درايف.
     const removedCount = scanResult.hadErrors ? 0 : pruneDeletedDiscoveredQuotations(refEntries);
+    // 🆕 2026-11-08: رقم مرجعي انحذف عرضه، وبعدين انعمل عرض جديد بنفس الرقم (إعادة استخدام الأرقام الفاضية) -
+    // مجلده موجود وشغّال على درايف، فشاهد القبر القديم ما عاد إلو معنى: منشيله حتى العرض الجديد يبين عادي
+    // وما يطلع تنبيه "عروض محذوفة رجعت ظهرت".
+    if(!scanResult.hadErrors){
+      try{
+        const tbs = loadDiscoveredTombstones(); let tbCh = false;
+        refEntries.forEach(e=>{ const k = stripRefSpaces(e.refFolderName); if(tbs[k]){ delete tbs[k]; tbCh = true; } if(tbs[e.refFolderName]){ delete tbs[e.refFolderName]; tbCh = true; } });
+        if(tbCh) saveDiscoveredTombstones(tbs);
+      }catch(e){}
+    }
 
     const existingRefs = new Set(DATA.map(d=>d.ref));
     const discovered = loadDiscoveredQuotations();
@@ -10990,6 +11083,7 @@ function renderPanel(partial){
     btn(MT.report ? '🔁 إعادة الصيانة' : '▶ ابدأ الصيانة', function(){ runMaintenance(); });
     if(MT.report){
       if(MT.report.fail || MT.report.warn) btn('🔧 إصلاح الأخطاء', runFixOnly);
+      btn('🧹 حذف العروض الفاضية والتجريبية', function(){ if(typeof window.mzCleanEmptyTestQuotes === 'function') window.mzCleanEmptyTestQuotes(); });
       btn('⬇ تنزيل التقرير', function(){ download('merzona-maintenance-report-' + new Date().toISOString().slice(0, 10) + '.txt', reportText(), 'text/plain'); });
       btn('📋 نسخ', function(){ try{ navigator.clipboard.writeText(reportText()); showMaintToast('انتسخ التقرير'); }catch(e){ showMaintToast('تعذّر النسخ'); } });
       if(MT.backup) btn('💾 نسخة أمان (قبل الإصلاح)', function(){ download('merzona-safety-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(MT.backup), 'application/json'); });
