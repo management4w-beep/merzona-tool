@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-07.2';
+  var CURRENT_VERSION = '2026-11-08.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -21953,4 +21953,137 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
 </script>
 <!-- ===== 📚 MERZONA CATALOGS - END ===== -->
 
+
+<style>
+/* 🔎 2026-11-08: اقتراح الزبون من سجل العروض السابقة (طلب حمدي) - مخفي بالطباعة والـPDF */
+.mzcs-box{position:absolute;z-index:99990;background:#fff;color:#1f2937;border:1px solid #d1d5db;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);max-height:320px;overflow:auto;direction:rtl;font-family:inherit;min-width:280px}
+.mzcs-it{padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:13px;line-height:1.5;text-align:right}
+.mzcs-it:last-child{border-bottom:0}
+.mzcs-it.on,.mzcs-it:hover{background:#eef2ff}
+.mzcs-it b{display:block;font-size:13.5px;direction:auto}
+.mzcs-it small{color:#6b7280;font-size:11.5px}
+.mzcs-h{padding:7px 12px;font-size:12px;font-weight:700;color:#374151;background:#f8fafc;border-bottom:1px solid #e5e7eb}
+.mzcs-ph{direction:ltr;unicode-bidi:embed;font-weight:600}
+@media print{.mzcs-box{display:none!important}}
+body.pdf-capturing .mzcs-box{display:none!important}
+</style>
+<script>
+/* 🔎 2026-11-08 (طلب حمدي): لما تكتب اسم الزبون بيطلعلك الزبائن المسجلين يلي عملنالهن عروض قبل،
+   بتختار واحد بيتعبّى الاسم والرقم. إذا الزبون إلو أكتر من رقم بيسألك أي رقم بدك.
+   المصادر (كلها من نفس المتصفح أو السيرفر، بدون ما نغيّر شي فيها): قائمة العروض القديمة من السيرفر
+   (dashboard-seed)، العروض المكتشفة من درايف، أسماء الزبائن المصححة، والعقود. */
+(function(){
+  var inp = document.getElementById('m-client'), num = document.getElementById('m-number');
+  if(!inp) return;
+  function J(k, d){ try{ var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
+  function norm(s){ return String(s || '').toLowerCase().replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[.,،\-_'"()]/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function digits(p){ return String(p || '').replace(/\D/g, ''); }
+  function phoneKey(p){ var d = digits(p); return d.length >= 8 ? d.slice(-9) : ''; }
+  var IDX = null, seedFetched = false;
+  function build(){
+    var by = {}, over = J('merzona_client_overrides', {}) || {};
+    function add(name, phone, ref, date, branch){
+      name = String(name || '').trim();
+      if(!name || name === '—' || /^\(?بدون اسم\)?$/.test(name)) return;
+      var k = norm(name); if(!k) return;
+      var c = by[k] || (by[k] = { name: name, key: k, phones: {}, refs: [], last: '', lastRef: '', branches: {} });
+      if(date && date >= c.last){ c.last = date; c.lastRef = ref || c.lastRef; c.name = name; }
+      if(ref && c.refs.indexOf(ref) === -1) c.refs.push(ref);
+      if(branch) c.branches[branch] = 1;
+      var pk = phoneKey(phone);
+      if(pk){ var ph = c.phones[pk] || (c.phones[pk] = { show: String(phone).trim(), refs: [], last: '' }); if(ref && ph.refs.indexOf(ref) === -1) ph.refs.push(ref); if(date && date >= ph.last){ ph.last = date; ph.show = String(phone).trim(); } }
+    }
+    var seed = J('merzona_dash_seed_cache_v1', []) || [];
+    (Array.isArray(seed) ? seed : []).forEach(function(r){ if(r) add(over[r.ref] || r.client, r.phone, r.ref, r.date, r.branch); });
+    var disc = J('merzona_discovered_quotations', {}) || {};
+    Object.keys(disc).forEach(function(ref){ var r = disc[ref] || {}; add(over[ref] || r.client, r.phone, ref, r.date, r.branch); });
+    var con = J('merzona_contracts', {}) || {};
+    Object.keys(con).forEach(function(ref){ var r = con[ref] || {}; add(over[ref] || r.client, '', ref, r.createdAt, ''); });
+    IDX = Object.keys(by).map(function(k){ return by[k]; });
+  }
+  // إذا هالجهاز ما عندو قائمة العروض القديمة (ما انفتحت الداشبورد عليه) منجيبها من السيرفر مرة وحدة
+  function fetchSeed(){
+    if(seedFetched) return; seedFetched = true;
+    try{
+      var have = J('merzona_dash_seed_cache_v1', null);
+      if(Array.isArray(have) && have.length) return;
+      var dev = localStorage.getItem('merzona-device-token') || ''; if(!dev) return;
+      fetch('https://merzona-server-production.up.railway.app/dashboard-seed?device=' + encodeURIComponent(dev), { cache: 'no-store' })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(rows){ if(Array.isArray(rows) && rows.length){ try{ localStorage.setItem('merzona_dash_seed_cache_v1', JSON.stringify(rows)); }catch(e){} IDX = null; if(document.activeElement === inp) show(); } })
+        .catch(function(){});
+    }catch(e){}
+  }
+  var box = document.createElement('div'); box.className = 'mzcs-box'; box.style.display = 'none';
+  document.body.appendChild(box);
+  var items = [], sel = -1, mode = 'list';
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function place(anchor){
+    var r = anchor.getBoundingClientRect();
+    box.style.top = (window.scrollY + r.bottom + 4) + 'px';
+    box.style.width = Math.max(r.width, 300) + 'px';
+    box.style.left = Math.max(8, window.scrollX + r.right - Math.max(r.width, 300)) + 'px';
+  }
+  function hide(){ box.style.display = 'none'; items = []; sel = -1; mode = 'list'; }
+  function show(){
+    var q = norm(inp.value);
+    if(q.length < 2){ hide(); return; }
+    if(!IDX) build();
+    var qd = digits(inp.value);
+    var res = IDX.filter(function(c){
+      if(c.key.indexOf(q) !== -1) return true;
+      return qd.length >= 4 && Object.keys(c.phones).some(function(k){ return k.indexOf(qd.slice(-9)) !== -1; });
+    });
+    // يلي بيبلّش بالكلمة أول، بعدين الأحدث
+    res.sort(function(a, b){ var sa = a.key.indexOf(q) === 0 ? 0 : 1, sb = b.key.indexOf(q) === 0 ? 0 : 1; return sa - sb || (b.last || '').localeCompare(a.last || '') || b.refs.length - a.refs.length; });
+    res = res.slice(0, 8);
+    if(!res.length || (res.length === 1 && res[0].name === inp.value.trim() && mode === 'list')){ hide(); return; }
+    mode = 'list'; items = res; sel = -1;
+    box.innerHTML = '<div class="mzcs-h">🔎 زبائن مسجلين عندنا (' + res.length + ')</div>' + res.map(function(c, i){
+      var ph = Object.keys(c.phones).map(function(k){ return c.phones[k]; }).sort(function(a, b){ return (b.last || '').localeCompare(a.last || ''); }).map(function(p){ return p.show; });
+      return '<div class="mzcs-it" data-i="' + i + '"><b>' + esc(c.name) + '</b><small>' + c.refs.length + ' عرض' + (c.lastRef ? ' · آخر واحد <span dir="ltr">' + esc(c.lastRef) + '</span>' + (c.last ? ' (<span dir="ltr">' + esc(c.last) + '</span>)' : '') : '') +
+        (ph.length ? ' · <span class="mzcs-ph">' + esc(ph[0]) + '</span>' + (ph.length > 1 ? ' +' + (ph.length - 1) + ' رقم' : '') : ' · بدون رقم') + '</small></div>';
+    }).join('');
+    place(inp); box.style.display = 'block';
+  }
+  function hl(){ [].forEach.call(box.querySelectorAll('.mzcs-it'), function(el, i){ el.classList.toggle('on', i === sel); if(i === sel) el.scrollIntoView({ block: 'nearest' }); }); }
+  function fire(el){ try{ el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }catch(e){} }
+  function setPhone(p){ if(!num) return; num.value = p; fire(num); }
+  function pickClient(c){
+    inp.value = c.name; fire(inp);
+    var ph = Object.keys(c.phones).map(function(k){ return c.phones[k]; }).sort(function(a, b){ return (b.last || '').localeCompare(a.last || ''); });
+    if(!num || !ph.length){ hide(); return; }
+    if(ph.length === 1){ setPhone(ph[0].show); hide(); return; }
+    // أكتر من رقم: منسألك أي واحد
+    mode = 'phones'; items = ph; sel = 0;
+    box.innerHTML = '<div class="mzcs-h">📱 ' + esc(c.name) + ' إلو ' + ph.length + ' أرقام - اختار الرقم الصح</div>' + ph.map(function(p, i){
+      return '<div class="mzcs-it" data-i="' + i + '"><b class="mzcs-ph">' + esc(p.show) + '</b><small>مستعمل بـ ' + p.refs.length + ' عرض' + (p.refs.length ? ': ' + p.refs.slice(0, 3).map(function(r){ return '<span dir="ltr">' + esc(r) + '</span>'; }).join('، ') + (p.refs.length > 3 ? '…' : '') : '') + (p.last ? ' · آخر مرة <span dir="ltr">' + esc(p.last) + '</span>' : '') + '</small></div>';
+    }).join('') + '<div class="mzcs-it" data-i="-1"><small>بدون رقم (بكتبو أنا)</small></div>';
+    place(num || inp); box.style.display = 'block'; hl();
+  }
+  function choose(i){
+    if(mode === 'list'){ if(items[i]) pickClient(items[i]); return; }
+    if(i >= 0 && items[i]) setPhone(items[i].show);
+    hide();
+  }
+  box.addEventListener('mousedown', function(e){
+    var it = e.target.closest('.mzcs-it'); if(!it) return;
+    e.preventDefault(); e.stopPropagation(); choose(+it.dataset.i);
+  });
+  inp.addEventListener('input', function(){ if(mode === 'phones') mode = 'list'; show(); });
+  inp.addEventListener('focus', function(){ fetchSeed(); IDX = null; show(); });
+  inp.addEventListener('keydown', function(e){
+    if(box.style.display === 'none') return;
+    var n = box.querySelectorAll('.mzcs-it').length;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); sel = Math.min(n - 1, sel + 1); hl(); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); sel = Math.max(0, sel - 1); hl(); }
+    else if(e.key === 'Enter' && sel >= 0){ e.preventDefault(); var el = box.querySelectorAll('.mzcs-it')[sel]; choose(+el.dataset.i); }
+    else if(e.key === 'Escape'){ hide(); }
+  });
+  inp.addEventListener('blur', function(){ setTimeout(function(){ if(mode === 'list') hide(); }, 150); });
+  document.addEventListener('mousedown', function(e){ if(box.style.display !== 'none' && !box.contains(e.target) && e.target !== inp) hide(); });
+  window.addEventListener('resize', hide);
+  window.mzClientSuggest = { rebuild: function(){ IDX = null; }, _index: function(){ if(!IDX) build(); return IDX; } };
+})();
+</script>
 </body></html>
