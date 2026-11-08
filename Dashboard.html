@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.3';
+  var CURRENT_VERSION = '2026-11-08.5';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -5235,7 +5235,7 @@ function mergeOneSyncKey(key, remoteData){
       const localArr = Array.isArray(localObj[rk]) ? localObj[rk] : (localObj[rk] ? [localObj[rk]] : []);
       const remoteArr = Array.isArray(remoteObj[rk]) ? remoteObj[rk] : (remoteObj[rk] ? [remoteObj[rk]] : []);
       const seen = new Set(remoteArr.map(f=> f && (f.driveFileId || f.name)));
-      const mergedArr = remoteArr.concat(localArr.filter(f=> !seen.has(f && (f.driveFileId || f.name))));
+      const mergedArr = mzNormalizeContractFileList(remoteArr.concat(localArr.filter(f=> !seen.has(f && (f.driveFileId || f.name)))));
       if(JSON.stringify(mergedArr) !== JSON.stringify(localArr)){
         localObj[rk] = mergedArr;
         localTs[rk] = Math.max(rt, lt);
@@ -6880,6 +6880,38 @@ cleanupAllRefWhitespace();
 recomputeAllQuoteTotalOverrides(); // تصحيح شامل لأي عقد قديم "قيمة العرض" فيه مش مطابقة لمجموع جداول دفعاته
 
 // توافق مع البيانات القديمة (كانت ملف واحد ككائن، صارت مصفوفة ملفات)
+// 🛠️ 2026-11-08 (باغ حرج - سبب بطء الداشبورد وامتلاء ذاكرة المتصفح): ملف العقد القديم المخزّن جوا
+// المتصفح (dataUrl) كان ينرفع لدرايف بكل فتحة للداشبورد، بس نسخة المزامنة القديمة كانت ترجّع الـdataUrl
+// بالدمج، فيرجع ينرفع مرة تانية... لحد ما صار نفس الملف مرفوع 66 و110 مرة، والذاكرة 4 ميغا.
+// القاعدة هلق: لكل اسم ملف بالعقد بنحتفظ بنسخة درايف وحدة بس، وأي نسخة dataUrl إلها نسخة درايف بتنشال.
+function mzNormalizeContractFileList(arr){
+  if(!Array.isArray(arr)) arr = arr ? [arr] : [];
+  var hasDrive = {}, out = [], seenDrive = {};
+  arr.forEach(function(f){ if(f && f.driveFileId) hasDrive[f.name || ''] = true; });
+  arr.forEach(function(f){
+    if(!f) return;
+    var nm = f.name || '';
+    if(f.driveFileId){ if(seenDrive[nm]) return; seenDrive[nm] = true; out.push(f); return; }
+    if(f.dataUrl && hasDrive[nm]) return;
+    out.push(f);
+  });
+  return out;
+}
+function mzNormalizeAllContractFiles(){
+  try{
+    var raw = localStorage.getItem(CONTRACT_FILES_KEY); if(!raw) return { changed: false };
+    var obj = JSON.parse(raw), changed = false, removed = 0;
+    Object.keys(obj).forEach(function(ref){
+      var before = Array.isArray(obj[ref]) ? obj[ref] : (obj[ref] ? [obj[ref]] : []);
+      var after = mzNormalizeContractFileList(before);
+      if(after.length !== before.length){ removed += before.length - after.length; obj[ref] = after; changed = true; }
+    });
+    if(changed){ saveContractFiles(obj); console.info('[ملفات العقود] تنظيف التكرار: انشال ' + removed + ' مدخل مكرر'); }
+    return { changed: changed, removed: removed, before: raw.length, after: changed ? JSON.stringify(obj).length : raw.length };
+  }catch(e){ console.warn('[ملفات العقود] تعذّر التنظيف', e && e.message); return { changed: false, error: e && e.message }; }
+}
+window.mzNormalizeAllContractFiles = mzNormalizeAllContractFiles;
+setTimeout(function(){ mzNormalizeAllContractFiles(); }, 3000);
 function getContractFilesList(files, ref){
   const f = files[ref];
   if(!f) return [];
@@ -6953,7 +6985,10 @@ async function mzMigrateContractFiles(silent){
   try{
     const files0 = loadContractFiles();
     const pending = [];
-    Object.keys(files0).forEach(ref=> getContractFilesList(files0, ref).forEach(f=>{ if(f && f.dataUrl && !f.driveFileId) pending.push({ ref, name: f.name, dataUrl: f.dataUrl }); }));
+    // ملف إلو أصلًا نسخة على درايف بنفس الاسم ما بينرفع مرة تانية (هاد كان سبب التكرار)
+    mzNormalizeAllContractFiles();
+    const files1 = loadContractFiles();
+    Object.keys(files1).forEach(ref=> mzNormalizeContractFileList(getContractFilesList(files1, ref)).forEach(f=>{ if(f && f.dataUrl && !f.driveFileId) pending.push({ ref, name: f.name, dataUrl: f.dataUrl }); }));
     if(!pending.length) return res;
     const token = await getDashGoogleAccessToken(!!silent);
     for(const it of pending){
@@ -6964,7 +6999,7 @@ async function mzMigrateContractFiles(silent){
         const cur = loadContractFiles();
         const list = getContractFilesList(cur, it.ref);
         const idx = list.findIndex(x=> x && x.dataUrl && !x.driveFileId && x.name === it.name);
-        if(idx > -1){ list[idx] = entry; cur[it.ref] = list; if(saveContractFiles(cur)){ res.moved++; res.bytes += it.dataUrl.length; } else res.failed++; }
+        if(idx > -1){ list[idx] = entry; cur[it.ref] = mzNormalizeContractFileList(list); if(saveContractFiles(cur)){ res.moved++; res.bytes += it.dataUrl.length; } else res.failed++; }
       }catch(e){ res.failed++; console.warn('[نقل ملفات العقود لدرايف] تعذّر', it.ref, it.name, e && e.message); }
     }
     if(res.moved){ try{ renderContractFileDisplay(); }catch(e){} }
