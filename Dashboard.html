@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.2';
+  var CURRENT_VERSION = '2026-11-08.3';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -626,6 +626,67 @@ body.procurement-fullscreen #procurementFrame{flex:1;height:auto;min-height:0;bo
 }
 .nav-pill:hover{background:var(--aux1);color:#fff;border-color:var(--aux1);}
 .nav-pill.active{background:var(--main);color:#fff;border-color:var(--main);}
+/* ===================== 🎛 2026-11-08: أنماط عرض أزرار التنقل (طلب حمدي) =====================
+   نمط 1 = الحالي · نمط 2 = شريط مع قوائم منسدلة · نمط 3 = قائمة جانبية · نمط 4 = مربعات.
+   نفس الأزرار نفسها (نفس العناصر ونفس الأحداث والصلاحيات) - بس بتنقل لمكان تاني وبتاخد شكل تاني. */
+.mz-lay{position:relative;display:inline-flex}
+.mz-lay-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:6px;min-width:230px;z-index:3000}
+.mz-lay.open .mz-lay-menu{display:block}
+.mz-lay-menu button{display:block;width:100%;text-align:right;border:0;background:transparent;padding:9px 12px;border-radius:8px;font:inherit;font-size:13.5px;cursor:pointer;color:var(--main)}
+.mz-lay-menu button:hover{background:#f3f4f6}
+.mz-lay-menu button.on{background:#eef2ff;color:#3730a3;font-weight:700}
+.mz-lay-menu small{display:block;color:#9aa0aa;font-size:11px;font-weight:400}
+.mz-grp{position:relative;display:inline-flex}
+.mz-grp-h{display:none}
+.mz-burger{display:none}
+/* --- نمط 2: شريط مع قوائم --- */
+html[data-nav="2"] .nav-row{background:#fff;border-radius:14px;padding:7px 9px;box-shadow:0 1px 3px rgba(0,0,0,.08);align-items:center;gap:6px}
+html[data-nav="2"] .nav-row>.nav-pill,html[data-nav="2"] .mz-grp-h,html[data-nav="2"] .mz-lay>.nav-pill{border-color:transparent;font-size:13.5px;font-weight:600;padding:8px 13px;border-radius:9px}
+html[data-nav="2"] .mz-grp-h{display:inline-flex}
+html[data-nav="2"] .mz-grp-h::after{content:'▾';font-size:10px;margin-inline-start:2px;opacity:.7}
+html[data-nav="2"] .mz-grp-m{display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);border:1px solid var(--line);padding:6px;min-width:210px;z-index:3000;flex-direction:column;gap:2px}
+html[data-nav="2"] .mz-grp.open .mz-grp-m{display:flex}
+html[data-nav="2"] .mz-grp-m .nav-pill{border:0;border-radius:8px;padding:9px 12px;font-size:13.5px;width:100%;box-sizing:border-box}
+html[data-nav="2"] .mz-grp-h.active,html[data-nav="2"] .nav-row>.nav-pill.active{background:#eef2ff;color:#3730a3;border-color:transparent}
+html[data-nav="2"] #quotationTabBtn{background:var(--main);color:#fff;margin-inline-start:auto;order:50}
+html[data-nav="2"] #syncStatusPill{order:51;max-width:190px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;display:inline-block}
+@media (max-width:640px){ html[data-nav="2"] #quotationTabBtn{margin-inline-start:0} }
+html[data-nav="2"] .mz-lay{order:52}
+html[data-nav="2"] .mz-sep{flex:0 0 1px;height:22px;background:var(--line)}
+/* --- نمط 3: قائمة جانبية --- */
+html[data-nav="3"] body{padding-right:250px}
+html[data-nav="3"] .nav-row{position:fixed;top:0;right:0;bottom:0;width:236px;margin:0;background:#1f2937;padding:14px 10px 30px;flex-direction:column;flex-wrap:nowrap;gap:2px;overflow-y:auto;z-index:100000;box-sizing:border-box}
+html[data-nav="3"] .nav-row .nav-pill{width:100%;box-sizing:border-box;border:0;border-radius:8px;background:transparent;color:#d1d5db;font-size:13.5px;padding:8px 10px;justify-content:flex-start}
+html[data-nav="3"] .nav-row .nav-pill:hover{background:#374151;color:#fff}
+html[data-nav="3"] .nav-row .nav-pill.active{background:#374151;color:#fff;font-weight:700}
+html[data-nav="3"] #quotationTabBtn{background:#fff;color:#1f2937;font-weight:700;justify-content:center;margin-bottom:8px}
+html[data-nav="3"] #quotationTabBtn:hover{background:#e5e7eb;color:#1f2937}
+html[data-nav="3"] .mz-grp{display:flex;flex-direction:column;width:100%}
+html[data-nav="3"] .mz-grp-h{display:block;color:#9ca3af;font-size:11.5px;font-weight:700;margin:12px 10px 4px;cursor:default}
+html[data-nav="3"] .mz-grp-m{display:flex;flex-direction:column;gap:2px}
+html[data-nav="3"] .mz-lay{display:flex;margin-top:14px}
+html[data-nav="3"] .mz-lay-menu{left:auto;right:0;top:auto;bottom:calc(100% + 6px)}
+html[data-nav="3"] #syncStatusPill{margin-top:auto}
+@media (max-width:900px){
+  html[data-nav="3"] body{padding-right:0}
+  html[data-nav="3"] .nav-row{transform:translateX(100%);transition:transform .2s;box-shadow:-8px 0 30px rgba(0,0,0,.25)}
+  html[data-nav="3"] .nav-row.mz-open{transform:none}
+  html[data-nav="3"] .nav-row{padding-top:62px}
+  html[data-nav="3"] .mz-burger{display:inline-flex;position:fixed;top:10px;right:10px;z-index:100001;border:0;background:#1f2937;color:#fff;border-radius:10px;padding:8px 12px;font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+}
+/* --- نمط 4: مربعات --- */
+html[data-nav="4"] .nav-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:10px}
+html[data-nav="4"] .nav-row .nav-pill{flex-direction:column;justify-content:center;text-align:center;border:0;border-radius:14px;background:#fff;padding:14px 6px 12px;font-size:13px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.07);min-height:84px;box-sizing:border-box;width:100%;gap:4px}
+html[data-nav="4"] .nav-row .nav-pill .mz-ti{font-size:26px;line-height:1}
+html[data-nav="4"] .nav-row .nav-pill:hover{background:var(--aux1);color:#fff}
+html[data-nav="4"] .nav-row .nav-pill.active{outline:2px solid #6366f1;background:#fff;color:var(--main)}
+html[data-nav="4"] #quotationTabBtn{background:var(--main);color:#fff}
+html[data-nav="4"] .nav-row .nav-pill.mz-sys{background:#f8fafc;color:#6b7280}
+html[data-nav="4"] .mz-lay{display:flex}
+html[data-nav="4"] .mz-lay>.nav-pill{height:100%}
+@media (max-width:640px){ html[data-nav="4"] .nav-row{grid-template-columns:repeat(4,1fr);gap:6px} html[data-nav="4"] .nav-row .nav-pill{min-height:68px;padding:8px 2px;font-size:10.5px;border-radius:11px} html[data-nav="4"] .nav-row .nav-pill .mz-ti{font-size:20px} }
+@media print{ .mz-burger{display:none!important} html[data-nav="3"] body{padding-right:0} }
+
 #syncBanner{
   display:none;
   align-items:center;
@@ -1033,8 +1094,8 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="designerTabBtn" style="display:none;">🎨 (تصميم/Sketch)</span>
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
         <span class="nav-pill" id="accountingTabBtn" style="display:none;">📒 المحاسبة</span>
-        <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill">📁 ملفات الإمارات</a>
-        <a href="https://drive.google.com/drive/folders/1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS" target="_blank" class="nav-pill">📁 ملفات سوريا</a>
+        <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill" id="navFilesUAE">📁 ملفات الإمارات</a>
+        <a href="https://drive.google.com/drive/folders/1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS" target="_blank" class="nav-pill" id="navFilesSY">📁 ملفات سوريا</a>
         <span class="nav-pill" id="contractsTabBtn">📄 العقود</span>
         <span class="nav-pill" id="payrollTabBtn">💰 الرواتب</span>
         <span class="nav-pill" id="clientsTabBtn">👥 العملاء</span>
@@ -3684,8 +3745,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     var el = document.getElementById(id);
     if(el) el.style.display = allowed(navMap[id]) ? '' : 'none';
   });
-  var filesLink = document.querySelector('.nav-row a.nav-pill');
-  if(filesLink) filesLink.style.display = allowed('files') ? '' : 'none';
+  document.querySelectorAll('.nav-row a.nav-pill').forEach(function(filesLink){ filesLink.style.display = allowed('files') ? '' : 'none'; });
   var usersBtn = document.getElementById('usersTabBtn');
   if(usersBtn) usersBtn.style.display = allowed('manageUsers') ? '' : 'none';
 
@@ -10848,5 +10908,122 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 window.mzRunMaintenance = runMaintenance;
 })();
 
+</script>
+
+<script>
+/* 🎛 2026-11-08: زر "نمط العرض" - بيبدّل شكل أزرار التنقل بين 4 أنماط وبيتذكّر الاختيار على هالجهاز.
+   ما منعيد بناء الأزرار: منحرّك نفس العناصر (بأحداثها وصلاحياتها) لمجموعات، ومنرجّعها لترتيبها الأصلي بنمط 1. */
+(function(){
+  var KEY = 'mz-nav-layout';
+  var row = document.querySelector('.header .nav-row');
+  if(!row) return;
+  var $ = function(id){ return document.getElementById(id); };
+  var original = [].slice.call(row.children);
+  var TOP = ['homeTabBtn', 'quotationTabBtn'];
+  var GROUPS = [
+    { label: '💼 المبيعات', ids: ['quotationsTabBtn', 'contractsTabBtn', 'clientsTabBtn', 'catalogsTabBtn'] },
+    { label: '🏗 المشاريع', ids: ['pmpTabBtn', 'draftsDesignsTabBtn', 'procurementTabBtn', 'designerTabBtn'] },
+    { label: '💰 المالية', ids: ['accountingTabBtn', 'payrollTabBtn'] },
+    { label: '📁 الملفات', ids: ['navFilesUAE', 'navFilesSY'] },
+    { label: '⚙️ النظام', ids: ['maintTabBtn', 'backupTabBtn', 'usersTabBtn'], sys: true }
+  ];
+  var NAMES = { 1: ['نمط 1', 'الأزرار متل ما كانت'], 2: ['نمط 2', 'شريط واحد مع قوائم منسدلة'], 3: ['نمط 3', 'قائمة جانبية (متل QuickBooks)'], 4: ['نمط 4', 'مربعات بأيقونات كبيرة'] };
+
+  // زر اختيار النمط
+  var lay = document.createElement('span'); lay.className = 'mz-lay';
+  lay.innerHTML = '<span class="nav-pill" id="navLayoutBtn" title="غيّر شكل أزرار التنقل">🎛 نمط العرض</span><div class="mz-lay-menu"></div>';
+  var menu = lay.querySelector('.mz-lay-menu');
+  Object.keys(NAMES).forEach(function(n){
+    var b = document.createElement('button'); b.type = 'button'; b.dataset.n = n;
+    b.innerHTML = NAMES[n][0] + '<small>' + NAMES[n][1] + '</small>';
+    b.addEventListener('click', function(e){ e.stopPropagation(); lay.classList.remove('open'); apply(+n, true); });
+    menu.appendChild(b);
+  });
+  lay.firstChild.addEventListener('click', function(e){ e.stopPropagation(); closeGroups(); lay.classList.toggle('open'); });
+
+  var burger = document.createElement('button'); burger.type = 'button'; burger.className = 'mz-burger'; burger.textContent = '☰'; burger.title = 'القائمة';
+  burger.addEventListener('click', function(e){ e.stopPropagation(); row.classList.toggle('mz-open'); });
+  document.body.appendChild(burger);
+
+  var groupsEls = [], cur = 1;
+  function closeGroups(){ groupsEls.forEach(function(g){ g.el.classList.remove('open'); }); }
+  document.addEventListener('click', function(e){
+    if(!lay.contains(e.target)) lay.classList.remove('open');
+    if(!e.target.closest || !e.target.closest('.mz-grp-h')) closeGroups();
+    // نمط 3 عالموبايل: القائمة بتتسكّر بعد ما تختار
+    if(cur === 3 && row.classList.contains('mz-open') && !e.target.closest('.mz-burger') && (e.target.closest('.nav-pill') || !row.contains(e.target))) row.classList.remove('mz-open');
+  });
+
+  // نمط 4: الأيقونة لحالها فوق والاسم تحت (منحفظ النص الأصلي ومنرجّعو). زر المزامنة بيتغيّر نصّو لحالو فما منلمسو.
+  function tileWrap(el, on){
+    if(!el || el.id === 'syncStatusPill' || el.id === 'navLayoutBtn') return;
+    if(on){
+      if(el.dataset.mzOrig != null) return;
+      var t = el.textContent.trim(), sp = t.indexOf(' ');
+      if(sp < 1) return;
+      el.dataset.mzOrig = el.innerHTML;
+      el.innerHTML = '';
+      var b = document.createElement('span'); b.className = 'mz-ti'; b.textContent = t.slice(0, sp);
+      var l = document.createElement('span'); l.textContent = t.slice(sp + 1);
+      el.appendChild(b); el.appendChild(l);
+    } else if(el.dataset.mzOrig != null){ el.innerHTML = el.dataset.mzOrig; delete el.dataset.mzOrig; }
+  }
+
+  function refresh(){
+    groupsEls.forEach(function(g){
+      var items = g.ids.map($).filter(Boolean);
+      var vis = items.some(function(x){ return x.style.display !== 'none'; });
+      g.el.style.display = vis ? '' : 'none';
+      var act = items.some(function(x){ return x.classList.contains('active'); });
+      if(g.h.classList.contains('active') !== act) g.h.classList.toggle('active', act);
+    });
+  }
+  var mo = new MutationObserver(refresh);
+  original.forEach(function(el){ mo.observe(el, { attributes: true, attributeFilter: ['style', 'class'] }); });
+
+  function reset(){
+    groupsEls.forEach(function(g){ if(g.el.parentNode) g.el.parentNode.removeChild(g.el); });
+    groupsEls = [];
+    row.querySelectorAll('.mz-sep').forEach(function(x){ x.remove(); });
+    original.forEach(function(el){ row.appendChild(el); tileWrap(el, false); el.classList.remove('mz-sys'); });
+    row.classList.remove('mz-open');
+  }
+  function apply(n, save){
+    if(!NAMES[n]) n = 1;
+    cur = n;
+    reset();
+    document.documentElement.setAttribute('data-nav', String(n));
+    if(n === 2 || n === 3){
+      if(n === 3) row.appendChild($('quotationTabBtn'));
+      row.appendChild($('homeTabBtn'));
+      if(n === 2){ var sp = document.createElement('span'); sp.className = 'mz-sep'; row.appendChild(sp); }
+      GROUPS.forEach(function(G){
+        var el = document.createElement('div'); el.className = 'mz-grp';
+        var h = document.createElement('span'); h.className = 'nav-pill mz-grp-h'; h.textContent = G.label;
+        var m = document.createElement('div'); m.className = 'mz-grp-m';
+        G.ids.forEach(function(id){ var x = $(id); if(x) m.appendChild(x); });
+        h.addEventListener('click', function(e){ if(cur !== 2) return; e.stopPropagation(); var was = el.classList.contains('open'); closeGroups(); lay.classList.remove('open'); if(!was) el.classList.add('open'); });
+        m.addEventListener('click', function(){ el.classList.remove('open'); });
+        el.appendChild(h); el.appendChild(m); row.appendChild(el);
+        groupsEls.push({ el: el, h: h, ids: G.ids });
+      });
+      if(n === 2) row.appendChild($('quotationTabBtn'));
+      row.appendChild($('syncStatusPill'));
+    } else if(n === 4){
+      var order = TOP.slice(1).concat(['homeTabBtn']);
+      GROUPS.forEach(function(G){ order = order.concat(G.ids); });
+      order.push('syncStatusPill');
+      order.forEach(function(id){ var x = $(id); if(x){ row.appendChild(x); tileWrap(x, true); } });
+      GROUPS[GROUPS.length - 1].ids.forEach(function(id){ var x = $(id); if(x) x.classList.add('mz-sys'); });
+    }
+    row.appendChild(lay);
+    menu.querySelectorAll('button').forEach(function(b){ b.classList.toggle('on', +b.dataset.n === n); });
+    refresh();
+    if(save){ try{ localStorage.setItem(KEY, String(n)); }catch(e){} }
+  }
+  var saved = 1; try{ saved = parseInt(localStorage.getItem(KEY) || '1', 10) || 1; }catch(e){}
+  apply(saved, false);
+  window.mzSetNavLayout = function(n){ apply(+n, true); };
+})();
 </script>
 </body></html>
