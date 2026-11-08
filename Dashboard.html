@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.8';
+  var CURRENT_VERSION = '2026-11-08.9';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -2240,7 +2240,10 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <div class="panel">
       <div class="controls" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
         <p class="panel-title" style="margin:0;">📝 مسودات عروض الأسعار (غير مكتملة)</p>
-        <button class="export-btn" id="refreshDraftsDesignsBtn">🔄 تحديث</button>
+        <div class="controls" style="gap:6px;">
+          <button class="export-btn" id="deleteAllDraftsBtn" style="border-color:var(--danger);color:var(--danger);">🗑 حذف كل المسودات</button>
+          <button class="export-btn" id="refreshDraftsDesignsBtn">🔄 تحديث</button>
+        </div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:6px 0 12px;">
         عروض أسعار حفظتها كمسودة ("💾 حفظ كمسودة" جوا أداة عرض السعر) قبل ما تخلص فيها - افتحها من هون لتكملها. بمجرد ما تحفظ العرض حفظًا نهائيًا، بتنشال تلقائيًا من هالقائمة.
@@ -2251,7 +2254,10 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <div class="panel">
       <div class="controls" style="justify-content:space-between;align-items:center;flex-wrap:wrap;">
         <p class="panel-title" style="margin:0;">🎨 سجل التصاميم</p>
-        <button class="export-btn" id="refreshDesignsBtn">🔄 تحديث</button>
+        <div class="controls" style="gap:6px;">
+          <button class="export-btn" id="deleteAllDesignsBtn" style="border-color:var(--danger);color:var(--danger);">🗑 حذف كل التصاميم</button>
+          <button class="export-btn" id="refreshDesignsBtn">🔄 تحديث</button>
+        </div>
       </div>
       <p style="font-size:12px;color:var(--muted);margin:6px 0 12px;">
         تصاميم محفوظة ("💾 حفظ التصميم" جوا رسّام النوافذ والأبواب) - إما مرتبطة برقم مرجعي لعرض سعر، أو تصميم حر باسمه الخاص.
@@ -6233,6 +6239,7 @@ async function refreshDraftsAndDesigns(silent){
 window.refreshDraftsAndDesigns = refreshDraftsAndDesigns;
 
 function renderDraftsList(drafts){
+  window.__mzDraftsList = drafts.slice();
   const area = document.getElementById('draftsListArea');
   if(!area) return;
   if(!drafts.length){ area.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">ما في أي مسودة محفوظة حاليًا.</p>'; return; }
@@ -6262,6 +6269,7 @@ function renderDraftsList(drafts){
 }
 
 function renderDesignsList(designs){
+  window.__mzDesignsList = designs.slice();
   const area = document.getElementById('designsListArea');
   if(!area) return;
   if(!designs.length){ area.innerHTML = '<p style="font-size:12.5px;color:var(--muted);">ما في أي تصميم محفوظ حاليًا.</p>'; return; }
@@ -6371,6 +6379,47 @@ async function deleteDriveJsonFile(fileId, whatLabel, onDone, info){
   }
 }
 
+// 🗑 2026-11-08 (طلب حمدي): حذف كل المسودات / كل التصاميم بكبسة وحدة. نفس آلية الحذف الفردي بالضبط
+// (mzTrashOne): بتروح لـ"🗑 سلة المحذوفات" تحت وبترجع منها بأي وقت؛ "🧹 فرّغ المسودات الآن" بيمسحها نهائيًا.
+// قبل الحذف منجيب اللائحة من جديد من درايف، حتى ما نحذف على لائحة قديمة ولا نفوّت شي انحفظ هلق.
+async function mzDeleteAllDraftsOrDesigns(kind){
+  const isDraft = kind === 'draft';
+  const btn = document.getElementById(isDraft ? 'deleteAllDraftsBtn' : 'deleteAllDesignsBtn');
+  const label0 = btn ? btn.textContent : '';
+  const what = isDraft ? 'مسودات عروض الأسعار' : 'التصاميم';
+  try{
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ عم نجيب اللائحة...'; }
+    const token = await getDashGoogleAccessToken(false);
+    const list = await scanDriveSubfolderAcrossBranches(token, isDraft ? '_Drafts' : '_Designs');
+    if(!list.length){ alert('ما في ' + what + ' للحذف.'); return; }
+    const names = list.slice(0, 15).map(d=> '• ' + (d.label || d.ref || d.client || d.name || 'بدون اسم')).join('\n') + (list.length > 15 ? '\n... و' + (list.length - 15) + ' كمان' : '');
+    if(!confirm('رح تنحذف كل ' + what + ' (' + list.length + '):\n\n' + names + '\n\nبتروح لـ"🗑 سلة المحذوفات" بنفس التبويب وبترجع منها بأي وقت. متأكد؟')) return;
+    let ok = 0; const failed = [];
+    for(let i = 0; i < list.length; i++){
+      const d = list[i];
+      if(btn) btn.textContent = '⏳ عم نحذف ' + (i + 1) + '/' + list.length;
+      const lbl = d.label || d.ref || d.client || d.name || '';
+      try{
+        if(window.mzTrashOne && d.__branch) await window.mzTrashOne(d.__fileId, d.__branch, kind, lbl);
+        else{
+          const r = await dashFetchWithTimeout('https://www.googleapis.com/drive/v3/files/' + d.__fileId, { method: 'PATCH', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) }, 15000);
+          if(!r.ok) throw new Error('HTTP ' + r.status);
+        }
+        ok++;
+      }catch(e){ failed.push(lbl || d.__fileId); console.warn('[حذف الكل]', e); }
+    }
+    try{ await refreshDraftsAndDesigns(false); }catch(e){}
+    try{ window.dtr.refreshTrash(true); }catch(e){}
+    alert('✅ انحذف ' + ok + ' من ' + list.length + '.' + (failed.length ? '\n\n⚠️ ما انحذفوا: ' + failed.join('، ') : '') + '\n\nموجودين بـ"🗑 سلة المحذوفات" تحت إذا بدك ترجّع شي.');
+  }catch(e){
+    alert('تعذّر الحذف: ' + ((e && e.message) || e));
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = label0; }
+  }
+}
+window.mzDeleteAllDraftsOrDesigns = mzDeleteAllDraftsOrDesigns;
+document.getElementById('deleteAllDraftsBtn').addEventListener('click', ()=> mzDeleteAllDraftsOrDesigns('draft'));
+document.getElementById('deleteAllDesignsBtn').addEventListener('click', ()=> mzDeleteAllDraftsOrDesigns('design'));
 document.getElementById('refreshDraftsDesignsBtn').addEventListener('click', ()=> refreshDraftsAndDesigns(false));
 document.getElementById('refreshDesignsBtn').addEventListener('click', ()=> refreshDraftsAndDesigns(false));
 
