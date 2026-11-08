@@ -79,7 +79,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.5';
+  var CURRENT_VERSION = '2026-11-08.6';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -10427,7 +10427,7 @@ function audNum(v){ var n = Number(v); return isFinite(n) ? n : NaN; }
 
 async function stepBusinessAudit(onProg){
   curGroup = 'تدقيق بيانات الشغل';
-  AUD = { listFix: [], infoFix: [], needReconcile: false, needSync: false };
+  AUD = { listFix: [], infoFix: [], pctFix: [], needReconcile: false, needSync: false };
   var prog = function(f){ if(onProg) onProg(f); };
   var byRef = {}; DATA.forEach(function(d){ if(d && d.ref) byRef[stripRefSpaces(d.ref)] = d; });
   var contracts = {}; try{ contracts = loadContracts() || {}; }catch(e){}
@@ -10461,7 +10461,19 @@ async function stepBusinessAudit(onProg){
       var tn = r + (tables.length > 1 ? ' / ' + (t.name || '') : '');
       if(pays.length){
         var sum = pays.reduce(function(s, p){ return s + (audNum(p.pct) || 0); }, 0);
-        if(Math.abs(sum - 100) > 0.5) pctBad.push(tn + ': مجموع النسب ' + (Math.round(sum * 10) / 10) + '%');
+        if(Math.abs(sum - 100) > 0.5){
+          pctBad.push(tn + ': مجموع النسب ' + (Math.round(sum * 10) / 10) + '%');
+          // 2026-11-08: الفرق الصغير (لحد 5%) بينحط على آخر دفعة لسا ما انقبضت - الدفعات المقبوضة ما منلمسها
+          var diffP = sum - 100;
+          if(Math.abs(diffP) <= 5 && Array.isArray(c.paymentTables)){
+            for(var pi = pays.length - 1; pi >= 0; pi--){
+              if(getPayStatus(pays[pi]) === 'received') continue;
+              var toP = Math.round(((audNum(pays[pi].pct) || 0) - diffP) * 10000) / 10000;
+              if(toP > 0) AUD.pctFix.push({ ref: ref, table: t.name, idx: pi, desc: pays[pi].desc || '', from: audNum(pays[pi].pct) || 0, to: toP });
+              break;
+            }
+          }
+        }
       }
       if(!(audNum(t.total) > 0) && pays.length) totBad.push(tn);
       pays.forEach(function(p){
@@ -10476,7 +10488,7 @@ async function stepBusinessAudit(onProg){
   });
   var nC = Object.keys(contracts).length;
   if(orphanC.length) warn('عقود بدون عرض سعر بالسجل (' + orphanC.length + ')', audList(orphanC) + ' - يا انحذف عرضها، يا رقمها المرجعي غلط');
-  if(pctBad.length) fail('جداول دفعات نسبها ما بتجمع 100% (' + pctBad.length + ')', audList(pctBad) + ' - المبالغ المتوقعة غلط');
+  if(pctBad.length) fail('جداول دفعات نسبها ما بتجمع 100% (' + pctBad.length + ')', audList(pctBad) + ' - المبالغ المتوقعة غلط' + (AUD.pctFix.length ? ' - رح تتصلّح: الفرق بينحط على آخر دفعة لسا ما انقبضت' : ''), AUD.pctFix.length ? { fixable: 'pct100' } : undefined);
   if(totBad.length) fail('جداول دفعات بدون قيمة (' + totBad.length + ')', audList(totBad) + ' - كل دفعاتها بتنحسب صفر');
   if(badDate.length) fail('تواريخ دفعات بصيغة غلط (' + badDate.length + ')', audList(badDate) + ' - ما رح تبين بالدفعات المتوقعة');
   if(dueNoDate.length) warn('دفعات مستحقة بدون تاريخ (' + dueNoDate.length + ')', audList(dueNoDate) + ' - ما بتطلع بفلتر الأيام/الأسابيع');
@@ -10706,6 +10718,18 @@ async function stepFixes(){
       AUD.listFix.forEach(function(f){ setQuoteTotalOverride(f.ref, f.to); try{ mzApplyQuoteTotalFromTool(f.ref, f.to); }catch(e){} });
       fixLog('تصحيح قيم العروض بالسجل', AUD.listFix.length + ' عرض صارت قيمته نفس ملفه المحفوظ: ' + audList(AUD.listFix.map(function(f){ return f.ref + ' ' + fmt(f.from) + '→' + fmt(f.to); }), 8));
     }catch(e){ fail('تعذّر تصحيح قيم العروض', e.message); }
+  }
+  if(kinds.pct100 && AUD && AUD.pctFix.length){
+    try{
+      var cs = loadContracts(), done = [];
+      AUD.pctFix.forEach(function(f){
+        var c = cs[f.ref]; if(!c || !Array.isArray(c.paymentTables)) return;
+        var t = c.paymentTables.find(function(x){ return x && x.name === f.table; }); if(!t || !t.payments || !t.payments[f.idx]) return;
+        var p = t.payments[f.idx]; if(Math.abs((audNum(p.pct) || 0) - f.from) > 1e-9) return; // اتغيّرت من وقت الفحص - ما منلمسها
+        p.pct = f.to; touchPayRow(p); done.push(f.ref + ' - ' + (f.desc || 'دفعة') + ': ' + (Math.round(f.from * 100) / 100) + '% → ' + (Math.round(f.to * 100) / 100) + '%');
+      });
+      if(done.length && saveContracts(cs)) fixLog('تصحيح نسب جداول الدفعات لتجمع 100%', audList(done));
+    }catch(e){ fail('تعذّر تصحيح نسب الدفعات', e.message); }
   }
   if(kinds.qinfo && AUD && AUD.infoFix.length){
     try{
