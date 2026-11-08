@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.5';
+  var CURRENT_VERSION = '2026-11-08.6';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7736,6 +7736,12 @@ window.wdApplyBack = function(results){
             <div><label>عرض الباب (مم)</label><input type="text" inputmode="decimal" id="shDoor" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);shOnInput('door')" onblur="evalMeasureField(this);shOnInput('door')"></div>
             <div><label>الزجاج الثابت</label><div id="shFixedOut" style="padding:9px 4px;font-weight:700;font-size:15px;"></div></div>
           </div>
+          <label style="margin-top:10px;display:block;">سماكة الزجاج</label>
+          <div class="shape-toggle" id="shGlassBtns">
+            <button type="button" data-g="8" onclick="shSetGlass(8)">8 مم</button>
+            <button type="button" data-g="10" onclick="shSetGlass(10)">10 مم</button>
+            <button type="button" data-g="12" onclick="shSetGlass(12)">12 مم</button>
+          </div>
           <label style="margin-top:10px;display:block;">عدد المفصلات</label>
           <div class="shape-toggle">
             <button id="btnShowerHinge2" onclick="onShowerHingeCountChange(2)">2</button>
@@ -8582,6 +8588,16 @@ function isShowerDoor(it){ return it.shapeType === 'showerGlassDoor'; }
 /* 🚿 2026-11-08 (طلب حمدي: "بالمصمم لما اختار فل شاور من الجدول ماعم اقدر اقسم الشاور كجزء ثابت وباب"):
    "وضع المقاس الكلي": مقاس الجدول (العرض) = الشاور كلو (زجاج ثابت + باب). لما تضيف/تشيل لوح ثابت أو
    تغيّر عرضو، الباب بيصغر/بيكبر حتى يضل المجموع = مقاس الجدول. البنود القديمة (بدون هالعلامة) بتضل متل ما كانت. */
+// سماكة زجاج الشاور: إذا ما انختارت، منقراها من اسم البند بالجدول ("سماكة 12 ملم") وإلا 10 مم
+function showerGlassMm(it){
+  const v = +it.showerGlassMm; if(v > 0) return v;
+  let txt = String(it.label || '');
+  try{ const t = (typeof ITEMS !== 'undefined' ? ITEMS : []).find(x=> x && x.en === it.label); if(t) txt += ' ' + (t.ar || '') + ' ' + (t.specEn || ''); }catch(e){}
+  const m = /(\d{1,2})\s*(ملم|مم|mm)/i.exec(txt); const g = m ? +m[1] : 0;
+  return g >= 6 && g <= 19 ? g : 10;
+}
+function shSetGlass(mm){ const it = getSelected(); if(!it || !isShowerDoor(it)) return; pushHistory(); it.showerGlassMm = mm; shRefreshPanel(it); renderGallery(); }
+window.shSetGlass = shSetGlass;
 function showerPanelsW(it){ return (it.showerLeftPanel ? (it.showerLeftWidth || 0) : 0) + (it.showerRightPanel ? (it.showerRightWidth || 0) : 0); }
 function showerTotalW(it){ return (it.width || 0) + showerPanelsW(it); }
 function showerSetDoorFromTotal(it, total){ shApply(it, total, it.width, shMode(it)); }
@@ -8612,6 +8628,7 @@ function shRefreshPanel(it){
   document.querySelectorAll('#shModeBtns [data-shm]').forEach(b=> b.classList.toggle('active', b.dataset.shm === m));
   document.getElementById('shDoorRow').style.display = m === 'none' ? 'none' : 'grid';
   const L = it.showerLeftPanel ? it.showerLeftWidth : 0, R = it.showerRightPanel ? it.showerRightWidth : 0;
+  const gmm = showerGlassMm(it); document.querySelectorAll('#shGlassBtns [data-g]').forEach(b=> b.classList.toggle('active', +b.dataset.g === gmm));
   document.getElementById('shFixedOut').textContent = m === 'both' ? (Math.round(L) + ' + ' + Math.round(R) + ' مم') : (Math.round(L + R) + ' مم');
   const w = document.getElementById('inWidth'), h = document.getElementById('inHeight'); if(w) w.value = it.width; if(h) h.value = it.height;
 }
@@ -19342,7 +19359,7 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
   const totalRealW = (it.width||0) + leftW + rightW;
   const H = it.height;
   if(!totalRealW || !H) return '';
-  const estPadSide = 100, estPadTop = 90, estPadBottom = 46;
+  const estPadSide = 100, estPadTop = 90, estPadBottom = 78;
   const targetW = Math.max(50, availW - estPadSide*2);
   const targetH = Math.max(50, availH - estPadTop - estPadBottom);
   const scale = Math.min(targetW/totalRealW, targetH/H);
@@ -19380,7 +19397,7 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
     if(hasRight) frostSvg += `<g transform="translate(${rightX},0)">${partFor(rightPx)}</g>`;
   }
 
-  const padTop = 90, padSide = 70, padBottom = 46;
+  const padTop = 90, padSide = 70, padBottom = 78;
   const totalW = totalDrawW + padSide*2, totalH = drawH + padTop + padBottom;
 
   let dim = `
@@ -19393,8 +19410,14 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
     <line x1="${totalDrawW+20}" y1="${drawH}" x2="${totalDrawW+28}" y2="${drawH}" stroke="#A15C1E" stroke-width="1.2"/>
     <text x="${totalDrawW+37}" y="${drawH/2}" fill="#A15C1E" font-size="15" font-weight="700" font-family="'JetBrains Mono',monospace" text-anchor="middle" transform="rotate(90, ${totalDrawW+37}, ${drawH/2})">${Math.round(H)} mm</text>
   `;
-  if(hasLeft) dim += `<text x="${leftPx/2}" y="${drawH+18}" fill="#A15C1E" font-size="11" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(leftW)} mm ثابت</text>`;
-  if(hasRight) dim += `<text x="${rightX+rightPx/2}" y="${drawH+18}" fill="#A15C1E" font-size="11" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${Math.round(rightW)} mm ثابت</text>`;
+  // 🆕 2026-11-08 (طلب حمدي: "مقاس الباب وسماكة الزجاج مو مذكورة عند الطباعة"): تحت الرسمة: مقاس الباب ومقاس كل
+  // زجاج ثابت (بخطوط قياس)، وتحتهم سطر سماكة الزجاج ونوعه.
+  const subDim = (x, w, txt)=> `<line x1="${x}" y1="${drawH+14}" x2="${x+w}" y2="${drawH+14}" stroke="#A15C1E" stroke-width="1"/><line x1="${x}" y1="${drawH+10}" x2="${x}" y2="${drawH+18}" stroke="#A15C1E" stroke-width="1"/><line x1="${x+w}" y1="${drawH+10}" x2="${x+w}" y2="${drawH+18}" stroke="#A15C1E" stroke-width="1"/><text x="${x+w/2}" y="${drawH+32}" fill="#A15C1E" font-size="13" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${txt}</text>`;
+  if(hasLeft) dim += subDim(0, leftPx, 'ثابت ' + Math.round(leftW));
+  dim += subDim(doorX, drawW, 'باب ' + Math.round(it.width));
+  if(hasRight) dim += subDim(rightX, rightPx, 'ثابت ' + Math.round(rightW));
+  const gmm = showerGlassMm(it);
+  dim += `<text x="${totalDrawW/2}" y="${drawH+58}" fill="#000" font-size="13" text-anchor="middle" font-weight="700">زجاج سكوريت ${it.frostedOverlay ? 'مضبب' : 'شفاف'} ${gmm} مم</text>`;
 
   return `<svg viewBox="${-padSide} ${-padTop} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
     ${dim}
@@ -19823,7 +19846,7 @@ function guessShapeTypeFromName(name){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans'];
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
