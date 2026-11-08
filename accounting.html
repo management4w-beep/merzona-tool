@@ -80,7 +80,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.2';
+  var CURRENT_VERSION = '2026-11-08.4';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'accounting';
   var VERSION_URL = 'version.json';
@@ -472,7 +472,7 @@
 </script>
 <!-- ===== MERZONA ACCESS GATE - END ===== -->
 <title>المحاسبة - ميرزونا</title>
-<script src="acct-core.js?v=2026-11-08.2"></script>
+<script src="acct-core.js?v=2026-11-08.4"></script>
 <style>
   :root{
     --bg:#f4f6f9; --panel:#fff; --line:#d9dee7; --text:#0f172a; --muted:#5b6475;
@@ -605,9 +605,13 @@ function isAdmin(){ return S.me && S.me.admin; }
 function headers(){
   return { 'Content-Type': 'application/json', 'x-device': lsGet('merzona-device-token') || '', 'x-session': lsGet('merzona-session-token') || '' };
 }
+// كل طلب إلو مهلة دقيقة: إذا السيرفر ما رد منقول هيك بوضوح بدل ما الصفحة تضل "عم تحمّل" للأبد
 function api(method, path, body){
-  return fetch(SERVER + path, { method: method, headers: headers(), body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
-    .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ j.__status = r.status; return j; }); });
+  var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var tm = ctl ? setTimeout(function(){ ctl.abort(); }, 60000) : null;
+  return fetch(SERVER + path, { method: method, headers: headers(), body: body ? JSON.stringify(body) : undefined, cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+    .then(function(r){ clearTimeout(tm); return r.json().catch(function(){ return {}; }).then(function(j){ j.__status = r.status; return j; }); },
+          function(e){ clearTimeout(tm); if(e && e.name === 'AbortError') return { __status: 0, error: 'timeout' }; throw e; });
 }
 function load(keepTab){
   app.innerHTML = '<div class="state">⏳ جاري تحميل ' + esc(C.BOOKS[S.bookId].name) + '...</div>';
@@ -629,13 +633,14 @@ function load(keepTab){
   });
 }
 function op(name, data, okMsg){
-  if(S.busy) return Promise.resolve(null);
+  if(S.busy) return Promise.resolve({ errors: ['في عملية قبلها لسا عم تنحفظ - استنى كم ثانية وجرّب'] });
   S.busy = true;
   return api('POST', '/acct/' + S.bookId + '/op', { op: name, data: data, baseRev: S.book.rev }).then(function(r){
     S.busy = false;
     if(r.__status === 200){ if(okMsg) toast(okMsg); return load(true).then(function(){ return r; }); }
     if(r.__status === 409 && r.error === 'doc-changed'){ var e409 = r.errors || ['حدا تاني عدّل هالمستند - حدّثنا الدفتر']; return load(true).then(function(){ return { errors: e409 }; }); }
     if(r.__status === 409){ toast('في تعديل من جهاز تاني - حدّثنا الدفتر، جرّب مرة تانية'); return load(true).then(function(){ return null; }); }
+    if(r.error === 'timeout') return load(true).then(function(){ return { errors: ['السيرفر ما رد خلال دقيقة. حدّثنا الدفتر - شوف إذا انحفظ قبل ما تعيد المحاولة'] }; });
     var errs = r.errors || r.problems || [r.error || ('خطأ ' + r.__status)];
     return { errors: errs };
   }).catch(function(){ S.busy = false; return { errors: ['ما في اتصال بالسيرفر - ما انحفظ شي'] }; });
@@ -690,7 +695,7 @@ function vHome(){
   var k = function(l, v, s, color){ return '<div class="kpi" style="' + (color ? 'border-inline-start-color:' + color : '') + '"><div class="l">' + l + '</div><div class="v">' + v + '</div>' + (s ? '<div class="s">' + s + '</div>' : '') + '</div>'; };
   panel('', '<div class="kpis">' +
     k('النقدية (صناديق + بنوك)', money(cash, cur), money_.length + ' حساب', '#0f6fb3') +
-    k('مستحق من الزبائن', money(ar, cur), overdue ? '<span class="dng">متأخر: ' + money(overdue, cur) + '</span>' : 'ما في متأخرات', '#15803d') +
+    k('مستحق من الزبائن', money(ar, cur), (overdue ? '<span class="dng">فواتير متأخرة: ' + money(overdue, cur) + '</span>' : 'ما في متأخرات') + (ag.totals.credit ? '<br>دفعات مقدّمة غير مطبّقة: ' + money(-ag.totals.credit, cur) : ''), '#15803d') +
     k('مستحق للموردين', money(ap, cur), '', '#b45309') +
     k('صافي ربح هالشهر', money(plM.netProfit, cur), 'إيرادات ' + money(plM.totalIncome), plM.netProfit < 0 ? '#c62828' : '#15803d') +
     k('صافي ربح السنة', money(plY.netProfit, cur), 'من ' + y0, plY.netProfit < 0 ? '#c62828' : '#15803d') +
@@ -1030,7 +1035,11 @@ function vSettings(){
         if(data.book && data.book !== S.bookId){ alert('هالملف لدفتر ' + data.book + ' - بدّل الدفتر فوق أول'); return; }
         if(!confirm('رح نستورد ' + (data.docs || []).length + ' مستند و ' + Object.keys(data.parties || {}).length + ' طرف و ' + (data.accounts || []).length + ' حساب. متأكد؟')) return;
         ib.querySelector('#impOut').innerHTML = '⏳ جاري الاستيراد والتحقق...';
-        op('importOpening', data, '✅ انستوردت البيانات').then(function(r){ if(r && r.errors) ib.querySelector('#impOut').innerHTML = '<div class="errs"><b>انرفض الاستيراد، وما تغيّر شي:</b><ul>' + r.errors.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>'; });
+        ib.querySelector('#impB').disabled = true;
+        op('importOpening', data, '✅ انستوردت البيانات').then(function(r){
+          if(r && !r.errors){ S.tab = 'home'; lsSet(LS_TAB, 'home'); renderChrome(); render(); toast('✅ انستورد ' + (r.count || '') + ' مستند - ميزان المراجعة مطابق لـ QuickBooks'); return; }
+          var bb = ib.querySelector('#impB'); if(bb) bb.disabled = false;
+          if(r && r.errors) ib.querySelector('#impOut').innerHTML = '<div class="errs"><b>انرفض الاستيراد، وما تغيّر شي:</b><ul>' + r.errors.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul></div>'; });
       };
       rd.readAsText(file);
     };
