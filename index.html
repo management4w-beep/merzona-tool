@@ -76,7 +76,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-09.2';
+  var CURRENT_VERSION = '2026-11-09.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -1256,6 +1256,48 @@
     padding:4px 0 6px; margin-bottom:8px;
   }
 
+
+  /* ===== 🆕 2026-11-09 لوحة تعديل البند (طلب حمدي: "بضطر اطلع لاول الصفحة لحتى عبي مقاسات وارجع انزل") =====
+     موبايل/شاشة ضيقة: لوحة الأدوات بتصير لوحة من تحت (نص الشاشة) والرسمة بتضل ظاهرة فوقها.
+     كمبيوتر: نفس العمود الجانبي، بس فوقه شريط اسم البند + السابق/الجاي، وأزرار الإضافة وتغيير النوع مطوية. */
+  #mzEdBar{ display:flex; align-items:center; gap:6px; position:sticky; top:-16px; z-index:5; margin:-16px -16px 12px; padding:8px 10px;
+    background: var(--wd-panel-2, #0f2236); border-bottom:1px solid var(--wd-line-soft); border-radius: var(--wd-radius) var(--wd-radius) 0 0; }
+  #mzEdBar .mz-ed-name{ flex:1; min-width:0; text-align:center; font-weight:800; font-size:14px; color: var(--wd-cyan); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #mzEdBar .mz-ed-name small{ display:block; font-weight:400; font-size:11px; color: var(--wd-ink-dim); }
+  #mzEdBar button{ min-width:40px; height:38px; border-radius:8px; border:1px solid var(--wd-line-soft); background: var(--wd-panel); color: var(--wd-ink); font-size:16px; cursor:pointer; }
+  #mzEdBar .mz-ed-close{ display:none; }
+  details.mz-add-details, details.mz-shape-details{ margin-top:8px; border:1px dashed var(--wd-line-soft); border-radius:8px; padding:6px 8px; }
+  details.mz-add-details > summary, details.mz-shape-details > summary{ cursor:pointer; font-weight:700; font-size:13px; padding:4px 2px; color: var(--wd-ink); }
+  details.mz-shape-details{ margin-top:0; margin-bottom:10px; }
+  #mzShapeNow{ color: var(--wd-amber); font-weight:800; }
+  .item-card .mz-edit-btn{ font-weight:800; }
+  #mzEdFab{ display:none; }
+  #wdOverlay .panel.controls{ top: calc(var(--mz-hdr-h, 96px) + 6px); max-height: calc(100vh - var(--mz-hdr-h, 96px) - 46px); }
+  #wdOverlay .item-card{ scroll-margin-top: calc(var(--mz-hdr-h, 96px) + 8px); }
+  @media (max-width: 900px){
+    #wdOverlay .panel.controls{ position:fixed !important; left:0; right:0; bottom:0; top:auto; z-index:60; max-height:58vh !important; overflow-y:auto;
+      border-radius:16px 16px 0 0; margin:0; transform: translateY(105%); transition: transform .22s ease; box-shadow:0 -10px 30px rgba(0,0,0,.45); padding-bottom:24px; }
+    #wdOverlay.mz-sheet-open .panel.controls{ transform:none; }
+    #wdOverlay.mz-sheet-open .layout{ padding-bottom:60vh; }
+    #mzEdBar{ top:-16px; }
+    #mzEdBar .mz-ed-close{ display:block; }
+    #wdOverlay #mzEdFab{ display:block; position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:59; padding:12px 22px; border-radius:24px;
+      border:1px solid var(--wd-cyan); background: var(--wd-cyan-dim); color: var(--wd-cyan); font-weight:800; font-size:15px; font-family: var(--wd-font-ui); box-shadow:0 6px 18px rgba(0,0,0,.4); }
+    #wdOverlay.mz-sheet-open #mzEdFab{ display:none; }
+    #wdOverlay .panel.controls #itemChips{ display:none; }
+    #wdOverlay.mz-sheet-open .item-card.selected .card-canvas svg{ max-height:30vh; width:100%; }
+  }
+  body.mode-mobile #wdOverlay .panel.controls{ position:fixed !important; left:0; right:0; bottom:0; top:auto; z-index:60; max-height:58vh !important; overflow-y:auto;
+    border-radius:16px 16px 0 0; margin:0; transform: translateY(105%); transition: transform .22s ease; box-shadow:0 -10px 30px rgba(0,0,0,.45); padding-bottom:24px; }
+  body.mode-mobile #wdOverlay.mz-sheet-open .panel.controls{ transform:none; }
+  body.mode-mobile #wdOverlay.mz-sheet-open .layout{ padding-bottom:60vh; }
+  body.mode-mobile #mzEdBar .mz-ed-close{ display:block; }
+  body.mode-mobile #wdOverlay #mzEdFab{ display:block; position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:59; padding:12px 22px; border-radius:24px;
+    border:1px solid var(--wd-cyan); background: var(--wd-cyan-dim); color: var(--wd-cyan); font-weight:800; font-size:15px; font-family: var(--wd-font-ui); box-shadow:0 6px 18px rgba(0,0,0,.4); }
+  body.mode-mobile #wdOverlay.mz-sheet-open #mzEdFab{ display:none; }
+  body.mode-mobile #wdOverlay .panel.controls #itemChips{ display:none; }
+  body.mode-mobile #wdOverlay.mz-sheet-open .item-card.selected .card-canvas svg{ max-height:30vh; width:100%; }
+  @media print{ #mzEdBar, #mzEdFab{ display:none !important; } }
   .layout{
     display: grid;
     grid-template-columns: 340px 1fr;
@@ -7653,14 +7695,22 @@ window.wdApplyBack = function(results){
     <div class="wd-header-toggle"><button id="wdHeaderToggleBtn" onclick="toggleWdHeader()" type="button">▼ إظهار الترويسة والأدوات</button></div>
   </header>
 
+  <button type="button" id="mzEdFab" onclick="mzEditItem()">✏️ تعديل البند المحدد</button>
   <div class="layout">
 
     <!-- CONTROLS -->
     <section class="panel controls">
+      <div id="mzEdBar">
+        <button type="button" class="mz-ed-nav" onclick="mzEdStep(-1)" title="البند السابق">▶</button>
+        <div class="mz-ed-name"><span id="mzEdName">—</span><small id="mzEdPos"></small></div>
+        <button type="button" class="mz-ed-nav" onclick="mzEdStep(1)" title="البند الجاي">◀</button>
+        <button type="button" class="mz-ed-close" onclick="mzEdClose()" title="سكّر لوحة التعديل">✕</button>
+      </div>
 
       <div class="field-block" style="margin-top:0;padding-top:0;border-top:none;">
         <h2 class="sec">العناصر</h2>
         <div class="item-chips" id="itemChips"><div class="item-chip active"><span>شباك 1</span><button class="x" onclick="deleteItem(1, event)">×</button></div></div>
+        <details class="mz-add-details" id="mzAddDetails"><summary>➕ إضافة بند جديد (شباك، باب، هاندريل...)</summary>
         <div class="add-row">
           <button onclick="addItem('window')">+ شباك جديد</button>
           <button onclick="addItem('door')">+ باب جديد</button>
@@ -7680,16 +7730,21 @@ window.wdApplyBack = function(results){
           <button onclick="addItem('handrail')" style="flex:1;">🛡️ + هاندريل (درابزين) جديد</button>
         </div>
         <div class="add-row" style="margin-top:6px;">
+          <button onclick="addItem('pergola')" style="flex:1;">⛱️ + بيرغولا / مظلة جديدة</button>
+        </div>
+        <div class="add-row" style="margin-top:6px;">
           <button onclick="addItem('mirror')" style="flex:1;">🪞 + مرآة جديدة</button>
         </div>
         <div class="add-row" style="margin-top:6px;">
           <button onclick="addItem('room')" style="flex:1;">🏛️ + غرفة/مجلس جديد</button>
           <button onclick="addItem('gableRoof')" style="flex:1;">🏕️ + سقف جملون متحرك جديد</button>
         </div>
+        </details>
       </div>
 
       <div class="field-block">
         <h2 class="sec">الشكل العام</h2>
+        <details class="mz-shape-details" id="mzShapeDetails"><summary>🔁 تغيير نوع البند <span id="mzShapeNow"></span></summary>
         <div class="shape-toggle">
           <button id="btnWindow" onclick="setShape('window')" class="active">شباك</button>
           <button id="btnDoor" onclick="setShape('door')">باب</button>
@@ -7698,15 +7753,7 @@ window.wdApplyBack = function(results){
           <button id="btnSlidingWindow" onclick="setShape('slidingWindow')">شباك سحّاب</button>
           <button id="btnSlidingDoor" onclick="setShape('slidingDoor')">باب سحّاب</button>
         </div>
-        <div style="margin-top:6px; margin-bottom:10px; display:none;" id="slidingDoorLeafBlock">
-          <label>عدد درفات الباب السحّاب</label>
-          <div class="shape-toggle">
-            <button id="btnSlidingLeafDouble" onclick="onSlidingLeafModeChange('double')" class="active">درفتين (عادي)</button>
-            <button id="btnSlidingLeafSingle" onclick="onSlidingLeafModeChange('single')">درفة وحدة</button>
-          </div>
-          <p class="hint" style="margin-top:6px;">"درفة وحدة": لوح سحّاب واحد بس بدون قاطع بالنص - نفس فريم وسكة الباب السحّاب العادي، بس بدون تقسيم لدرفتين.</p>
-        </div>
-        <div class="shape-toggle">
+                <div class="shape-toggle">
           <button id="btnFoldingDoor" onclick="setShape('foldingDoor')" style="flex:1;">باب فولدينغ</button>
         </div>
         <div class="shape-toggle">
@@ -7716,7 +7763,19 @@ window.wdApplyBack = function(results){
           <button id="btnHandrail" onclick="setShape('handrail')" style="flex:1;">🛡️ هاندريل (درابزين)</button>
         </div>
         <div class="shape-toggle">
+          <button id="btnPergola" onclick="setShape('pergola')" style="flex:1;">⛱️ بيرغولا / مظلة</button>
+        </div>
+        <div class="shape-toggle">
           <button id="btnMirror" onclick="setShape('mirror')" style="flex:1;">🪞 مرآة</button>
+        </div>
+        </details>
+        <div style="margin-top:6px; margin-bottom:10px; display:none;" id="slidingDoorLeafBlock">
+          <label>عدد درفات الباب السحّاب</label>
+          <div class="shape-toggle">
+            <button id="btnSlidingLeafDouble" onclick="onSlidingLeafModeChange('double')" class="active">درفتين (عادي)</button>
+            <button id="btnSlidingLeafSingle" onclick="onSlidingLeafModeChange('single')">درفة وحدة</button>
+          </div>
+          <p class="hint" style="margin-top:6px;">"درفة وحدة": لوح سحّاب واحد بس بدون قاطع بالنص - نفس فريم وسكة الباب السحّاب العادي، بس بدون تقسيم لدرفتين.</p>
         </div>
         <div style="margin-top:10px; display:none;" id="showerDoorBlock">
           <!-- 🚿 2026-11-08 (طلب حمدي: "لازم تغيير جذري يكون عملي وسلس وسهل"): لوحة الشاور صارت 4 خانات بس.
@@ -8279,6 +8338,37 @@ window.wdApplyBack = function(results){
           <div class="add-row" style="margin-top:8px;">
             <button type="button" onclick="openGableRoof3D()" class="small" style="flex:1;">🏕️ مشهد ثري دي حقيقي (جملون + قوائم + فتح/سكر حي)</button>
           </div>
+        </div>
+
+        <div style="margin-top:10px; display:none;" id="pergolaBlock">
+          <!-- 🆕 2026-11-09 (دراسة المصمم): بيرغولا / مظلة سيارات / مظلة مجلس. الطول والعمق = مقاس الجدول. -->
+          <div class="row2">
+            <div><label>الطول (مم)</label><input type="text" inputmode="decimal" id="inPgL" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('width',this.value)"></div>
+            <div><label>العمق / البروز (مم)</label><input type="text" inputmode="decimal" id="inPgD" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('height',this.value)"></div>
+          </div>
+          <div class="row2" style="margin-top:8px;">
+            <div><label>الارتفاع (مم)</label><input type="text" inputmode="decimal" id="inPgH" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('pgHeight',this.value)"></div>
+            <div><label>أعمدة بكل صف (0 = تلقائي)</label><input type="number" inputmode="numeric" min="0" max="20" step="1" id="inPgPer" onchange="pgField('pgPostsPerRow',this.value)"></div>
+          </div>
+          <label style="margin-top:10px;display:block;">طريقة التركيب</label>
+          <div class="shape-toggle" id="pgMountBtns">
+            <button type="button" data-v="free" onclick="pgField('pgMount','free')">أعمدة قدام وورا</button>
+            <button type="button" data-v="wall" onclick="pgField('pgMount','wall')">عالحيط + أعمدة قدام</button>
+            <button type="button" data-v="cantilever" onclick="pgField('pgMount','cantilever')">كابولي (أعمدة ورا بس)</button>
+          </div>
+          <div class="row2" style="margin-top:8px;">
+            <div><label>مقاس العمود</label><select id="inPgPost" onchange="pgField('pgPost',this.value)"><option>100x100</option><option>150x150</option><option>200x200</option><option>100x200</option></select></div>
+            <div><label>مقاس الجسر</label><select id="inPgBeam" onchange="pgField('pgBeam',this.value)"><option>100x100</option><option>150x150</option><option>100x200</option><option>150x300</option></select></div>
+          </div>
+          <div class="row2" style="margin-top:8px;">
+            <div><label>مقاس الشريحة</label><select id="inPgSlat" onchange="pgField('pgSlat',this.value)"><option>50x50</option><option>50x100</option><option>100x50</option><option>40x80</option><option>30x60</option></select></div>
+            <div><label>المسافة بين الشرائح (مم)</label><input type="text" inputmode="decimal" id="inPgGap" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('pgSlatGap',this.value)"></div>
+          </div>
+          <div class="row2" style="margin-top:8px;">
+            <div><label>السقف</label><select id="inPgRoof" onchange="pgField('pgRoof',this.value)"><option value="slats">شرائح مفتوحة</option><option value="louver">لوفر متحرك</option><option value="poly">بولي كاربونيت فوق الشرائح</option><option value="glass">زجاج فوق الشرائح</option></select></div>
+            <div><label>المادة</label><select id="inPgMat" onchange="pgField('pgMaterial',this.value)"><option value="alu">ألمنيوم</option><option value="steel">حديد مجلفن</option></select></div>
+          </div>
+          <p class="hint" id="pgSummary" style="margin-top:8px;"></p>
         </div>
 
         <div class="row2" id="normalDimsRow" style="display: grid;">
@@ -9092,6 +9182,7 @@ function buildPurchSummaries(){
       try{
         if(!it || it.isCameraTemp || isRoom(it) || isGableRoof(it)) return;
         if(it.isRoomWallElevation && !it.sourceRowUid) return; // بند "منظور حائط" يتيم (بدون صف بجدول الكميات) - مو بند مشتريات حقيقي
+        if(isPergola(it)){ const c = pgCalc(it); out[it.id] = { type:'pergola', qty: getPurchItemQty(it), aluMm: Math.round(c.aluMm), glassM2: it.pgRoof === 'glass' ? c.roofM2 : 0, leaves: 0, hw: null, pgCut: c.cut }; return; }
         const handrail = isHandrail(it) || isMirror(it);
         const ll = isMirror(it) ? [{ type:'plain', w:it.width, h:it.height }] : (handrail ? [] : purchLeafList(it));
         out[it.id] = {
@@ -9510,7 +9601,7 @@ function getPrintAvailPx(pageItemCount, forceFullFill){
   return { availW: Math.max(150, cellW), availH: Math.max(120, cellH) };
 }
 
-const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل', mirror:'مرآة', room:'غرفة/مجلس', gableRoof:'سقف جملون متحرك' };
+const SHAPE_LABELS = { window:'شباك', door:'باب', slidingWindow:'شباك سحّاب', slidingDoor:'باب سحّاب', foldingDoor:'باب فولدينغ', showerGlassDoor:'باب زجاج بدون إطار', handrail:'هاندريل', pergola:'بيرغولا / مظلة', mirror:'مرآة', room:'غرفة/مجلس', gableRoof:'سقف جملون متحرك' };
 const HANDRAIL_GAP_MM = 5;
 // مواقع أزواج مسامير Stand Off أفقيًا داخل عرض اللوح - كل زوج بيصير عنده مسمارين (فوق وتحت) - قابل للتوسيع لأكتر من زوجين للألواح الكبيرة
 function getStandoffPairPositions(pairs){
@@ -10018,6 +10109,7 @@ function makeItem(type){
     // السلوك القديم تمامًا - سقف جملون مستطيل بس بدون أي زجاج ثابت محيط).
     it.roofFootprintSides = null;
   }
+  if(type === 'pergola'){ it.layout = leaf('plain'); it.width = 4000; it.height = 3000; pgEnsure(it); }
   return it;
 }
 
@@ -10122,6 +10214,7 @@ function setShape(type){
   pushHistory();
   const wasSliding = isSlidingType(it);
   it.shapeType = type;
+  delete it.mzUncertainType;
   const nowSliding = isSlidingType(it);
   if(nowSliding && !wasSliding){
     if(it.frameThickness == null) it.frameThickness = DEFAULT_FRAME_THICKNESS;
@@ -10146,6 +10239,7 @@ function setShape(type){
   if(type === 'handrail'){
     syncHandrailDims(it);
   }
+  if(type === 'pergola'){ it.layout = leaf('plain'); it.archTop = false; pgEnsure(it); }
   if(type === 'mirror'){
     mirrorEnsure(it);
     if(!it.layout || it.layout.kind !== 'leaf') it.layout = leaf('plain');
@@ -10478,8 +10572,9 @@ function loadSelectedIntoControls(){
     document.getElementById(id).disabled = disabled;
   });
   renderTemplateSections();
-  if(!it){ ['gableRoofBlock','roomBlock','handrailBlock','mirrorBlock'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }); return; }
+  if(!it){ ['gableRoofBlock','roomBlock','handrailBlock','mirrorBlock','pergolaBlock'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; }); return; }
 
+  { const pgb = document.getElementById('pergolaBlock'); if(pgb) pgb.style.display = 'none'; }
   // 🆕 2026-09-24: "غرفة/مجلس" - لوحة تحكم مختلفة كليًا (أضلاع + زوايا)، منعزلة عن باقي أنواع البنود
   const room = isRoom(it);
   if(roomDraw.active && (!room || roomDraw.itemId !== it.id)) cancelRoomFreehandDraw();
@@ -10506,6 +10601,17 @@ function loadSelectedIntoControls(){
     document.getElementById('normalDimsRow').style.display = 'none';
     document.getElementById('inArch').closest('.check-row').style.display = 'none';
     renderGableRoofControlsUI(it);
+    return;
+  }
+
+  // 🆕 2026-11-09: بيرغولا / مظلة - لوحة مستقلة (طول، عمق، ارتفاع، أعمدة، تيوبات، سقف)
+  const pg = isPergola(it);
+  document.getElementById('pergolaBlock').style.display = pg ? 'block' : 'none';
+  if(pg){
+    ['handrailBlock','mirrorBlock','showerDoorBlock','slidingDoorLeafBlock','hingeThicknessBlock','slidingThicknessBlock'].forEach(function(id){ var e=document.getElementById(id); if(e) e.style.display='none'; });
+    document.getElementById('normalDimsRow').style.display = 'none';
+    document.getElementById('inArch').closest('.check-row').style.display = 'none';
+    pgLoadControls(it);
     return;
   }
 
@@ -10565,6 +10671,7 @@ function loadSelectedIntoControls(){
   document.getElementById('btnFoldingDoor').classList.toggle('active', it.shapeType==='foldingDoor');
   document.getElementById('btnShowerDoor').classList.toggle('active', it.shapeType==='showerGlassDoor');
   document.getElementById('btnHandrail').classList.toggle('active', it.shapeType==='handrail');
+  { const bp = document.getElementById('btnPergola'); if(bp) bp.classList.toggle('active', it.shapeType==='pergola'); }
   document.getElementById('btnMirror').classList.toggle('active', it.shapeType==='mirror');
 }
 
@@ -11358,6 +11465,7 @@ function classifyItem(it){
   // مربك (ظاهر متلو متل رسمة تانية مالها معنى).
   if(it.shapeType === 'room') return { en:'Plan', ar:'مسقط' };
   if(it.shapeType === 'gableRoof') return { en:'Gable Roof Plan', ar:'مسقط سقف جملون' };
+  if(it.shapeType === 'pergola') return { en:'Pergola - Plan + Front', ar:'بيرغولا - مسقط + واجهة' };
   if(it.isRoomWallElevation) return { en:'Elevation', ar:'منظور' };
   if(it.shapeType === 'foldingDoor') return { en:'Folding Door', ar:'باب فولدينغ' };
   if(it.shapeType === 'slidingDoor') return { en:'Sliding Door', ar:'باب سحّاب' };
@@ -18594,6 +18702,7 @@ function onGableSlideSpeedChange(itemId, value){
 window.onGableSlideSpeedChange = onGableSlideSpeedChange;
 
 function buildItemSVG(it){
+  if(isPergola(it)) return buildPergolaSVG(it, null);
   if(isHandrail(it)) return buildHandrailSVG(it);
   if(isMirror(it)) return buildMirrorSVG(it);
   if(isRoom(it)) return buildRoomSVG(it);
@@ -18746,7 +18855,7 @@ function buildItemSVG(it){
 // التخزين: it.exhaustFans = [{ id, diaIn, fx, fy, cx, cy }] - fx/fy موقع نسبي (0..1) من عرض/ارتفاع البند، و cx/cy = "ملقوطة
 // بالوسط" (لو تغيّرت المقاسات أو انسحب فاصل بتضل بوسط قسمها). الإنش = 25.4 مم.
 const FAN_SNAP_PX = 22;
-function fanSupported(it){ return !!it && !isHandrail(it) && !isMirror(it) && !isRoom(it) && !isGableRoof(it) && !isShowerDoor(it) && it.width > 0 && it.height > 0; }
+function fanSupported(it){ return !!it && !isHandrail(it) && !isPergola(it) && !isMirror(it) && !isRoom(it) && !isGableRoof(it) && !isShowerDoor(it) && it.width > 0 && it.height > 0; }
 function fanRadiusMM(f){ const d = parseFloat(f && f.diaIn); return (isFinite(d) && d > 0 ? d : 12) * 25.4 / 2; }
 function fanLeafRectsMM(it){
   const out = [];
@@ -19434,6 +19543,7 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
 }
 
 function buildPrintSVG(it, pageItemCount){
+  if(isPergola(it)) return buildPergolaSVG(it, pageItemCount);
   if(isHandrail(it)) return buildHandrailPrintSVG(it, pageItemCount);
   if(isMirror(it)) return buildMirrorPrintSVG(it, pageItemCount);
   if(isShowerDoor(it)) return buildShowerDoorPrintSVG(it, pageItemCount);
@@ -19587,12 +19697,12 @@ function buildPrintSheetHTML(opts){
     html += `<div class="print-page" style="grid-template-columns:repeat(${cols},1fr); grid-template-rows:repeat(${rows},1fr);${breakStyle}">`;
     pageItems.forEach(it=>{
       const cls = classifyItem(it);
-      const typeWord = isHandrail(it) ? 'الهاندريل' : isMirror(it) ? 'المرآة' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
+      const typeWord = isHandrail(it) ? 'الهاندريل' : isPergola(it) ? 'البيرغولا' : isMirror(it) ? 'المرآة' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
       const typeLabel = SHAPE_LABELS[it.shapeType] || 'شباك';
       const refLine = it.refCode ? `<div class="print-item-ref">مرجع الجدول / Reference: <b>${it.refCode}</b></div>` : '';
       // بوضعية طباعة مقاسات التصنيع، الرسمة نفسها أصلاً مرسومة على المقاس المعدّل (باين برقمها فوق
       // الرسمة) - فما لزمة نكرر كابشن "مقاس التصنيع" تاني، بيصير تكرار بلا فايدة.
-      const mfg = (!useMfgSizes && !isHandrail(it) && !isMirror(it) && !it.mfgExcluded) ? getMfgSizeMm(it) : null;
+      const mfg = (!useMfgSizes && !isHandrail(it) && !isMirror(it) && !isPergola(it) && !it.mfgExcluded) ? getMfgSizeMm(it) : null;
       const mfgLine = (mfg && mfg.hasAdjust) ? `<div class="print-item-mfg">📐 مقاس التصنيع (بعد التعديل اليدوي): <b>${mfg.w} × ${mfg.h} mm</b></div>` : '';
       html += `<div class="print-item">
         <div class="print-item-title">${it.label} — ${typeLabel}</div>
@@ -19746,6 +19856,9 @@ function renderGallery(){
     if(camOverlay && camOverlay.style.display === 'block') return; // الكاميرا مفتوحة وفوق كل شي - مافي داعي نبني المعرض العادي المخفي كل ضغطة
   }
   const gallery = document.getElementById('gallery');
+  // 🆕 2026-11-09: منثبّت ارتفاع المعرض لحظة إعادة البناء حتى الصفحة ما تقفز لفوق وإنت عم تكتب مقاس
+  const _keepH = gallery.offsetHeight; if(_keepH) gallery.style.minHeight = _keepH + 'px';
+  try{ requestAnimationFrame(()=>{ gallery.style.minHeight = ''; }); }catch(e){ gallery.style.minHeight = ''; }
   gallery.innerHTML = '';
   const visibleItems = items.filter(it => !it.isCameraTemp);
   if(visibleItems.length === 0){
@@ -19759,11 +19872,13 @@ function renderGallery(){
     card.className = 'item-card' + (it.id===selectedId ? ' selected' : '');
     const head = document.createElement('div');
     head.className = 'card-head';
-    head.onclick = () => selectItem(it.id);
+    head.onclick = () => { if(window.mzEdIsSheet && mzEdIsSheet()) mzEditItem(it.id); else selectItem(it.id); };
     head.innerHTML = `<span class="name">${it.label}${it.refCode ? ` <span style="opacity:0.6;font-weight:400;">(${it.refCode})</span>` : ''}</span>
-      ${(isHandrail(it) || isMirror(it)) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
+      ${(isHandrail(it) || isMirror(it) || isPergola(it)) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();rotateRoomPlan(${it.id})" title="دوّر المسقط 90° (بس شكل العرض - ما بيغيّر أي مقاس أو زاوية حقيقية)">🔄 دوّر المسقط</button>` : ''}
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();openRoomFloorPreviewFullscreen(${it.id})" title="كبّر المسقط لكامل الشاشة - مفيد لما تكون الزوايا مزنّرة على بعض وصعب تشوفها/تضغط عليها بالحجم الصغير">🔍 كبّر لكامل الشاشة</button>` : ''}
+      ${it.mzUncertainType ? '<span class="type-badge" style="color:#ffb020;border-color:#ffb020;" title="اسم البند ما بيدل على نوع معروف - اختار النوع الصح من (تغيير نوع البند)">⚠️ تأكد من النوع</span>' : ''}
+      <button class="frost-toggle-btn mz-edit-btn" onclick="event.stopPropagation();mzEditItem(${it.id})" title="عدّل مقاسات وتفاصيل هالبند">✏️ تعديل</button>
       <span class="type-badge">${SHAPE_LABELS[it.shapeType] || 'شباك'}</span>`;
     const canvasDiv = document.createElement('div');
     canvasDiv.className = 'card-canvas';
@@ -19780,7 +19895,7 @@ function renderGallery(){
     }
     const caption = document.createElement('div');
     caption.className = 'card-caption';
-    const typeWord = isHandrail(it) ? 'الهاندريل' : isMirror(it) ? 'المرآة' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
+    const typeWord = isHandrail(it) ? 'الهاندريل' : isPergola(it) ? 'البيرغولا' : isMirror(it) ? 'المرآة' : (isRoom(it) || isGableRoof(it) ? 'المسقط' : (isDoorLike(it) ? 'الباب' : 'الشباك'));
     const cls = classifyItem(it);
     caption.innerHTML = `الرؤية لهذا ${typeWord} من الخارج<br>Outside View
       <div class="card-classify">${cls.en} <span class="wd-ar">(${cls.ar})</span></div>`;
@@ -19820,6 +19935,176 @@ historyStack = [];
 updateUndoButton();
 
 
+
+
+/* ===== 🆕 2026-11-09 بيرغولا / مظلة (دراسة المصمم) =====
+   width = الطول (مع الجدول)، height = العمق/البروز (مع الجدول)، pgHeight = ارتفاع الأعمدة.
+   الرسمة: مسقط من فوق + واجهة من قدام + قائمة قص التيوبات (عدد × طول لكل مقاس). */
+function isPergola(it){ return !!it && it.shapeType === 'pergola'; }
+function pgSize(sz, def){ const m = String(sz || '').match(/(\d{2,3})\s*[x×*]\s*(\d{2,3})/i); return m ? [+m[1], +m[2]] : def; }
+function pgEnsure(it){
+  if(!(it.pgHeight > 0)) it.pgHeight = 2700;
+  if(!['free','wall','cantilever'].includes(it.pgMount)) it.pgMount = 'free';
+  if(!(it.pgPostsPerRow >= 0)) it.pgPostsPerRow = 0;
+  if(!it.pgPost) it.pgPost = '150x150';
+  if(!it.pgBeam) it.pgBeam = '150x150';
+  if(!it.pgSlat) it.pgSlat = '50x50';
+  if(!(it.pgSlatGap >= 0)) it.pgSlatGap = 100;
+  if(!['slats','louver','poly','glass'].includes(it.pgRoof)) it.pgRoof = 'slats';
+  if(!['alu','steel'].includes(it.pgMaterial)) it.pgMaterial = 'alu';
+}
+function mzInitPergolaFromRow(it, rd){
+  if(!isPergola(it) || !rd) return;
+  pgEnsure(it);
+  const n = String(rd.itemName || '').toLowerCase();
+  if(/steel|حديد|galvan|مجلفن/.test(n)) it.pgMaterial = 'steel';
+  if(/car\s*shade|carport|سيار/.test(n)) it.pgMount = 'free';
+  const sizes = String(rd.itemName || '').match(/\d{2,3}\s*(?:x|×|\*|في)\s*\d{2,3}/gi) || [];
+  const norm = t => t.replace(/\s*(?:x|×|\*|في)\s*/i, 'x').replace(/\s+/g, '');
+  if(sizes[0]){ it.pgPost = norm(sizes[0]); it.pgBeam = norm(sizes[0]); }
+  if(sizes[1]) it.pgSlat = norm(sizes[1]);
+  if(Number(rd.w) > 0) it.width = Number(rd.w);
+  if(Number(rd.h) > 0) it.height = Number(rd.h);
+}
+function pgCalc(it){
+  pgEnsure(it);
+  const L = Math.max(300, +it.width || 0), D = Math.max(300, +it.height || 0), H = Math.max(500, +it.pgHeight || 2700);
+  const pw = pgSize(it.pgPost, [150,150])[0], sw = pgSize(it.pgSlat, [50,50])[0];
+  const per = it.pgPostsPerRow > 0 ? Math.round(it.pgPostsPerRow) : Math.max(2, Math.ceil(L / 4000) + 1);
+  const rows = it.pgMount === 'free' ? 2 : 1;
+  const gap = Math.max(0, +it.pgSlatGap || 0);
+  const slats = Math.max(2, Math.floor((L - sw) / (sw + gap)) + 1);
+  const realGap = (L - slats * sw) / (slats - 1);
+  const slatName = it.pgRoof === 'louver' ? 'شرائح لوفر متحركة' : 'شرائح السقف';
+  const cut = [
+    { name:'أعمدة', size: it.pgPost, n: per * rows, len: Math.round(H) },
+    { name:'جسور بالطول', size: it.pgBeam, n: 2, len: Math.round(L) },
+    { name:'جسور بالعمق', size: it.pgBeam, n: 2, len: Math.round(D) },
+    { name: slatName, size: it.pgSlat, n: slats, len: Math.round(D) }
+  ];
+  const aluMm = cut.reduce((a, c) => a + c.n * c.len, 0);
+  return { L, D, H, pw, sw, per, rows, posts: per * rows, slats, realGap, cut, aluMm, roofM2: (L * D) / 1e6 };
+}
+function buildPergolaSVG(it, printCount){
+  const c = pgCalc(it);
+  const VW = 640, M = 46;
+  const s = Math.min((VW - 2*M) / c.L, 230 / c.D);
+  const pl = c.L * s, pd = c.D * s;
+  const x0 = (VW - pl) / 2, y0 = 52;
+  const ink = 'var(--wd-ink, #e8eef5)', amber = 'var(--wd-amber, #f5a623)', cyan = 'var(--wd-cyan, #5fd0ff)', dim = 'var(--wd-ink-dim, #8fa3b8)';
+  let g = '';
+  g += `<text x="${VW/2}" y="18" fill="${dim}" font-size="12" text-anchor="middle" font-family="var(--wd-font-ui)">المسقط (من فوق) - Plan</text>`;
+  // wall
+  if(c.rows === 1 && it.pgMount === 'wall') g += `<rect x="${x0-6}" y="${y0-12}" width="${pl+12}" height="10" fill="url(#pgHatch)" stroke="${dim}"/>`;
+  // slats (run along depth)
+  const sp = c.slats > 1 ? (pl - c.sw*s) / (c.slats - 1) : 0;
+  for(let i=0;i<c.slats;i++){ const x = x0 + i*sp; g += `<rect x="${x.toFixed(1)}" y="${y0}" width="${Math.max(1, c.sw*s).toFixed(1)}" height="${pd.toFixed(1)}" fill="${it.pgRoof==='louver' ? '#7fa8c8' : '#6c8aa6'}" opacity="0.75"/>`; }
+  if(it.pgRoof === 'poly' || it.pgRoof === 'glass') g += `<rect x="${x0}" y="${y0}" width="${pl}" height="${pd}" fill="${it.pgRoof==='glass' ? '#9fd8ff' : '#cfe6f5'}" opacity="0.25"/>`;
+  // frame beams
+  g += `<rect x="${x0}" y="${y0}" width="${pl}" height="${pd}" fill="none" stroke="${ink}" stroke-width="3"/>`;
+  // posts
+  const pS = Math.max(6, c.pw * s);
+  const rowYs = it.pgMount === 'free' ? [y0, y0 + pd] : (it.pgMount === 'wall' ? [y0 + pd] : [y0]);
+  rowYs.forEach(y => { for(let i=0;i<c.per;i++){ const x = x0 + (c.per===1 ? pl/2 : i*pl/(c.per-1)); g += `<rect x="${(x-pS/2).toFixed(1)}" y="${(y-pS/2).toFixed(1)}" width="${pS.toFixed(1)}" height="${pS.toFixed(1)}" fill="${amber}"/>`; } });
+  // dims
+  g += `<line x1="${x0}" y1="${y0+pd+22}" x2="${x0+pl}" y2="${y0+pd+22}" stroke="${amber}"/><text x="${x0+pl/2}" y="${y0+pd+38}" fill="${amber}" font-size="14" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)">${Math.round(c.L)} mm</text>`;
+  g += `<line x1="${x0+pl+18}" y1="${y0}" x2="${x0+pl+18}" y2="${y0+pd}" stroke="${amber}"/><text x="${x0+pl+30}" y="${y0+pd/2}" fill="${amber}" font-size="14" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)" transform="rotate(90 ${x0+pl+30} ${y0+pd/2})">${Math.round(c.D)} mm</text>`;
+  // elevation
+  const ey = y0 + pd + 70;
+  const s2 = Math.min(s, 170 / c.H);
+  const el = c.L * s2, eh = c.H * s2, ex = (VW - el) / 2, bh = Math.max(4, pgSize(it.pgBeam,[150,150])[1] * s2);
+  g += `<text x="${VW/2}" y="${ey-8}" fill="${dim}" font-size="12" text-anchor="middle" font-family="var(--wd-font-ui)">الواجهة (من قدام) - Front</text>`;
+  g += `<line x1="${ex-20}" y1="${ey+eh}" x2="${ex+el+20}" y2="${ey+eh}" stroke="${dim}" stroke-width="2"/>`;
+  g += `<rect x="${ex}" y="${ey}" width="${el}" height="${bh}" fill="${ink}" opacity="0.85"/>`;
+  const pS2 = Math.max(4, c.pw * s2);
+  if(it.pgMount !== 'cantilever' || true){ for(let i=0;i<c.per;i++){ const x = ex + (c.per===1 ? el/2 : i*el/(c.per-1)); g += `<rect x="${(x-pS2/2).toFixed(1)}" y="${ey}" width="${pS2.toFixed(1)}" height="${eh.toFixed(1)}" fill="${amber}" opacity="${it.pgMount==='cantilever' ? 0.45 : 1}"/>`; } }
+  g += `<line x1="${ex-12}" y1="${ey}" x2="${ex-12}" y2="${ey+eh}" stroke="${amber}"/><text x="${ex-20}" y="${ey+eh/2}" fill="${amber}" font-size="13" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)" transform="rotate(-90 ${ex-20} ${ey+eh/2})">${Math.round(c.H)} mm</text>`;
+  // cut list
+  let ty = ey + eh + 34;
+  const mountTxt = { free:'أعمدة قدام وورا', wall:'عالحيط + أعمدة قدام', cantilever:'كابولي - أعمدة ورا بس' }[it.pgMount];
+  const roofTxt = { slats:'شرائح مفتوحة', louver:'لوفر متحرك', poly:'بولي كاربونيت', glass:'زجاج' }[it.pgRoof];
+  g += `<text x="${VW-M}" y="${ty}" fill="${cyan}" font-size="13" font-weight="700" direction="rtl" text-anchor="start" font-family="var(--wd-font-ui)">${mountTxt} · ${roofTxt} · ${it.pgMaterial==='steel' ? 'حديد مجلفن' : 'ألمنيوم'} · المسافة بين الشرائح ≈ ${Math.round(c.realGap)} مم</text>`;
+  ty += 22;
+  c.cut.forEach(r => { g += `<text x="${VW-M}" y="${ty}" fill="${ink}" font-size="13" direction="rtl" text-anchor="start" font-family="var(--wd-font-ui)">${r.name} (${r.size}): <tspan font-weight="700">${r.n} قطعة، طول ${r.len} مم</tspan></text>`; ty += 20; });
+  g += `<text x="${VW-M}" y="${ty}" fill="${amber}" font-size="13" font-weight="700" direction="rtl" text-anchor="start" font-family="var(--wd-font-ui)">مجموع التيوبات: ${(c.aluMm/1000).toFixed(1)} متر طولي${(it.pgRoof==='poly'||it.pgRoof==='glass') ? ' · مساحة السقف ' + c.roofM2.toFixed(2) + ' م²' : ''}</text>`;
+  const VH = ty + 16;
+  const defs = `<defs><pattern id="pgHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#8fa3b8" stroke-width="2"/></pattern></defs>`;
+  let wAttr = VW, hAttr = VH;
+  if(printCount){ try{ const a = getPrintAvailPx(printCount); const k = Math.min(a.availW / VW, a.availH / VH); wAttr = Math.round(VW * k); hAttr = Math.round(VH * k); }catch(e){} }
+  return `<svg viewBox="0 0 ${VW} ${VH.toFixed(0)}" width="${wAttr}" height="${Math.round(hAttr)}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block;margin:0 auto;">${defs}${g}</svg>`;
+}
+function pgLoadControls(it){
+  pgEnsure(it);
+  const set = (id, v) => { const e = document.getElementById(id); if(e && document.activeElement !== e) e.value = v; };
+  set('inPgL', Math.round(it.width)); set('inPgD', Math.round(it.height)); set('inPgH', Math.round(it.pgHeight));
+  set('inPgPer', it.pgPostsPerRow || 0); set('inPgGap', Math.round(it.pgSlatGap));
+  ['inPgPost','inPgBeam','inPgSlat'].forEach((id, i) => {
+    const e = document.getElementById(id); const v = [it.pgPost, it.pgBeam, it.pgSlat][i];
+    if(e && ![...e.options].some(o => o.value === v)){ const o = document.createElement('option'); o.value = o.textContent = v; e.appendChild(o); }
+    set(id, v);
+  });
+  set('inPgRoof', it.pgRoof); set('inPgMat', it.pgMaterial);
+  document.querySelectorAll('#pgMountBtns [data-v]').forEach(b => b.classList.toggle('active', b.dataset.v === it.pgMount));
+  const c = pgCalc(it);
+  const sum = document.getElementById('pgSummary');
+  if(sum) sum.textContent = c.posts + ' أعمدة · ' + c.slats + ' شريحة · مجموع التيوبات ' + (c.aluMm/1000).toFixed(1) + ' م';
+}
+function pgField(key, val){
+  const it = getSelected(); if(!it || !isPergola(it)) return;
+  pushHistory();
+  if(['width','height','pgHeight','pgSlatGap','pgPostsPerRow'].includes(key)){
+    let v = parseFloat(String(val).replace(',', '.'));
+    if(!Number.isFinite(v)) { pgLoadControls(it); return; }
+    if(key === 'pgPostsPerRow') v = Math.min(20, Math.max(0, Math.round(v)));
+    else if(key === 'pgSlatGap') v = Math.min(2000, Math.max(0, v));
+    else v = Math.min(100000, Math.max(300, v));
+    it[key] = v;
+  } else it[key] = val;
+  pgLoadControls(it); renderGallery();
+}
+window.pgField = pgField; window.isPergola = isPergola; window.pgCalc = pgCalc; window.pgEnsure = pgEnsure; window.buildPergolaSVG = buildPergolaSVG; window.mzInitPergolaFromRow = mzInitPergolaFromRow; window.pgLoadControls = pgLoadControls;
+/* ===== 🆕 2026-11-09 لوحة تعديل البند - شوف CSS "لوحة تعديل البند" ===== */
+function mzEdIsSheet(){
+  try{ return document.body.classList.contains('mode-mobile') || window.matchMedia('(max-width: 900px)').matches; }catch(e){ return false; }
+}
+function mzEdVisible(){ return items.filter(it => !it.isCameraTemp); }
+function mzUpdateEdBar(){
+  const it = getSelected(); const list = mzEdVisible();
+  const n = document.getElementById('mzEdName'), pos = document.getElementById('mzEdPos'), now = document.getElementById('mzShapeNow');
+  if(n) n.textContent = it ? (it.label || '') + (it.refCode ? ' (' + it.refCode + ')' : '') : '—';
+  if(pos) pos.textContent = it ? ((SHAPE_LABELS[it.shapeType] || 'شباك') + ' · ' + (list.indexOf(it) + 1) + ' من ' + list.length) : '';
+  if(now) now.textContent = it ? '(الحالي: ' + (SHAPE_LABELS[it.shapeType] || 'شباك') + ')' : '';
+}
+function mzEdShowCard(id){
+  const card = document.getElementById('card-' + id); if(!card) return;
+  try{ card.scrollIntoView({ behavior:'smooth', block: mzEdIsSheet() ? 'start' : 'nearest' }); }catch(e){ card.scrollIntoView(); }
+}
+function mzEditItem(id){
+  if(id == null){ const l = mzEdVisible(); if(!l.length) return; id = l.some(it => it.id === selectedId) ? selectedId : l[0].id; }
+  if(selectedId !== id) selectItem(id); else { renderChips(); loadSelectedIntoControls(); }
+  const ov = document.getElementById('wdOverlay');
+  const panel = document.querySelector('#wdOverlay .panel.controls');
+  if(ov && mzEdIsSheet()) ov.classList.add('mz-sheet-open');
+  if(panel) panel.scrollTop = 0;
+  setTimeout(()=> mzEdShowCard(id), 30);
+}
+function mzEdStep(d){
+  const l = mzEdVisible(); if(!l.length) return;
+  let i = l.findIndex(it => it.id === selectedId); i = (i + d + l.length) % l.length;
+  mzEditItem(l[i].id);
+}
+function mzEdClose(){ const ov = document.getElementById('wdOverlay'); if(ov) ov.classList.remove('mz-sheet-open'); }
+window.mzEditItem = mzEditItem; window.mzEdStep = mzEdStep; window.mzEdClose = mzEdClose; window.mzEdIsSheet = mzEdIsSheet;
+loadSelectedIntoControls = (function(orig){ return function(){ const r = orig.apply(this, arguments); try{ mzUpdateEdBar(); }catch(e){} return r; }; })(loadSelectedIntoControls);
+(function(){
+  const ov = document.getElementById('wdOverlay'); if(!ov || !window.MutationObserver) return;
+  new MutationObserver(()=>{ if(ov.style.display === 'none') ov.classList.remove('mz-sheet-open'); }).observe(ov, { attributes:true, attributeFilter:['style'] });
+  const hdr = ov.querySelector('header.wd-top');
+  const setH = ()=>{ if(hdr && hdr.offsetHeight) ov.style.setProperty('--mz-hdr-h', hdr.offsetHeight + 'px'); };
+  if(hdr && window.ResizeObserver) new ResizeObserver(setH).observe(hdr);
+  setH();
+})();
+
 /* ================= QUOTATION <-> DESIGNER BRIDGE ================= */
 function cloneLayoutWithFreshIds(node){
   if(node.kind === 'leaf') return { id:'n'+(nextNodeId++), kind:'leaf', type: node.type };
@@ -19844,18 +20129,54 @@ function isHandrailName(n){ return /hand\s*-?\s*rail|balustrade|railing|spigot|�
 function guessShapeTypeFromName(name){
   const s = (name||'').toLowerCase();
   if(isHandrailName(s)) return 'handrail';
+  if(/pergola|بيرغولا|برغولا|بيرجولا|carport|car\s*shade|مظلة/.test(s)) return 'pergola';
   const hasShower = /shower|شاور|\(دش\)/.test(s) && !/mirror|مرآ|مراي/.test(s);
   const hasSliding = /sliding|سحاب|سحّاب|lif[te]\s*(&|and)\s*slide/.test(s);
   const hasFolding = /folding|فولدينغ|فولدينج/.test(s);
   const hasDoor = /\bdoors?\b|\bgates?\b|باب|بوابة|lif[te]\s*(&|and)\s*slide/.test(s);
   // فواصل الشاور: بالعادة زجاج ثابت بس - منبلّش لوح ثابت، ولو في باب بتكبس "باب زجاج بدون إطار" وبيتقسم لحاله
   if(hasShower && /partition|فواصل|فاصل/.test(s)) return 'window';
+  if(s.trim() === 'glass door') return 'showerGlassDoor'; // بند "Glass Door" بالقائمة = باب زجاجي للدش (بدون إطار)
   if(hasShower) return 'showerGlassDoor';
   if(/mirror|مرآ|مراي|مراة/.test(s)) return 'mirror';
   if(hasFolding) return /fixed|ثابت/.test(s) ? 'window' : 'foldingDoor';
   if(hasSliding) return hasDoor ? 'slidingDoor' : 'slidingWindow';
   if(hasDoor) return 'door';
   return 'window';
+}
+// 🛠️ 2026-11-09 (من دراسة المصمم): تغيير طول/ارتفاع الهاندريل بالجدول بعد التصميم ما كان يوصل للألواح -
+// الرسمة والتصنيع يضلوا عالقديم. هلق الطول الجديد بيتوزّع على الأجزاء بنفس النسبة (وعدد الألواح نفسه)، والارتفاع بيتحدّث.
+function mzHandrailFollowRow(it, rd){
+  if(!it || !isHandrail(it) || !rd) return;
+  const W = Math.round(Number(rd.w) || 0), H = Math.round(Number(rd.h) || 0);
+  if(H > 0) it.hrGlassHeight = H;
+  if(W > 0){
+    const cur = Math.round(getHandrailTotalLength(it));
+    if(Math.abs(cur - W) > 1){
+      if(hrSegMode(it)){
+        const segs = ensureHandrailSegments(it);
+        const tot = segs.reduce((a, sg) => a + Math.max(1, sg.totalLength || 0), 0) || 1;
+        let used = 0;
+        segs.forEach((sg, i) => {
+          if(i === segs.length - 1) sg.totalLength = Math.max(1, W - used);
+          else { sg.totalLength = Math.max(1, Math.round((sg.totalLength || 0) * W / tot)); used += sg.totalLength; }
+        });
+      } else if(it.hrDimMode === 'panel'){
+        const n = Math.max(1, it.hrPanelCount || 1);
+        it.hrPanelWidth = Math.max(1, Math.round((W - (n-1)*HANDRAIL_GAP_MM) / n));
+      } else {
+        it.hrTotalLength = W;
+      }
+    }
+  }
+  syncHandrailDims(it);
+}
+// بند اسمه ما بيدل على نوع معروف وطلع "شباك" بالتخمين - منعلّم عليه بالرسمة حتى الموظف يتأكد من النوع
+function mzIsUncertainGuess(name, guessType){
+  if(guessType !== 'window') return false;
+  const n = String(name || '').toLowerCase().trim();
+  if(!n) return false;
+  return !/window|نافذ|شباك|curtain|كرتن|partition|فواصل|فاصل|fixed|ثابت|louver|لوفر|cladding|كلادينغ|cnc|room|غرفة|skylight|dome|قبة|tube|تيوب|fence|سياج|glass\s*block/.test(n);
 }
 // بند هاندريل جديد من صف الجدول: الطول الكلي = عرض الصف، الارتفاع = ارتفاع الصف، ونوع التركيب/المكان من الاسم
 function mzInitHandrailFromRow(it, rd){
@@ -19881,11 +20202,12 @@ function mzFixMisguessedHandrail(it, rd){
   if(it.isRoomWallElevation || it.archTop) return false;
   it.shapeType = 'handrail';
   mzInitHandrailFromRow(it, rd);
+      mzInitPergolaFromRow(it, rd);
   return true;
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans'];
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
@@ -19941,12 +20263,15 @@ WD.loadFromRows = function(rowData){
         } else it.width = rd.w;
       }
       if(rd.h) it.height = rd.h;
+      mzHandrailFollowRow(it, rd);
       if(rd.itemName) it.label = rd.itemName;
       it.refCode = rd.refCode || it.refCode || '';
     } else if(rd.savedDesign){
       it = buildItemFromSavedDesign(rd.savedDesign, rd.uid, rd.itemName);
       mzFixMisguessedHandrail(it, rd);
       if(rd.w){ if(isShowerDoor(it) && it.showerTotalMode) showerSetDoorFromTotal(it, rd.w); else it.width = rd.w; }
+      if(rd.h) it.height = rd.h;
+      mzHandrailFollowRow(it, rd);
       if(rd.h) it.height = rd.h;
       it.refCode = rd.refCode || '';
     } else if((rd.itemName && rd.itemName.trim()) || rd.w || rd.h){
@@ -19963,6 +20288,8 @@ WD.loadFromRows = function(rowData){
       it.refCode = rd.refCode || '';
       mzAutoSplitFullShower(it, rd);
       mzInitHandrailFromRow(it, rd);
+      mzInitPergolaFromRow(it, rd);
+      if(mzIsUncertainGuess(rd.itemName, guessType)) it.mzUncertainType = true;
       const hasLouver = /louver|لوفر/i.test(rd.itemName || '');
       if(hasLouver && guessType === 'door' && it.layout.kind === 'leaf'){
         it.layout.type = 'louver'; // اسم البند فيه "لوفر" - نبدأ مباشرة بشكل شرائح اللوفر بدل الشكل الفاضي
@@ -20022,6 +20349,8 @@ WD.resetAllFromRows = function(rowData){
     it.refCode = rd.refCode || '';
     mzAutoSplitFullShower(it, rd);
     mzInitHandrailFromRow(it, rd);
+      mzInitPergolaFromRow(it, rd);
+    if(mzIsUncertainGuess(rd.itemName, guessType)) it.mzUncertainType = true;
     if(oldElevationFlags[rd.uid]) it.isRoomWallElevation = true;
     const hasLouver = /louver|لوفر/i.test(rd.itemName || '');
     if(hasLouver && guessType === 'door' && it.layout.kind === 'leaf'){
@@ -20162,7 +20491,7 @@ function buildMfgSketchSVG(it, mfg){
 }
 
 function renderMfgSizesTable(){
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isHandrail(it) && !isMirror(it));
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isHandrail(it) && !isMirror(it) && !isPergola(it));
   const el = document.getElementById('mfgSizesTable');
   if(!visibleItems.length){
     el.innerHTML = '<p style="color:#666;padding:10px 0;">ما في بنود بعد (الهاندريل مستثنى - مقاسه بالأطوال/الألواح مش عرض وارتفاع).</p>';
@@ -21548,7 +21877,7 @@ function open3DPreview(){
   const grid = document.getElementById('threeDGrid');
   { const ov = document.getElementById('threeDOverlay'); if(ov && ov.parentElement !== document.body) document.body.appendChild(ov); }
   grid.innerHTML = '';
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it) && !isPergola(it));
   if(!visibleItems.length){
     grid.innerHTML = '<p style="color:#666;font-family:var(--wd-font-ui);padding:20px;">ما في تصاميم بعد لعرضها.</p>';
   } else {
@@ -21577,6 +21906,7 @@ window.addEventListener('afterprint', ()=> document.body.classList.remove('three
 // يحسب طول الألمنيوم الكلي لبند واحد (بالميلي متر): محيط خارجي + كل القواطع الداخلية
 function computeItemAluminumLength(it){
   if(isMirror(it)) return 0;
+  if(isPergola(it)) return pgCalc(it).aluMm;
   if(isHandrail(it)){
     // Spigot ما بتحتاج طول ألمنيوم (سكة) - بس Stand Off و Hidden بيمشوا على U-Channel بطول الهاندريل الإجمالي
     return it.hrMount === 'spigot' ? 0 : getHandrailTotalLength(it);

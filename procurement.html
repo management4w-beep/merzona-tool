@@ -80,7 +80,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-10-21.1';
+  var CURRENT_VERSION = '2026-11-09.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
@@ -1582,7 +1582,7 @@ if (typeof module !== 'undefined') {
     refInput.addEventListener('input', function (e) { item.refCode = e.target.value; renderSidebar(); renderBOQTab(); });
     refRow.appendChild(refInput);
     box.appendChild(refRow);
-    if (item.autoSynced && item.designShape && item.designShape !== 'handrail' && item.designShape !== 'mirror') {
+    if (item.autoSynced && item.designShape && item.designShape !== 'handrail' && item.designShape !== 'mirror' && item.designShape !== 'pergola') {
       var tRow = el('div', { class: 'editor-ref' });
       tRow.appendChild(el('label', { text: 'نوع الفتحة (بيغيّر طريقة حساب هالبند هون بس، مو التصميم): ' }));
       var tSel = el('select');
@@ -2250,7 +2250,7 @@ if (typeof module !== 'undefined') {
   // height (mm), layout: {kind:'leaf'|'split', direction:'row'|'col', children:[{frac,node}], type} }] }
   var TRI_TYPES = ['tri_up', 'tri_down', 'tri_left', 'tri_right']; // hinged/casement openable markers
   var SLIDE_TYPES = ['slide_left', 'slide_right']; // sliding sash markers
-  var UNSUPPORTED_LABELS = { foldingDoor: 'باب فولدينغ', showerGlassDoor: 'باب شاور زجاجي', handrail: 'هاندريل', mirror: 'مرآة' };
+  var UNSUPPORTED_LABELS = { foldingDoor: 'باب فولدينغ', showerGlassDoor: 'باب شاور زجاجي', handrail: 'هاندريل', mirror: 'مرآة', pergola: 'بيرغولا / مظلة' };
 
   function convertDesignerNode(node, wM, hM, flagField, flagTypes) {
     if (node.kind === 'leaf') {
@@ -2293,7 +2293,7 @@ if (typeof module !== 'undefined') {
     return out;
   }
 
-  var GENERIC_TYPES = ['foldingDoor', 'showerGlassDoor', 'handrail', 'mirror'];
+  var GENERIC_TYPES = ['foldingDoor', 'showerGlassDoor', 'handrail', 'mirror', 'pergola'];
 
   // محوّل واحد مشترك (للمزامنة التلقائية ولاستيراد ملف JSON): بيرجع { item } أو { skip: {label, reason} } أو null (تجاهل صامت لغرف/سقوف/مؤقتات).
   function convertDesignItem(it, summaries) {
@@ -2556,7 +2556,7 @@ if (typeof module !== 'undefined') {
       var designId = chosen.key + '|' + it.id;
       var eff = it;
       var tov = itemOv.type[designId];
-      if (tov && SHAPE_CHOICES[tov] && it.shapeType !== 'handrail' && it.shapeType !== 'mirror' && tov !== it.shapeType) { eff = {}; Object.keys(it).forEach(function (k) { eff[k] = it[k]; }); eff.shapeType = tov; }
+      if (tov && SHAPE_CHOICES[tov] && it.shapeType !== 'handrail' && it.shapeType !== 'mirror' && it.shapeType !== 'pergola' && tov !== it.shapeType) { eff = {}; Object.keys(it).forEach(function (k) { eff[k] = it[k]; }); eff.shapeType = tov; }
       var r = convertDesignItem(eff, summaries);
       if (!r) return;
       if (r.skip) { skipped.push(r.skip); return; }
