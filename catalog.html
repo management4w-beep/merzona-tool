@@ -48,6 +48,9 @@ button{font:inherit;color:inherit}
 .btn-ghost:hover{border-color:var(--bronze-2)}
 .btn svg{width:18px;height:18px;flex:none}
 .icon-only{padding:9px}
+.back-btn{flex:none;padding:8px 14px 8px 12px}
+.back-btn[hidden]{display:none}
+@media (max-width:560px){.back-btn:not([hidden]) ~ .brand .logo .wd{display:none}.back-btn{padding:8px 12px 8px 10px}}
 @media (max-width:560px){.brand > span:not(.logo){display:none}.btn-wa .lbl{display:none}.btn-wa{padding:9px}}
 
 /* chips */
@@ -154,6 +157,7 @@ button{font:inherit;color:inherit}
 
 <header class="bar">
   <div class="wrap">
+    <a class="btn btn-ghost back-btn" id="backBtn" href="catalog.html" hidden aria-label="رجوع لكل الأقسام"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg><span>الأقسام</span></a>
     <a class="brand" href="catalog.html"><span class="logo" aria-label="Merzona"><img class="mk" src="img/logo-light-mark.png" alt=""><img class="wd" src="img/logo-light-word.png" alt="Merzona"></span><span>ألمنيوم وزجاج · كتالوج الأعمال</span></a>
     <div class="sp"></div>
     <button class="btn btn-ghost icon-only" id="shareBtn" type="button" aria-label="مشاركة الكتالوج" title="مشاركة">
@@ -395,6 +399,7 @@ button{font:inherit;color:inherit}
     }).join('') + '</div>';
     lazyFill($('content'), 800);
   }
+  function setBack(){ var b = $('backBtn'); if(!b) return; b.href = 'catalog.html' + bq(true); b.hidden = !S.catId; }
   function setWa(){
     var t = S.cat ? 'مرحبا Merzona، شفت كتالوج ' + labelOf(S.cat.name) + ' وحابب اطلب عرض سعر.' : 'مرحبا Merzona، شفت كتالوج الأعمال وحابب اطلب عرض سعر.';
     $('waTop').href = waLink(t + '\n' + pageUrl()); $('waBottom').href = $('waTop').href;
@@ -411,7 +416,7 @@ button{font:inherit;color:inherit}
         S.cat = c; S.items = c.items; S.sig = sig;
         renderChips(); renderCatalog();
       } else { renderChips(); if(!quiet) renderHome(); }
-      setWa();
+      setWa(); setBack();
       if(!quiet){ var m = location.hash.match(/^#p=(\d+)/); if(m && S.items[m[1] - 1]) openLb(m[1] - 1); }
     }catch(e){
       if(quiet) return;
@@ -439,7 +444,7 @@ button{font:inherit;color:inherit}
     $('lbCount').textContent = (L.i + 1) + ' / ' + n;
     $('lbTitle').textContent = labelOf(S.cat.name);
     $('lbAsk').href = waLink('مرحبا Merzona، حابب استفسر عن هالتصميم من كتالوج ' + labelOf(S.cat.name) + ' (صورة رقم ' + (L.i + 1) + '):\n' + pageUrl('#p=' + (L.i + 1)));
-    history.replaceState(null, '', '#p=' + (L.i + 1));
+    history.replaceState({ lb: 1 }, '', '#p=' + (L.i + 1));
     resetZoom(false);
     $('lbSpin').style.display = '';
     var thumbKey = it.id + ':' + it.v + ':800';
@@ -451,7 +456,8 @@ button{font:inherit;color:inherit}
     var on = strip.children[L.i]; if(on && on.scrollIntoView) try{ on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); }catch(e){}
   }
   function openLb(i){
-    var lb = $('lb'); lb.classList.add('open'); document.documentElement.style.overflow = 'hidden';
+    var lb = $('lb'); var wasOpen = lb.classList.contains('open'); lb.classList.add('open'); document.documentElement.style.overflow = 'hidden';
+    if(!wasOpen){ try{ history.pushState({ lb: 1 }, '', location.pathname + location.search + '#p=' + (+i + 1)); }catch(e){} }
     var strip = $('lbStrip');
     strip.innerHTML = S.items.map(function(it, k){ return '<button type="button" data-k="' + k + '" aria-label="صورة ' + (k + 1) + '"><img alt="" data-si="' + k + '"></button>'; }).join('');
     strip.querySelectorAll('img[data-si]').forEach(function(im){ var it = S.items[im.dataset.si]; getImage(it, 800).then(function(r){ im.src = r.url; }).catch(function(){}); });
@@ -459,7 +465,13 @@ button{font:inherit;color:inherit}
     $('lbHint').style.opacity = '1'; setTimeout(function(){ $('lbHint').style.opacity = '0'; }, 2800);
     $('lbClose').focus();
   }
-  function closeLb(){ $('lb').classList.remove('open'); document.documentElement.style.overflow = ''; history.replaceState(null, '', location.pathname + location.search); }
+  // 🆕 2026-11-09: زر الرجوع بالموبايل بيسكّر الصورة وبيرجع للقسم (بدل ما يطلع من الكتالوج كله)
+  function closeLb(fromPop){
+    if(!$('lb').classList.contains('open')) return;
+    $('lb').classList.remove('open'); document.documentElement.style.overflow = '';
+    if(fromPop !== true){ if(history.state && history.state.lb) history.back(); else history.replaceState(null, '', location.pathname + location.search); }
+  }
+  window.addEventListener('popstate', function(){ if($('lb').classList.contains('open')) closeLb(true); });
   function next(){ show(L.i + 1, -1); }
   function prev(){ show(L.i - 1, 1); }
 
