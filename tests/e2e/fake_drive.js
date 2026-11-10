@@ -1,0 +1,99 @@
+/* سيرفر محلي للفحوصات: drive-proxy.js الحقيقي (من مستودع السيرفر) + جوجل درايف وهمي بالذاكرة.
+   الصفحات بالفحص بتحكي معو بدل السيرفر الحقيقي، فمنتأكد إنو كل طلبات درايف تبع الصفحات بتمرق صح.
+   تشغيل: node tests/e2e/fake_drive.js <مسار مستودع السيرفر>  → بيطبع PORT <رقم> */
+'use strict';
+const http = require('http'), fs = require('fs'), os = require('os'), path = require('path');
+const SERVER_DIR = process.argv[2];
+const mount = require(path.join(SERVER_DIR, 'drive-proxy.js'));
+
+const routes = [];
+const app = { all: (re, ...h) => routes.push({ re, h }) };
+const express = { raw: () => (req, res, next) => { const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { req.body = Buffer.concat(ch); next(); }); } };
+
+const UAE = '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', SYR = '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS', CAT = '13QxtnBbXx3SuOZIu8hA90TiD7T2CiMoC', BK = '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy', OUT = 'OUTSIDE_FOLDER_0001';
+const FOLDER = 'application/vnd.google-apps.folder';
+const files = new Map(); let n = 0; const upstream = [];
+const nid = () => 'FAKE' + String(++n).padStart(10, '0');
+function add(id, parent, name, mimeType, content) { files.set(id, { id, name, mimeType: mimeType || 'application/json', parents: parent ? [parent] : [], trashed: false, content: Buffer.from(content || ''), modifiedTime: new Date(Date.now() - 3600e3).toISOString() }); return id; }
+add('MYROOT00000001', null, 'My Drive', FOLDER);
+[UAE, SYR, CAT, BK, OUT].forEach((id) => add(id, 'MYROOT00000001', id, FOLDER));
+add('SECRET_FILE_00001', OUT, 'secret.pdf', 'application/pdf', 'SECRET');
+const y = add(nid(), UAE, '2026', FOLDER);
+const rf = add(nid(), y, 'M-Q-260001', FOLDER);
+add(nid(), rf, 'M-Q-260001-data.json', 'application/json', JSON.stringify({ fields: { 'm-client': 'Test Client', 'm-ref': 'M-Q-260001' }, grandTotal: 1000 }));
+add(nid(), rf, 'M-Q-260001.html', 'text/html', '<html>q</html>');
+const rf2 = add(nid(), y, 'M-Q-260003', FOLDER);
+add(nid(), rf2, 'M-Q-260003-data.json', 'application/json', '{"fields":{"m-ref":"M-Q-260003"}}');
+add(nid(), UAE, 'merzona-sync-data.json', 'application/json', JSON.stringify({ merzona_contracts: { 'M-Q-260001': { client: 'Test Client' } } }));
+const sh = add(nid(), CAT, 'Showers', FOLDER);
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+add(nid(), sh, 'a.png', 'image/png', PNG); add(nid(), sh, 'b.png', 'image/png', PNG);
+add(nid(), CAT, 'pergolas', FOLDER);
+const dz = add(nid(), UAE, '_Designs', FOLDER);
+const dr = add(nid(), UAE, '_Drafts', FOLDER);
+add('DRAFT_FILE_000001', dr, 'd1.json', 'application/json', JSON.stringify({ draftId: 'd1', label: 'مسودة تجربة', data: {} }));
+add(nid(), dz, 'M-Q-260001-design.json', 'application/json', JSON.stringify({ ref: 'M-Q-260001', name: 'تصميم تجربة', savedAt: Date.now(), designItems: [{ id: 1, shapeType: 'window', width: 1200, height: 1500, label: 'W1' }] }));
+
+function evalQ(q, f) {
+  const parents = [...q.matchAll(/'([^']+)' in parents/g)].map((m) => m[1]);
+  if (!f.parents.some((p) => parents.includes(p))) return false;
+  const un = (s) => s.replace(/\\(.)/g, '$1');
+  let m;
+  if ((m = /name = '((?:[^'\\]|\\.)*)'/.exec(q)) && f.name !== un(m[1])) return false;
+  if ((m = /name contains '((?:[^'\\]|\\.)*)'/.exec(q)) && f.name.indexOf(un(m[1])) < 0) return false;
+  if ((m = /mimeType = '([^']*)'/.exec(q)) && f.mimeType !== m[1]) return false;
+  if ((m = /mimeType != '([^']*)'/.exec(q)) && f.mimeType === m[1]) return false;
+  if ((m = /trashed = (true|false)/.exec(q)) && String(f.trashed) !== m[1]) return false;
+  return true;
+}
+const pub = (f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, parents: f.parents, modifiedTime: f.modifiedTime, trashed: f.trashed, md5Checksum: require('crypto').createHash('md5').update(f.content).digest('hex'), webViewLink: 'https://drive.google.com/file/d/' + f.id + '/view', size: String(f.content.length) });
+const R = (status, obj, ct) => new Response(Buffer.isBuffer(obj) ? obj : JSON.stringify(obj), { status, headers: { 'content-type': ct || 'application/json; charset=UTF-8' } });
+function parseMultipart(body, ct) {
+  const b = '--' + /boundary=(?:"([^"]+)"|([^;]+))/.exec(ct).slice(1).find(Boolean).trim();
+  const raw = body.toString('latin1'); const parts = raw.split(b).slice(1, -1).map((s) => { const i = s.indexOf('\r\n\r\n'); return { head: s.slice(0, i), body: Buffer.from(s.slice(i + 4, -2), 'latin1') }; });
+  return { meta: JSON.parse(parts[0].body.toString('utf8')), media: parts[1] ? parts[1].body : Buffer.alloc(0), mediaType: ((parts[1] && /content-type:\s*([^\r\n;]+)/i.exec(parts[1].head)) || [])[1] };
+}
+async function fakeFetch(url, o) {
+  o = o || {}; const u = new URL(url); const p = u.pathname; const m = o.method || 'GET';
+  upstream.push(m + ' ' + p + u.search);
+  if (o.headers.Authorization !== 'Bearer REAL-SERVER-TOKEN') return R(401, { error: 'bad token' });
+  let mm;
+  if (p === '/drive/v3/about') return R(200, { user: { emailAddress: 'owner@x' }, storageQuota: { usage: '10', limit: '100' } });
+  if (p === '/drive/v3/files' && m === 'GET') return R(200, { files: [...files.values()].filter((f) => evalQ(u.searchParams.get('q'), f)).sort((a, b) => a.name.localeCompare(b.name)).map(pub) });
+  if ((mm = /^\/drive\/v3\/files\/([^/]+)$/.exec(p))) {
+    const f = files.get(mm[1]); if (!f) return R(404, { error: { code: 404 } });
+    if (m === 'GET') return u.searchParams.get('alt') === 'media' ? R(200, f.content, f.mimeType) : R(200, pub(f));
+    if (m === 'PATCH') {
+      const j = o.body ? JSON.parse(Buffer.from(o.body).toString() || '{}') : {};
+      if ('trashed' in j) f.trashed = j.trashed; if (j.name) f.name = j.name;
+      const add2 = u.searchParams.get('addParents'), rem = u.searchParams.get('removeParents');
+      if (add2) f.parents = f.parents.filter((x) => x !== rem).concat([add2]);
+      f.modifiedTime = new Date().toISOString(); return R(200, pub(f));
+    }
+  }
+  if (p === '/drive/v3/files' && m === 'POST') { const j = JSON.parse(Buffer.from(o.body).toString()); return R(200, pub(files.get(add(nid(), j.parents[0], j.name, j.mimeType)))); }
+  if (p === '/upload/drive/v3/files' && m === 'POST') { const mp = parseMultipart(Buffer.from(o.body), o.headers['Content-Type']); return R(200, pub(files.get(add(nid(), mp.meta.parents[0], mp.meta.name, mp.meta.mimeType || mp.mediaType, mp.media)))); }
+  if ((mm = /^\/upload\/drive\/v3\/files\/([^/]+)$/.exec(p)) && m === 'PATCH') { const f = files.get(mm[1]); f.content = Buffer.from(o.body); f.modifiedTime = new Date().toISOString(); return R(200, pub(f)); }
+  return R(404, { error: 'fake: ' + m + ' ' + p });
+}
+const devices = { dev1: { status: 'approved', isOwner: true, name: 'Owner' }, dev2: { status: 'approved', name: 'Staff' } };
+const sessions = { s2: { username: 'sam', createdAt: Date.now() } };
+const users = { sam: { username: 'sam', permissions: { quotation: true, catalogs: false } } };
+mount(app, { express, loadDevices: () => devices, loadSessions: () => sessions, loadUsers: () => users, effectivePermissions: (u) => Object.assign({}, u.permissions),
+  getAccessToken: async () => 'REAL-SERVER-TOKEN', dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'fd-')), fetch: fakeFetch, log: { error() {} },
+  areas: { work: [UAE, SYR, BK], catalog: [CAT] } });
+
+const server = http.createServer((req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.url === '/__state') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ files: [...files.values()].map((f) => Object.assign(pub(f), { text: /json|html|text/.test(f.mimeType) ? f.content.toString() : null, len: f.content.length })), upstream })); }
+  res.set = (k, v) => { res.setHeader(k, v); return res; };
+  res.status = (c) => { res.statusCode = c; return res; };
+  res.json = (o) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(o)); return res; };
+  res.send = (t) => { res.end(t); return res; };
+  req.originalUrl = req.url;
+  const p = req.url.split('?')[0]; const r = routes.find((x) => x.re.test(p));
+  if (!r) { res.statusCode = 404; return res.end('no route'); }
+  req.params = { 0: r.re.exec(p)[1] };
+  let i = 0; const next = () => { const fn = r.h[i++]; if (fn) fn(req, res, next); }; next();
+});
+server.listen(0, '127.0.0.1', () => console.log('PORT ' + server.address().port));
