@@ -111,7 +111,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.1';
+  var CURRENT_VERSION = '2026-11-10.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -5121,6 +5121,11 @@ function syncErrorToText(msg){
   if(/-404$/.test(msg)) return 'ملف المزامنة أو المجلد مو موجود على درايف (404)';
   if(/-(5\d\d)$/.test(msg)) return 'جوجل درايف مو متاح مؤقتًا';
   if(msg === 'drive-sync-file-corrupt') return 'ملف المزامنة على درايف تالف';
+  if(msg === 'team-login-required') return 'لازم تسجّل دخول من جديد';
+  if(msg === 'team-device-not-approved') return 'الجهاز مش معتمد';
+  if(msg === 'team-team-store-not-ready') return 'السيرفر عم يجهّز بيانات الفريق - جرّب بعد شوي';
+  if(msg === 'team-rev-conflict') return 'جهاز تاني عم يحفظ بنفس اللحظة - جرّب كمان مرة';
+  if(/^team-/.test(msg)) return 'السيرفر رفض المزامنة (' + msg.slice(5) + ')';
   if(msg === 'AbortError' || /abort/i.test(msg)) return 'انتهت مهلة الاتصال';
   if(/Failed to fetch|NetworkError|network/i.test(msg)) return 'ما في اتصال بالإنترنت أو السيرفر';
   return msg || 'سبب غير معروف';
@@ -5610,7 +5615,31 @@ async function getOrCreateSyncFileId(token){
   return cachedSyncFileId;
 }
 
+/* 🗄️ 2026-11-10 (المرحلة 3): بيانات الفريق صارت عالسيرفر (/team/data) بدل ملف درايف المشترك.
+   السحب بيرجّع رقم نسخة (teamRev)، والرفع لازم يذكره - إذا جهاز تاني رفع قبلنا السيرفر بيرد 409،
+   فمنسحب الجديد ومندمج (بنفس mergeRemoteIntoLocal) ومنرجع نرفع. هيك ما في تعديل بيضيع بصمت.
+   والرواتب ما بتوصل إلا لمين عندو صلاحيتها (السيرفر بيخبرنا شو المخفي فمنمسحو من هالجهاز). */
+const TEAM_DATA_URL = 'https://merzona-server-production.up.railway.app/team/data';
+let teamRev = null;
+function teamHeaders(extra){
+  const h = Object.assign({}, extra || {});
+  try{ h['x-device'] = localStorage.getItem('merzona-device-token') || ''; const s = localStorage.getItem('merzona-session-token'); if(s) h['x-session'] = s; }catch(e){}
+  return h;
+}
+async function teamErr(res){
+  let code = String(res.status);
+  try{ const j = await res.json(); if(j && j.error) code = j.error; }catch(e){}
+  return new Error('team-' + code);
+}
 async function downloadSyncData(token){
+  if(window.__mzDriveProxy){
+    const res = await dashFetchWithTimeout(TEAM_DATA_URL, { headers: teamHeaders(), cache: 'no-store' }, 15000);
+    if(!res.ok) throw await teamErr(res);
+    const j = await res.json();
+    teamRev = j.rev;
+    (j.hidden || []).forEach(function(k){ try{ localStorage.removeItem(k); localStorage.removeItem(k + '__ts'); localStorage.removeItem(k + '__fieldbase'); }catch(e){} });
+    return j.data || {};
+  }
   const fileId = await getOrCreateSyncFileId(token);
   const res = await dashFetchWithTimeout(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
     headers: { Authorization: 'Bearer ' + token }
@@ -5623,6 +5652,15 @@ async function downloadSyncData(token){
 }
 
 async function uploadSyncData(token, dataObj){
+  if(window.__mzDriveProxy){
+    if(teamRev == null) throw new Error('team-rev-conflict');
+    const res = await dashFetchWithTimeout(TEAM_DATA_URL, { method: 'PUT', headers: teamHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ baseRev: teamRev, data: dataObj }) }, 20000);
+    if(res.status === 409){ teamRev = null; throw new Error('team-rev-conflict'); }
+    if(!res.ok) throw await teamErr(res);
+    const j = await res.json();
+    teamRev = j.rev;
+    return;
+  }
   const fileId = await getOrCreateSyncFileId(token);
   const res = await dashFetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
     method: 'PATCH',
@@ -5720,6 +5758,10 @@ async function driveSyncPushNow(retried){
   }catch(err){
     if(err && err.message === 'drive-file-missing' && !retried){
       driveSyncPushNow(true); return;
+    }
+    // جهاز تاني رفع قبلنا بلحظات → منعيد (سحب + دمج + رفع) لحد 4 مرات
+    if(err && err.message === 'team-rev-conflict' && (retried || 0) < 4){
+      setTimeout(function(){ driveSyncPushNow((retried || 0) + 1); }, 300 + Math.random() * 700); return;
     }
     console.warn('[مزامنة الفريق] فشل الرفع:', err && err.message);
     lastSyncErrorText = syncErrorToText(err && err.message);
