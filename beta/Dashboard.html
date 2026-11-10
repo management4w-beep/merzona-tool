@@ -111,7 +111,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.2';
+  var CURRENT_VERSION = '2026-11-10.3';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -2466,7 +2466,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       </div>
       <div id="quotationLoading">⏳ عم يتحمّل عرض السعر...</div>
       <div id="quotationFailMsg" style="display:none;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
-        تعذّر تحميل أداة عرض السعر جوّا الصفحة.<br>
+        <span class="mz-fm">تعذّر تحميل أداة عرض السعر جوّا الصفحة.</span><br>
         <a href="https://management4w-beep.github.io/merzona-tool/beta/" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
       </div>
       <iframe id="quotationFrame" src="" style="display:none;" title="عرض سعر جديد"></iframe>
@@ -2480,7 +2480,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       </div>
       <div id="designerLoading">⏳ عم يتحمّل (تصميم/Sketch)...</div>
       <div id="designerFailMsg" style="display:none;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
-        تعذّر تحميل أداة المصمم جوّا الصفحة.<br>
+        <span class="mz-fm">تعذّر تحميل أداة المصمم جوّا الصفحة.</span><br>
         <a href="https://management4w-beep.github.io/merzona-tool/beta/designer.html" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
       </div>
       <iframe id="designerFrame" src="" style="display:none;" title="(تصميم/Sketch)"></iframe>
@@ -2492,7 +2492,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <div class="procurement-frame-wrap">
       <div id="accountingLoading">⏳ عم يتحمّل النظام المحاسبي...</div>
       <div id="accountingFailMsg" style="display:none;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
-        تعذّر تحميل المحاسبة جوّا الصفحة.<br>
+        <span class="mz-fm">تعذّر تحميل المحاسبة جوّا الصفحة.</span><br>
         <a href="https://management4w-beep.github.io/merzona-tool/beta/accounting.html" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
       </div>
       <iframe id="accountingFrame" src="" style="display:none;" title="المحاسبة"></iframe>
@@ -2505,7 +2505,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       </div>
       <div id="procurementLoading">⏳ عم تتحمّل أداة المشتريات...</div>
       <div id="procurementFailMsg" style="display:none;text-align:center;padding:40px 20px;color:var(--muted);font-size:13px;">
-        تعذّر تحميل أداة المشتريات جوّا الصفحة.<br>
+        <span class="mz-fm">تعذّر تحميل أداة المشتريات جوّا الصفحة.</span><br>
         <a href="https://management4w-beep.github.io/merzona-tool/beta/procurement.html" target="_blank" style="color:var(--aux1);">اضغط هون لفتحها بنافذة مستقلة ↗</a>
       </div>
       <iframe id="procurementFrame" src="" style="display:none;" title="المشتريات"></iframe>
@@ -3368,6 +3368,14 @@ function showDraftsDesignsView(){
 // عرض السعر (رسّام النوافذ والأبواب) - أداة مستقلة محمّلة داخل نفس الصفحة (iframe)
 // بيتحمّل أول مرة بس (lazy load) لتسريع فتح الداشبورد
 const QUOTATION_TOOL_URL = 'https://management4w-beep.github.io/merzona-tool/beta/';
+// 🔧 2026-11-10: كانت رسالة "تعذّر تحميل..." تطلع بعد 10-12 ثانية حتى لو الأداة لسا عم تتحمّل (نت بطيء)،
+// وبعدين الأداة تفتح لحالها. هلق بعد المهلة منكتب إنها عم تاخد وقت (وبيضل مؤشر التحميل)، و"تعذّر" بس لخطأ حقيقي.
+function mzFrameMsg(el, failed){
+  if(!el) return;
+  var t = el.querySelector('.mz-fm');
+  if(t){ if(!t.dataset.orig) t.dataset.orig = t.textContent; t.textContent = failed ? t.dataset.orig : '⏳ عم تاخد وقت أطول من العادة (غالبًا النت بطيء) - بتفتح لحالها أول ما تخلص.'; }
+  el.style.display = 'block';
+}
 function showQuotationView(){
   hideAllViews();
   const view = document.getElementById('quotationView');
@@ -3380,10 +3388,7 @@ function showQuotationView(){
     loading.style.display = '';
     failMsg.style.display = 'none';
     // إذا ما ظهرت الأداة خلال 10 ثواني (مسار خاطئ أو مشكلة تحميل) منعرض رسالة بديلة مع رابط يفتحها بنافذة مستقلة
-    const failTimer = setTimeout(()=>{
-      loading.style.display = 'none';
-      failMsg.style.display = 'block';
-    }, 10000);
+    const failTimer = setTimeout(()=>{ mzFrameMsg(failMsg, false); }, 10000);
     frame.addEventListener('load', ()=>{
       clearTimeout(failTimer);
       loading.style.display = 'none';
@@ -3399,13 +3404,13 @@ function showQuotationView(){
         frame.style.display = 'block';
       }else{
         frame.style.display = 'none';
-        failMsg.style.display = 'block';
+        mzFrameMsg(failMsg, true);
       }
     }, {once:true});
     frame.addEventListener('error', ()=>{
       clearTimeout(failTimer);
       loading.style.display = 'none';
-      failMsg.style.display = 'block';
+      mzFrameMsg(failMsg, true);
     }, {once:true});
     frame.src = QUOTATION_TOOL_URL;
     frame.setAttribute('data-loaded', '1');
@@ -3427,10 +3432,7 @@ function showDesignerView(){
   if(!frame.getAttribute('data-loaded')){
     loading.style.display = '';
     failMsg.style.display = 'none';
-    const failTimer = setTimeout(()=>{
-      loading.style.display = 'none';
-      failMsg.style.display = 'block';
-    }, 10000);
+    const failTimer = setTimeout(()=>{ mzFrameMsg(failMsg, false); }, 10000);
     frame.addEventListener('load', ()=>{
       clearTimeout(failTimer);
       loading.style.display = 'none';
@@ -3444,13 +3446,13 @@ function showDesignerView(){
         frame.style.display = 'block';
       }else{
         frame.style.display = 'none';
-        failMsg.style.display = 'block';
+        mzFrameMsg(failMsg, true);
       }
     }, {once:true});
     frame.addEventListener('error', ()=>{
       clearTimeout(failTimer);
       loading.style.display = 'none';
-      failMsg.style.display = 'block';
+      mzFrameMsg(failMsg, true);
     }, {once:true});
     frame.src = DESIGNER_TOOL_URL;
     frame.setAttribute('data-loaded', '1');
@@ -3467,9 +3469,9 @@ function showAccountingView(){
   document.getElementById('accountingTabBtn').classList.add('active');
   if(!frame.getAttribute('data-loaded')){
     loading.style.display = ''; failMsg.style.display = 'none';
-    const failTimer = setTimeout(()=>{ loading.style.display = 'none'; failMsg.style.display = 'block'; }, 12000);
+    const failTimer = setTimeout(()=>{ mzFrameMsg(failMsg, false); }, 12000);
     frame.addEventListener('load', ()=>{ clearTimeout(failTimer); loading.style.display = 'none'; failMsg.style.display = 'none'; frame.style.display = 'block'; }, {once:true});
-    frame.addEventListener('error', ()=>{ clearTimeout(failTimer); loading.style.display = 'none'; failMsg.style.display = 'block'; }, {once:true});
+    frame.addEventListener('error', ()=>{ clearTimeout(failTimer); loading.style.display = 'none'; mzFrameMsg(failMsg, true); }, {once:true});
     frame.src = ACCOUNTING_TOOL_URL;
     frame.setAttribute('data-loaded', '1');
   }
@@ -3486,10 +3488,7 @@ function showProcurementView(){
   if(!frame.getAttribute('data-loaded')){
     loading.style.display = '';
     failMsg.style.display = 'none';
-    const failTimer = setTimeout(()=>{
-      loading.style.display = 'none';
-      failMsg.style.display = 'block';
-    }, 10000);
+    const failTimer = setTimeout(()=>{ mzFrameMsg(failMsg, false); }, 10000);
     frame.addEventListener('load', ()=>{
       clearTimeout(failTimer);
       loading.style.display = 'none';
@@ -3503,13 +3502,13 @@ function showProcurementView(){
         frame.style.display = 'block';
       }else{
         frame.style.display = 'none';
-        failMsg.style.display = 'block';
+        mzFrameMsg(failMsg, true);
       }
     }, {once:true});
     frame.addEventListener('error', ()=>{
       clearTimeout(failTimer);
       loading.style.display = 'none';
-      failMsg.style.display = 'block';
+      mzFrameMsg(failMsg, true);
     }, {once:true});
     frame.src = PROCUREMENT_TOOL_URL;
     frame.setAttribute('data-loaded', '1');
@@ -6192,11 +6191,12 @@ function openQuotationWithFreshLoad(){
   frame.style.display = 'none';
   loading.style.display = '';
   failMsg.style.display = 'none';
-  const failTimer = setTimeout(()=>{ loading.style.display='none'; failMsg.style.display='block'; }, 10000);
+  const failTimer = setTimeout(()=>{ mzFrameMsg(failMsg, false); }, 10000);
   frame.dataset.loading = '1';
   frame.addEventListener('load', ()=>{
     clearTimeout(failTimer);
     loading.style.display = 'none';
+    failMsg.style.display = 'none';
     frame.style.display = 'block';
     frame.dataset.loading = '';
   }, {once:true});
