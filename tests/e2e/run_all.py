@@ -310,6 +310,42 @@ async def t_drive_proxy(p, b, port):
     finally:
         proc.kill()
 
+async def t_share_pdf(p, b, port):
+    print('• أرسل للزبون + خطوط الـPDF')
+    ctx = await new_ctx(p, b)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2500)
+    r = await pg.evaluate("""() => [mzWaDigits('+971 58 197 5655'), mzWaDigits('0581975655'), mzWaDigits('0939919670'), mzWaDigits('00963939919670'), mzWaDigits('12')]""")
+    check(r == ['971581975655', '971581975655', '963939919670', '963939919670', ''], 'تحويل أرقام الزبائن لواتس اب ' + str(r))
+    r = await pg.evaluate("""async () => {
+      const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles:true})); };
+      set('m-ref', 'M-Q-260221'); set('m-client', 'Hanzalah'); set('m-number', '+971 58 197 5655');
+      let saved = 0; runSaveToGoogleDriveInnerShared = async () => { saved++; };
+      window.__mzLastPdf = { ref: 'M-Q-260221', blob: new Blob(['%PDF-1.4'], {type: 'application/pdf'}) };
+      await shareQuotationToClient();
+      const m = document.getElementById('mzShareModal');
+      const bt = m ? Array.from(m.querySelectorAll('button')).map(b => b.textContent) : [];
+      let opened = null; window.open = (u) => { opened = u; return null; };
+      if(m) m.querySelector('button').click();
+      return { saved, bt, opened, gone: !document.getElementById('mzShareModal') }; }""")
+    check(r['saved'] == 1, 'بيحفظ العرض قبل الإرسال')
+    check(r['opened'] and r['opened'].startswith('https://wa.me/971581975655?text=') and 'M-Q-260221' in __import__('urllib.parse').parse.unquote(r['opened']) and 'sign.html' in __import__('urllib.parse').parse.unquote(r['opened']), 'بيفتح محادثة الزبون نفسه مع رابط العرض')
+    check(r['gone'] and any('انسخ' in x for x in r['bt']), 'نافذة الإرسال (فتح المحادثة / نسخ الرسالة)')
+    r = await pg.evaluate("""() => { document.body.classList.add('pdf-capturing');
+      const f1 = getComputedStyle(document.querySelector('.section-title')).fontFamily;
+      const ar = document.querySelector('.section-title .ar'); const f2 = ar ? getComputedStyle(ar).fontFamily : '';
+      document.body.classList.remove('pdf-capturing');
+      const f3 = getComputedStyle(document.querySelector('.section-title')).fontFamily;
+      return [f1, f2, f3]; }""")
+    check(r[0].startswith('Georgia') and r[1].startswith('Tahoma') and 'DM Serif' in r[2], 'وقت إنشاء الـPDF بس: خطوط الجهاز (حتى ما تركب السطور فوق بعض) ' + str(r))
+    r = await pg.evaluate("""async () => { document.body.classList.add('pdf-capturing'); await new Promise(r => setTimeout(r, 50));
+      const t = Array.from(document.querySelectorAll('.mz-select-capture-text')).map(s => s.textContent);
+      document.body.classList.remove('pdf-capturing'); await new Promise(r => setTimeout(r, 50)); return t; }""")
+    check(not any('Select' in x or 'اختر' in x for x in r), 'خانة اللون الفاضية ما بتنطبع "-- Select --"')
+    check(not errs, 'ما في أخطاء ' + '; '.join(errs[:2]))
+    await ctx.close()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -321,6 +357,7 @@ async def main():
         await t_edit_panel(p, b, port, True)
         await t_catalog(p, b, port)
         await t_drive_proxy(p, b, port)
+        await t_share_pdf(p, b, port)
         await b.close()
     httpd.shutdown(); shutil.rmtree(tmp, ignore_errors=True)
     bad = [n for ok, n in results if not ok]

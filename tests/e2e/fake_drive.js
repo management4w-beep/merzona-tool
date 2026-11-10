@@ -95,6 +95,7 @@ users.pay = { username: 'pay', permissions: { quotation: true, payroll: true } }
 
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  if (req.url.startsWith('/__file/')) { const nm = decodeURIComponent(req.url.slice(8)); const f = [...files.values()].filter((x) => x.name === nm).pop(); if (!f) { res.statusCode = 404; return res.end(); } res.setHeader('Content-Type', f.mimeType); return res.end(f.content); }
   if (req.url === '/__state') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ files: [...files.values()].map((f) => Object.assign(pub(f), { text: /json|html|text/.test(f.mimeType) ? f.content.toString() : null, len: f.content.length })), upstream })); }
   res.set = (k, v) => { res.setHeader(k, v); return res; };
   res.status = (c) => { res.statusCode = c; return res; };
