@@ -166,9 +166,12 @@
 
   /* ---------- 3) التعرّف على الرموز والمقاسات ---------- */
   // رموز النوافذ والأبواب الشائعة بالمخططات: W1 D2 SD3 SW-1 CW01 FW1 GD1 WD1 V1 ن1 ب1
-  const MARK_RE = /^(?:(W|D|WD|DW|SD|SW|CW|FW|FD|GD|AD|ED|MD|WN|DR|V|SK|ن|ب|ش)[\s.\-_]?(\d{1,3})([A-Za-z])?)$/i;
-  function normMark(s) {
-    const m = MARK_RE.exec(String(s).trim().replace(/\s+/g, ''));
+  const MARK_RE = /^(?:(W|D|WD|DW|SD|SW|CW|FW|FD|GD|AD|ED|MD|WN|DR|OP|V|SK|ن|ب|ش)[\s.\-_]?(\d{1,3})([A-Za-z])?)$/i;
+  // رموز بتنقبل بس إذا مكتوبة بنفس حجم رموز الشبابيك والأبواب بنفس الصفحة أو موجودة بالجدول (C1 ممكن تكون عمود إنشائي)
+  const MARK_EXT_RE = /^(?:(C)[\s.\-_]?(\d{1,3})([A-Za-z])?)$/i;
+  function normMark(s, ext) {
+    const t = String(s).trim().replace(/\s+/g, '');
+    const m = MARK_RE.exec(t) || (ext ? MARK_EXT_RE.exec(t) : null);
     if (!m) return null;
     return (m[1].toUpperCase() + m[2].replace(/^0+(?=\d)/, '') + (m[3] ? m[3].toUpperCase() : ''));
   }
@@ -184,14 +187,27 @@
   function headKind(t) {
     const s = String(t).trim().replace(/[:：]/g, '').replace(/\s+/g, ' ');
     for (const k of ['width', 'height', 'qty', 'size', 'mark']) if (HEAD[k].test(s)) return k;
+    // عنوان من كلمتين أو تلاتة: "STRUCT SIZE"، "OVERALL WIDTH"، "NO. OF UNITS"
+    const ws = s.split(' ');
+    if (ws.length >= 2 && ws.length <= 3 && s.length <= 24) {
+      for (const k of ['width', 'height', 'size']) if (HEAD[k].test(ws[ws.length - 1]) && ws[ws.length - 1].length > 1) return k;
+      if (/^(no\.?\s*of|number\s*of)\b/i.test(s)) return 'qty';
+    }
     return null;
   }
 
   /* ---------- 4) الاستخراج ---------- */
-  function extract(doc, opts) {
+  function extract(doc, opts) { return extractFlat(flatten(doc), doc.units, opts); }
+  // F = {texts:[{x,y,h,text,page?,angle?}], inserts:[...]} - من DXF أو DWG أو PDF
+  function extractFlat(F, unitsCode, opts) {
     opts = opts || {};
-    const F = flatten(doc);
-    const T = F.texts;
+    F.inserts = F.inserts || [];
+    const T = F.texts.filter((t) => t.text);
+    // رموز C وأمثالها: منقبلها إذا حجم خطها متل رموز W/D بنفس الصفحة
+    const stdTagH = new Map();
+    for (const t of T) if (normMark(t.text)) { const k = t.page || 0; (stdTagH.get(k) || stdTagH.set(k, []).get(k)).push(t.h); }
+    const extOk = (t) => (stdTagH.get(t.page || 0) || []).some((h) => Math.abs(h - t.h) <= Math.max(h, t.h) * 0.08);
+    const markOf = (t) => normMark(t.text) || (MARK_EXT_RE.test(String(t.text).trim()) && extOk(t) ? normMark(t.text, true) : null);
     const hMed = (() => { const hs = T.map((t) => t.h).filter((h) => h > 0).sort((a, b) => a - b); return hs.length ? hs[Math.floor(hs.length / 2)] : 1; })();
     const tol = (t) => Math.max((t.h || hMed) * 0.6, hMed * 0.3);
     const schedule = new Map(); // mark -> {w,h,qty,src[]}
@@ -199,6 +215,7 @@
     const note = (mark, rec, src) => {
       const cur = schedule.get(mark) || { mark, w: null, h: null, qty: null, srcs: [] };
       ['w', 'h', 'qty'].forEach((k) => { if (rec[k] != null && cur[k] == null) cur[k] = rec[k]; else if (rec[k] != null && cur[k] != null && Math.abs(cur[k] - rec[k]) > 0.01) cur.conflict = (cur.conflict || []).concat(k + ': ' + cur[k] + ' / ' + rec[k]); });
+      if (rec.pair) cur.pair = true;
       cur.srcs.push(src);
       schedule.set(mark, cur);
     };
@@ -211,7 +228,7 @@
       const sz = SIZE_RE.exec(m[2]);
       if (!sz) continue;
       const qm = /(?:\(|qty\s*[:=]?\s*|عدد\s*[:=]?\s*|×\s*|nos?\s*[:=]?\s*)(\d{1,3})\)?\s*$/i.exec(m[2].slice(sz.index + sz[0].length));
-      note(mk, { w: numOf(sz[1]), h: numOf(sz[2]), qty: qm ? parseInt(qm[1], 10) : null }, 'نص بالمخطط: "' + t.text.replace(/\n/g, ' ').slice(0, 60) + '"');
+      note(mk, { w: numOf(sz[1]), h: numOf(sz[2]), qty: qm ? parseInt(qm[1], 10) : null, pair: true }, 'نص بالمخطط: "' + t.text.replace(/\n/g, ' ').slice(0, 60) + '"');
       usedTexts.add(t);
     }
 
@@ -233,9 +250,12 @@
       const kinds = new Set(col.map((o) => headKind(o.text)));
       if (col.length >= 2 && (kinds.has('width') || kinds.has('size'))) { col.forEach((o) => usedHead.add(o)); tables.push({ dir: 'cols', heads: col, x: h.x }); }
     }
-    const markTexts = T.filter((t) => normMark(t.text));
+    const markTexts = T.filter((t) => markOf(t));
+    const realTables = [], noteMain = note;
     for (const tb of tables) {
       const hk = (k) => tb.heads.find((o) => headKind(o.text) === k);
+      const pend = []; // جدول حقيقي = فيه رمزين مختلفين عالأقل، وإلا غالباً عناوين رسومات مش جدول
+      const note = (mk, rec, src, m) => pend.push([mk, rec, src, m]);
       if (tb.dir === 'rows') {
         const hy = tb.y, below = T.filter((t) => t.y < hy - tol(t) * 0.5);
         // كل رمز تحت العناوين = صف
@@ -246,14 +266,14 @@
           if (m.x < minX || m.x > maxX) continue;
           const cells = below.filter((t) => t !== m && Math.abs(t.y - m.y) <= tol(m));
           const nearest = (head) => { if (!head) return null; let best = null, bd = Infinity; for (const c of cells) { const d = Math.abs(c.x - head.x); if (d < bd) { bd = d; best = c; } } return bd <= hMed * 12 ? best : null; };
-          let w = null, h = null, q = null;
+          let w = null, h = null, q = null, pair = false;
           const sc = nearest(hk('size'));
-          if (sc && SIZE_RE.test(sc.text)) { const s = SIZE_RE.exec(sc.text); w = numOf(s[1]); h = numOf(s[2]); }
+          if (sc && SIZE_RE.test(sc.text)) { const s = SIZE_RE.exec(sc.text); w = numOf(s[1]); h = numOf(s[2]); pair = true; }
           const wc = nearest(hk('width')), hc = nearest(hk('height')), qc = nearest(hk('qty'));
           if (wc && /^\s*\d+([.,]\d+)?\s*$/.test(wc.text)) w = numOf(wc.text);
           if (hc && /^\s*\d+([.,]\d+)?\s*$/.test(hc.text)) h = numOf(hc.text);
           if (qc && /^\s*\d{1,4}\s*$/.test(qc.text)) q = parseInt(qc.text, 10);
-          if (w != null || h != null) { note(normMark(m.text), { w, h, qty: q }, 'جدول النوافذ والأبواب (صف ' + m.text.trim() + ')'); usedTexts.add(m); }
+          if (w != null || h != null) { note(markOf(m), { w, h, qty: q, pair }, 'جدول النوافذ والأبواب (صف ' + m.text.trim() + ')', m); }
         }
       } else {
         const hx = tb.x;
@@ -262,15 +282,17 @@
         const marksRight = markTexts.filter((m) => m.x > hx + hMed && !usedTexts.has(m) && (markRowY == null ? Math.min(...tb.heads.map((o) => o.y)) <= m.y + tol(m) : Math.abs(m.y - markRowY) <= tol(m)));
         for (const m of marksRight) {
           const cellAt = (y) => { if (y == null) return null; let best = null, bd = Infinity; for (const t of T) { if (t === m) continue; if (Math.abs(t.y - y) > tol(t)) continue; const d = Math.abs(t.x - m.x); if (d < bd) { bd = d; best = t; } } return bd <= hMed * 8 ? best : null; };
-          let w = null, h = null, q = null;
-          const sc = cellAt(rowY('size')); if (sc && SIZE_RE.test(sc.text)) { const s = SIZE_RE.exec(sc.text); w = numOf(s[1]); h = numOf(s[2]); }
+          let w = null, h = null, q = null, pair = false;
+          const sc = cellAt(rowY('size')); if (sc && SIZE_RE.test(sc.text)) { const s = SIZE_RE.exec(sc.text); w = numOf(s[1]); h = numOf(s[2]); pair = true; }
           const wc = cellAt(rowY('width')), hc = cellAt(rowY('height')), qc = cellAt(rowY('qty'));
           if (wc && /^\s*\d+([.,]\d+)?\s*$/.test(wc.text)) w = numOf(wc.text);
           if (hc && /^\s*\d+([.,]\d+)?\s*$/.test(hc.text)) h = numOf(hc.text);
           if (qc && /^\s*\d{1,4}\s*$/.test(qc.text)) q = parseInt(qc.text, 10);
-          if (w != null || h != null) { note(normMark(m.text), { w, h, qty: q }, 'جدول النوافذ والأبواب (عمود ' + m.text.trim() + ')'); usedTexts.add(m); }
+          if (w != null || h != null) { note(markOf(m), { w, h, qty: q, pair }, 'جدول النوافذ والأبواب (عمود ' + m.text.trim() + ')', m); }
         }
       }
+      const kinds = new Set(tb.heads.map((o) => headKind(o.text)));
+      if (new Set(pend.map((x) => x[0])).size >= 2 || (pend.length && kinds.has("mark") && kinds.size >= 3)) { realTables.push(tb); for (const [mk, rec, src, m] of pend) { noteMain(mk, rec, src); usedTexts.add(m); } }
     }
 
     // (ج) بلوكات إلها خصائص: رمز + عرض + ارتفاع
@@ -292,13 +314,43 @@
     }
 
     // (د) عدّ الرموز المكتوبة بالمساقط (برّا الجداول وبرّا خصائص البلوكات)
+    // بالـPDF: كل صفحة لحال. صفحة الجدول وصفحة "الدليل" (كل رمز مرسوم مرة وحدة تحت رسمة الواجهة) ما بتنعد
+    const tablePages = new Set([...usedTexts].filter((t) => t.page).map((t) => t.page));
+    const pageInfo = new Map();
+    for (const t of markTexts) {
+      if (usedTexts.has(t)) continue;
+      const pg = t.page || 0; const pi = pageInfo.get(pg) || pageInfo.set(pg, { page: pg, total: 0, marks: new Map() }).get(pg);
+      pi.total++; const mk = markOf(t); pi.marks.set(mk, (pi.marks.get(mk) || 0) + 1);
+    }
+    const pages = [...pageInfo.values()].sort((a, b) => a.page - b.page).map((pi) => {
+      const distinct = pi.marks.size;
+      const legend = !!pi.page && distinct >= 6 && pi.total / distinct < 1.3;
+      const auto = !(pi.page && (tablePages.has(pi.page) || legend));
+      const counted = opts.countPages ? opts.countPages.indexOf(pi.page) >= 0 : auto;
+      return { page: pi.page, total: pi.total, distinct, legend, schedule: tablePages.has(pi.page), counted, marks: pi.marks };
+    });
     const tagCount = new Map();
-    for (const t of markTexts) { if (usedTexts.has(t)) continue; const mk = normMark(t.text); tagCount.set(mk, (tagCount.get(mk) || 0) + 1); }
+    for (const pi of pages) if (pi.counted) for (const [mk, c] of pi.marks) tagCount.set(mk, (tagCount.get(mk) || 0) + c);
 
     // الوحدة: من إعداد الملف أو من حجم الأرقام
     const allWH = [...schedule.values()].flatMap((r) => [r.w, r.h]).concat([...blockMarks.values()].flatMap((b) => b.sizes.flat())).filter((v) => v != null && v > 0);
     const mx = allWH.length ? Math.max(...allWH) : 0;
     let unit = opts.unit || (mx && mx < 30 ? 'm' : mx && mx < 700 ? 'cm' : 'mm');
+    // ترتيب المقاس: بعض المكاتب بتكتب "الارتفاع × العرض" (260x100 للباب). منعرفها من عنوان الجدول أو من الأبواب
+    let order = opts.order || null, orderWhy = '';
+    if (!order) {
+      const hd = T.find((t) => /\b(h|height|ht)\s*[xX×*]\s*(w|width)\b|الارتفاع\s*[xX×*]\s*العرض/i.test(t.text));
+      const wd = T.find((t) => /\b(w|width)\s*[xX×*]\s*(h|height|ht)\b|العرض\s*[xX×*]\s*الارتفاع/i.test(t.text));
+      if (hd && !wd) { order = 'hw'; orderWhy = 'عنوان الجدول: ' + hd.text; }
+      else if (wd && !hd) { order = 'wh'; orderWhy = 'عنوان الجدول: ' + wd.text; }
+      else {
+        const doors = [...schedule.values()].filter((r) => r.pair && /^(D|DR|FD|GD|AD|ED|MD|ب)\d/.test(r.mark) && r.w && r.h);
+        const tall = doors.filter((r) => r.w > r.h * 1.3).length, wide = doors.filter((r) => r.h > r.w * 1.3).length;
+        if (doors.length >= 2 && tall >= Math.max(2, doors.length * 0.75)) { order = 'hw'; orderWhy = 'الأبواب مكتوبة الرقم الكبير أول (ارتفاع × عرض)'; }
+        else { order = 'wh'; orderWhy = wide ? 'الأبواب مكتوبة عرض × ارتفاع' : 'الافتراضي: عرض × ارتفاع'; }
+      }
+    }
+    if (order === 'hw') for (const r of schedule.values()) if (r.pair) { const t = r.w; r.w = r.h; r.h = t; }
     const k = unit === 'm' ? 1000 : unit === 'cm' ? 10 : 1;
     const mm = (v) => (v == null ? null : Math.round(v * k));
 
@@ -318,7 +370,7 @@
         else if (bs.some(([bw, bh]) => (bw != null && w != null && bw !== w) || (bh != null && h != null && bh !== h))) issues.push('مقاس البلوك بالمخطط غير مقاس الجدول');
         if (new Set(bs.map((x) => x.join('x'))).size > 1) issues.push('بلوكات بنفس الرمز بمقاسات مختلفة');
       }
-      if (tc) evidence.push('مكتوب بالمساقط: ' + tc + ' مرة');
+      if (tc) evidence.push('مكتوب بالمساقط: ' + tc + ' مرة' + (pages.some((p) => p.page) ? ' (صفحات ' + pages.filter((p) => p.counted && p.marks.has(mk)).map((p) => p.page).join('، ') + ')' : ''));
       const qSched = s && s.qty != null ? s.qty : null;
       const counted = b ? b.count : tc;
       let qty = qSched != null ? qSched : (counted || null);
@@ -329,7 +381,8 @@
       if (sources < 2 && !issues.length) issues.push('مصدر واحد بس - راجعه');
       rows.push({ mark: mk, kind: kindOf(mk), w, h, qty, ok: issues.length === 0, issues, evidence });
     }
-    return { unit, unitFromFile: doc.units, rows, stats: { texts: T.length, inserts: F.inserts.length, tables: tables.length } };
+    const pagesOut = pages.filter((p) => p.page).map((p) => ({ page: p.page, total: p.total, distinct: p.distinct, legend: p.legend, schedule: p.schedule, counted: p.counted }));
+    return { unit, unitFromFile: unitsCode, order, orderWhy, rows, pages: pagesOut, stats: { texts: T.length, inserts: F.inserts.length, tables: realTables.length } };
   }
   function markSort(a, b) {
     const pa = /^([A-Z؀-ۿ]+)(\d+)(.*)$/.exec(a) || [0, a, 0, ''], pb = /^([A-Z؀-ۿ]+)(\d+)(.*)$/.exec(b) || [0, b, 0, ''];
@@ -343,10 +396,44 @@
     if (p === 'FW' || p === 'V') return 'fixed-window';
     if (p === 'SK') return 'skylight';
     if (/^(D|DR|FD|GD|AD|ED|MD|DW|ب)$/.test(p)) return 'door';
+    if (p === 'OP') return 'opening';
     return 'window';
   }
 
-  const api = { parseDxf, flatten, extract, normMark, cleanMtext, readDxf: (text, opts) => extract(parseDxf(text), opts) };
+  // صفحات PDF (من pdf-text.js) -> نفس الاستخراج
+  function fromPdfPages(pages, opts) {
+    const texts = [];
+    // الـPDF بيعطي كلمات؛ منلزق الكلمات المتجاورة على نفس السطر بخلية وحدة (متل نص الأوتوكاد الأصلي)
+    for (const p of pages) {
+      const ws = p.words.slice().sort((a, b) => (a.angle - b.angle) || (Math.round(b.y / Math.max(a.h, 0.5) * 2) - Math.round(a.y / Math.max(a.h, 0.5) * 2)) || (a.x - b.x));
+      const used = new Set();
+      const horiz = (w) => !w.angle;
+      for (const w of ws) {
+        if (used.has(w)) continue;
+        used.add(w);
+        const cell = { x: w.x, y: w.y, h: w.h, text: w.text, page: p.page, angle: w.angle || 0, ex: w.ex, ey: w.ey };
+        if (horiz(w)) {
+          for (;;) {
+            let best = null, bd = Infinity;
+            for (const o of p.words) {
+              if (used.has(o) || !horiz(o) || Math.abs(o.h - cell.h) > cell.h * 0.2 || Math.abs(o.y - cell.y) > cell.h * 0.3) continue;
+              const gap = o.x - (cell.ex != null ? cell.ex : cell.x);
+              if (gap >= -cell.h * 0.2 && gap <= cell.h * 0.75 && gap < bd) { bd = gap; best = o; }
+            }
+            if (!best) break;
+            used.add(best); cell.text += ' ' + best.text; cell.ex = best.ex; cell.ey = best.ey;
+          }
+        }
+        texts.push(cell);
+      }
+    }
+    const r = extractFlat({ texts, inserts: [] }, 0, opts);
+    r.pdf = true;
+    // إذا ما في ولا جدول مقروء: غالباً الجدول مرسوم خطوط (خط SHX) - منقولها صراحة
+    if (!r.stats.tables) r.rows.forEach((x) => { x.issues = x.issues.map((s) => (s === 'ما لقينا مقاس' ? 'ما لقينا مقاس: جدول الفتحات بهالـPDF مرسوم خطوط مش نص - اكتب المقاس أو استعمل ملف الـDWG' : s)); });
+    return r;
+  }
+  const api = { parseDxf, flatten, extract, extractFlat, fromPdfPages, normMark, cleanMtext, readDxf: (text, opts) => extract(parseDxf(text), opts) };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MzCad = api;
 })(typeof window !== 'undefined' ? window : this);
