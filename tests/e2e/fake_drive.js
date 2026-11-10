@@ -98,6 +98,16 @@ const teamStore = team.createTeamStore({ dataDir: fs.mkdtempSync(path.join(os.tm
 team.mountTeamRoutes({ get: (p, h) => { exact['GET ' + p] = h; }, put: (p, h) => { exact['PUT ' + p] = h; } }, teamStore, { who: proxy.who });
 users.pay = { username: 'pay', permissions: { quotation: true, payroll: true } }; sessions.s3 = { username: 'pay', createdAt: Date.now() };
 
+// عروض الأسعار عالسيرفر (quote-store.js الحقيقي) - بينقل العروض الموجودة بدرايف الوهمي أول ما يشتغل
+const qs = require(path.join(SERVER_DIR, 'quote-store.js'));
+const quoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fq-'));
+const quoteStore = qs.createQuoteStore({ dataDir: quoteDir, roots: { uae: UAE, syria: SYR }, log: { log() {}, error() {} },
+  drive: { list: async (id) => [...files.values()].filter((f) => f.parents.includes(id) && !f.trashed).map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime })),
+    text: async (id) => files.get(id).content.toString('utf8') } });
+const chain = (hs) => (req, res) => { let i = 0; const nx = () => { const f = hs[i++]; if (f) f(req, res, nx); }; nx(); };
+qs.mountQuoteRoutes({ get: (p, ...h) => { exact['GET ' + p] = chain(h); }, put: (p, ...h) => { exact['PUT ' + p] = chain(h); }, post: (p, ...h) => { exact['POST ' + p] = chain(h); } }, quoteStore, { who: proxy.who });
+quoteStore.startImport('فحص');
+
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url.startsWith('/__file/')) { const nm = decodeURIComponent(req.url.slice(8)); const f = [...files.values()].filter((x) => x.name === nm).pop(); if (!f) { res.statusCode = 404; return res.end(); } res.setHeader('Content-Type', f.mimeType); return res.end(f.content); }
@@ -120,9 +130,13 @@ const server = http.createServer((req, res) => {
       res.setHeader('Content-Type', 'application/json'); res.statusCode = se.method === 'POST' ? 200 : 200; res.end(JSON.stringify(pub(f)));
     }); return;
   }
+  if (req.url === '/__quotes') { let audit = []; try { audit = fs.readFileSync(path.join(quoteDir, 'quotes', 'quotes-audit.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch (_) {} return res.json({ list: quoteStore.list(true), status: quoteStore.importStatus(), audit, items: Object.fromEntries(quoteStore.list(true).items.map((x) => [x.ref, quoteStore.get(x.ref)])) }); }
+  if (req.url === '/__quotes-off') { exact.__off = true; return res.json({ ok: true }); }
+  if (req.url === '/__quotes-on') { exact.__off = false; return res.json({ ok: true }); }
+  if (exact.__off && req.url.startsWith('/quotes')) { res.statusCode = 503; return res.end('{}'); }
   if (req.url === '/__team') return res.json({ status: teamStore.status(), data: teamStore.status() ? teamStore.view({ admin: true, perms: {} }).data : null });
   const ex = exact[req.method + ' ' + req.url.split('?')[0]];
-  if (ex) { const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { try { req.body = ch.length ? JSON.parse(Buffer.concat(ch).toString()) : {}; } catch (_) { req.body = {}; } ex(req, res); }); return; }
+  if (ex) { req.query = Object.fromEntries(new URL(req.url, 'http://x').searchParams); const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { try { req.body = ch.length ? JSON.parse(Buffer.concat(ch).toString()) : {}; } catch (_) { req.body = {}; } ex(req, res); }); return; }
   const p = req.url.split('?')[0]; const r = routes.find((x) => x.re.test(p));
   if (!r) { res.statusCode = 404; return res.end('no route'); }
   req.params = { 0: r.re.exec(p)[1] };
