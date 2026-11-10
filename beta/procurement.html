@@ -58,6 +58,38 @@
   };
 })();
 </script>
+<script id="mz-drive-proxy">
+/* 🔐 2026-11-10 (المرحلة 2 من دراسة السيستم): جوجل درايف بيمرق من السيرفر بس.
+   قبل: الجهاز كان ياخد مفتاح درايف كامل (كل ملفات الحساب) ويحكي مع جوجل مباشرة.
+   هلق: أي طلب لجوجل درايف بهالصفحة بيتحوّل لـ /gdrive/ عالسيرفر مع توكن الجهاز والجلسة، والسيرفر
+   بيتحقق إنو الملف جوا مجلدات ميرزونا وإنو المستخدم إلو صلاحية، وبعدين بيحكي هو مع جوجل.
+   المفتاح الحقيقي ما بيوصل للمتصفح أبدًا، والكود القديم بالصفحة ما احتاج يتغيّر. */
+(function(){
+  var SRV = 'https://merzona-server-production.up.railway.app/gdrive/';
+  var RE = /^https:\/\/www\.googleapis\.com\/((?:upload\/)?drive\/v3\/[\s\S]*)$/;
+  var orig = window.fetch;
+  if(typeof orig !== 'function') return;
+  function ls(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+  // مفاتيح درايف القديمة المخزّنة بالمتصفح ما عاد إلها لزوم
+  try{ ['merzona_index_gtoken_v1', 'merzona_dash_gtoken_v1'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+  window.__mzDriveProxy = true;
+  window.fetch = function(input, init){
+    var isReq = (typeof Request !== 'undefined') && (input instanceof Request);
+    var url = isReq ? input.url : String(input);
+    var m = RE.exec(url);
+    if(!m) return orig.apply(this, arguments);
+    var target = SRV + m[1];
+    var o = Object.assign({}, init || {});
+    var h = new Headers(o.headers || (isReq ? input.headers : undefined) || {});
+    h.delete('Authorization');
+    h.set('x-device', ls('merzona-device-token'));
+    var s = ls('merzona-session-token'); if(s) h.set('x-session', s);
+    o.headers = h;
+    if(isReq) return orig.call(window, new Request(target, Object.assign({ method: input.method, body: input.body, duplex: 'half' }, o)));
+    return orig.call(window, target, o);
+  };
+})();
+</script>
 <script>
 (function(){
   // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
@@ -80,7 +112,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-09.1';
+  var CURRENT_VERSION = '2026-11-10.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
@@ -2390,6 +2422,8 @@ if (typeof module !== 'undefined') {
     try { localStorage.setItem(DRIVE_CACHE_KEY, JSON.stringify(driveSources.slice(0, 8))); } catch (e) {}
   }
   function procDriveToken() {
+    // 🔐 المرحلة 2: درايف عن طريق السيرفر (شوف mz-drive-proxy بأول الصفحة)
+    if (window.__mzDriveProxy) return Promise.resolve('mzproxy');
     var dev = ''; try { dev = localStorage.getItem('merzona-device-token') || ''; } catch (e) {}
     var url = PROC_SERVER + '/drive-token?device=' + encodeURIComponent(dev);
     return fetch(url, { cache: 'no-store' }).then(function (r) {
