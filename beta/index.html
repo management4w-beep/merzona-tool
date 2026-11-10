@@ -146,7 +146,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.7';
+  var CURRENT_VERSION = '2026-11-11.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7260,6 +7260,42 @@ function mzQuoteSig(){
   }catch(e){ return ''; }
 }
 window.__mzLastSavedSig = null;
+/* 🗂️ 2026-11-11 (المرحلة 3 - الجزء 2): عروض الأسعار عالسيرفر.
+   قبل ما نكتب أي شي على درايف، منبعت العرض للسيرفر مع "وقت حفظ النسخة يلي فتحتها". إذا حدا تاني حفظ نفس
+   العرض بعدك من جهاز تاني، السيرفر بيرجع 409 مع اسمه ووقته، ومنسأل الموظف قبل ما يمحي شغل غيره.
+   إذا السيرفر مش متاح (نت مقطوع...) الحفظ على درايف بيكمل متل قبل، والسيرفر بيلحق بالحفظ الجاي. */
+const MZ_QUOTES_URL = 'https://merzona-server-production.up.railway.app/quotes';
+async function mzQuoteServer(method, path, body, timeoutMs){
+  const h = { 'Content-Type': 'application/json' };
+  try{ h['x-device'] = localStorage.getItem('merzona-device-token') || ''; const s = localStorage.getItem('merzona-session-token'); if(s) h['x-session'] = s; }catch(e){}
+  const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const t = ctl ? setTimeout(()=>ctl.abort(), timeoutMs || 30000) : null;
+  try{
+    const r = await fetch(MZ_QUOTES_URL + path, { method, headers: h, body: body ? JSON.stringify(body) : undefined, signal: ctl ? ctl.signal : undefined, cache: 'no-store' });
+    let j = null; try{ j = await r.json(); }catch(e){}
+    return { status: r.status, j };
+  } finally { if(t) clearTimeout(t); }
+}
+function mzFmtWhen(iso){ try{ return new Date(iso).toLocaleString('ar-SY-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }); }catch(e){ return String(iso || ''); } }
+// بترجع {rev} إذا السيرفر قبل، أو null إذا مش متاح (منكمل على درايف). بترمي خطأ إذا الموظف لغى.
+async function mzQuoteServerReserve(refRaw, refSafe, data){
+  const body = { ref: refRaw, baseSavedAt: Number(window.__quotationSavedAtBaseline) || 0, owned: window.__mzOwnedRefSafe === refSafe, data,
+    meta: { year: getYearFromReference(refRaw), branch: getBranchFromRef(refRaw) } };
+  let r;
+  try{ r = await mzQuoteServer('PUT', '/item', body, 60000); }catch(e){ console.warn('[عروض عالسيرفر] السيرفر مش متاح - منكمل على درايف:', e); return null; }
+  if(r.status === 409 && r.j){
+    const who = (r.j.savedBy || 'حدا') + (r.j.device ? ' (' + r.j.device + ')' : '');
+    const msg = r.j.error === 'exists'
+      ? '⚠️ الرقم المرجعي "' + refRaw + '" محفوظ مسبقًا' + (r.j.client ? ' للزبون: ' + r.j.client : '') + '\nآخر حفظ: ' + who + ' - ' + mzFmtWhen(r.j.savedAt) + '\n\nإذا كملت، الحفظ رح يستبدله. تكمل؟'
+      : '⚠️ انتبه: هالعرض انعدّل وانحفظ من جهاز تاني بعد ما إنت فتحته.\nآخر حفظ: ' + who + ' - ' + mzFmtWhen(r.j.savedAt) + '\n\nإذا كملت رح تمحي تعديلاتهم. الأسلم تكبس "إلغاء" وتفتح العرض من جديد من الداشبورد.\n\nبدك تكتب فوق تعديلاتهم؟';
+    if(!confirm(msg)) throw new Error('تم إلغاء الحفظ');
+    body.force = true;
+    try{ r = await mzQuoteServer('PUT', '/item', body, 60000); }catch(e){ return null; }
+  }
+  if(r.status === 200 && r.j && r.j.ok) return { rev: r.j.rev };
+  console.warn('[عروض عالسيرفر] ما انحفظ عالسيرفر (منكمل على درايف):', r.status, r.j);
+  return null;
+}
 async function saveToGoogleDriveInner(){
   const __sigAtStart = mzQuoteSig();
     if(typeof renderClientSignBox === 'function') renderClientSignBox(); // نضمن إنو صندوق QR/رابط التوقيع محدّث قبل التقاط PDF
@@ -7271,10 +7307,13 @@ async function saveToGoogleDriveInner(){
     // \u0646\u0641\u0633 \u0627\u0644\u0645\u0635\u062F\u0631 \u0627\u0644\u0648\u062D\u064A\u062F \u0644\u0644\u062D\u0642\u064A\u0642\u0629 \u064A\u0644\u064A \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0645\u0646\u0633\u062F\u0644\u0629 #m-branch \u0628\u062A\u0639\u062A\u0645\u062F \u0639\u0644\u064A\u0647 (\u0634\u0648\u0641 BRANCH_CONFIG \u0641\u0648\u0642).
     // \u0647\u064A\u0643 \u0645\u0633\u062A\u062D\u064A\u0644 \u0639\u0631\u0636 \u0633\u0639\u0631 \u0628\u062D\u0631\u0641 S \u064A\u0646\u062D\u0641\u0638 \u0628\u0627\u0644\u063A\u0644\u0637 \u062C\u0648\u0627 \u0645\u062C\u0644\u062F\u0627\u062A \u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062A \u0623\u0648 \u0627\u0644\u0639\u0643\u0633.
     const rootFolderIdForSave = getDriveRootFolderIdForBranch(getBranchFromRef(refRaw));
+    // 🗂️ السيرفر أول: فحص التعارض قبل أي كتابة على درايف
+    const __mzSrvData = captureFullQuotationData(); __mzSrvData.draftId = null;
+    const __mzSrv = await mzQuoteServerReserve(refRaw, refSafe, __mzSrvData);
 
     const yearFolderId = await findOrCreateDriveFolder(year, rootFolderIdForSave, token);
     const refFolderId = await findOrCreateDriveFolder(refSafe, yearFolderId, token);
-    if(window.__mzOwnedRefSafe !== refSafe){
+    if(window.__mzOwnedRefSafe !== refSafe && !__mzSrv){ // السيرفر سأل وجاوبنا (أو ما في تعارض) → ما في داعي نسأل مرة تانية
       const exId = await findFileInFolder(refSafe + '-data.json', refFolderId, token);
       if(exId){
         let exInfo = ''; try{ const ex = await downloadDriveJsonFile(exId, token); exInfo = ' (الزبون: ' + ((ex.fields && ex.fields['m-client']) || '؟') + ')'; }catch(e){}
@@ -7285,7 +7324,7 @@ async function saveToGoogleDriveInner(){
     // نسخة HTML الكاملة من الأداة (نفس نظامك الحالي بالضبط)
     const htmlContent = buildBakedHtmlSnapshot();
     const htmlBlob = new Blob([htmlContent], {type:'text/html'});
-    await uploadOrUpdateFileInDriveFolder(refSafe + '.html', 'text/html', htmlBlob, refFolderId, token);
+    const __mzHtmlUp = await uploadOrUpdateFileInDriveFolder(refSafe + '.html', 'text/html', htmlBlob, refFolderId, token);
 
     // نسخة بيانات خفيفة (JSON بس، بدون كود) - هاي يلي بتخلي "افتح بآخر نسخة" من لوحة التحكم يشتغل بسرعة ودقة
     // مباشرة من غير ما يحتاج يحلّل نسخة HTML كاملة، ومع أي تصليح مستقبلي عالأداة هيك بيطبّق تلقائيًا.
@@ -7297,6 +7336,7 @@ async function saveToGoogleDriveInner(){
     try{
       const fullData = captureFullQuotationData();
       fullData.draftId = null;
+      fullData.quotationSavedAt = __mzSrvData.quotationSavedAt; // نفس وقت الحفظ يلي بالسيرفر (هيك أي جهاز بيفتحه من درايف بيطابق السيرفر)
       quotationFullDataForSignBox = fullData;
       const dataBlob = new Blob([JSON.stringify(fullData)], {type:'application/json'});
       const dataUploadResult = await uploadOrUpdateFileInDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
@@ -7641,6 +7681,14 @@ async function saveToGoogleDriveInner(){
     // رابط الـPDF على درايف - السيرفر بيحطو بالرسالة إذا واتساب رفض المرفق، حتى الـPDF يوصل للمجموعة دايمًا
     const pdfLink = pdfUp && pdfUp.id ? (pdfUp.webViewLink || ('https://drive.google.com/file/d/' + pdfUp.id + '/view')) : '';
     window.__mzLastSavedSig = __sigAtStart; // 📤 آخر حفظ كامل ناجح (مع الـPDF)
+    window.__quotationSavedAtBaseline = __mzSrvData.quotationSavedAt; // الحفظ الجاي من نفس الصفحة بيبني على هالنسخة
+    if(__mzSrv){
+      // 🗂️ مكان الملفات على درايف + البيانات النهائية (فيها مكان صندوق التوقيع) - بدون رقم نسخة جديد
+      mzQuoteServer('POST', '/finalize', { ref: refRaw, rev: __mzSrv.rev, data: quotationFullDataForSignBox || undefined,
+        meta: { refFolderId, htmlFileId: __mzHtmlUp && __mzHtmlUp.id, dataFileId: quotationDataJsonFileId || undefined } }, 60000)
+        .then((r)=>{ if(r.status !== 200) console.warn('[عروض عالسيرفر] finalize:', r.status, r.j); })
+        .catch((e)=>console.warn('[عروض عالسيرفر] finalize:', e));
+    }
     return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe, pdfLink };
 }
 
