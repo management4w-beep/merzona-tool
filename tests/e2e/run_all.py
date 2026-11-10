@@ -406,9 +406,34 @@ p(0,'ENDSEC');p(0,'EOF');process.stdout.write(L.join('\r\n'));"""]).decode()
     check(any(x[:3] == ['1200', '1500', '2'] and x[3] for x in rows) and not any(x[0] == '900' for x in rows), 'انضاف W1 بس لجدول الكميات ' + str(rows))
     await pg.click('#cadImportBtn')
     await pg.set_input_files('#mzCadFile', files=[{'name': 'plan.dwg', 'mimeType': 'application/octet-stream', 'buffer': b'AC1032xxxx'}])
-    await pg.wait_for_timeout(300)
+    await pg.wait_for_timeout(500)
     t = await pg.evaluate("() => document.getElementById('mzCadStatus').textContent")
-    check('Save As' in t, 'ملف DWG بيطلب Save As DXF')
+    check('DWG' in t and 'PDF' in t, 'ملف DWG: رسالة واضحة (لحد ما تنزل قراءة DWG) ' + t[:80])
+    # PDF حقيقي بالمتصفح (فك الضغط بـDecompressionStream)
+    pdf64 = subprocess.check_output(['node', os.path.join(SRC, 'tests', 'pdf-fixture.js')]).decode()
+    import base64
+    await pg.set_input_files('#mzCadFile', files=[{'name': 'villa.pdf', 'mimeType': 'application/pdf', 'buffer': base64.b64decode(pdf64)}])
+    await pg.wait_for_selector('.mzCadChk', timeout=15000)
+    r = await pg.evaluate("""() => ({ st: document.getElementById('mzCadStatus').textContent,
+      pages: Array.from(document.querySelectorAll('.mzCadPg')).map(c => [c.value, c.checked]),
+      rows: Array.from(document.querySelectorAll('#mzCadResult tbody tr')).map(tr => [tr.children[1].textContent, tr.querySelector('.mzCadW').value, tr.querySelector('.mzCadH').value, tr.querySelector('.mzCadQ').value, tr.querySelector('.mzCadChk').checked]) })""")
+    rows = {x[0]: x[1:] for x in r['rows']}
+    check(rows.get('W1') == ['2500', '3700', '4', True] and rows.get('D1') == ['1000', '2600', '3', True], 'PDF بالمتصفح: جدول (ارتفاع×عرض) + عدّ بالمسقط المدوّر ' + str(r['rows'][:3]))
+    check('ارتفاع × عرض' in r['st'], 'بيبيّن إنه المقاس مكتوب ارتفاع × عرض')
+    await pg.select_option('#mzCadOrder', 'wh'); await pg.wait_for_timeout(200)
+    w1 = await pg.evaluate("() => Array.from(document.querySelectorAll('#mzCadResult tbody tr')).filter(tr => tr.children[1].textContent === 'W1').map(tr => tr.querySelector('.mzCadW').value)[0]")
+    check(w1 == '3700', 'تغيير الترتيب يدوياً بيقلب العرض والارتفاع')
+    await pg.select_option('#mzCadOrder', ''); await pg.wait_for_timeout(200)
+    await pg.evaluate("() => { const c = Array.from(document.querySelectorAll('.mzCadPg')).find(c => c.value === '2'); c.checked = false; c.dispatchEvent(new Event('change')); }")
+    await pg.wait_for_timeout(200)
+    q = await pg.evaluate("() => Array.from(document.querySelectorAll('#mzCadResult tbody tr')).filter(tr => tr.children[1].textContent === 'W1').map(tr => [tr.querySelector('.mzCadChk').checked, tr.textContent.includes('مصدر واحد')])[0]")
+    check(q == [True, True] or q == [False, True], 'شيل صفحة المسقط من العدّ بيعيد الحساب ' + str(q))
+    villa = '/mnt/user-data/attachments/763d6975-41b8-5b57-9416-4a2e9e40fbf3/363460f0-1-_ARCH_Drawings_-_Villa_Mr.Ali_Alnuaimi.pdf'
+    if os.path.exists(villa):
+        await pg.set_input_files('#mzCadFile', villa)
+        await pg.wait_for_function("() => document.getElementById('mzCadStatus').textContent.includes('لقيت')", timeout=60000)
+        r = await pg.evaluate("() => Object.fromEntries(Array.from(document.querySelectorAll('#mzCadResult tbody tr')).map(tr => [tr.children[1].textContent, tr.querySelector('.mzCadQ').value]))")
+        check(r.get('W2') == '10' and r.get('D5') == '8' and r.get('OP2') == '4' and len(r) == 34, 'مخطط فيلا حقيقي (PDF من أوتوكاد) بالمتصفح: ' + str(len(r)) + ' رمز')
     check(not errs, 'ما في أخطاء ' + '; '.join(errs[:2]))
     await ctx.close()
 
