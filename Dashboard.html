@@ -149,7 +149,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.4';
+  var CURRENT_VERSION = '2026-11-11.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -6018,6 +6018,12 @@ async function deleteQuotationByRef(ref, btnEl){
         throw new Error('فشل نقل المجلد لسلة المحذوفات (HTTP '+res.status+'): '+errText);
       }
     }
+    // 🗂️ نفس الحذف عالسيرفر (حذف ناعم - البيانات والنسخ بتضل محفوظة هونيك)
+    try{
+      const h = { 'Content-Type': 'application/json' };
+      try{ h['x-device'] = localStorage.getItem('merzona-device-token') || ''; const s = localStorage.getItem('merzona-session-token'); if(s) h['x-session'] = s; }catch(e){}
+      await dashFetchWithTimeout(MZ_QUOTES_URL_DASH + '/delete', { method: 'POST', headers: h, body: JSON.stringify({ ref }) }, 15000);
+    }catch(e){ console.warn('[عروض عالسيرفر] الحذف عالسيرفر ما زبط (درايف انحذف تمام):', e); }
     // ما لقينا مجلد بجوجل درايف (يمكن انحذف يدويًا من قبل) - منكمل ونشيله من السجل المحلي بس، مش مشكلة.
 
     const cleanRef = stripRefSpaces(ref);
@@ -6817,6 +6823,69 @@ function pruneDeletedDiscoveredQuotations(refEntries){
   return removed;
 }
 
+/* 🗂️ 2026-11-11 (المرحلة 3 - الجزء 2): قائمة عروض الأسعار من السيرفر بطلب واحد بدل المرور على كل مجلدات درايف.
+   المطابقة التلقائية (الصامتة) بتستعمل السيرفر إذا خلص نقل العروض عليه. زر "طابق مع جوجل درايف الآن" بيضل يفحص درايف كامل.
+   ما منشيل أي عرض من الداشبورد لأنه مش موجود بالسيرفر - بس العروض يلي انحذفت فعلاً عالسيرفر. */
+const MZ_QUOTES_URL_DASH = 'https://merzona-server-production.up.railway.app/quotes';
+async function mzDashQuotesGet(path){
+  const h = {};
+  try{ h['x-device'] = localStorage.getItem('merzona-device-token') || ''; const s = localStorage.getItem('merzona-session-token'); if(s) h['x-session'] = s; }catch(e){}
+  const res = await dashFetchWithTimeout(MZ_QUOTES_URL_DASH + path, { headers: h, cache: 'no-store' }, 20000);
+  if(!res.ok) throw new Error('quotes-' + res.status);
+  return res.json();
+}
+async function mzDashSyncQuotesFromServer(){
+  let st, list;
+  try{
+    st = await mzDashQuotesGet('/import-status');
+    if(!st || st.running || st.never || st.error) return false; // النقل لسا ما خلص → منضل على درايف
+    list = await mzDashQuotesGet('?all=1');
+  }catch(e){ console.warn('[عروض عالسيرفر] منرجع لدرايف:', e && e.message); return false; }
+  if(!list || !Array.isArray(list.items)) return false;
+  const discovered = loadDiscoveredQuotations();
+  const tombstones = loadDiscoveredTombstones();
+  let added = 0, updated = 0, removed = 0;
+  list.items.forEach(it=>{
+    const ref = stripRefSpaces(it.ref || ''); if(!ref) return;
+    const key = Object.keys(discovered).find(k=> stripRefSpaces((discovered[k] && discovered[k].ref) || k) === ref) || ref;
+    const cur = discovered[key];
+    if(it.deleted){
+      if(cur && cur.source === 'drive-scan'){
+        delete discovered[key]; tombstones[key] = Date.now();
+        const idx = DATA.findIndex(x=> stripRefSpaces(x.ref) === ref); if(idx !== -1 && DATA[idx].source === 'drive-scan') DATA.splice(idx, 1);
+        removed++;
+      }
+      return;
+    }
+    const next = Object.assign({ duration:null, payDown:null, payAlu:null, payGlass:null, payFin:null }, cur || {}, {
+      ref, year: it.year || (cur && cur.year) || '', branch: it.branch || (cur && cur.branch) || getDashBranchFromRef(ref),
+      source: 'drive-scan', refFolderName: it.refFolderName || ref,
+    });
+    // ما منكتب قيمة فاضية فوق قيمة موجودة (عروض قديمة كتير السيرفر ما بيعرف إجماليها من الـHTML)
+    if(it.client) next.client = it.client; else if(!cur) next.client = '';
+    if(it.phone) next.phone = it.phone; else if(!cur) next.phone = '';
+    if(it.date) next.date = it.date; else if(!cur) next.date = '';
+    if(it.total > 0) next.total = it.total; else if(!cur) next.total = 0;
+    if(it.currency) next.currency = it.currency; else if(!cur) next.currency = null;
+    if(it.paymentSchedule && it.paymentSchedule.length) next.paymentSchedule = it.paymentSchedule; else if(!cur) next.paymentSchedule = [];
+    if(it.url) next.url = it.url; else if(!cur) next.url = null;
+    if(it.refFolderId) next.refFolderId = it.refFolderId;
+    if(!cur){ discovered[ref] = next; added++; if(tombstones[ref]) delete tombstones[ref]; }
+    else if(JSON.stringify(cur) !== JSON.stringify(next)){
+      discovered[key] = next; updated++;
+      const ex = DATA.find(x=> stripRefSpaces(x.ref) === ref); if(ex && ex.source === 'drive-scan') Object.assign(ex, next);
+    }
+  });
+  if(added || updated || removed){
+    saveDiscoveredQuotations(discovered); saveDiscoveredTombstones(tombstones);
+    mergeDiscoveredIntoData(); render();
+    if(removed){ try{ await driveSyncPushNow(); }catch(e){} }
+  }
+  console.info('[عروض عالسيرفر] القائمة من السيرفر: ' + list.items.length + ' عرض (جديد ' + added + '، محدّث ' + updated + '، محذوف ' + removed + ')');
+  window.__mzQuotesFromServerAt = Date.now();
+  return true;
+}
+
 let reconcileInProgress = false;
 // silent=true: تشغيل تلقائي بالخلفية (جزء من المزامنة العادية) - بدون نافذة موافقة جوجل جبرية،
 // بدون تعطيل الزر، وبفشل هادئ (console.warn بس) لو صار أي خطأ. silent=false: كبسة يدوية من
@@ -6830,6 +6899,8 @@ async function reconcileWithDrive(silent){
   if(!silent && btn){ btn.disabled = true; btn.textContent = '⏳ عم نفحص...'; }
   setStatus('عم نجيب لائحة مجلدات عروض الأسعار من جوجل درايف...');
   try{
+    // 🗂️ المطابقة التلقائية: من السيرفر بطلب واحد (ثواني بدل دقايق)
+    if(silent && await mzDashSyncQuotesFromServer()){ localStorage.setItem('merzona_last_reconcile_at', String(Date.now())); return; }
     const token = await getDashGoogleAccessToken(!!silent); // يدوي = مسموح نافذة موافقة، تلقائي = صامت بس
     const scanResult = await scanDriveFolderForYearRefs(token);
     const refEntries = scanResult.entries;
