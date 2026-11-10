@@ -15,7 +15,7 @@ import os, re, sys, shutil, subprocess, tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = ['Dashboard.html', 'index.html', 'accounting.html', 'procurement.html', 'designer.html', 'salary.html', 'sign.html',
          'catalog.html', 'about.html', 'privacy.html', 'acct-core.js', 'version.json']
-PROD_EXTRA_DIRS = ['tests', 'tools']
+PROD_EXTRA_DIRS = ['tests', 'tools', 'fonts']
 BASE = 'https://management4w-beep.github.io/merzona-tool/'
 BANNER = ('<div id="mzBetaRibbon" style="position:fixed;left:8px;bottom:8px;z-index:2147483000;background:#c0392b;color:#fff;'
           'font:700 12px/1 sans-serif;padding:6px 10px;border-radius:12px;pointer-events:none;opacity:.9">🧪 نسخة تجريبية</div>')
@@ -66,6 +66,9 @@ def main():
                 open(os.path.join(dest, f), 'w', encoding='utf8').write(beta_transform(f, t))
             shutil.rmtree(os.path.join(dest, 'img'), ignore_errors=True)
             shutil.copytree(os.path.join(ROOT, 'img'), os.path.join(dest, 'img'))
+            if os.path.isdir(os.path.join(ROOT, 'fonts')):
+                shutil.rmtree(os.path.join(dest, 'fonts'), ignore_errors=True)
+                shutil.copytree(os.path.join(ROOT, 'fonts'), os.path.join(dest, 'fonts'))
             msg = 'beta: develop@' + rev
         else:
             for f in PAGES:
