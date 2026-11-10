@@ -146,7 +146,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.3';
+  var CURRENT_VERSION = '2026-11-10.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7115,12 +7115,17 @@ function restoreSelectsAfterPdfCapture(){
 
 // 📤 2026-11-10: بصمة محتوى العرض (بدون أوقات الحفظ) - زر "أرسل للزبون" ما بيعيد الحفظ إذا ما تغيّر شي من آخر حفظ ناجح
 function mzQuoteSig(){
+  // 🔧 2026-11-10: من القيم نفسها (مش من HTML الصفوف - هاد بيتغيّر بس من ارتفاعات الخانات وقت الطباعة)
   try{
-    const d = captureFullQuotationData();
-    const keep = { f: d.fields, r: d.rows, q: d.qtyRowsHtml, di: d.designItems, dm: d.discountManual, ae: d.areaExtraThird };
-    const str = JSON.stringify(keep); let h = 0;
+    const parts = [];
+    document.querySelectorAll('.page input, .page textarea, .page select, #qty-rows input, #qty-rows select').forEach(el => {
+      if(el.closest('#mzShareModal')) return;
+      parts.push(el.type === 'checkbox' || el.type === 'radio' ? (el.checked ? '1' : '0') : String(el.value || ''));
+    });
+    try{ parts.push(JSON.stringify(captureFullQuotationData().designItems || [])); }catch(e){}
+    const str = parts.join('\u0001'); let h = 0;
     for(let i = 0; i < str.length; i++){ h = ((h << 5) - h + str.charCodeAt(i)) | 0; }
-    return str.length + ':' + h;
+    return parts.length + ':' + str.length + ':' + h;
   }catch(e){ return ''; }
 }
 window.__mzLastSavedSig = null;
@@ -7564,6 +7569,14 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
     // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
     // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
     setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); setTimeout(()=>{ offerNewerSavedDesign(); }, 600); }, 0);
+    // 📤 2026-11-10: عرض محفوظ فتحته من الداشبورد بدون تعديل → "أرسل للزبون" بيبعت فورًا بدون إعادة حفظ.
+    // بس للعروض المحفوظة بعد تصليح خطوط الـPDF (10/11 الساعة 4 العصر) - الأقدم منها بينحفظ مرة لحتى يطلع الـPDF نظيف.
+    try{
+      const pq = pendingQuotationLoad;
+      if(pq && !pq.draftId && Number(pq.quotationSavedAt) >= 1794316000000){
+        setTimeout(()=>{ if(!window.__mzLastSavedSig) window.__mzLastSavedSig = mzQuoteSig(); }, 2500);
+      }
+    }catch(e){}
   } else if(pendingDesignLoad){
     // تصميم حر بس (مش مرتبط بعرض سعر مفتوح) - ولا شي هون؛ رح ينفتح مباشرة بـwdOverlay تحت.
   } else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
