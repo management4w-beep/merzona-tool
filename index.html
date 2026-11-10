@@ -69,6 +69,46 @@
   // مفاتيح درايف القديمة المخزّنة بالمتصفح ما عاد إلها لزوم
   try{ ['merzona_index_gtoken_v1', 'merzona_dash_gtoken_v1'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
   window.__mzDriveProxy = true;
+  var SRV_ROOT = SRV.replace(/gdrive\/$/, '');
+  var BIG = 256 * 1024;
+  function addAuth(h){ h.set('x-device', ls('merzona-device-token')); var s = ls('merzona-session-token'); if(s) h.set('x-session', s); return h; }
+  function viaProxy(target, o){ var h = new Headers(o.headers || {}); h.delete('Authorization'); addAuth(h); return orig.call(window, target, Object.assign({}, o, { headers: h })); }
+  /* 📤 2026-11-10: الملفات الكبيرة (PDF/HTML عرض السعر) ما بتمرق بالسيرفر - السيرفر بيتحقق من الطلب
+     وبيفتح جلسة رفع لهالملف بس عند جوجل، والمتصفح بيرفع عليها مباشرة (أسرع بكتير من سوريا).
+     إذا ما زبط الرفع المباشر لأي سبب شبكة، منرجع نرفع عن طريق السيرفر متل قبل. */
+  async function directUpload(target, o, info, blob, ctype){
+    var hs = addAuth(new Headers({ 'Content-Type': 'application/json' }));
+    var s;
+    try{ s = await orig.call(window, SRV_ROOT + 'gdrive-upload-session', { method: 'POST', headers: hs, signal: o.signal, body: JSON.stringify(Object.assign({ contentType: ctype, size: blob.size }, info)) }); }
+    catch(e){ if(e && e.name === 'AbortError') throw e; return viaProxy(target, o); }
+    if(s.status >= 500) return viaProxy(target, o);
+    if(!s.ok) return s;
+    var url = null; try{ url = (await s.json()).url; }catch(e){}
+    if(!url || !/^https:\/\/[a-z0-9.-]*googleapis\.com\//.test(url) && !/^http:\/\/127\.0\.0\.1:/.test(url)) return viaProxy(target, o);
+    try{ return await orig.call(window, url, { method: 'PUT', headers: { 'Content-Type': ctype }, body: blob, signal: o.signal }); }
+    catch(e){ if(e && e.name === 'AbortError') throw e; return viaProxy(target, o); }
+  }
+  async function route(target, path, o){
+    try{
+      var u = new URL('https://x/' + path); var method = String(o.method || 'GET').toUpperCase(); var fields = u.searchParams.get('fields') || '';
+      if(method === 'POST' && u.pathname === '/upload/drive/v3/files' && u.searchParams.get('uploadType') === 'multipart' && (typeof FormData !== 'undefined') && o.body instanceof FormData){
+        var metaB = o.body.get('metadata'), file = o.body.get('file');
+        if(file && file.size >= BIG && metaB){
+          var meta = JSON.parse(typeof metaB === 'string' ? metaB : await metaB.text());
+          return directUpload(target, o, { kind: 'create', metadata: meta, fields: fields }, file, meta.mimeType || file.type || 'application/octet-stream');
+        }
+      }
+      var pm = /^\/upload\/drive\/v3\/files\/([A-Za-z0-9_-]+)$/.exec(u.pathname);
+      if(method === 'PATCH' && pm && u.searchParams.get('uploadType') === 'media' && o.body && (o.body instanceof Blob || typeof o.body === 'string')){
+        var blob = o.body instanceof Blob ? o.body : new Blob([o.body]);
+        if(blob.size >= BIG){
+          var ct = new Headers(o.headers || {}).get('Content-Type') || blob.type || 'application/octet-stream';
+          return directUpload(target, o, { kind: 'update', fileId: pm[1], fields: fields }, blob, ct);
+        }
+      }
+    }catch(e){ if(e && e.name === 'AbortError') throw e; }
+    return viaProxy(target, o);
+  }
   window.fetch = function(input, init){
     var isReq = (typeof Request !== 'undefined') && (input instanceof Request);
     var url = isReq ? input.url : String(input);
@@ -76,13 +116,11 @@
     if(!m) return orig.apply(this, arguments);
     var target = SRV + m[1];
     var o = Object.assign({}, init || {});
-    var h = new Headers(o.headers || (isReq ? input.headers : undefined) || {});
-    h.delete('Authorization');
-    h.set('x-device', ls('merzona-device-token'));
-    var s = ls('merzona-session-token'); if(s) h.set('x-session', s);
-    o.headers = h;
-    if(isReq) return orig.call(window, new Request(target, Object.assign({ method: input.method, body: input.body, duplex: 'half' }, o)));
-    return orig.call(window, target, o);
+    if(isReq){
+      var h = new Headers(o.headers || input.headers || {}); h.delete('Authorization'); addAuth(h);
+      return orig.call(window, new Request(target, Object.assign({ method: input.method, body: input.body, duplex: 'half' }, o, { headers: h })));
+    }
+    return route(target, m[1], o);
   };
 })();
 </script>
@@ -108,7 +146,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.2';
+  var CURRENT_VERSION = '2026-11-10.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -5777,16 +5815,22 @@ async function shareQuotationToClient(){
   const ref = (document.getElementById('m-ref')?.value || '').trim().replace(/\s+/g, '');
   if(!ref){ alert('لازم تكتب الرقم المرجعي أول.'); return; }
   if(driveSaveInProgress){ alert('في عملية حفظ شغالة حاليًا - استنى تخلص وبعدين جرّب.'); return; }
-  try{
-    if(btn){ btn.disabled = true; btn.textContent = '⏳ عم يحفظ آخر نسخة...'; }
-    await Promise.race([
-      runSaveToGoogleDriveInnerShared(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('الحفظ أخد أكتر من 150 ثانية - تأكد من النت وجرّب كمان مرة')), 150000))
-    ]);
-  }catch(e){
-    alert('⚠️ تعذّر حفظ العرض قبل الإرسال:\n' + (e && e.message ? e.message : e));
-    if(btn){ btn.disabled = false; btn.textContent = origText; }
-    return;
+  // 🔧 2026-11-10 (بعد تجربة حمدي: "الحفظ أخد أكتر من 150 ثانية"): إذا العرض انحفظ بهالصفحة وما تغيّر شي
+  // بعدها، ما منعيد الحفظ أبدًا - منبعت فورًا. وإذا لازم حفظ، منستنى لحد ما يخلص فعلًا (ما في مهلة 150 ثانية
+  // بتوقّف الإرسال والحفظ لسا شغال)، وإذا فشل منسأل إذا بدك تبعت آخر نسخة محفوظة.
+  const unchanged = window.__mzLastSavedSig && window.__mzLastSavedSig === mzQuoteSig();
+  if(!unchanged){
+    try{
+      if(btn){ btn.disabled = true; btn.textContent = '⏳ عم يحفظ آخر التعديلات قبل الإرسال...'; }
+      await Promise.race([
+        runSaveToGoogleDriveInnerShared(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('الحفظ لسا ما خلص بعد 10 دقايق')), 600000))
+      ]);
+    }catch(e){
+      if(btn){ btn.disabled = false; btn.textContent = origText; }
+      const go = confirm('⚠️ ما قدرنا نحفظ آخر التعديلات:\n' + (e && e.message ? e.message : e) + '\n\nبدك تبعت للزبون رابط آخر نسخة محفوظة من قبل؟\n(اكبس إلغاء إذا بدك تجرب الحفظ كمان مرة أول)');
+      if(!go) return;
+    }
   }
   if(btn){ btn.disabled = false; btn.textContent = origText; }
   const client = (document.getElementById('m-client')?.value || '').trim();
@@ -7069,7 +7113,19 @@ function restoreSelectsAfterPdfCapture(){
   observer.observe(document.body, { attributes:true, attributeFilter:['class'] });
 })();
 
+// 📤 2026-11-10: بصمة محتوى العرض (بدون أوقات الحفظ) - زر "أرسل للزبون" ما بيعيد الحفظ إذا ما تغيّر شي من آخر حفظ ناجح
+function mzQuoteSig(){
+  try{
+    const d = captureFullQuotationData();
+    const keep = { f: d.fields, r: d.rows, q: d.qtyRowsHtml, di: d.designItems, dm: d.discountManual, ae: d.areaExtraThird };
+    const str = JSON.stringify(keep); let h = 0;
+    for(let i = 0; i < str.length; i++){ h = ((h << 5) - h + str.charCodeAt(i)) | 0; }
+    return str.length + ':' + h;
+  }catch(e){ return ''; }
+}
+window.__mzLastSavedSig = null;
 async function saveToGoogleDriveInner(){
+  const __sigAtStart = mzQuoteSig();
     if(typeof renderClientSignBox === 'function') renderClientSignBox(); // نضمن إنو صندوق QR/رابط التوقيع محدّث قبل التقاط PDF
     const token = await getGoogleAccessToken();
     const refRaw = (document.getElementById('m-ref').value || 'Merzona-Quotation').trim();
@@ -7448,6 +7504,7 @@ async function saveToGoogleDriveInner(){
     const pdfUp = await uploadOrUpdateFileInDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
     // رابط الـPDF على درايف - السيرفر بيحطو بالرسالة إذا واتساب رفض المرفق، حتى الـPDF يوصل للمجموعة دايمًا
     const pdfLink = pdfUp && pdfUp.id ? (pdfUp.webViewLink || ('https://drive.google.com/file/d/' + pdfUp.id + '/view')) : '';
+    window.__mzLastSavedSig = __sigAtStart; // 📤 آخر حفظ كامل ناجح (مع الـPDF)
     return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe, pdfLink };
 }
 

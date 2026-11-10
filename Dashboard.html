@@ -69,6 +69,46 @@
   // مفاتيح درايف القديمة المخزّنة بالمتصفح ما عاد إلها لزوم
   try{ ['merzona_index_gtoken_v1', 'merzona_dash_gtoken_v1'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
   window.__mzDriveProxy = true;
+  var SRV_ROOT = SRV.replace(/gdrive\/$/, '');
+  var BIG = 256 * 1024;
+  function addAuth(h){ h.set('x-device', ls('merzona-device-token')); var s = ls('merzona-session-token'); if(s) h.set('x-session', s); return h; }
+  function viaProxy(target, o){ var h = new Headers(o.headers || {}); h.delete('Authorization'); addAuth(h); return orig.call(window, target, Object.assign({}, o, { headers: h })); }
+  /* 📤 2026-11-10: الملفات الكبيرة (PDF/HTML عرض السعر) ما بتمرق بالسيرفر - السيرفر بيتحقق من الطلب
+     وبيفتح جلسة رفع لهالملف بس عند جوجل، والمتصفح بيرفع عليها مباشرة (أسرع بكتير من سوريا).
+     إذا ما زبط الرفع المباشر لأي سبب شبكة، منرجع نرفع عن طريق السيرفر متل قبل. */
+  async function directUpload(target, o, info, blob, ctype){
+    var hs = addAuth(new Headers({ 'Content-Type': 'application/json' }));
+    var s;
+    try{ s = await orig.call(window, SRV_ROOT + 'gdrive-upload-session', { method: 'POST', headers: hs, signal: o.signal, body: JSON.stringify(Object.assign({ contentType: ctype, size: blob.size }, info)) }); }
+    catch(e){ if(e && e.name === 'AbortError') throw e; return viaProxy(target, o); }
+    if(s.status >= 500) return viaProxy(target, o);
+    if(!s.ok) return s;
+    var url = null; try{ url = (await s.json()).url; }catch(e){}
+    if(!url || !/^https:\/\/[a-z0-9.-]*googleapis\.com\//.test(url) && !/^http:\/\/127\.0\.0\.1:/.test(url)) return viaProxy(target, o);
+    try{ return await orig.call(window, url, { method: 'PUT', headers: { 'Content-Type': ctype }, body: blob, signal: o.signal }); }
+    catch(e){ if(e && e.name === 'AbortError') throw e; return viaProxy(target, o); }
+  }
+  async function route(target, path, o){
+    try{
+      var u = new URL('https://x/' + path); var method = String(o.method || 'GET').toUpperCase(); var fields = u.searchParams.get('fields') || '';
+      if(method === 'POST' && u.pathname === '/upload/drive/v3/files' && u.searchParams.get('uploadType') === 'multipart' && (typeof FormData !== 'undefined') && o.body instanceof FormData){
+        var metaB = o.body.get('metadata'), file = o.body.get('file');
+        if(file && file.size >= BIG && metaB){
+          var meta = JSON.parse(typeof metaB === 'string' ? metaB : await metaB.text());
+          return directUpload(target, o, { kind: 'create', metadata: meta, fields: fields }, file, meta.mimeType || file.type || 'application/octet-stream');
+        }
+      }
+      var pm = /^\/upload\/drive\/v3\/files\/([A-Za-z0-9_-]+)$/.exec(u.pathname);
+      if(method === 'PATCH' && pm && u.searchParams.get('uploadType') === 'media' && o.body && (o.body instanceof Blob || typeof o.body === 'string')){
+        var blob = o.body instanceof Blob ? o.body : new Blob([o.body]);
+        if(blob.size >= BIG){
+          var ct = new Headers(o.headers || {}).get('Content-Type') || blob.type || 'application/octet-stream';
+          return directUpload(target, o, { kind: 'update', fileId: pm[1], fields: fields }, blob, ct);
+        }
+      }
+    }catch(e){ if(e && e.name === 'AbortError') throw e; }
+    return viaProxy(target, o);
+  }
   window.fetch = function(input, init){
     var isReq = (typeof Request !== 'undefined') && (input instanceof Request);
     var url = isReq ? input.url : String(input);
@@ -76,13 +116,11 @@
     if(!m) return orig.apply(this, arguments);
     var target = SRV + m[1];
     var o = Object.assign({}, init || {});
-    var h = new Headers(o.headers || (isReq ? input.headers : undefined) || {});
-    h.delete('Authorization');
-    h.set('x-device', ls('merzona-device-token'));
-    var s = ls('merzona-session-token'); if(s) h.set('x-session', s);
-    o.headers = h;
-    if(isReq) return orig.call(window, new Request(target, Object.assign({ method: input.method, body: input.body, duplex: 'half' }, o)));
-    return orig.call(window, target, o);
+    if(isReq){
+      var h = new Headers(o.headers || input.headers || {}); h.delete('Authorization'); addAuth(h);
+      return orig.call(window, new Request(target, Object.assign({ method: input.method, body: input.body, duplex: 'half' }, o, { headers: h })));
+    }
+    return route(target, m[1], o);
   };
 })();
 </script>
@@ -111,7 +149,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.3';
+  var CURRENT_VERSION = '2026-11-10.4';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';

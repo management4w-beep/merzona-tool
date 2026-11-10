@@ -7,12 +7,13 @@ const SERVER_DIR = process.argv[2];
 const mount = require(path.join(SERVER_DIR, 'drive-proxy.js'));
 
 const routes = [];
-const app = { all: (re, ...h) => routes.push({ re, h }) };
+const exact = {};
+const app = { all: (re, ...h) => routes.push({ re, h }), post: (p, h) => { exact['POST ' + p] = h; } };
 const express = { raw: () => (req, res, next) => { const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { req.body = Buffer.concat(ch); next(); }); } };
 
 const UAE = '13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', SYR = '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS', CAT = '13QxtnBbXx3SuOZIu8hA90TiD7T2CiMoC', BK = '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy', OUT = 'OUTSIDE_FOLDER_0001';
 const FOLDER = 'application/vnd.google-apps.folder';
-const files = new Map(); let n = 0; const upstream = [];
+const files = new Map(); let n = 0; const upstream = []; const sessionsUp = {}; const directPuts = [];
 const nid = () => 'FAKE' + String(++n).padStart(10, '0');
 function add(id, parent, name, mimeType, content) { files.set(id, { id, name, mimeType: mimeType || 'application/json', parents: parent ? [parent] : [], trashed: false, content: Buffer.from(content || ''), modifiedTime: new Date(Date.now() - 3600e3).toISOString() }); return id; }
 add('MYROOT00000001', null, 'My Drive', FOLDER);
@@ -58,6 +59,11 @@ async function fakeFetch(url, o) {
   upstream.push(m + ' ' + p + u.search);
   if (o.headers.Authorization !== 'Bearer REAL-SERVER-TOKEN') return R(401, { error: 'bad token' });
   let mm;
+  if (u.searchParams.get('uploadType') === 'resumable') {
+    const sid = 'S' + (++n); const meta = JSON.parse(Buffer.from(o.body || '{}').toString() || '{}');
+    sessionsUp[sid] = { method: m, id: (/files\/([^/?]+)/.exec(p) || [])[1], meta, ctype: o.headers['X-Upload-Content-Type'], origin: o.headers.Origin };
+    return new Response('', { status: 200, headers: { location: 'http://127.0.0.1:' + server.address().port + '/__upload/' + sid } });
+  }
   if (p === '/drive/v3/about') return R(200, { user: { emailAddress: 'owner@x' }, storageQuota: { usage: '10', limit: '100' } });
   if (p === '/drive/v3/files' && m === 'GET') return R(200, { files: [...files.values()].filter((f) => evalQ(u.searchParams.get('q'), f)).sort((a, b) => a.name.localeCompare(b.name)).map(pub) });
   if ((mm = /^\/drive\/v3\/files\/([^/]+)$/.exec(p))) {
@@ -89,20 +95,31 @@ const syncFile = () => [...files.values()].find((f) => f.name === 'merzona-sync-
 const teamStore = team.createTeamStore({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'ft-')), mirrorDelayMs: 200, log: { log() {}, error() {} },
   readDriveSyncFile: async () => JSON.parse(syncFile().content.toString() || '{}'),
   writeDriveSyncFile: async (d) => { syncFile().content = Buffer.from(JSON.stringify(d)); } });
-const exact = {};
 team.mountTeamRoutes({ get: (p, h) => { exact['GET ' + p] = h; }, put: (p, h) => { exact['PUT ' + p] = h; } }, teamStore, { who: proxy.who });
 users.pay = { username: 'pay', permissions: { quotation: true, payroll: true } }; sessions.s3 = { username: 'pay', createdAt: Date.now() };
 
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (req.url.startsWith('/__file/')) { const nm = decodeURIComponent(req.url.slice(8)); const f = [...files.values()].filter((x) => x.name === nm).pop(); if (!f) { res.statusCode = 404; return res.end(); } res.setHeader('Content-Type', f.mimeType); return res.end(f.content); }
-  if (req.url === '/__state') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ files: [...files.values()].map((f) => Object.assign(pub(f), { text: /json|html|text/.test(f.mimeType) ? f.content.toString() : null, len: f.content.length })), upstream })); }
+  if (req.url === '/__state') { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ files: [...files.values()].map((f) => Object.assign(pub(f), { text: /json|html|text/.test(f.mimeType) ? f.content.toString() : null, len: f.content.length })), upstream, directPuts })); }
   res.set = (k, v) => { res.setHeader(k, v); return res; };
   res.status = (c) => { res.statusCode = c; return res; };
   res.json = (o) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(o)); return res; };
   res.send = (t) => { res.end(t); return res; };
   req.originalUrl = req.url;
   if (req.method === 'OPTIONS') { res.setHeader('Access-Control-Allow-Headers', '*'); res.setHeader('Access-Control-Allow-Methods', '*'); return res.end(); }
+  if (req.url.startsWith('/__upload/') && req.method === 'PUT') {
+    const se = sessionsUp[req.url.slice(10)]; const ch = [];
+    req.on('data', (c) => ch.push(c)); req.on('end', () => {
+      if (!se) { res.statusCode = 404; return res.end('{}'); }
+      const body = Buffer.concat(ch); directPuts.push({ len: body.length, ctype: req.headers['content-type'], origin: se.origin });
+      let f;
+      if (se.method === 'POST') f = files.get(add(nid(), se.meta.parents[0], se.meta.name, se.meta.mimeType || se.ctype, body));
+      else { f = files.get(se.id); f.content = body; f.modifiedTime = new Date().toISOString(); }
+      delete sessionsUp[req.url.slice(10)];
+      res.setHeader('Content-Type', 'application/json'); res.statusCode = se.method === 'POST' ? 200 : 200; res.end(JSON.stringify(pub(f)));
+    }); return;
+  }
   if (req.url === '/__team') return res.json({ status: teamStore.status(), data: teamStore.status() ? teamStore.view({ admin: true, perms: {} }).data : null });
   const ex = exact[req.method + ' ' + req.url.split('?')[0]];
   if (ex) { const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { try { req.body = ch.length ? JSON.parse(Buffer.concat(ch).toString()) : {}; } catch (_) { req.body = {}; } ex(req, res); }); return; }
