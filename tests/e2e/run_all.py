@@ -405,10 +405,23 @@ p(0,'ENDSEC');p(0,'EOF');process.stdout.write(L.join('\r\n'));"""]).decode()
     rows = await pg.evaluate("""() => Array.from(document.querySelectorAll('#qty-rows tr')).filter(tr => tr.querySelector('.w-input')).map(tr => [tr.querySelector('.w-input').value, tr.querySelector('.h-input').value, tr.querySelector('.qty-input').value, tr.querySelector('.item-input').value])""")
     check(any(x[:3] == ['1200', '1500', '2'] and x[3] for x in rows) and not any(x[0] == '900' for x in rows), 'انضاف W1 بس لجدول الكميات ' + str(rows))
     await pg.click('#cadImportBtn')
-    await pg.set_input_files('#mzCadFile', files=[{'name': 'plan.dwg', 'mimeType': 'application/octet-stream', 'buffer': b'AC1032xxxx'}])
-    await pg.wait_for_timeout(500)
+    await pg.set_input_files('#mzCadFile', files=[{'name': 'plan.dwg', 'mimeType': 'application/octet-stream', 'buffer': b'AC1021' + bytes(200)}])
+    await pg.wait_for_timeout(800)
     t = await pg.evaluate("() => document.getElementById('mzCadStatus').textContent")
-    check('DWG' in t and 'PDF' in t, 'ملف DWG: رسالة واضحة (لحد ما تنزل قراءة DWG) ' + t[:80])
+    check('2007' in t and '2010' in t, 'DWG نسخة 2007: رسالة واضحة شو يعمل ' + t[:60])
+    fx = os.environ.get('MZ_DWG_FIXTURES', '/tmp/claude-0/-home-claude/763d6975-41b8-5b57-9416-4a2e9e40fbf3/scratchpad/dwg/lw/test/test-data')
+    if os.path.exists(os.path.join(fx, 'example_2018.dwg')):
+        for v in ['2004', '2018']:
+            await pg.set_input_files('#mzCadFile', os.path.join(fx, 'example_' + v + '.dwg'))
+            await pg.wait_for_function("() => /لقيت|ما لقيت|❌/.test(document.getElementById('mzCadStatus').textContent)", timeout=30000)
+            t = await pg.evaluate("() => document.getElementById('mzCadStatus').textContent")
+            check('❌' not in t, 'ملف DWG ' + v + ' انقرا بالمتصفح بدون خطأ: ' + t[:50])
+    user_dwg = '/mnt/user-data/attachments/763d6975-41b8-5b57-9416-4a2e9e40fbf3/ca42d3bf-Document_from_Merzona'
+    if os.path.exists(user_dwg):
+        await pg.set_input_files('#mzCadFile', files=[{'name': 'Document_from_Merzona.dwg', 'mimeType': 'application/octet-stream', 'buffer': open(user_dwg, 'rb').read()}])
+        await pg.wait_for_function("() => /لقيت|ما لقيت|❌/.test(document.getElementById('mzCadStatus').textContent)", timeout=60000)
+        t = await pg.evaluate("() => document.getElementById('mzCadStatus').textContent")
+        check('❌' not in t, 'ملف DWG حقيقي 9MB (243 ألف كائن) بالمتصفح: ' + t[:60])
     # PDF حقيقي بالمتصفح (فك الضغط بـDecompressionStream)
     pdf64 = subprocess.check_output(['node', os.path.join(SRC, 'tests', 'pdf-fixture.js')]).decode()
     import base64

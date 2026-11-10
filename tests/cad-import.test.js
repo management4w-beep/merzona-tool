@@ -62,6 +62,16 @@ const find = (r, mk) => r.rows.find((x) => x.mark === mk);
   ok(sd1 && sd1.w === 3000 && sd1.h === 2400 && sd1.qty === 1 && sd1.ok && sd1.kind === 'sliding-door', 'SD1 from formatted MTEXT ' + JSON.stringify(sd1));
 }
 
+// 2ب) نفس الجدول بس مرسوم بأمر TABLE (كيان ACAD_TABLE مش INSERT)
+{
+  const cell = (x, y, s) => MTEXT(x, y, s, 80);
+  const blk = { name: '*T7', items: [cell(0, 0, 'MARK'), cell(1000, 0, 'WIDTH'), cell(2000, 0, 'HEIGHT'), cell(3000, 0, 'QTY'), cell(0, -250, 'D9'), cell(1000, -250, '1000'), cell(2000, -250, '2400'), cell(3000, -250, '2')] };
+  const TABLE = (p) => { p(0, 'ACAD_TABLE'); p(8, 'TBL'); p(100, 'AcDbBlockReference'); p(2, '*T7'); p(10, 40000); p(20, 20000); p(30, 0); p(100, 'AcDbTable'); };
+  const r = C.readDxf(dxf({ blocks: [blk], entities: [TABLE, TEXT(0, 0, 'D9', 80), TEXT(900, 0, 'D9', 80)] }));
+  const d9 = find(r, 'D9');
+  ok(d9 && d9.w === 1000 && d9.h === 2400 && d9.qty === 2 && d9.ok, 'ACAD_TABLE schedule ' + JSON.stringify(d9));
+}
+
 // 3) نص واحد فيه كل شي + بلوكات نوافذ بخصائص بدون جدول
 {
   const winBlk = { name: 'WINDOW-TAG', items: [LINE(0, 0, 900, 0), LINE(900, 0, 900, 100)] };
