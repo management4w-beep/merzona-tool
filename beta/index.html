@@ -146,7 +146,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.4';
+  var CURRENT_VERSION = '2026-11-10.5';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -2150,7 +2150,7 @@
       </tfoot>
     </table>
     </div>
-    <div class="add-btn-wrap"><button class="small" onclick="addQtyRow()">+ Add row</button></div>
+    <div class="add-btn-wrap"><button class="small" onclick="addQtyRow()">+ Add row</button> <button class="small" id="cadImportBtn" onclick="mzCadOpen()" title="اقرا الشبابيك والأبواب ومقاساتها وعددها من مخطط أوتوكاد (DXF)">📐 من مخطط أوتوكاد</button></div>
   </div>
 
   <!-- PAYMENT -->
@@ -5808,6 +5808,111 @@ function mzShareModal(opts){
   const c = document.createElement('button'); c.type = 'button'; c.textContent = 'إلغاء'; c.style.cssText = 'display:block;width:100%;margin-top:6px;padding:8px;border:0;background:transparent;color:#666;cursor:pointer;font-family:inherit;'; c.onclick = () => wrap.remove(); box.appendChild(c);
   wrap.appendChild(box); wrap.addEventListener('click', (e) => { if(e.target === wrap) wrap.remove(); });
   document.body.appendChild(wrap);
+}
+/* ===== 📐 استيراد الكميات من مخطط أوتوكاد (DXF) ===== */
+function mzCadLoadLib(){
+  if(window.MzCad) return Promise.resolve(window.MzCad);
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = new URL('cad-import.js?v=2026-11-10.5', document.baseURI).href;
+    s.onload = () => window.MzCad ? res(window.MzCad) : rej(new Error('ما انقرت أداة المخططات'));
+    s.onerror = () => rej(new Error('ما قدرت حمّل أداة المخططات - تأكد من النت'));
+    document.head.appendChild(s);
+  });
+}
+function mzCadGuessItem(kind){
+  const L = (ITEMS || []).map((it, i) => ({ i, en: String(it.en || '').toLowerCase() }));
+  const pick = (re, not) => { const f = L.find((x) => re.test(x.en) && !(not && not.test(x.en))); return f ? f.i : -1; };
+  if(kind === 'sliding-door') return pick(/sliding door/);
+  if(kind === 'sliding-window') return pick(/sliding window/);
+  if(kind === 'curtain-wall') return pick(/curtain wall/, /georgian|arch|door|slim/);
+  if(kind === 'fixed-window') return pick(/fixed window/);
+  if(kind === 'skylight') return pick(/skylight/);
+  if(kind === 'door') return pick(/door with glass/);
+  return pick(/hinged window/);
+}
+async function mzCadReadFile(file){
+  const buf = await file.arrayBuffer();
+  const head = new Uint8Array(buf.slice(0, 6));
+  if(head[0] === 0x41 && head[1] === 0x43 && head[2] === 0x31) throw new Error('DWG');
+  let text = new TextDecoder('utf-8').decode(buf);
+  if(/�/.test(text)){ try{ text = new TextDecoder('windows-1256').decode(buf); }catch(e){} }
+  if(/^AutoCAD Binary DXF/.test(text)) throw new Error('BINDXF');
+  return text;
+}
+function mzCadOpen(){
+  const old = document.getElementById('mzCadModal'); if(old) old.remove();
+  const wrap = document.createElement('div');
+  wrap.id = 'mzCadModal';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100000;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;direction:rtl;font-family:Tajawal,Tahoma,sans-serif;';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:14px;max-width:900px;width:100%;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:14px;';
+  box.innerHTML = '<div style="font-weight:800;font-size:17px;margin-bottom:6px">📐 الكميات من مخطط أوتوكاد</div>'
+    + '<div style="color:#555;font-size:13px;line-height:1.7;margin-bottom:10px">اختار ملف <b>DXF</b> (من أوتوكاد: Save As ← DXF). السيستم بيقرا جدول الشبابيك والأبواب، وبيعدّ رموزها (W1, D1...) بالمساقط، وبيقارن. أي سطر في فرق أو مصدر واحد بس بيطلع ⚠️ وما بينضاف إلا إذا أنت أكدته.</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
+    + '<input type="file" id="mzCadFile" accept=".dxf,.dwg">'
+    + '<label>وحدة المخطط: <select id="mzCadUnit"><option value="">تلقائي</option><option value="mm">ملم</option><option value="cm">سم</option><option value="m">متر</option></select></label>'
+    + '</div><div id="mzCadStatus" style="font-size:13px;margin:6px 0"></div><div id="mzCadResult" style="overflow:auto"></div>'
+    + '<div style="display:flex;gap:8px;margin-top:12px"><button type="button" id="mzCadAdd" class="primary" disabled>أضف المحدد لجدول الكميات</button><button type="button" id="mzCadClose">إلغاء</button></div>';
+  wrap.appendChild(box); document.body.appendChild(wrap);
+  const $ = (id) => box.querySelector('#' + id);
+  $('mzCadClose').onclick = () => wrap.remove();
+  wrap.addEventListener('click', (e) => { if(e.target === wrap) wrap.remove(); });
+  let rows = [];
+  const status = (t, c) => { $('mzCadStatus').style.color = c || '#334155'; $('mzCadStatus').textContent = t; };
+  const run = async () => {
+    const f = $('mzCadFile').files[0]; if(!f) return;
+    $('mzCadAdd').disabled = true; $('mzCadResult').innerHTML = '';
+    if(/\.dwg$/i.test(f.name)){ status('⚠️ هاد ملف DWG. افتحه بأوتوكاد واعمل Save As واختار نوع "AutoCAD DXF" (ASCII)، وبعدين اختار ملف الـDXF هون.', '#b45309'); return; }
+    status('⏳ عم إقرا المخطط...');
+    try{
+      const [C, text] = await Promise.all([mzCadLoadLib(), mzCadReadFile(f)]);
+      const r = C.readDxf(text, { unit: $('mzCadUnit').value || undefined });
+      rows = r.rows;
+      if(!rows.length){ status('ما لقيت شبابيك أو أبواب برموز واضحة (W1, D1, SD1...) بهاد المخطط. تأكد إنه فيه جدول الفتحات أو الرموز مكتوبة كنص.', '#b45309'); return; }
+      const bad = rows.filter((x) => !x.ok).length;
+      status('✅ لقيت ' + rows.length + ' نوع (وحدة المخطط: ' + ({ mm: 'ملم', cm: 'سم', m: 'متر' }[r.unit] || r.unit) + ')' + (bad ? ' — ' + bad + ' بدهم مراجعة ⚠️' : ' — كلهم متطابقين'), bad ? '#b45309' : '#15803d');
+      const opts = (sel) => (ITEMS || []).map((it, i) => '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>' + mzEscAttrFull(it.ar || it.en) + '</option>').join('');
+      const tb = rows.map((x, k) => {
+        const g = mzCadGuessItem(x.kind);
+        return '<tr style="background:' + (x.ok ? '#fff' : '#fff7ed') + '">'
+          + '<td><input type="checkbox" data-k="' + k + '" class="mzCadChk"' + (x.ok ? ' checked' : '') + '></td>'
+          + '<td style="font-weight:700">' + mzEscAttrFull(x.mark) + '</td>'
+          + '<td><select data-k="' + k + '" class="mzCadItem" style="max-width:220px"><option value="-1">— اختار الصنف —</option>' + opts(g) + '</select></td>'
+          + '<td><input data-k="' + k + '" class="mzCadW" value="' + (x.w || '') + '" style="width:70px"></td>'
+          + '<td><input data-k="' + k + '" class="mzCadH" value="' + (x.h || '') + '" style="width:70px"></td>'
+          + '<td><input data-k="' + k + '" class="mzCadQ" value="' + (x.qty || '') + '" style="width:50px"></td>'
+          + '<td style="font-size:12px;color:#555">' + (x.issues.length ? '<div style="color:#b45309">⚠️ ' + x.issues.map(mzEscAttrFull).join('<br>⚠️ ') + '</div>' : '✅ متطابق') + '<div style="color:#64748b">' + x.evidence.map(mzEscAttrFull).join(' · ') + '</div></td></tr>';
+      }).join('');
+      $('mzCadResult').innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px" border="1" cellpadding="4"><thead style="background:#f1f5f9"><tr><th></th><th>الرمز</th><th>الصنف</th><th>العرض ملم</th><th>الارتفاع ملم</th><th>العدد</th><th>المصدر / الملاحظات</th></tr></thead><tbody>' + tb + '</tbody></table>';
+      $('mzCadAdd').disabled = false;
+    }catch(e){
+      const m = String(e && e.message || e);
+      if(m === 'DWG') status('⚠️ الملف بصيغة DWG حتى لو اسمه dxf. اعمل Save As ← AutoCAD DXF.', '#b45309');
+      else if(m === 'BINDXF') status('⚠️ هاد DXF ثنائي (Binary). اعمل Save As ← DXF واختار ASCII من الخيارات.', '#b45309');
+      else status('❌ ' + m, '#b91c1c');
+    }
+  };
+  $('mzCadFile').onchange = run; $('mzCadUnit').onchange = run;
+  $('mzCadAdd').onclick = () => {
+    const q = (cls, k) => box.querySelector('.' + cls + '[data-k="' + k + '"]');
+    const picked = [...box.querySelectorAll('.mzCadChk')].filter((c) => c.checked).map((c) => +c.dataset.k);
+    if(!picked.length){ alert('ما في ولا سطر محدد'); return; }
+    // شيل السطور الفاضية تماماً من الجدول قبل الإضافة
+    document.querySelectorAll('#qty-rows tr').forEach((tr) => {
+      const v = (s) => (tr.querySelector(s) || {}).value || '';
+      if(!v('.item-input').trim() && !v('.w-input').trim() && !v('.h-input').trim()) tr.remove();
+    });
+    picked.forEach((k) => {
+      const idx = +q('mzCadItem', k).value;
+      addQtyRow(q('mzCadW', k).value.trim(), q('mzCadH', k).value.trim(), q('mzCadQ', k).value.trim() || '1', '', idx);
+      const tr = document.querySelector('#qty-rows tr:last-child');
+      if(tr && idx < 0){ const it = tr.querySelector('.item-input'); if(it) it.value = rows[k].mark; }
+    });
+    renumber(); recalc();
+    wrap.remove();
+    alert('✅ انضاف ' + picked.length + ' سطر لجدول الكميات. راجع الأسعار وأسماء الأصناف.');
+  };
 }
 async function shareQuotationToClient(){
   const btn = document.getElementById('shareClientBtn');
