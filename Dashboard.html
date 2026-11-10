@@ -54,6 +54,38 @@
   };
 })();
 </script>
+<script id="mz-drive-proxy">
+/* 🔐 2026-11-10 (المرحلة 2 من دراسة السيستم): جوجل درايف بيمرق من السيرفر بس.
+   قبل: الجهاز كان ياخد مفتاح درايف كامل (كل ملفات الحساب) ويحكي مع جوجل مباشرة.
+   هلق: أي طلب لجوجل درايف بهالصفحة بيتحوّل لـ /gdrive/ عالسيرفر مع توكن الجهاز والجلسة، والسيرفر
+   بيتحقق إنو الملف جوا مجلدات ميرزونا وإنو المستخدم إلو صلاحية، وبعدين بيحكي هو مع جوجل.
+   المفتاح الحقيقي ما بيوصل للمتصفح أبدًا، والكود القديم بالصفحة ما احتاج يتغيّر. */
+(function(){
+  var SRV = 'https://merzona-server-production.up.railway.app/gdrive/';
+  var RE = /^https:\/\/www\.googleapis\.com\/((?:upload\/)?drive\/v3\/[\s\S]*)$/;
+  var orig = window.fetch;
+  if(typeof orig !== 'function') return;
+  function ls(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+  // مفاتيح درايف القديمة المخزّنة بالمتصفح ما عاد إلها لزوم
+  try{ ['merzona_index_gtoken_v1', 'merzona_dash_gtoken_v1'].forEach(function(k){ localStorage.removeItem(k); }); }catch(e){}
+  window.__mzDriveProxy = true;
+  window.fetch = function(input, init){
+    var isReq = (typeof Request !== 'undefined') && (input instanceof Request);
+    var url = isReq ? input.url : String(input);
+    var m = RE.exec(url);
+    if(!m) return orig.apply(this, arguments);
+    var target = SRV + m[1];
+    var o = Object.assign({}, init || {});
+    var h = new Headers(o.headers || (isReq ? input.headers : undefined) || {});
+    h.delete('Authorization');
+    h.set('x-device', ls('merzona-device-token'));
+    var s = ls('merzona-session-token'); if(s) h.set('x-session', s);
+    o.headers = h;
+    if(isReq) return orig.call(window, new Request(target, Object.assign({ method: input.method, body: input.body, duplex: 'half' }, o)));
+    return orig.call(window, target, o);
+  };
+})();
+</script>
 <script>
 (function(){
   // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
@@ -79,7 +111,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-08.11';
+  var CURRENT_VERSION = '2026-11-10.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -5430,6 +5462,8 @@ async function fetchDashDriveTokenFromServer(timeoutMs){
 }
 
 function getDashGoogleAccessToken(silent){
+  // 🔐 المرحلة 2: درايف عن طريق السيرفر (شوف mz-drive-proxy بأول الصفحة) - ما في مفتاح حقيقي بالمتصفح
+  if(window.__mzDriveProxy) return Promise.resolve('mzproxy');
   // توكن محفوظ ولسا صالح (من كبسة سابقة أو من السيرفر) - منرجعه فورًا بدون أي محاولة دخول جديدة.
   if(dashGoogleAccessToken && (dashGoogleAccessTokenExpiresAt - 60000) > Date.now()){
     return Promise.resolve(dashGoogleAccessToken);
@@ -10156,6 +10190,7 @@ async function stepEnvironment(){
   else ok('التخزين المحلي مرتاح', mb.toFixed(2) + ' MB - الأكبر: ' + top);
   var designKeys = rows.filter(function(r){ return r.k.indexOf('merzona-design-items::') === 0 || r.k.indexOf('merzona-latest-design::') === 0; });
   if(designKeys.length > 40) warn('تصاميم محلية كتيرة', designKeys.length + ' نسخة محلية مخبّأة', { fixable: 'storage' });
+  if(window.__mzDriveProxy){ ok('مفتاح جوجل درايف', 'ما بيتخزّن عالجهاز - كل طلبات درايف بتمرق من السيرفر'); return; }
   var cached = parseKey('merzona_dash_gtoken_v1');
   if(cached.val && cached.val.expiresAt && cached.val.expiresAt < Date.now()) warn('توكن جوجل منتهي بالتخزين', 'توكن قديم مخزّن (بيتجدد لحاله)', { fixable: 'token' });
   else ok('توكن جوجل المخزّن', cached.val ? 'صالح' : 'ما في توكن مخزّن (بيجيبه من السيرفر)');
@@ -10309,17 +10344,19 @@ async function stepServer(){
   /* درايف + ملف المزامنة (قراءة فقط) */
   var tokenData = null;
   try{
-    if(typeof fetchDashDriveTokenFromServer === 'function') tokenData = await fetchDashDriveTokenFromServer(9000);
+    if(window.__mzDriveProxy) tokenData = { access_token: 'mzproxy' };
+    else if(typeof fetchDashDriveTokenFromServer === 'function') tokenData = await fetchDashDriveTokenFromServer(9000);
   }catch(e){}
   if(!tokenData){ warn('توكن جوجل درايف من السيرفر', 'ما انجاب (السيرفر غير مربوط بحساب جوجل أو الجهاز غير معتمد). بدون هالتوكن المزامنة وحفظ درايف رح تفشل.', { fixable: 'sync' }); return; }
-  ok('توكن جوجل درايف من السيرفر', 'انجاب بنجاح');
+  ok(window.__mzDriveProxy ? 'درايف عن طريق السيرفر' : 'توكن جوجل درايف من السيرفر', window.__mzDriveProxy ? 'مفعّل (المفتاح ما بيطلع من السيرفر)' : 'انجاب بنجاح');
   var token = tokenData.access_token;
   try{
     var ab = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress),storageQuota', { headers: { Authorization: 'Bearer ' + token } });
     if(ab.ok){ var abj = await ab.json(); var q = abj.storageQuota || {}; var usedG = Number(q.usage || 0), lim = Number(q.limit || 0);
       ok('الاتصال بجوجل درايف', 'شغّال' + (lim ? ' - المساحة ' + Math.round(usedG / lim * 100) + '%' : ''));
       if(lim && usedG / lim > 0.92) warn('مساحة جوجل درايف شبه ممتلئة', Math.round(usedG / lim * 100) + '% - ممكن يفشل الحفظ على درايف');
-    } else fail('الاتصال بجوجل درايف', 'رجّع ' + ab.status + (ab.status === 401 ? ' (التوكن مرفوض)' : ab.status === 403 ? ' (صلاحيات ناقصة)' : ''));
+    } else if(window.__mzDriveProxy && ab.status === 403) ok('الاتصال بجوجل درايف', 'شغّال عن طريق السيرفر (المساحة بتبيّن للمالك بس)');
+    else fail('الاتصال بجوجل درايف', 'رجّع ' + ab.status + (ab.status === 401 ? ' (التوكن مرفوض)' : ab.status === 403 ? ' (صلاحيات ناقصة)' : ''));
   }catch(e){ fail('الاتصال بجوجل درايف', 'فشل: ' + e.message); }
   setProgress(0.6);
   try{
