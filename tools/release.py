@@ -49,8 +49,9 @@ def main():
     if mode not in ('beta', 'prod'): sys.exit(__doc__)
     if sh('git', 'rev-parse', '--abbrev-ref', 'HEAD') != 'develop': sys.exit('✗ لازم تكون على فرع develop')
     if sh('git', 'status', '--porcelain'): sys.exit('✗ في تعديلات مش محفوظة (commit) على develop')
-    sh('git', 'fetch', '-q', 'origin')
-    if sh('git', 'rev-parse', 'HEAD') != sh('git', 'rev-parse', 'origin/develop'): sys.exit('✗ develop مش منزّل (git push origin develop)')
+    sh('git', 'fetch', '-q', 'origin', '+refs/heads/main:refs/remotes/origin/main')
+    remote_dev = (sh('git', 'ls-remote', 'origin', 'refs/heads/develop').split() or [''])[0]
+    if sh('git', 'rev-parse', 'HEAD') != remote_dev: sys.exit('✗ develop مش منزّل (git push origin develop)')
     rev = sh('git', 'rev-parse', '--short', 'HEAD')
     if mode == 'beta' or '--no-tests' not in sys.argv: run_tests()
     tmp = tempfile.mkdtemp(prefix='mz-release-')
