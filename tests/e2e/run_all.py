@@ -176,6 +176,7 @@ async def t_drive_proxy(p, b, port):
             direct.append(route.request.url); await route.fulfill(status=401, body='{}')
         await ctx.route(SRV + '/gdrive/**', to_local)
         await ctx.route(SRV + '/team/**', to_local)
+        await ctx.route(SRV + '/gdrive-upload-session', to_local)
         await ctx.route('https://www.googleapis.com/**', gapi)
         ctx.on('request', lambda r: tokreq.append(r.url) if '/drive-token' in r.url else None)
         pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -196,6 +197,8 @@ async def t_drive_proxy(p, b, port):
           const bytes = new Uint8Array(300000); for (let i = 0; i < bytes.length; i++) bytes[i] = (i * 7 + 3) & 255;
           const pdf = await uploadOrUpdateFileInDriveFolder('M-Q-260099.pdf', 'application/pdf', new Blob([bytes], {type:'application/pdf'}), ref, t);
           out.pdf = pdf && pdf.id;
+          const pdf2 = await uploadOrUpdateFileInDriveFolder('M-Q-260099.pdf', 'application/pdf', new Blob([bytes.slice(0, 280000)], {type:'application/pdf'}), ref, t);
+          out.pdfSame = pdf2 && pdf2.id === pdf.id;
           out.read = await downloadDriveJsonFile(a.id, t);
           out.kids = (await listDriveFolderChildrenSimple(ref, t)).map(f => f.name).sort();
           out.next = await computeNextReferenceSeq('M-Q-260', t, UAE);
@@ -205,9 +208,20 @@ async def t_drive_proxy(p, b, port):
         check(r['ref'] and r['refAgain'], 'إنشاء مجلد عرض جديد وما بيتكرر')
         check(r['sameFile'] and r['read']['fields']['m-client'] == 'زبون معدّل', 'حفظ ملف البيانات وتحديثه وقراءته (عربي)')
         st = state(); f = {x['name']: x for x in st['files']}
-        check(f.get('M-Q-260099.pdf', {}).get('len') == 300000 and f['M-Q-260099.pdf']['mimeType'] == 'application/pdf', 'رفع PDF بحجمه ونوعه الصحيح')
+        check(f.get('M-Q-260099.pdf', {}).get('mimeType') == 'application/pdf' and any(d['len'] == 300000 for d in st['directPuts']), 'رفع PDF بحجمه ونوعه الصحيح')
+        check(any(d['len'] == 300000 and d['ctype'] == 'application/pdf' for d in st['directPuts']), 'الملف الكبير انرفع مباشرة لجوجل (مش عن طريق السيرفر)')
+        check(not any('M-Q-260099.pdf' in u and 'multipart' in u for u in st['upstream']), 'محتوى الـPDF ما مرق بالسيرفر')
+        check(r['pdfSame'] and f['M-Q-260099.pdf']['len'] == 280000 and any(d['len'] == 280000 for d in st['directPuts']), 'تحديث PDF موجود (رفع مباشر لنفس الملف)')
         check(r['kids'] == ['M-Q-260099-data.json', 'M-Q-260099.pdf'], 'قائمة ملفات مجلد العرض')
         check(r['next'] is not None, 'اقتراح الرقم المرجعي الجاي شغال (' + str(r['next']) + ')')
+        await ctx.unroute(SRV + '/gdrive-upload-session')
+        await ctx.route(SRV + '/gdrive-upload-session', lambda r: r.fulfill(status=503, body='{}'))
+        r = await pg.evaluate("""async (UAE) => { const t = 'mzproxy'; const y = await findOrCreateDriveFolder('2026', UAE, t); const ref = await findOrCreateDriveFolder('M-Q-260099', y, t);
+          const bytes = new Uint8Array(270000); bytes.fill(7);
+          const up = await uploadOrUpdateFileInDriveFolder('fallback.pdf', 'application/pdf', new Blob([bytes], {type:'application/pdf'}), ref, t); return !!(up && up.id); }""", UAE)
+        st = state(); f = {x['name']: x for x in st['files']}
+        check(r and f.get('fallback.pdf', {}).get('len') == 270000, 'إذا الرفع المباشر ما زبط، بيرجع يرفع عن طريق السيرفر')
+        await ctx.unroute(SRV + '/gdrive-upload-session'); await ctx.route(SRV + '/gdrive-upload-session', to_local)
         # الداشبورد
         await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3000)
         r = await pg.evaluate("""async () => {
@@ -324,12 +338,21 @@ async def t_share_pdf(p, b, port):
       let saved = 0; runSaveToGoogleDriveInnerShared = async () => { saved++; };
       window.__mzLastPdf = { ref: 'M-Q-260221', blob: new Blob(['%PDF-1.4'], {type: 'application/pdf'}) };
       await shareQuotationToClient();
+      const firstSaved = saved; document.getElementById('mzShareModal').remove();
+      window.__mzLastSavedSig = mzQuoteSig(); await shareQuotationToClient();
+      const skipped = (saved === firstSaved);
+      runSaveToGoogleDriveInnerShared = async () => { throw new Error('test fail'); };
+      window.__mzLastSavedSig = 'old'; document.getElementById('mzShareModal').remove();
+      await shareQuotationToClient(); const afterFail = !!document.getElementById('mzShareModal'); document.getElementById('mzShareModal').remove();
+      await shareQuotationToClient();
       const m = document.getElementById('mzShareModal');
       const bt = m ? Array.from(m.querySelectorAll('button')).map(b => b.textContent) : [];
       let opened = null; window.open = (u) => { opened = u; return null; };
       if(m) m.querySelector('button').click();
-      return { saved, bt, opened, gone: !document.getElementById('mzShareModal') }; }""")
+      return { saved, bt, opened, gone: !document.getElementById('mzShareModal'), skipped, afterFail }; }""")
     check(r['saved'] == 1, 'بيحفظ العرض قبل الإرسال')
+    check(r['skipped'], 'إذا ما تغيّر شي من آخر حفظ، بيبعت فورًا بدون إعادة حفظ')
+    check(r['afterFail'], 'إذا فشل الحفظ بيسأل وبيقدر يبعت آخر نسخة محفوظة')
     check(r['opened'] and r['opened'].startswith('https://wa.me/971581975655?text=') and 'M-Q-260221' in __import__('urllib.parse').parse.unquote(r['opened']) and 'sign.html' in __import__('urllib.parse').parse.unquote(r['opened']), 'بيفتح محادثة الزبون نفسه مع رابط العرض')
     check(r['gone'] and any('انسخ' in x for x in r['bt']), 'نافذة الإرسال (فتح المحادثة / نسخ الرسالة)')
     r = await pg.evaluate("""() => { document.body.classList.add('pdf-capturing');
