@@ -24,7 +24,7 @@ add(nid(), rf, 'M-Q-260001-data.json', 'application/json', JSON.stringify({ fiel
 add(nid(), rf, 'M-Q-260001.html', 'text/html', '<html>q</html>');
 const rf2 = add(nid(), y, 'M-Q-260003', FOLDER);
 add(nid(), rf2, 'M-Q-260003-data.json', 'application/json', '{"fields":{"m-ref":"M-Q-260003"}}');
-add(nid(), UAE, 'merzona-sync-data.json', 'application/json', JSON.stringify({ merzona_contracts: { 'M-Q-260001': { client: 'Test Client' } } }));
+add(nid(), UAE, 'merzona-sync-data.json', 'application/json', JSON.stringify({ merzona_contracts: { 'M-Q-260001': { client: 'Test Client' } }, merzona_payroll_employees: { e1: { name: 'موظف', salary: 100 } }, merzona_payroll_employees__ts: { e1: 1 } }));
 const sh = add(nid(), CAT, 'Showers', FOLDER);
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 add(nid(), sh, 'a.png', 'image/png', PNG); add(nid(), sh, 'b.png', 'image/png', PNG);
@@ -79,9 +79,19 @@ async function fakeFetch(url, o) {
 const devices = { dev1: { status: 'approved', isOwner: true, name: 'Owner' }, dev2: { status: 'approved', name: 'Staff' } };
 const sessions = { s2: { username: 'sam', createdAt: Date.now() } };
 const users = { sam: { username: 'sam', permissions: { quotation: true, catalogs: false } } };
-mount(app, { express, loadDevices: () => devices, loadSessions: () => sessions, loadUsers: () => users, effectivePermissions: (u) => Object.assign({}, u.permissions),
+const proxy = mount(app, { express, loadDevices: () => devices, loadSessions: () => sessions, loadUsers: () => users, effectivePermissions: (u) => Object.assign({}, u.permissions),
   getAccessToken: async () => 'REAL-SERVER-TOKEN', dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'fd-')), fetch: fakeFetch, log: { error() {} },
   areas: { work: [UAE, SYR, BK], catalog: [CAT] } });
+
+// بيانات الفريق عالسيرفر (team-store.js الحقيقي) - أول مرة بتستورد ملف المزامنة الوهمي يلي فوق
+const team = require(path.join(SERVER_DIR, 'team-store.js'));
+const syncFile = () => [...files.values()].find((f) => f.name === 'merzona-sync-data.json');
+const teamStore = team.createTeamStore({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'ft-')), mirrorDelayMs: 200, log: { log() {}, error() {} },
+  readDriveSyncFile: async () => JSON.parse(syncFile().content.toString() || '{}'),
+  writeDriveSyncFile: async (d) => { syncFile().content = Buffer.from(JSON.stringify(d)); } });
+const exact = {};
+team.mountTeamRoutes({ get: (p, h) => { exact['GET ' + p] = h; }, put: (p, h) => { exact['PUT ' + p] = h; } }, teamStore, { who: proxy.who });
+users.pay = { username: 'pay', permissions: { quotation: true, payroll: true } }; sessions.s3 = { username: 'pay', createdAt: Date.now() };
 
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -91,6 +101,10 @@ const server = http.createServer((req, res) => {
   res.json = (o) => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(o)); return res; };
   res.send = (t) => { res.end(t); return res; };
   req.originalUrl = req.url;
+  if (req.method === 'OPTIONS') { res.setHeader('Access-Control-Allow-Headers', '*'); res.setHeader('Access-Control-Allow-Methods', '*'); return res.end(); }
+  if (req.url === '/__team') return res.json({ status: teamStore.status(), data: teamStore.status() ? teamStore.view({ admin: true, perms: {} }).data : null });
+  const ex = exact[req.method + ' ' + req.url.split('?')[0]];
+  if (ex) { const ch = []; req.on('data', (c) => ch.push(c)); req.on('end', () => { try { req.body = ch.length ? JSON.parse(Buffer.concat(ch).toString()) : {}; } catch (_) { req.body = {}; } ex(req, res); }); return; }
   const p = req.url.split('?')[0]; const r = routes.find((x) => x.re.test(p));
   if (!r) { res.statusCode = 404; return res.end('no route'); }
   req.params = { 0: r.re.exec(p)[1] };

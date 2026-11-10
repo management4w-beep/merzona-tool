@@ -175,6 +175,7 @@ async def t_drive_proxy(p, b, port):
         async def gapi(route):
             direct.append(route.request.url); await route.fulfill(status=401, body='{}')
         await ctx.route(SRV + '/gdrive/**', to_local)
+        await ctx.route(SRV + '/team/**', to_local)
         await ctx.route('https://www.googleapis.com/**', gapi)
         ctx.on('request', lambda r: tokreq.append(r.url) if '/drive-token' in r.url else None)
         pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -238,6 +239,40 @@ async def t_drive_proxy(p, b, port):
         await pg.locator('#mzc-overlay').get_by_text('Showers').first.click(); await pg.wait_for_timeout(3000)
         imgs = await pg.evaluate("Array.from(document.querySelectorAll('#mzc-overlay img')).filter(function(i){ return /^blob:/.test(i.src) && i.naturalWidth > 0; }).length")
         check(imgs >= 2, 'كتالوجات الداشبورد: الصور بتنزل وبتنعرض (' + str(imgs) + ')')
+        # 🗄️ المرحلة 3: بيانات الفريق عالسيرفر
+        team = json.loads(urllib.request.urlopen(LOCAL + '/__team').read())
+        check(team['status'] and team['status']['rev'] >= 2 and 'M-Q-260002' in team['data']['merzona_contracts'], 'بيانات الفريق انحفظت عالسيرفر (rev ' + str(team['status'] and team['status']['rev']) + ')')
+        ctx2 = await new_ctx(p, b); await ctx2.route(SRV + '/gdrive/**', to_local); await ctx2.route(SRV + '/team/**', to_local); await ctx2.route('https://www.googleapis.com/**', gapi)
+        pg2 = await ctx2.new_page(); pg2.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pg2.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg2.wait_for_timeout(3000)
+        push = """async (ref) => {
+          const t = await getDashGoogleAccessToken(false);
+          await driveSyncPullAndMerge(true);
+          const orig = uploadSyncData; uploadSyncData = async function(){ await new Promise(r => setTimeout(r, 900)); return orig.apply(this, arguments); };
+          const c = JSON.parse(localStorage.getItem('merzona_contracts') || '{}'); c[ref] = { client: 'جهاز ' + ref, paymentTables: [], createdAt: Date.now() };
+          localStorage.setItem('merzona_contracts', JSON.stringify(c)); localStorage.setItem('merzona_sync_connected', '1');
+          markSyncDirty('merzona_contracts', c);
+          await driveSyncPushNow();
+          return teamRev; }"""
+        await asyncio.gather(pg.evaluate(push, 'M-Q-260010'), pg2.evaluate(push, 'M-Q-260011'))
+        await pg.wait_for_timeout(6000)
+        team = json.loads(urllib.request.urlopen(LOCAL + '/__team').read())
+        both = all(k in team['data']['merzona_contracts'] for k in ('M-Q-260010', 'M-Q-260011'))
+        check(both and 'M-Q-260002' in team['data']['merzona_contracts'], 'جهازين حفظوا بنفس اللحظة: ولا تعديل ضاع')
+        await pg2.evaluate("driveSyncPullAndMerge(true)"); await pg2.wait_for_timeout(1500)
+        seen = await pg2.evaluate("Object.keys(JSON.parse(localStorage.getItem('merzona_contracts')||'{}'))")
+        check('M-Q-260010' in seen and 'M-Q-260011' in seen, 'الجهاز التاني بيشوف تعديل الأول بعد المزامنة')
+        r = await pg2.evaluate("""async () => {
+          localStorage.setItem('merzona-device-token', 'dev2'); localStorage.setItem('merzona-session-token', 's2');
+          localStorage.setItem('merzona_payroll_employees', JSON.stringify({ old: { name: 'نسخة قديمة' } }));
+          const d = await downloadSyncData('mzproxy');
+          const out = { staffSees: !!d.merzona_payroll_employees, staffLocal: localStorage.getItem('merzona_payroll_employees'), contracts: !!d.merzona_contracts };
+          localStorage.setItem('merzona-session-token', 's3');
+          const d2 = await downloadSyncData('mzproxy'); out.paySees = !!(d2.merzona_payroll_employees && d2.merzona_payroll_employees.e1);
+          return out; }""")
+        check(not r['staffSees'] and r['staffLocal'] is None and r['contracts'], 'الموظف بدون صلاحية الرواتب ما بيوصلو شي منها، وبتنمسح من جهازو')
+        check(r['paySees'], 'الموظف يلي عندو صلاحية الرواتب بيشوفها')
+        await ctx2.close()
         # الأمان من جوا الصفحة نفسها
         r = await pg.evaluate("""async () => {
           const g = (u, o) => fetch('https://www.googleapis.com/drive/v3/' + u, o).then(r => r.status);
