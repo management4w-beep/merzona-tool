@@ -353,6 +353,11 @@ async def t_share_pdf(p, b, port):
     check(r['saved'] == 1, 'بيحفظ العرض قبل الإرسال')
     check(r['skipped'], 'إذا ما تغيّر شي من آخر حفظ، بيبعت فورًا بدون إعادة حفظ')
     check(r['afterFail'], 'إذا فشل الحفظ بيسأل وبيقدر يبعت آخر نسخة محفوظة')
+    r2 = await pg.evaluate("""() => { const a = mzQuoteSig();
+      document.querySelectorAll('.page textarea').forEach(t => { t.style.height = '123px'; });
+      const b = mzQuoteSig(); const ta = document.querySelector('.page textarea'); const old = ta.value; ta.value = old + ' x'; const c = mzQuoteSig(); ta.value = old;
+      return [a === b, a !== c, a === mzQuoteSig()]; }""")
+    check(r2 == [True, True, True], 'بصمة العرض: ما بتتغيّر من ارتفاع الخانات، بتتغيّر لما يتغيّر النص ' + str(r2))
     check(r['opened'] and r['opened'].startswith('https://wa.me/971581975655?text=') and 'M-Q-260221' in __import__('urllib.parse').parse.unquote(r['opened']) and 'sign.html' in __import__('urllib.parse').parse.unquote(r['opened']), 'بيفتح محادثة الزبون نفسه مع رابط العرض')
     check(r['gone'] and any('انسخ' in x for x in r['bt']), 'نافذة الإرسال (فتح المحادثة / نسخ الرسالة)')
     r = await pg.evaluate("""() => { document.body.classList.add('pdf-capturing');
