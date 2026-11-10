@@ -450,6 +450,106 @@ p(0,'ENDSEC');p(0,'EOF');process.stdout.write(L.join('\r\n'));"""]).decode()
     check(not errs, 'ما في أخطاء ' + '; '.join(errs[:2]))
     await ctx.close()
 
+FAKE_PDF = """window.html2pdf = function(){ var w = { prop: {}, from: function(){ return w; }, set: function(){ return w; },
+  toContainer: async function(){ w.prop.container = document.createElement('div'); },
+  toCanvas: async function(){ var c = document.createElement('canvas'); c.width = 900; c.height = 1200; w.prop.canvas = c; },
+  toPdf: async function(){ w.prop.pdf = { getNumberOfPages: function(){ return 1; } }; },
+  outputPdf: async function(){ return new Blob(['%PDF-1.4 fake'], { type: 'application/pdf' }); } }; return w; };"""
+
+async def t_quotes_server(p, b, port):
+    print('• عروض الأسعار عالسيرفر (المرحلة 3 - الجزء 2)')
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    if not os.path.isfile(os.path.join(sdir, 'quote-store.js')):
+        print('  SKIP ما لقيت quote-store.js'); return
+    import subprocess, urllib.request
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_drive.js'), sdir], stdout=subprocess.PIPE, text=True)
+    try:
+        fport = int(proc.stdout.readline().split()[1]); LOCAL = 'http://127.0.0.1:%d' % fport
+        get = lambda pth: json.loads(urllib.request.urlopen(LOCAL + pth).read())
+        for _ in range(50):
+            if not get('/__quotes')['status'].get('running') and not get('/__quotes')['status'].get('never'): break
+            await asyncio.sleep(0.1)
+        st = get('/__quotes')
+        check(st['status'].get('foldersFound') == 2 and st['status'].get('imported') == 2 and st['status'].get('match'), 'نقل العروض الموجودة من درايف مع مطابقة الأعداد ' + str({k: st['status'].get(k) for k in ('foldersFound', 'imported', 'match')}))
+        async def to_local(route):
+            u = route.request.url
+            resp = await route.fetch(url=LOCAL + u[len(SRV):])
+            await route.fulfill(response=resp)
+        async def wire(ctx, dev, sess):
+            await ctx.add_init_script("localStorage.setItem('merzona-device-token','%s');localStorage.setItem('merzona-session-token','%s');" % (dev, sess))
+            for pat in ['/gdrive/**', '/team/**', '/gdrive-upload-session', '/quotes', '/quotes?*', '/quotes/**']:
+                await ctx.route(SRV + pat, to_local)
+            await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+            await ctx.add_init_script(FAKE_PDF)
+        dialogs = []
+        def on_dialog(d, answer):
+            dialogs.append(d.message); asyncio.ensure_future(d.accept() if answer[0] else d.dismiss())
+        # الجهاز الأول (المالك) بيعمل عرض جديد وبيحفظه
+        ctxA = await new_ctx(p, b); await wire(ctxA, 'dev1', 's1')
+        pa = await ctxA.new_page(); errs = []; pa.on('pageerror', lambda e: errs.append(str(e)[:200]))
+        ansA = [True]; pa.on('dialog', lambda d: on_dialog(d, ansA))
+        await pa.goto(f'http://127.0.0.1:{port}/index.html'); await pa.wait_for_timeout(2500)
+        await pa.evaluate("""() => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles:true})); };
+          set('m-ref', 'M-Q-260500'); set('m-client', 'زبون السيرفر'); set('m-number', '0501234567'); }""")
+        r = await pa.evaluate("async () => { try { const x = await saveToGoogleDriveInner(); return { ok: true, s: x.summary }; } catch(e) { return { ok: false, e: String(e && e.message || e) }; } }")
+        check(r['ok'], 'الحفظ الكامل (درايف + سيرفر) ' + str(r))
+        await pa.wait_for_timeout(800)
+        st = get('/__quotes'); it = st['items'].get('M-Q-260500') or {}
+        drive = json.loads(urllib.request.urlopen(LOCAL + '/__file/M-Q-260500-data.json').read())
+        check(it.get('rev') == 1 and it['data']['fields']['m-client'] == 'زبون السيرفر', 'العرض انحفظ عالسيرفر (نسخة 1)')
+        check(drive.get('quotationSavedAt') == it['data'].get('quotationSavedAt'), 'نفس وقت الحفظ بدرايف وبالسيرفر')
+        row = next((x for x in st['list']['items'] if x['ref'] == 'M-Q-260500'), {})
+        check(row.get('url', '').startswith('https://drive.google.com/file/d/') and row.get('refFolderId') and it['data'].get('signBoxRect') is not None or row.get('url'), 'السيرفر سجّل مكان ملفات العرض على درايف ' + str(row.get('url')))
+        check(not dialogs, 'عرض جديد: ما في أي سؤال ' + str(dialogs[:1]))
+        # الجهاز التاني (sam) بيفتح نفس العرض من الداشبورد
+        ctxB = await new_ctx(p, b); await wire(ctxB, 'dev2', 's2')
+        await ctxB.add_init_script("if(!sessionStorage.getItem('mzOnce')){ sessionStorage.setItem('mzOnce','1'); localStorage.setItem('merzona-pending-load', %s); }" % json.dumps(json.dumps(drive)))
+        pb = await ctxB.new_page(); pb.on('pageerror', lambda e: errs.append(str(e)[:200]))
+        ansB = [False]; pb.on('dialog', lambda d: on_dialog(d, ansB))
+        await pb.goto(f'http://127.0.0.1:{port}/index.html'); await pb.wait_for_timeout(3500)
+        check(await pb.evaluate("document.getElementById('m-client').value") == 'زبون السيرفر', 'الجهاز التاني فتح العرض')
+        # المالك بيعدّل وبيحفظ مرة تانية (عادي - هو آخر واحد حفظ)
+        await pa.evaluate("() => { const e = document.getElementById('m-client'); e.value = 'تعديل المالك'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        r = await pa.evaluate("async () => { try { await saveToGoogleDriveInner(); return 'ok'; } catch(e) { return String(e.message); } }")
+        await pa.wait_for_timeout(500)
+        check(r == 'ok' and get('/__quotes')['items']['M-Q-260500']['rev'] == 2 and not dialogs, 'المالك حفظ تعديله التاني بدون أسئلة (نسخة 2)')
+        # sam (فاتح النسخة القديمة) بيحفظ → تحذير، بيلغي → ما بينكتب شي
+        await pb.evaluate("() => { const e = document.getElementById('m-client'); e.value = 'تعديل sam'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        r = await pb.evaluate("async () => { try { await saveToGoogleDriveInner(); return 'ok'; } catch(e) { return String(e.message); } }")
+        await pb.wait_for_timeout(300)
+        drive2 = json.loads(urllib.request.urlopen(LOCAL + '/__file/M-Q-260500-data.json').read())
+        check(r == 'تم إلغاء الحفظ' and dialogs and 'جهاز تاني' in dialogs[-1] and 'المالك' in dialogs[-1], 'جهاز تاني حفظ بعدك → تحذير باسم مين وإيمتى ' + (dialogs[-1][:70] if dialogs else ''))
+        check(drive2['fields']['m-client'] == 'تعديل المالك' and get('/__quotes')['items']['M-Q-260500']['rev'] == 2, 'إلغاء = لا درايف ولا السيرفر انكتب فوقهم')
+        # sam بيأكد → بينكتب وبيتسجّل
+        ansB[0] = True; n0 = len(dialogs)
+        r = await pb.evaluate("async () => { try { await saveToGoogleDriveInner(); return 'ok'; } catch(e) { return String(e.message); } }")
+        await pb.wait_for_timeout(600)
+        st = get('/__quotes'); fo = [a for a in st['audit'] if a.get('op') == 'force-overwrite']
+        check(r == 'ok' and len(dialogs) == n0 + 1 and st['items']['M-Q-260500']['rev'] == 3 and fo and fo[-1]['user'] == 'sam' and fo[-1]['overwrote']['savedBy'] == 'المالك', 'تأكيد الكتابة فوق → انحفظ وانسجّل مين كتب فوق مين')
+        # السيرفر مقطوع → الحفظ على درايف بيكمل متل قبل
+        urllib.request.urlopen(LOCAL + '/__quotes-off')
+        await pa.evaluate("() => { const e = document.getElementById('m-ref'); e.value = 'M-Q-260501'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        r = await pa.evaluate("async () => { try { await saveToGoogleDriveInner(); return 'ok'; } catch(e) { return String(e.message); } }")
+        urllib.request.urlopen(LOCAL + '/__quotes-on')
+        names = [f['name'] for f in json.loads(urllib.request.urlopen(LOCAL + '/__state').read())['files']]
+        check(r == 'ok' and 'M-Q-260501-data.json' in names and 'M-Q-260501' not in get('/__quotes')['items'], 'السيرفر مقطوع → الحفظ على درايف بيكمل عادي')
+        # الداشبورد: القائمة من السيرفر بطلب واحد + الحذف
+        pd = await ctxA.new_page(); pd.on('pageerror', lambda e: errs.append(str(e)[:200])); pd.on('dialog', lambda d: on_dialog(d, ansA))
+        await pd.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pd.wait_for_timeout(3000)
+        r = await pd.evaluate("""async () => { const used = await mzDashSyncQuotesFromServer(); const d = loadDiscoveredQuotations();
+          const row = DATA.find(x => x.ref === 'M-Q-260500'); return { used, client: row && row.client, old: !!d['M-Q-260001'], total: d['M-Q-260001'] && d['M-Q-260001'].total }; }""")
+        check(r['used'] and r['client'] == 'تعديل sam' and r['old'] and r['total'] == 1000, 'الداشبورد: القائمة من السيرفر (عرض جديد + عروض قديمة منقولة) ' + str(r))
+        ansA[0] = True
+        await pd.evaluate("async () => { await deleteQuotationByRef('M-Q-260500', null); }"); await pd.wait_for_timeout(500)
+        row = next((x for x in get('/__quotes')['list']['items'] if x['ref'] == 'M-Q-260500'), {})
+        check(row.get('deleted') and get('/__quotes')['items']['M-Q-260500'] is None or row.get('deleted'), 'حذف من الداشبورد = حذف ناعم عالسيرفر كمان')
+        r = await pd.evaluate("async () => { await mzDashSyncQuotesFromServer(); return !!DATA.find(x => x.ref === 'M-Q-260500'); }")
+        check(not r, 'العرض المحذوف ما بيرجع من السيرفر')
+        check(not errs, 'ما في أخطاء ' + '; '.join(errs[:2]))
+        await ctxA.close(); await ctxB.close()
+    finally:
+        proc.kill()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -463,6 +563,7 @@ async def main():
         await t_drive_proxy(p, b, port)
         await t_share_pdf(p, b, port)
         await t_cad_import(p, b, port)
+        await t_quotes_server(p, b, port)
         await b.close()
     httpd.shutdown(); shutil.rmtree(tmp, ignore_errors=True)
     bad = [n for ok, n in results if not ok]
