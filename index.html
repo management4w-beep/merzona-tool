@@ -108,7 +108,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.1';
+  var CURRENT_VERSION = '2026-11-10.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -568,8 +568,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
 <style>
+  /* 🔧 2026-11-10: خط "Tajawal" العربي صار من ملفات الموقع نفسه (fonts/) بدل Google Fonts - نفس الخط ونفس
+     الأوزان، بس ما عاد يعتمد على وصول Google Fonts (بشبكات معيّنة ما بيوصل، فالصفحة كانت ترجع لخط تاني). */
+  @font-face{ font-family:'Tajawal'; font-style:normal; font-weight:400; font-display:swap; src:url(fonts/Tajawal-Regular.ttf) format('truetype'); }
+  @font-face{ font-family:'Tajawal'; font-style:normal; font-weight:500; font-display:swap; src:url(fonts/Tajawal-Medium.ttf) format('truetype'); }
+  @font-face{ font-family:'Tajawal'; font-style:normal; font-weight:700; font-display:swap; src:url(fonts/Tajawal-Bold.ttf) format('truetype'); }
+  @font-face{ font-family:'Tajawal'; font-style:normal; font-weight:900; font-display:swap; src:url(fonts/Tajawal-Black.ttf) format('truetype'); }
   /* ---------- 🆕 2026-09-02: خط "DM Serif Text" مضمّن مباشرة (self-hosted) - نفس ملفات الخط ----------
      الرسمية يلي حمدي بعتها من مجلد الهوية البصرية تبعو (Company Brand/Font/DM_Serif_Text)، بدل ما
      نعتمد على تحميلها من Google Fonts (اللي احتمال يفشل تحميلها بشبكات معيّنة، وبترجع الصفحة تلقائيًا
@@ -1202,6 +1208,13 @@
   body.pdf-capturing .elevation-cell{ width:22px !important; max-width:22px !important; }
   body.pdf-capturing .discount-inputs{ display:none !important; }
   body.pdf-capturing .section-title.banner-title{ page-break-after: avoid; break-after: avoid; }
+  /* 🔧 2026-11-10 (عرض M-Q-260221: "السطور فايتة ببعضها" بالـPDF): html2canvas بترسم الصفحة جوا صورة SVG
+     ما بتلحق تحمّل خطوط الويب (DM Serif / Tajawal)، فبترسم بخط الجهاز البديل - وهو أعرض (خصوصًا عالموبايل) -
+     بنفس عرض وارتفاع الخانات يلي انحسبوا بالخط الأصلي، فالعناوين بتلتف لسطرين وبتركب فوق بعضها، وآخر
+     كلمة من بعض الشروط بتنقص. الحل: وقت الالتقاط بس، الصفحة نفسها بتستعمل خطوط الجهاز (نفس يلي رح
+     تنرسم فيها الصورة)، فالقياس والرسم بيطابقوا 100% على أي جهاز. الشاشة العادية ما بتتغيّر. */
+  body.pdf-capturing .page, body.pdf-capturing .page *{ font-family: Georgia, 'Times New Roman', serif !important; }
+  body.pdf-capturing .page .ar, body.pdf-capturing .page .ar *, body.pdf-capturing .page [dir="rtl"], body.pdf-capturing .page [dir="rtl"] *{ font-family: Tahoma, Arial, sans-serif !important; }
   body.pdf-capturing #qty-table tbody tr:last-child{ page-break-after: avoid; break-after: avoid; }
   body.pdf-capturing .page-break-before{ page-break-before: always; break-before: page; }
   body.pdf-capturing .page-break-avoid{ page-break-inside: avoid; break-inside: avoid; }
@@ -1814,6 +1827,7 @@
 <div class="toolbar" id="mainToolbar">
   <button class="primary" onclick="doPrint()">🖨️ Print</button>
   <button id="driveSaveBtn" class="primary" onclick="saveToGoogleDrive(event)">☁️ حفظ لجوجل درايف</button>
+  <button id="shareClientBtn" class="primary" onclick="shareQuotationToClient()" title="بيحفظ العرض وبيفتح محادثة الزبون عالواتس اب مع رابط العرض، أو بيبعت ملف الـPDF نفسه">📤 أرسل للزبون</button>
   <button id="saveDraftBtn" onclick="saveDraftToDrive(event)" title="احفظ عرض السعر (حتى لو ناقص) كمسودة بجوجل درايف - بتقدر ترجعله وتكمله لاحقًا من تبويب &quot;المسودات والتصاميم&quot; بلوحة التحكم">💾 حفظ كمسودة</button>
   <button id="quotationUndoBtn" onclick="undoQuotation()" disabled title="تراجع عن آخر تعديل بعرض السعر (البنود، الأسعار، بيانات العميل...)">↩️ تراجع</button>
   <button class="primary" onclick="openDesignerFromToolbar()">🎨 صمّم النوافذ والأبواب</button>
@@ -5093,6 +5107,7 @@ function buildBakedHtmlSnapshot(){
   document.body.setAttribute('data-prefilled', '1');
 
   let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  html = html.split('url(fonts/').join('url(https://management4w-beep.github.io/merzona-tool/fonts/'); // 🔧 2026-11-10: النسخة المحفوظة بتنفتح من برّا الموقع، فخط Tajawal لازم برابط كامل
   // 🛠️ 2026-10-04.9: دوال بديلة (مش نص) حتى الرموز الخاصة بأسماء البنود ما تتفسّر، وتهريب علامة "<" حتى وسم إغلاق السكربت ما يكسر الملف.
   const __safeBakeJson = v => JSON.stringify(v).replace(/</g, '\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
   html = html.replace(/const ITEMS_DEFAULT = \[.*\];/, () => 'const ITEMS_DEFAULT = ' + __safeBakeJson(ITEMS) + ';');
@@ -5715,6 +5730,83 @@ async function copySignLink(){
   }
 }
 window.copySignLink = copySignLink;
+
+/* 📤 2026-11-10 - طلب حمدي: "بدي طريقة اعمل شير مباشرة للزبون من السيستم للواتس اب".
+   الزر بيحفظ العرض أول (متل نسخ رابط التوقيع، حتى الزبون يشوف آخر نسخة)، وبعدين بيعطي 3 خيارات:
+   1) يفتح محادثة الزبون نفسه عالواتس اب (من رقم الموبايل بالعرض) مع رسالة جاهزة فيها رابط العرض -
+      الزبون بيفتح الرابط بيشوف العرض كامل (PDF) وبيقدر يوقّع عليه إلكترونيًا.
+   2) يبعت ملف الـPDF نفسه (عالموبايل - بتطلع قائمة المشاركة، بتختار واتساب والزبون).
+   3) ينسخ الرسالة. */
+function mzWaDigits(phone){
+  let d = String(phone || '').replace(/\D/g, '');
+  if(d.startsWith('00')) d = d.slice(2);
+  if(d.length === 10 && d.startsWith('09')) d = '963' + d.slice(1);
+  else if(d.length === 9 && d.startsWith('9')) d = '963' + d;
+  else if(d.startsWith('0')) d = '971' + d.slice(1);
+  if(!d.startsWith('971') && !d.startsWith('963') && d.length === 9) d = '971' + d;
+  return d.length >= 9 ? d : '';
+}
+function mzShareModal(opts){
+  const old = document.getElementById('mzShareModal'); if(old) old.remove();
+  const wrap = document.createElement('div');
+  wrap.id = 'mzShareModal';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;direction:rtl;font-family:Tajawal,Tahoma,sans-serif;';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:14px;max-width:440px;width:100%;padding:18px 18px 14px;box-shadow:0 12px 40px rgba(0,0,0,.25);';
+  const h = document.createElement('div'); h.style.cssText = 'font-weight:800;font-size:17px;margin-bottom:6px;'; h.textContent = '📤 أرسل العرض ' + opts.ref + ' للزبون';
+  const p = document.createElement('div'); p.style.cssText = 'font-size:13px;color:#555;white-space:pre-wrap;background:#f6f7f9;border-radius:8px;padding:8px 10px;margin:8px 0 12px;max-height:150px;overflow:auto;'; p.textContent = opts.text;
+  box.append(h, p);
+  const btn = (label, bg, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.style.cssText = 'display:block;width:100%;margin:6px 0;padding:11px 12px;border:0;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;color:#fff;background:' + bg + ';font-family:inherit;'; b.onclick = fn; box.appendChild(b); return b; };
+  if(opts.wa) btn('💬 افتح محادثة الزبون عالواتس اب (' + opts.phone + ')', '#1f9d55', () => { window.open(opts.wa, '_blank', 'noopener'); wrap.remove(); });
+  else { const n = document.createElement('div'); n.style.cssText = 'font-size:12px;color:#b45309;margin:4px 0;'; n.textContent = '⚠️ ما في رقم موبايل صحيح للزبون بالعرض - فيك تبعت الملف أو تنسخ الرسالة.'; box.appendChild(n); }
+  if(opts.file) btn('📎 أرسل ملف الـPDF (اختار واتساب والزبون)', '#2563eb', async () => {
+    try{ await navigator.share({ files: [opts.file], text: opts.text }); wrap.remove(); }
+    catch(e){ if(e && e.name !== 'AbortError') alert('تعذّرت مشاركة الملف: ' + (e.message || e)); }
+  });
+  btn('📋 انسخ الرسالة', '#475569', async () => {
+    try{ await navigator.clipboard.writeText(opts.text); wrap.remove(); alert('✅ انتسخت الرسالة'); }
+    catch(e){ prompt('انسخ الرسالة من هون:', opts.text); }
+  });
+  const c = document.createElement('button'); c.type = 'button'; c.textContent = 'إلغاء'; c.style.cssText = 'display:block;width:100%;margin-top:6px;padding:8px;border:0;background:transparent;color:#666;cursor:pointer;font-family:inherit;'; c.onclick = () => wrap.remove(); box.appendChild(c);
+  wrap.appendChild(box); wrap.addEventListener('click', (e) => { if(e.target === wrap) wrap.remove(); });
+  document.body.appendChild(wrap);
+}
+async function shareQuotationToClient(){
+  const btn = document.getElementById('shareClientBtn');
+  const origText = btn ? btn.textContent : null;
+  const ref = (document.getElementById('m-ref')?.value || '').trim().replace(/\s+/g, '');
+  if(!ref){ alert('لازم تكتب الرقم المرجعي أول.'); return; }
+  if(driveSaveInProgress){ alert('في عملية حفظ شغالة حاليًا - استنى تخلص وبعدين جرّب.'); return; }
+  try{
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ عم يحفظ آخر نسخة...'; }
+    await Promise.race([
+      runSaveToGoogleDriveInnerShared(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('الحفظ أخد أكتر من 150 ثانية - تأكد من النت وجرّب كمان مرة')), 150000))
+    ]);
+  }catch(e){
+    alert('⚠️ تعذّر حفظ العرض قبل الإرسال:\n' + (e && e.message ? e.message : e));
+    if(btn){ btn.disabled = false; btn.textContent = origText; }
+    return;
+  }
+  if(btn){ btn.disabled = false; btn.textContent = origText; }
+  const client = (document.getElementById('m-client')?.value || '').trim();
+  const phone = (document.getElementById('m-number')?.value || '').trim();
+  const url = buildSignUrl(ref, ensureSignToken(ref));
+  const text = 'مرحبا' + (client ? ' ' + client : '') + '،\n'
+    + 'تفضل عرض السعر رقم ' + ref + ' من Merzona.\n'
+    + 'فيك تشوف العرض كامل وتوقّع عليه من هالرابط:\n' + url;
+  const digits = mzWaDigits(phone);
+  let file = null;
+  try{
+    const last = window.__mzLastPdf;
+    if(last && last.blob && last.ref === ref.replace(/[^a-zA-Z0-9-؀-ۿ]+/g, '_')){
+      const f = new File([last.blob], ref + '.pdf', { type: 'application/pdf' });
+      if(navigator.canShare && navigator.canShare({ files: [f] })) file = f;
+    }
+  }catch(e){}
+  mzShareModal({ ref, text, phone, wa: digits ? 'https://wa.me/' + digits + '?text=' + encodeURIComponent(text) : '', file });
+}
+window.shareQuotationToClient = shareQuotationToClient;
 
 // 🔧 2026-08-26: زر "افتح صفحة التوقيع" - لما الزبون فاتح عرض السعر (أو الصفحة) من موبايله/
 // جهازه هو نفسه، مسح رمز QR مستحيل (ما بيقدر يمسح شاشة نفس جهازه). هالزر بيفتحلو صفحة
@@ -6940,6 +7032,7 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe, pdfLink){
 // الالتقاط - وبعدها منرجع الوضع الطبيعي فورًا. مربوطة بمراقب (MutationObserver) على كلاس
 // body.pdf-capturing تحت، فبتشتغل تلقائيًا مع أي مسار التقاط بالكود (الحفظ الرئيسي أو أي معاينة/تصحيح)
 // بدون ما نحتاج نعدّل كل مكان بيضيف/يشيل هالكلاس لحاله.
+
 function swapSelectsForPdfCapture(){
   document.querySelectorAll('.page select').forEach(sel=>{
     if(sel.dataset.mzCaptured) return;
@@ -6948,7 +7041,8 @@ function swapSelectsForPdfCapture(){
     const cs = getComputedStyle(sel);
     const span = document.createElement('span');
     span.className = 'mz-select-capture-text';
-    span.textContent = text || '—';
+    // 🔧 2026-11-10: إذا ما انختار شي ("-- Select / اختر --") ما منطبع النص التوضيحي بالـPDF
+    span.textContent = (sel.value === '' && /select|اختر/i.test(text)) ? '' : (text || '—');
     span.style.cssText = 'font-family:' + cs.fontFamily + '; font-size:' + cs.fontSize + '; font-weight:' + cs.fontWeight + '; color:#000; white-space:pre; display:inline-block; vertical-align:middle;';
     sel.insertAdjacentElement('afterend', span);
     sel.dataset.mzCaptured = '1';
@@ -7338,6 +7432,7 @@ async function saveToGoogleDriveInner(){
       }catch(e){ console.warn('[PDF Debug] تعذّر حفظ موقع صندوق توقيع الزبون بملف البيانات (مش عائق - العرض اتحفظ تمام، بس التوقيع الإلكتروني لاحقًا رح يرجع للطريقة الاحتياطية - صفحة شهادة ملحقة):', e); }
 
       pdfBlob = await worker.outputPdf('blob');
+      try{ window.__mzLastPdf = { ref: refSafe, blob: pdfBlob, at: Date.now() }; }catch(e){} // 📤 لزر "أرسل للزبون"
     } finally {
       // نرجّع .page الحقيقية لحالتها الأصلية قبل الالتقاط - نشيل الفواصل اليدوية ونرجّع الكلاس
       manualPageBreakSpacers.forEach(sp=>{ if(sp.parentNode) sp.parentNode.removeChild(sp); });
