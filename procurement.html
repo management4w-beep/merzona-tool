@@ -85,8 +85,8 @@
     var s;
     try{ s = await orig.call(window, SRV_ROOT + 'gdrive-upload-session', { method: 'POST', headers: hs, signal: o.signal, body: JSON.stringify(Object.assign({ contentType: ctype, size: blob.size }, info)) }); }
     catch(e){ if(e && e.name === 'AbortError') throw e; return viaProxy(target, o); }
-    if(s.status >= 500) return viaProxy(target, o);
-    if(!s.ok) return s;
+    if(s.status === 400 || s.status === 401 || s.status === 403) return s; // رفض حقيقي من السيرفر (صلاحية/مجلد) - متل /gdrive
+    if(!s.ok) return viaProxy(target, o); // أي شي تاني (السيرفر عم يتحدّث، 404، 5xx) ← الطريق القديم
     var url = null; try{ url = (await s.json()).url; }catch(e){}
     if(!url || !/^https:\/\/[a-z0-9.-]*googleapis\.com\//.test(url) && !/^http:\/\/127\.0\.0\.1:/.test(url)) return viaProxy(target, o);
     try{ return await orig.call(window, url, { method: 'PUT', headers: { 'Content-Type': ctype }, body: blob, signal: o.signal }); }
