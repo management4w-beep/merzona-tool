@@ -70,6 +70,8 @@
         const raw = strs(e, 3).join('') + (str(e, 1) || '');
         return { kind: 'text', x: num(e, 10, 0), y: num(e, 20, 0), h: num(e, 40, 0), text: cleanMtext(raw), layer: str(e, 8) || '', mtext: true };
       }
+      // جدول أوتوكاد (TABLE): بينحفظ كبلوك *T ومرسوم بنقطة إدراج متل INSERT
+      if (t === 'ACAD_TABLE') return { kind: 'insert', name: str(e, 2) || '', x: num(e, 10, 0), y: num(e, 20, 0), sx: 1, sy: 1, rot: 0, layer: str(e, 8) || '', attribs: [] };
       if (t === 'INSERT') {
         return { kind: 'insert', name: str(e, 2) || '', x: num(e, 10, 0), y: num(e, 20, 0), sx: num(e, 41, 1), sy: num(e, 42, 1), rot: num(e, 50, 0), layer: str(e, 8) || '', attribs: [] };
       }
@@ -250,7 +252,16 @@
       const kinds = new Set(col.map((o) => headKind(o.text)));
       if (col.length >= 2 && (kinds.has('width') || kinds.has('size'))) { col.forEach((o) => usedHead.add(o)); tables.push({ dir: 'cols', heads: col, x: h.x }); }
     }
-    const markTexts = T.filter((t) => markOf(t));
+    // أرقام اللوحات بقائمة الرسومات (W-101 مياه، A-101 معماري، S-101 إنشائي...) مش رموز شبابيك: منشيلها إذا بعمودها أرقام لوحات تانية
+    const sheetNo = /^[A-Z]{1,2}-\d{2,3}$/;
+    const markTexts = T.filter((t) => {
+      if (!markOf(t)) return false;
+      if (sheetNo.test(t.text.trim())) {
+        const col = T.filter((o) => o !== t && (o.page || 0) === (t.page || 0) && Math.abs(o.x - t.x) <= Math.max(t.h, o.h) * 1.5 && sheetNo.test(o.text.trim()) && !markOf(o));
+        if (col.length >= 2) return false;
+      }
+      return true;
+    });
     const realTables = [], noteMain = note;
     for (const tb of tables) {
       const hk = (k) => tb.heads.find((o) => headKind(o.text) === k);
@@ -433,7 +444,16 @@
     if (!r.stats.tables) r.rows.forEach((x) => { x.issues = x.issues.map((s) => (s === 'ما لقينا مقاس' ? 'ما لقينا مقاس: جدول الفتحات بهالـPDF مرسوم خطوط مش نص - اكتب المقاس أو استعمل ملف الـDWG' : s)); });
     return r;
   }
-  const api = { parseDxf, flatten, extract, extractFlat, fromPdfPages, normMark, cleanMtext, readDxf: (text, opts) => extract(parseDxf(text), opts) };
+  // ناتج dwg-read.js -> نفس شكل parseDxf (مع تنظيف تنسيقات النص)
+  function dwgToDoc(raw) {
+    const fix = (items) => items.forEach((it) => {
+      if (it.kind === 'text') it.text = it.mtext ? cleanMtext(it.raw) : cleanText(it.raw);
+      else if (it.kind === 'insert') it.attribs.forEach((a) => { a.text = cleanText(a.raw); });
+    });
+    fix(raw.entities); Object.values(raw.blocks).forEach((b) => fix(b.items));
+    return raw;
+  }
+  const api = { parseDxf, flatten, extract, extractFlat, fromPdfPages, dwgToDoc, normMark, cleanMtext, readDxf: (text, opts) => extract(parseDxf(text), opts) };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MzCad = api;
 })(typeof window !== 'undefined' ? window : this);

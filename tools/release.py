@@ -14,7 +14,7 @@ import os, re, sys, shutil, subprocess, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = ['Dashboard.html', 'index.html', 'accounting.html', 'procurement.html', 'designer.html', 'salary.html', 'sign.html',
-         'catalog.html', 'about.html', 'privacy.html', 'acct-core.js', 'cad-import.js', 'pdf-text.js', 'version.json']
+         'catalog.html', 'about.html', 'privacy.html', 'acct-core.js', 'cad-import.js', 'pdf-text.js', 'dwg-read.js', 'version.json']
 PROD_EXTRA_DIRS = ['tests', 'tools', 'fonts']
 BASE = 'https://management4w-beep.github.io/merzona-tool/'
 BANNER = ('<div id="mzBetaRibbon" style="position:fixed;left:8px;bottom:8px;z-index:2147483000;background:#c0392b;color:#fff;'
@@ -39,7 +39,7 @@ def beta_transform(name, text):
 
 def run_tests():
     print('… فحوصات المحاسبة'); sh('node', 'tests/acct-core.test.js')
-    print('… فحوصات قراءة المخططات (DXF / PDF)'); sh('node', 'tests/cad-import.test.js'); sh('node', 'tests/pdf-import.test.js')
+    print('… فحوصات قراءة المخططات (DXF / PDF / DWG)'); sh('node', 'tests/cad-import.test.js'); sh('node', 'tests/pdf-import.test.js'); sh('node', 'tests/dwg-import.test.js')
     print('… فحوصات المتصفح (المصمم، الكتالوج)')
     r = subprocess.run([sys.executable, 'tests/e2e/run_all.py'], cwd=ROOT, text=True, capture_output=True)
     print('\n'.join(l for l in r.stdout.splitlines() if 'FAIL' in l or 'نجحت' in l or 'فشل' in l))
