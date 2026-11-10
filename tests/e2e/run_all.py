@@ -374,6 +374,44 @@ async def t_share_pdf(p, b, port):
     check(not errs, 'ما في أخطاء ' + '; '.join(errs[:2]))
     await ctx.close()
 
+async def t_cad_import(p, b, port):
+    print('• الكميات من مخطط أوتوكاد')
+    import subprocess
+    dxf = subprocess.check_output(['node', '-e', r"""
+const L=[];const p=(c,v)=>L.push(String(c),String(v));
+const T=(x,y,s,h=100)=>{p(0,'TEXT');p(8,'T');p(10,x);p(20,y);p(30,0);p(40,h);p(1,s);};
+p(0,'SECTION');p(2,'HEADER');p(9,'$INSUNITS');p(70,4);p(0,'ENDSEC');p(0,'SECTION');p(2,'ENTITIES');
+T(0,-300,'TYPE');T(1500,-300,'WIDTH');T(3000,-300,'HEIGHT');T(4500,-300,'QTY');
+T(0,-600,'W1');T(1500,-600,'1200');T(3000,-600,'1500');T(4500,-600,'2');
+T(0,-900,'D1');T(1500,-900,'900');T(3000,-900,'2100');T(4500,-900,'1');
+T(9000,0,'W1',80);T(9500,0,'W1',80);T(9000,800,'D1',80);T(9500,800,'D1',80);
+p(0,'ENDSEC');p(0,'EOF');process.stdout.write(L.join('\r\n'));"""]).decode()
+    ctx = await new_ctx(p, b)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2500)
+    before = await pg.evaluate("() => document.querySelectorAll('#qty-rows tr').length")
+    await pg.click('#cadImportBtn')
+    await pg.set_input_files('#mzCadFile', files=[{'name': 'plan.dxf', 'mimeType': 'application/dxf', 'buffer': dxf.encode('utf8')}])
+    await pg.wait_for_selector('.mzCadChk', timeout=10000)
+    r = await pg.evaluate("""() => Array.from(document.querySelectorAll('#mzCadResult tbody tr')).map(tr => ({
+      chk: tr.querySelector('.mzCadChk').checked, mark: tr.children[1].textContent, w: tr.querySelector('.mzCadW').value,
+      h: tr.querySelector('.mzCadH').value, q: tr.querySelector('.mzCadQ').value, item: tr.querySelector('.mzCadItem').selectedOptions[0].textContent }))""")
+    w1 = next((x for x in r if x['mark'] == 'W1'), None); d1 = next((x for x in r if x['mark'] == 'D1'), None)
+    check(w1 and w1['chk'] and (w1['w'], w1['h'], w1['q']) == ('1200', '1500', '2'), 'W1 متطابق ومحدد ' + str(w1))
+    check(d1 and not d1['chk'] and d1['q'] == '1', 'D1 عدده مختلف (جدول 1 / مسقط 2) فمش محدد تلقائياً ' + str(d1))
+    check(w1 and 'اختار' not in w1['item'], 'تخمين الصنف للشباك ' + str(w1 and w1['item']))
+    await pg.click('#mzCadAdd'); await pg.wait_for_timeout(300)
+    rows = await pg.evaluate("""() => Array.from(document.querySelectorAll('#qty-rows tr')).filter(tr => tr.querySelector('.w-input')).map(tr => [tr.querySelector('.w-input').value, tr.querySelector('.h-input').value, tr.querySelector('.qty-input').value, tr.querySelector('.item-input').value])""")
+    check(any(x[:3] == ['1200', '1500', '2'] and x[3] for x in rows) and not any(x[0] == '900' for x in rows), 'انضاف W1 بس لجدول الكميات ' + str(rows))
+    await pg.click('#cadImportBtn')
+    await pg.set_input_files('#mzCadFile', files=[{'name': 'plan.dwg', 'mimeType': 'application/octet-stream', 'buffer': b'AC1032xxxx'}])
+    await pg.wait_for_timeout(300)
+    t = await pg.evaluate("() => document.getElementById('mzCadStatus').textContent")
+    check('Save As' in t, 'ملف DWG بيطلب Save As DXF')
+    check(not errs, 'ما في أخطاء ' + '; '.join(errs[:2]))
+    await ctx.close()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -386,6 +424,7 @@ async def main():
         await t_catalog(p, b, port)
         await t_drive_proxy(p, b, port)
         await t_share_pdf(p, b, port)
+        await t_cad_import(p, b, port)
         await b.close()
     httpd.shutdown(); shutil.rmtree(tmp, ignore_errors=True)
     bad = [n for ok, n in results if not ok]
