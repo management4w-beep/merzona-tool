@@ -146,7 +146,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-10.6';
+  var CURRENT_VERSION = '2026-11-10.7';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -5814,7 +5814,7 @@ function mzCadLoadScript(file, glob){
   if(window[glob]) return Promise.resolve(window[glob]);
   return new Promise((res, rej) => {
     const s = document.createElement('script');
-    s.src = new URL(file + '?v=2026-11-10.6', document.baseURI).href;
+    s.src = new URL(file + '?v=2026-11-10.7', document.baseURI).href;
     s.onload = () => window[glob] ? res(window[glob]) : rej(new Error('ما انقرت أداة المخططات'));
     s.onerror = () => rej(new Error('ما قدرت حمّل أداة المخططات - تأكد من النت'));
     document.head.appendChild(s);
@@ -5852,7 +5852,7 @@ function mzCadOpen(){
   const box = document.createElement('div');
   box.style.cssText = 'background:#fff;border-radius:14px;max-width:900px;width:100%;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:14px;';
   box.innerHTML = '<div style="font-weight:800;font-size:17px;margin-bottom:6px">📐 الكميات من مخطط أوتوكاد</div>'
-    + '<div style="color:#555;font-size:13px;line-height:1.7;margin-bottom:10px">اختار مخطط <b>PDF</b> أو <b>DXF</b> (متل ما وصلك عالواتس اب). السيستم بيقرا جدول الشبابيك والأبواب، وبيعدّ رموزها (W1, D1...) بالمساقط، وبيقارن. أي سطر في فرق أو مصدر واحد بس بيطلع ⚠️ وما بينضاف إلا إذا أنت أكدته.</div>'
+    + '<div style="color:#555;font-size:13px;line-height:1.7;margin-bottom:10px">اختار مخطط <b>DWG</b> أو <b>PDF</b> أو <b>DXF</b> (متل ما وصلك عالواتس اب). السيستم بيقرا جدول الشبابيك والأبواب، وبيعدّ رموزها (W1, D1...) بالمساقط، وبيقارن. أي سطر في فرق أو مصدر واحد بس بيطلع ⚠️ وما بينضاف إلا إذا أنت أكدته.</div>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">'
     + '<input type="file" id="mzCadFile">'
     + '<label>وحدة المخطط: <select id="mzCadUnit"><option value="">تلقائي</option><option value="mm">ملم</option><option value="cm">سم</option><option value="m">متر</option></select></label>'
@@ -5873,10 +5873,10 @@ function mzCadOpen(){
     try{
       const [C, file] = await Promise.all([mzCadLoadLib(), mzCadReadFile(f)]);
       if(file.kind === 'dwg'){
-        if(!window.MzDwg){ try{ await mzCadLoadScript('dwg-read.js', 'MzDwg'); }catch(e){} }
-        if(!window.MzDwg){ status('⚠️ قراءة ملفات DWG مباشرة لسا عم تنبنى. هلق فيك تختار ملف الـPDF للمخطط نفسه، أو DXF.', '#b45309'); return; }
-        status('⏳ عم إقرا ملف الـDWG...');
-        src = { kind: 'dwg', doc: await window.MzDwg.readDwg(file.bytes) };
+        const Dw = await mzCadLoadScript('dwg-read.js', 'MzDwg');
+        status('⏳ عم إقرا ملف الـDWG (' + file.version + ')...');
+        await new Promise((r) => setTimeout(r, 30));
+        src = { kind: 'dxf', doc: C.dwgToDoc(Dw.readDwg(file.bytes)) };
       } else if(file.kind === 'pdf'){
         const P = await mzCadLoadScript('pdf-text.js', 'MzPdf');
         pdfPages = await P.readPdf(file.bytes, { onProgress: (i, n) => status('⏳ عم إقرا صفحة ' + i + ' من ' + n + '...') });
@@ -5885,7 +5885,8 @@ function mzCadOpen(){
       analyze();
     }catch(e){
       const m = String(e && e.message || e);
-      if(m === 'BINDXF') status('⚠️ هاد DXF ثنائي (Binary). اعمل Save As ← DXF واختار ASCII من الخيارات، أو استعمل PDF المخطط.', '#b45309');
+      if(m === 'UNSUPPORTED_2007') status('⚠️ هاد الملف محفوظ بصيغة أوتوكاد 2007 (AC1021) - هالصيغة بالذات لسا ما بتنقرا. اطلب من المهندس يحفظه 2010 أو أحدث، أو استعمل الـPDF.', '#b45309');
+      else if(m === 'BINDXF') status('⚠️ هاد DXF ثنائي (Binary). اعمل Save As ← DXF واختار ASCII من الخيارات، أو استعمل PDF المخطط.', '#b45309');
       else status('❌ ما قدرت إقرا الملف: ' + m, '#b91c1c');
     }
   };
@@ -5893,7 +5894,7 @@ function mzCadOpen(){
     if(!src) return;
     const C = window.MzCad;
     const opts = { unit: $('mzCadUnit').value || undefined, order: $('mzCadOrder').value || undefined, countPages: countPages || undefined };
-    const r = src.kind === 'pdf' ? C.fromPdfPages(pdfPages, opts) : C.extractFlat(src.kind === 'dwg' ? src.doc : C.flatten(src.doc), src.doc.units, opts);
+    const r = src.kind === 'pdf' ? C.fromPdfPages(pdfPages, opts) : C.extractFlat(C.flatten(src.doc), src.doc.units, opts);
     rows = r.rows;
     $('mzCadResult').innerHTML = ''; $('mzCadAdd').disabled = true;
     if(r.pages && r.pages.length){
