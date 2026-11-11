@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8">
+<script src="company.js?v=2026-11-11.2"></script><!-- 🏢 إعدادات الشركة (اسم، لوغو، عنوان، بنك...) -->
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
 <script id="mz-error-reporter">
@@ -146,7 +147,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-11.1';
+  var CURRENT_VERSION = '2026-11-11.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -5249,7 +5250,15 @@ const BRANCH_CONFIG = {
     jurisdictionAr: 'الاختصاص القضائي لحل أي نزاع ناتج عن هذا العقد ينعقد لمحاكم مدينة دمشق.'
   }
 };
-function getBranchConfig(branch){ return BRANCH_CONFIG[branch] || BRANCH_CONFIG.uae; }
+// 🏢 2026-11-11: نصوص الفرع (العنوان، الضريبة، المحاكم، حرف المرجع، البنك) من إعدادات الشركة (company.js).
+// لميرزونا الإعدادات = نفس القيم فوق بالضبط. مجلدات درايف بتضل من هون.
+function getBranchConfig(branch){
+  const base = BRANCH_CONFIG[branch] || BRANCH_CONFIG.uae;
+  let p = null; try{ p = window.MzCompany && MzCompany.get().branches[branch === 'syria' ? 'syria' : 'uae']; }catch(e){}
+  if(!p) return base;
+  return Object.assign({}, base, { refPrefix: p.refPrefix || base.refPrefix, addressHtml: p.addressHtml || base.addressHtml, hasVat: !!p.hasVat,
+    jurisdictionEn: p.jurisdictionEn || base.jurisdictionEn, jurisdictionAr: p.jurisdictionAr || base.jurisdictionAr, bank: p.bank || null, enabled: p.enabled !== false });
+}
 // 🆕 2026-09-22: طلب حمدي - فرع دمشق/سوريا بدو عملة قابلة للاختيار (دولار أو ليرة سورية)، بعكس فرع
 // الإمارات يلي عملته ثابتة دايمًا درهم. القيمة الفعلية بتنقرأ من #m-currency (تظهر بس لما الفرع سوريا).
 const CURRENCY_CONFIG = {
@@ -5277,7 +5286,7 @@ function getCurrentCurrencyConfig(){ return CURRENCY_CONFIG[getCurrentCurrencyKe
 // شكل غير متوقع (رقم مرجعي يدوي قديم بدون حرف واضح مثلاً)، حتى ما ينكسر شي بعروض الأسعار القديمة.
 function getBranchFromRef(refRaw){
   const m = String(refRaw||'').trim().match(/^([A-Za-z])-?Q-/i);
-  if(m && m[1].toUpperCase()==='S') return 'syria';
+  if(m && m[1].toUpperCase()===String(getBranchConfig('syria').refPrefix || 'S').toUpperCase()) return 'syria';
   return 'uae';
 }
 function getDriveRootFolderIdForBranch(branch){ return getBranchConfig(branch).driveRootFolderId; }
@@ -5329,6 +5338,18 @@ window.applyBranchSystemStatement = applyBranchSystemStatement;
 // 🆕 2026-09-22: بند "VAT 5%" (ضريبة القيمة المضافة الإماراتية) ما بينطبق على فرع دمشق/سوريا - منخفي
 // سطره كليًا (بالتحرير والطباعة والـPDF سوا، لأنو style.display مش كلاس @media print) ومنصفّر قيمته
 // فعليًا (شوف recalcSummary) حتى ما يترتب أي ضريبة خفية على المجموع.
+// 🏢 قائمة الفروع حسب إعدادات الشركة (اسم الفرع، وإخفاء الفرع التاني إذا مش مفعّل)
+function mzApplyCompanyBranches(){
+  try{
+    const sel = document.getElementById('m-branch'); if(!sel || !window.MzCompany || MzCompany.isDefault()) return;
+    const P = MzCompany.get().branches;
+    Array.from(sel.options).forEach(o=>{ const b = P[o.value]; if(!b) return; o.textContent = (b.flag ? b.flag + ' ' : '') + b.labelEn + ' — ' + b.labelAr; o.hidden = b.enabled === false; });
+    const enabled = Array.from(sel.options).filter(o=>!o.hidden);
+    const row = sel.closest('.meta-row'); if(row && enabled.length < 2) row.style.display = 'none';
+  }catch(e){ console.warn('[إعدادات الشركة] الفروع:', e); }
+}
+document.addEventListener('DOMContentLoaded', mzApplyCompanyBranches);
+window.addEventListener('mz-company', ()=>{ mzApplyCompanyBranches(); try{ const b = getCurrentBranch(); applyBranchAddress(b); updateVatVisibility(b); updateBankInfoVisibility(b); if(typeof recalcSummary === 'function') recalcSummary(); }catch(e){} });
 function updateVatVisibility(branch){
   const row = document.getElementById('vat-row');
   if(row) row.style.display = getBranchConfig(branch).hasVat ? '' : 'none';
@@ -5338,7 +5359,7 @@ function updateVatVisibility(branch){
 // print، فبينخفي بالتحرير والطباعة والـPDF سوا بنفس الوقت.
 function updateBankInfoVisibility(branch){
   const el = document.getElementById('bank-info-section');
-  if(el) el.style.display = (branch === 'syria') ? 'none' : '';
+  if(el) el.style.display = (branch === 'syria' || !getBranchConfig(branch).bank) ? 'none' : '';
 }
 // 🆕 2026-09-22: قائمة اختيار العملة (#currency-row) بتظهر بس لفرع دمشق/سوريا - فرع الإمارات عملته
 // ثابتة درهم دايمًا فما داعي أصلًا نعرض قائمة اختيار.
@@ -5968,7 +5989,7 @@ async function shareQuotationToClient(){
   const phone = (document.getElementById('m-number')?.value || '').trim();
   const url = buildSignUrl(ref, ensureSignToken(ref));
   const text = 'مرحبا' + (client ? ' ' + client : '') + '،\n'
-    + 'تفضل عرض السعر رقم ' + ref + ' من Merzona.\n'
+    + 'تفضل عرض السعر رقم ' + ref + ' من ' + (window.MzCompany ? MzCompany.get().nameEn : 'Merzona') + '.\n'
     + 'فيك تشوف العرض كامل وتوقّع عليه من هالرابط:\n' + url;
   const digits = mzWaDigits(phone);
   let file = null;
@@ -22807,7 +22828,7 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
         txt(x, CITIES, Rr, fy, ff, '#6b7378', 'right'); txt(x, PHONE, W / 2, fy, ff, '#6b7378', 'center', 'ltr'); txt(x, String(p + 2), L, fy, ff, '#6b7378', 'left', 'ltr');
         pdf.addPage('a4'); pdf.addImage(pc[0].toDataURL('image/jpeg', .86), 'JPEG', 0, 0, 210, 297);
       }
-      pdf.save('Merzona - ' + (S.folder.name || 'Catalog') + '.pdf');
+      pdf.save((window.MzCompany ? MzCompany.get().nameEn : 'Merzona') + ' - ' + (S.folder.name || 'Catalog') + '.pdf');
     }catch(e){ alert('ما زبط تجهيز الـPDF: ' + (e && e.message || e)); }
     finally{ btn.disabled = false; btn.textContent = orig; }
   }
@@ -22859,8 +22880,9 @@ window.onShowerSideWidthChange = onShowerSideWidthChange;
     var branch = await chooseBranch(); if(!branch) return;
     var url = PUBLIC_CATALOG_URL + (S.view === 'folder' && S.folder ? '?c=' + encodeURIComponent(S.folder.id) + '&b=' + branch : '?b=' + branch);
     var name = S.view === 'folder' && S.folder ? catTitle() : 'الأعمال';
-    var msg = 'تفضل كتالوج ' + name + ' من Merzona:\n' + url;
-    try{ if(navigator.share){ await navigator.share({ title: 'Merzona — ' + name, text: 'تفضل كتالوج ' + name + ' من Merzona:', url: url }); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
+    var coN = window.MzCompany ? MzCompany.get().nameEn : 'Merzona';
+    var msg = 'تفضل كتالوج ' + name + ' من ' + coN + ':\n' + url;
+    try{ if(navigator.share){ await navigator.share({ title: coN + ' — ' + name, text: 'تفضل كتالوج ' + name + ' من ' + coN + ':', url: url }); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
     var copied = false; try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){}
     if(confirm((copied ? '✅ انسخ رابط الكتالوج:\n' : 'رابط الكتالوج:\n') + url + '\n\nبدك تبعته هلق على واتساب؟')) window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
   };
