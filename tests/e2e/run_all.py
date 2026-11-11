@@ -589,7 +589,7 @@ async def t_company(p, b, port):
         logo = 'data:image/png;base64,' + base64.b64encode(open(os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'sufiya-logo.png'), 'rb').read()).decode()
         await pd.evaluate("mzOpenCompanySettings()"); await pd.wait_for_selector('#co-save'); await pd.wait_for_timeout(300)
         await pd.evaluate("""(logo) => { const set = (id, v) => { document.getElementById(id).value = v; };
-          set('co-nameEn', 'Sufiya Glass'); set('co-nameAr', 'صوفيا جلاس'); set('co-fullNameEn', 'Sufiya Glass for Aluminum & Glass'); set('co-email', 'info@sufiyaglass.com'); set('co-website', 'www.sufiyaglass.com'); set('co-phone', '+971500000001');
+          set('co-nameEn', 'Sufiya Glass'); set('co-nameAr', 'صوفية'); set('co-fullNameEn', 'Sufiya Glass for Aluminum & Glass'); set('co-email', 'info@sufiyaglass.com'); set('co-website', 'www.sufiyaglass.com'); set('co-phone', '+971500000001');
           set('co-uae-refPrefix', 'G'); set('co-uae-address', 'Dubai, UAE  Tel: +971500000001  e: info@sufiyaglass.com'); set('co-uae-trn', '100200300400500');
           set('co-uae-bankEn', 'Emirates NBD'); set('co-uae-bankAr', 'بنك الإمارات دبي الوطني'); set('co-uae-acc', '1234567'); set('co-uae-accName', 'Sufiya Glass'); set('co-uae-iban', 'AE000000000001234567');
           set('co-uae-jurEn', 'Dubai courts shall have exclusive jurisdiction over any dispute arising from this contract.'); set('co-uae-jurAr', 'الاختصاص القضائي لمحاكم دبي.');
