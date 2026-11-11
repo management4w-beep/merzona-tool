@@ -5346,6 +5346,9 @@ function mzApplyCompanyBranches(){
     Array.from(sel.options).forEach(o=>{ const b = P[o.value]; if(!b) return; o.textContent = (b.flag ? b.flag + ' ' : '') + b.labelEn + ' — ' + b.labelAr; o.hidden = b.enabled === false; });
     const enabled = Array.from(sel.options).filter(o=>!o.hidden);
     const row = sel.closest('.meta-row'); if(row && enabled.length < 2) row.style.display = 'none';
+    // الفرع المختار موقّف (متل شركة بسوريا بس) → منختار الفرع الوحيد المفعّل
+    const curOpt = sel.options[sel.selectedIndex];
+    if(curOpt && curOpt.hidden && enabled.length){ sel.value = enabled[0].value; if(typeof onBranchChange === 'function') onBranchChange(); }
   }catch(e){ console.warn('[إعدادات الشركة] الفروع:', e); }
 }
 document.addEventListener('DOMContentLoaded', mzApplyCompanyBranches);

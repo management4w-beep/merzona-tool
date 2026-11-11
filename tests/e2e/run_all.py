@@ -621,6 +621,21 @@ async def t_company(p, b, port):
         ps = await ctx.new_page(); await ps.goto(f'http://127.0.0.1:{port}/sign.html'); await ps.wait_for_timeout(2000)
         t = await ps.evaluate("document.title + ' | ' + document.body.innerText")
         check('Sufiya Glass' in t and 'Merzona' not in t, 'صفحة توقيع الزبون باسم الشركة ' + t[:60])
+        # 5ب) شركة بسوريا بس (متل Sufiya): فرع الإمارات موقّف، العروض بالدولار/الليرة، بلا ضريبة وبلا بنك
+        cur = json.loads(urllib.request.urlopen(LOCAL + '/company/public').read())
+        prof = cur['profile']; prof['email'] = 'sufiya.art79@gmail.com'; prof['phone'] = '+963116625999'
+        prof['branches'] = {'uae': {'enabled': False}, 'syria': {'enabled': True, 'refPrefix': 'G', 'labelEn': 'Damascus, Syria', 'labelAr': 'دمشق، سوريا',
+            'addressHtml': 'Damascus, Syria &nbsp; Tel: +963116625999 &nbsp; e: sufiya.art79@gmail.com', 'bank': None}}
+        req = urllib.request.Request(LOCAL + '/company', data=json.dumps({'baseRev': cur['rev'], 'profile': prof}).encode(), method='PUT', headers={'Content-Type': 'application/json', 'x-device': 'dev1', 'x-session': 's1'})
+        check(json.loads(urllib.request.urlopen(req).read()).get('ok'), 'حفظ إعدادات شركة بسوريا بس')
+        await pg.reload(); await pg.wait_for_timeout(3000)
+        r = await pg.evaluate("""() => ({ br: document.getElementById('m-branch').value, ref: document.getElementById('m-ref').value,
+          cur: getComputedStyle(document.getElementById('currency-row')).display, vat: getComputedStyle(document.getElementById('vat-row')).display,
+          bank: getComputedStyle(document.getElementById('bank-info-section')).display, addr: document.getElementById('branch-address-text').textContent,
+          fromRef: getBranchFromRef('G-Q-260001'), row: getComputedStyle(document.getElementById('m-branch').closest('.meta-row')).display }""")
+        check(r['br'] == 'syria' and r['ref'].startswith('G-Q-') and r['fromRef'] == 'syria', 'الفرع الوحيد سوريا، والمرجع G-Q ' + str(r)[:90])
+        check(r['cur'] != 'none' and r['vat'] == 'none' and r['bank'] == 'none' and r['row'] == 'none', 'دولار/ليرة، بلا ضريبة، بلا بنك، بلا قائمة فروع')
+        check('+963116625999' in r['addr'] and 'sufiya.art79@gmail.com' in r['addr'], 'عنوان دمشق ورقمهم وإيميلهم ' + r['addr'][:70])
         # 6) الداشبورد
         await pd.reload(); await pd.wait_for_timeout(3000)
         t = await pd.evaluate("document.title + ' | ' + document.body.innerText")
