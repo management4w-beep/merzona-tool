@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <!-- saved from url=(0162)file:///C:/Users/Ard%20Jood/Downloads/%D9%84%D9%88%D8%AD%D8%A9_%D8%A5%D8%AD%D8%B5%D8%A7%D8%A6%D9%8A%D8%A7%D8%AA_%D9%85%D9%8A%D8%B1%D8%B2%D9%88%D9%86%D8%A7_41.html -->
 <html lang="ar" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<script src="company.js?v=2026-11-11.2"></script><!-- 🏢 إعدادات الشركة -->
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
 <script id="mz-error-reporter">
@@ -149,7 +150,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-11.1';
+  var CURRENT_VERSION = '2026-11-11.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1193,6 +1194,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="maintTabBtn" title="صيانة شاملة: بتختبر كل النظام بالخلفية (بنسخ معزولة) وبتصلّح المشاكل الآمنة وبتعطيك تقرير - ما بتوقف شغلك">🛠 صيانة</span>
         <span class="nav-pill" id="syncStatusPill" title="مزامنة تلقائية مع جوجل درايف لكل الفريق - اضغط للربط أول مرة أو لإعادة المحاولة">🔄 مزامنة الفريق</span>
         <span class="nav-pill" id="usersTabBtn" style="display:none;">👤 المستخدمين</span>
+        <span class="nav-pill" id="companySettingsBtn" style="display:none;" onclick="mzOpenCompanySettings()">🏢 إعدادات الشركة</span>
       </div>
       <div id="syncBanner">
         <span class="syncBannerText">👋 أول مرة بتفتح فيها الداشبورد؟ اضغط على "🔄 مزامنة الفريق" فوق حتى تربط حسابك بجوجل درايف - بعدها كل بيانات الفريق (العقود، جدول المشاريع...) بتنزامن تلقائيًا بدون أي تدخل منك.</span>
@@ -2161,7 +2163,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         txt(x, CITIES, Rr, fy, ff, '#6b7378', 'right'); txt(x, PHONE, W / 2, fy, ff, '#6b7378', 'center', 'ltr'); txt(x, String(p + 2), L, fy, ff, '#6b7378', 'left', 'ltr');
         pdf.addPage('a4'); pdf.addImage(pc[0].toDataURL('image/jpeg', .86), 'JPEG', 0, 0, 210, 297);
       }
-      pdf.save('Merzona - ' + (S.folder.name || 'Catalog') + '.pdf');
+      pdf.save((window.MzCompany ? MzCompany.get().nameEn : 'Merzona') + ' - ' + (S.folder.name || 'Catalog') + '.pdf');
     }catch(e){ alert('ما زبط تجهيز الـPDF: ' + (e && e.message || e)); }
     finally{ btn.disabled = false; btn.textContent = orig; }
   }
@@ -2206,8 +2208,9 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     var branch = await chooseBranch(); if(!branch) return;
     var url = PUBLIC_CATALOG_URL + (S.view === 'folder' && S.folder ? '?c=' + encodeURIComponent(S.folder.id) + '&b=' + branch : '?b=' + branch);
     var name = S.view === 'folder' && S.folder ? catTitle() : 'الأعمال';
-    var msg = 'تفضل كتالوج ' + name + ' من Merzona:\n' + url;
-    try{ if(navigator.share){ await navigator.share({ title: 'Merzona — ' + name, text: 'تفضل كتالوج ' + name + ' من Merzona:', url: url }); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
+    var coN = window.MzCompany ? MzCompany.get().nameEn : 'Merzona';
+    var msg = 'تفضل كتالوج ' + name + ' من ' + coN + ':\n' + url;
+    try{ if(navigator.share){ await navigator.share({ title: coN + ' — ' + name, text: 'تفضل كتالوج ' + name + ' من ' + coN + ':', url: url }); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
     var copied = false; try{ await navigator.clipboard.writeText(url); copied = true; }catch(e){}
     if(confirm((copied ? '✅ انسخ رابط الكتالوج:\n' : 'رابط الكتالوج:\n') + url + '\n\nبدك تبعته هلق على واتساب؟')) window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
   };
@@ -2810,7 +2813,8 @@ function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&'
 // (index.html): الفرع مو مخزّن كحقل منفصل لازم - دايمًا مشتق من أول حرف بالرقم المرجعي (M=إمارات،
 // S=سوريا)، حتى يضل شغال صح مع أي بيانات قديمة بدون ما نحتاج نعدلها.
 function getDashBranchFromRef(ref){
-  return (ref||'').trim().toUpperCase().startsWith('S') ? 'syria' : 'uae';
+  let pfx = 'S'; try{ pfx = (window.MzCompany && MzCompany.get().branches.syria.refPrefix) || 'S'; }catch(e){}
+  return (ref||'').trim().toUpperCase().startsWith(String(pfx).toUpperCase()) ? 'syria' : 'uae';
 }
 function getEntryBranch(d){
   return (d && d.branch) || getDashBranchFromRef(d && d.ref);
@@ -3838,6 +3842,7 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
     if(el) el.style.display = allowed(navMap[id]) ? '' : 'none';
   });
   document.querySelectorAll('.nav-row a.nav-pill').forEach(function(filesLink){ filesLink.style.display = allowed('files') ? '' : 'none'; });
+  var coBtn = document.getElementById('companySettingsBtn'); if(coBtn) coBtn.style.display = isOwner ? '' : 'none'; // 🏢 للمالك بس
   var usersBtn = document.getElementById('usersTabBtn');
   if(usersBtn) usersBtn.style.display = allowed('manageUsers') ? '' : 'none';
 
@@ -11537,6 +11542,119 @@ window.mzRunMaintenance = runMaintenance;
   VIEWS.forEach(function(p){ var v = document.getElementById(p[0]); if(v) mo.observe(v, { attributes: true, attributeFilter: ['style'] }); });
   apply();
   window.mzToggleFullFrame = function(on){ setPref(on == null ? !pref() : !!on); apply(); };
+})();
+</script>
+
+<script>
+/* =====================================================================================
+   🏢 إعدادات الشركة (2026-11-11) - طلب حمدي. للمالك بس. بتنحفظ عالسيرفر (PUT /company) وكل الصفحات بتقرا منها.
+   مهم: هالإعدادات للشركة يلي شغالة على هالنسخة. الشركة التانية إلها نسختها وسيرفرها وإعداداتها.
+   ===================================================================================== */
+(function(){
+  var SRV = 'https://merzona-server-production.up.railway.app';
+  function hdr(){ var h = { 'Content-Type': 'application/json' }; try{ h['x-device'] = localStorage.getItem('merzona-device-token') || ''; var s = localStorage.getItem('merzona-session-token'); if(s) h['x-session'] = s; }catch(e){} return h; }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
+  function htmlToText(h){ var d = document.createElement('div'); d.innerHTML = String(h || ''); return d.textContent.replace(/ /g, ' ').replace(/\s{2,}/g, '  ').trim(); }
+  function textToHtml(t){ return esc(String(t || '').trim()).replace(/ {2,}/g, ' &nbsp; '); }
+  var ERR = { 'name-required': 'لازم تكتب اسم الشركة بالإنكليزي', 'bad-logo': 'اللوغو لازم يكون صورة PNG أو JPG أو WEBP', 'logo-too-big': 'اللوغو كبير - جرب صورة أصغر', 'same-ref-prefix': 'حرف المرجع لازم يختلف بين الفرعين', 'bad-ref-prefix': 'حرف المرجع لازم يكون حرف إنكليزي كبير واحد (متل M)', 'owner-only': 'التعديل للمالك بس', 'rev-mismatch': 'حدا عدّل الإعدادات من جهاز تاني - سكّر وافتح من جديد' };
+
+  window.mzOpenCompanySettings = async function(){
+    var old = document.getElementById('mzCoModal'); if(old) old.remove();
+    var P = MzCompany.get(), rev = 0;
+    try{ var r = await fetch(SRV + '/company/public', { cache: 'no-store' }); if(r.ok){ var j = await r.json(); rev = j.rev || 0; MzCompany.set(j.profile || {}); P = MzCompany.get(); } }catch(e){}
+    var B = P.branches, logo = P.logo || '';
+    var builtIn = (document.querySelector('.header img[alt$="logo"]') || {}).src || '';
+    var w = document.createElement('div'); w.id = 'mzCoModal';
+    w.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100000;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow:auto;direction:rtl;';
+    var f = function(id, label, val, ph, dir){ return '<label style="display:block;margin:6px 0"><span style="display:block;font-size:12px;color:#555;margin-bottom:2px">' + label + '</span><input id="' + id + '" value="' + esc(val) + '" placeholder="' + esc(ph || '') + '"' + (dir ? ' dir="' + dir + '"' : '') + ' style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:7px;font-size:14px"></label>'; };
+    var br = function(k, title){
+      var b = B[k] || {}, bk = b.bank || {};
+      return '<fieldset style="border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin:10px 0"><legend style="font-weight:700;padding:0 6px">' + title + '</legend>'
+        + (k === 'syria' ? '<label style="display:block;margin:4px 0"><input type="checkbox" id="co-' + k + '-enabled"' + (b.enabled !== false ? ' checked' : '') + '> الفرع مفعّل</label>' : '')
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
+        + f('co-' + k + '-labelAr', 'اسم الفرع (عربي)', b.labelAr) + f('co-' + k + '-labelEn', 'اسم الفرع (إنكليزي)', b.labelEn, '', 'ltr')
+        + f('co-' + k + '-refPrefix', 'حرف الرقم المرجعي (متل M → M-Q-260001)', b.refPrefix, 'M', 'ltr') + f('co-' + k + '-flag', 'علم (إيموجي)', b.flag)
+        + '</div>'
+        + f('co-' + k + '-address', 'العنوان والتواصل (بيطلع أسفل عرض السعر)', htmlToText(b.addressHtml), '', 'ltr')
+        + '<label style="display:block;margin:6px 0"><input type="checkbox" id="co-' + k + '-hasVat"' + (b.hasVat ? ' checked' : '') + '> ضريبة القيمة المضافة 5%</label>'
+        + f('co-' + k + '-trn', 'الرقم الضريبي TRN', b.trn, '', 'ltr')
+        + f('co-' + k + '-jurAr', 'بند المحاكم بالعقد (عربي)', b.jurisdictionAr) + f('co-' + k + '-jurEn', 'بند المحاكم بالعقد (إنكليزي)', b.jurisdictionEn, '', 'ltr')
+        + '<div style="font-weight:600;font-size:13px;margin-top:8px">🏦 الحساب البنكي (اتركه فاضي إذا ما بدك ينطبع)</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
+        + f('co-' + k + '-bankEn', 'اسم البنك (إنكليزي)', bk.nameEn, '', 'ltr') + f('co-' + k + '-bankAr', 'اسم البنك (عربي)', bk.nameAr)
+        + f('co-' + k + '-acc', 'رقم الحساب', bk.account, '', 'ltr') + f('co-' + k + '-accName', 'اسم الحساب', bk.accountName, '', 'ltr')
+        + '</div>' + f('co-' + k + '-iban', 'IBAN', bk.iban, '', 'ltr') + '</fieldset>';
+    };
+    w.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:760px;width:100%;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-size:14px;color:#0f172a">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:800;font-size:18px">🏢 إعدادات الشركة</div><button type="button" id="co-x" style="border:0;background:none;font-size:22px;cursor:pointer">✕</button></div>'
+      + '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:9px;padding:9px 11px;margin:10px 0;font-size:13px;line-height:1.7">⚠️ هالإعدادات للشركة يلي شغالة على <b>هالنسخة</b> من السيستم (هلق: <b>' + esc(P.nameEn) + '</b>). أي تغيير هون بيطلع بعروض أسعارها وعقودها وطباعتها. <b>الشركة التانية إلها نسختها المنفصلة</b> وبتنعمل إعداداتها هونيك.</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
+      + f('co-nameAr', 'اسم الشركة (عربي)', P.nameAr) + f('co-nameEn', 'اسم الشركة (إنكليزي) *', P.nameEn, '', 'ltr')
+      + '</div>' + f('co-fullNameEn', 'الاسم الكامل (بيطلع بصفحة التوقيع)', P.fullNameEn, '', 'ltr')
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
+      + f('co-email', 'الإيميل', P.email, '', 'ltr') + f('co-website', 'الموقع', P.website, '', 'ltr')
+      + f('co-phone', 'رقم الهاتف', P.phone, '', 'ltr') + f('co-cities', 'المدن (بالكتالوج)', P.cities)
+      + '</div>'
+      + '<div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:10px 0;padding:10px;border:1px dashed #cbd5e1;border-radius:10px">'
+      + '<img id="co-logo-prev" style="max-width:220px;max-height:90px;background:#f8fafc;border-radius:6px" src="' + esc(logo || builtIn) + '">'
+      + '<div><div style="font-size:12px;color:#555;margin-bottom:4px">اللوغو (PNG بخلفية شفافة أحسن - الأفقي أنسب للترويسة)</div><input type="file" id="co-logo" accept="image/png,image/jpeg,image/webp"> '
+      + '<button type="button" id="co-logo-reset" style="font-size:12px">رجّع اللوغو الأصلي</button></div></div>'
+      + '<div style="display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 4px"><label>اللون الأساسي <input type="color" id="co-accent" value="' + esc((P.colors || {}).accent || '#0f88cd') + '"></label>'
+      + '<label>لون النص <input type="color" id="co-text" value="' + esc((P.colors || {}).text || '#333333') + '"></label></div>'
+      + br('uae', 'الفرع الأساسي') + br('syria', 'الفرع التاني')
+      + '<div id="co-msg" style="font-size:13px;margin:8px 0;min-height:18px"></div>'
+      + '<div style="display:flex;gap:8px"><button type="button" id="co-save" class="primary" style="padding:9px 16px;font-weight:700">💾 حفظ</button><button type="button" id="co-cancel" style="padding:9px 16px">إلغاء</button></div></div>';
+    document.body.appendChild(w);
+    var $ = function(id){ return w.querySelector('#' + id); };
+    var close = function(){ w.remove(); };
+    $('co-x').onclick = close; $('co-cancel').onclick = close;
+    $('co-logo-reset').onclick = function(){ logo = ''; $('co-logo-prev').src = builtIn; };
+    $('co-logo').onchange = function(){
+      var file = this.files[0]; if(!file) return;
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function(){
+        var sc = Math.min(1, 1200 / img.naturalWidth, 800 / img.naturalHeight), c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * sc); c.height = Math.round(img.naturalHeight * sc);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var d = c.toDataURL('image/png'); if(d.length > 1.4e6) d = c.toDataURL('image/webp', 0.92);
+        if(d.length > 1.45e6){ $('co-msg').textContent = '❌ اللوغو كبير كتير - جرب صورة أصغر'; return; }
+        logo = d; $('co-logo-prev').src = d; URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    };
+    $('co-save').onclick = async function(){
+      var v = function(id){ var e = $(id); return e ? String(e.value || '').trim() : ''; };
+      var branch = function(k){
+        var bank = { nameEn: v('co-' + k + '-bankEn'), nameAr: v('co-' + k + '-bankAr'), account: v('co-' + k + '-acc'), accountName: v('co-' + k + '-accName'), iban: v('co-' + k + '-iban') };
+        var o = { labelAr: v('co-' + k + '-labelAr'), labelEn: v('co-' + k + '-labelEn'), flag: v('co-' + k + '-flag'), refPrefix: v('co-' + k + '-refPrefix').toUpperCase(),
+          addressHtml: textToHtml(v('co-' + k + '-address')), hasVat: $('co-' + k + '-hasVat').checked, trn: v('co-' + k + '-trn'),
+          jurisdictionAr: v('co-' + k + '-jurAr'), jurisdictionEn: v('co-' + k + '-jurEn'),
+          bank: (bank.iban || bank.account) ? bank : null };
+        if(k === 'syria') o.enabled = $('co-syria-enabled').checked;
+        return o;
+      };
+      var prof = { nameAr: v('co-nameAr'), nameEn: v('co-nameEn'), fullNameEn: v('co-fullNameEn'), email: v('co-email'), website: v('co-website'), phone: v('co-phone'), cities: v('co-cities'),
+        logo: logo, colors: { accent: $('co-accent').value, text: $('co-text').value }, branches: { uae: branch('uae'), syria: branch('syria') } };
+      // ما منخزّن شي مطابق للافتراضي (هيك ميرزونا بتضل "افتراضي" وما بيتغيّر عندها شي)
+      var base = MzCompany._merge(MzCompany.DEFAULT, {});
+      var strip = function(o, d){ if(!o || typeof o !== 'object' || Array.isArray(o)) return o; var r = {}, any = false; Object.keys(o).forEach(function(k){ var x = o[k], y = d ? d[k] : undefined;
+        if(x && typeof x === 'object' && !Array.isArray(x) && y && typeof y === 'object'){ var sub = strip(x, y); if(sub !== undefined){ r[k] = sub; any = true; } }
+        else if(JSON.stringify(x) !== JSON.stringify(y)){ r[k] = x; any = true; } }); return any ? r : undefined; };
+      var diff = strip(prof, base) || {};
+      if(!prof.nameEn){ $('co-msg').textContent = '❌ ' + ERR['name-required']; return; }
+      if(prof.nameEn !== P.nameEn && !confirm('رح يتغيّر اسم الشركة بكل السيستم (عروض الأسعار، العقود، الطباعة، صفحة التوقيع) من "' + P.nameEn + '" لـ "' + prof.nameEn + '".\n\nمتأكد؟')) return;
+      $('co-save').disabled = true; $('co-msg').style.color = '#334155'; $('co-msg').textContent = '⏳ عم احفظ...';
+      try{
+        var r = await fetch(SRV + '/company', { method: 'PUT', headers: hdr(), body: JSON.stringify({ baseRev: rev, profile: diff }) });
+        var j = {}; try{ j = await r.json(); }catch(e){}
+        if(!r.ok){ throw new Error(ERR[j.error] || ('HTTP ' + r.status + ' ' + (j.error || ''))); }
+        try{ localStorage.setItem('mz-company-profile-v1', JSON.stringify({ profile: diff, rev: j.rev, at: Date.now() })); }catch(e){}
+        MzCompany.set(diff); MzCompany.applyAll();
+        $('co-msg').style.color = '#15803d'; $('co-msg').textContent = '✅ انحفظت. الصفحات المفتوحة بتتحدث لما تنفتح من جديد.';
+        setTimeout(close, 1500);
+      }catch(e){ $('co-msg').style.color = '#b91c1c'; $('co-msg').textContent = '❌ ما انحفظ: ' + e.message; $('co-save').disabled = false; }
+    };
+  };
 })();
 </script>
 <div id="mzBetaRibbon" style="position:fixed;left:8px;bottom:8px;z-index:2147483000;background:#c0392b;color:#fff;font:700 12px/1 sans-serif;padding:6px 10px;border-radius:12px;pointer-events:none;opacity:.9">🧪 نسخة تجريبية</div>
