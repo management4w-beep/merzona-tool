@@ -107,6 +107,10 @@ const quoteStore = qs.createQuoteStore({ dataDir: quoteDir, roots: { uae: UAE, s
 const chain = (hs) => (req, res) => { let i = 0; const nx = () => { const f = hs[i++]; if (f) f(req, res, nx); }; nx(); };
 qs.mountQuoteRoutes({ get: (p, ...h) => { exact['GET ' + p] = chain(h); }, put: (p, ...h) => { exact['PUT ' + p] = chain(h); }, post: (p, ...h) => { exact['POST ' + p] = chain(h); } }, quoteStore, { who: proxy.who });
 quoteStore.startImport('فحص');
+// إعدادات الشركة (company-store.js الحقيقي)
+const cs = require(path.join(SERVER_DIR, 'company-store.js'));
+const companyStore = cs.createCompanyStore({ dataDir: quoteDir, log: { error() {} } });
+cs.mountCompanyRoutes({ get: (p, ...h) => { exact['GET ' + p] = chain(h); }, put: (p, ...h) => { exact['PUT ' + p] = chain(h); } }, companyStore, { who: proxy.who });
 
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
