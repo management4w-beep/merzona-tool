@@ -550,6 +550,86 @@ async def t_quotes_server(p, b, port):
     finally:
         proc.kill()
 
+async def t_company(p, b, port):
+    print('• إعدادات الشركة (نسخة لشركة تانية)')
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    if not os.path.isfile(os.path.join(sdir, 'company-store.js')):
+        print('  SKIP'); return
+    import subprocess, urllib.request, base64
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_drive.js'), sdir], stdout=subprocess.PIPE, text=True)
+    try:
+        fport = int(proc.stdout.readline().split()[1]); LOCAL = 'http://127.0.0.1:%d' % fport
+        async def to_local(route):
+            resp = await route.fetch(url=LOCAL + route.request.url[len(SRV):]); await route.fulfill(response=resp)
+        errs = []
+        ctx = await new_ctx(p, b)
+        await ctx.add_init_script("localStorage.setItem('merzona-device-token','dev1');localStorage.setItem('merzona-session-token','s1');")
+        for pat in ['/gdrive/**', '/team/**', '/quotes', '/quotes?*', '/quotes/**', '/company', '/company/**']:
+            await ctx.route(SRV + pat, to_local)
+        await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+        pg = await ctx.new_page(); pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+        pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        # 1) ميرزونا: ولا شي بيتغيّر
+        await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2500)
+        r = await pg.evaluate("""() => ({ def: MzCompany.isDefault(), addr: document.getElementById('branch-address-text').textContent, bank: document.getElementById('bank-info-section').textContent,
+          vat: document.getElementById('vat-row').textContent, aux: getComputedStyle(document.documentElement).getPropertyValue('--aux1').trim(), ref: getBranchConfig(getCurrentBranch()).refPrefix })""")
+        check(r['def'] and 'Info@Merzona.com' in r['addr'] and 'Mashreq' in r['bank'] and '104252457700003' in r['vat'] and r['aux'] == '#0f88cd' and r['ref'] == 'M', 'ميرزونا: كل شي متل ما هو ' + str(r)[:120])
+        # 2) الإعدادات من الداشبورد: حفظ بدون تغيير = ولا شي بينخزن
+        pd = await ctx.new_page(); pd.on('pageerror', lambda e: errs.append(str(e)[:200])); pd.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pd.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pd.wait_for_timeout(3000)
+        await pd.evaluate("() => { window.applyMerzonaPermissions(null, true); }")
+        check(await pd.evaluate("getComputedStyle(document.getElementById('companySettingsBtn')).display") != 'none', 'زر إعدادات الشركة بيبيّن للمالك')
+        await pd.evaluate("() => { window.applyMerzonaPermissions({ quotation: true }, false); }")
+        check(await pd.evaluate("getComputedStyle(document.getElementById('companySettingsBtn')).display") == 'none', 'وما بيبيّن للموظف')
+        await pd.evaluate("mzOpenCompanySettings()"); await pd.wait_for_selector('#co-save')
+        await pd.click('#co-save'); await pd.wait_for_timeout(800)
+        pub = json.loads(urllib.request.urlopen(LOCAL + '/company/public').read())
+        check(pub['rev'] == 1 and pub['profile'] == {}, 'حفظ بدون تعديل → ميرزونا بتضل افتراضية ' + str(pub)[:80])
+        # 3) تعبئة Sufiya من الشاشة
+        logo = 'data:image/png;base64,' + base64.b64encode(open(os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'sufiya-logo.png'), 'rb').read()).decode()
+        await pd.evaluate("mzOpenCompanySettings()"); await pd.wait_for_selector('#co-save'); await pd.wait_for_timeout(300)
+        await pd.evaluate("""(logo) => { const set = (id, v) => { document.getElementById(id).value = v; };
+          set('co-nameEn', 'Sufiya Glass'); set('co-nameAr', 'صوفيا جلاس'); set('co-fullNameEn', 'Sufiya Glass for Aluminum & Glass'); set('co-email', 'info@sufiyaglass.com'); set('co-website', 'www.sufiyaglass.com'); set('co-phone', '+971500000001');
+          set('co-uae-refPrefix', 'G'); set('co-uae-address', 'Dubai, UAE  Tel: +971500000001  e: info@sufiyaglass.com'); set('co-uae-trn', '100200300400500');
+          set('co-uae-bankEn', 'Emirates NBD'); set('co-uae-bankAr', 'بنك الإمارات دبي الوطني'); set('co-uae-acc', '1234567'); set('co-uae-accName', 'Sufiya Glass'); set('co-uae-iban', 'AE000000000001234567');
+          set('co-uae-jurEn', 'Dubai courts shall have exclusive jurisdiction over any dispute arising from this contract.'); set('co-uae-jurAr', 'الاختصاص القضائي لمحاكم دبي.');
+          document.getElementById('co-syria-enabled').checked = false; set('co-accent', '#14aacc'); set('co-text', '#1d3856');
+          const img = document.getElementById('co-logo-prev'); img.src = logo; }""", logo)
+        await pd.evaluate("(logo) => { const inp = document.getElementById('co-logo'); }", logo)
+        await pd.set_input_files('#co-logo', os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'sufiya-logo.png')); await pd.wait_for_timeout(600)
+        await pd.click('#co-save'); await pd.wait_for_timeout(1200)
+        pub = json.loads(urllib.request.urlopen(LOCAL + '/company/public').read())['profile']
+        check(pub.get('nameEn') == 'Sufiya Glass' and pub['branches']['uae']['refPrefix'] == 'G' and pub['branches']['syria']['enabled'] is False and pub['logo'].startswith('data:image/') and pub['colors']['accent'] == '#14aacc', 'إعدادات Sufiya انحفظت عالسيرفر')
+        # 4) عرض السعر صار باسم Sufiya
+        await pg.reload(); await pg.wait_for_timeout(3000)
+        r = await pg.evaluate("""() => ({ addr: document.getElementById('branch-address-text').textContent, bank: document.getElementById('bank-info-section').textContent,
+          vat: document.getElementById('vat-row').textContent, aux: getComputedStyle(document.documentElement).getPropertyValue('--aux1').trim(),
+          logo: (document.getElementById('logo-clone') || {}).src || '', alt: (document.getElementById('logo-clone') || {}).alt,
+          branchRow: getComputedStyle(document.getElementById('m-branch').closest('.meta-row')).display, ref: getBranchConfig(getCurrentBranch()).refPrefix,
+          body: document.body.innerText, jur: Array.from(document.querySelectorAll('#notes-rows textarea')).map(t => t.value).join(' | ') })""")
+        check('sufiyaglass.com' in r['addr'] and 'Merzona' not in r['addr'], 'العنوان أسفل العرض ' + r['addr'][:60])
+        check('Emirates NBD' in r['bank'] and 'AE000000000001234567' in r['bank'] and 'Sufiya Glass' in r['bank'] and 'Mashreq' not in r['bank'], 'الحساب البنكي')
+        check('100200300400500' in r['vat'], 'الرقم الضريبي')
+        check(r['aux'] == '#14aacc', 'اللون الأساسي ' + r['aux'])
+        check(r['logo'].startswith('data:image/') and 'Sufiya' in r['alt'], 'اللوغو')
+        check(r['branchRow'] == 'none' and r['ref'] == 'G', 'فرع واحد (قائمة الفروع مخفية) وحرف المرجع G')
+        check('Dubai courts' in r['jur'] and 'Sharjah' not in r['jur'], 'بند المحاكم بالشروط')
+        check('Merzona' not in r['body'] and 'ميرزونا' not in r['body'], 'ولا كلمة Merzona بالصفحة')
+        msg = await pg.evaluate("() => { try { return mzShareMessageText ? mzShareMessageText('G-Q-260001', 'https://x') : ''; } catch(e) { return MzCompany.brand('تفضل عرض السعر من Merzona'); } }")
+        check('Sufiya Glass' in msg and 'Merzona' not in msg, 'رسالة الواتس اب للزبون ' + msg[:50])
+        # 5) صفحة توقيع الزبون
+        ps = await ctx.new_page(); await ps.goto(f'http://127.0.0.1:{port}/sign.html'); await ps.wait_for_timeout(2000)
+        t = await ps.evaluate("document.title + ' | ' + document.body.innerText")
+        check('Sufiya Glass' in t and 'Merzona' not in t, 'صفحة توقيع الزبون باسم الشركة ' + t[:60])
+        # 6) الداشبورد
+        await pd.reload(); await pd.wait_for_timeout(3000)
+        t = await pd.evaluate("document.title + ' | ' + document.body.innerText")
+        check('Merzona' not in t and 'ميرزونا' not in t, 'الداشبورد ما فيه اسم ميرزونا')
+        check(not errs, 'ما في أخطاء ' + '; '.join(errs[:2]))
+        await ctx.close()
+    finally:
+        proc.kill()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -564,6 +644,7 @@ async def main():
         await t_share_pdf(p, b, port)
         await t_cad_import(p, b, port)
         await t_quotes_server(p, b, port)
+        await t_company(p, b, port)
         await b.close()
     httpd.shutdown(); shutil.rmtree(tmp, ignore_errors=True)
     bad = [n for ok, n in results if not ok]
