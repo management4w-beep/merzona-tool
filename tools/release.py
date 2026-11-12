@@ -67,7 +67,8 @@ def sufiya_transform(name, text, profile):
     for a, b in S['drive'].items(): text = text.replace(a, b)
     if name.endswith('.html'):
         boot = '<script>window.MZ_COMPANY_BOOT=' + json.dumps(profile, ensure_ascii=False).replace('</', '<\\/') + ';</script>'
-        m = re.search(r'<head[^>]*>', text)
+        # بعد سطر الترميز (charset) مباشرة - لازم يضل بأول 1024 بايت
+        m = re.search(r'<meta[^>]*charset[^>]*>', text[:2000], re.I) or re.search(r'<head[^>]*>', text)
         text = text[:m.end()] + '\n' + STORAGE_SHIM + boot + text[m.end():] if m else STORAGE_SHIM + boot + text
         text = re.sub(r'<title>([^<]*)</title>', lambda t: '<title>' + t.group(1).replace('Merzona Tool', profile['nameEn']).replace('Merzona', profile['nameEn']).replace('ميرزونا', profile['nameAr']) + '</title>', text, count=1)
     return text
