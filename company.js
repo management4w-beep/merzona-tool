@@ -57,7 +57,14 @@
     return profile;
   }
   function get() {
-    if (!profile) { var c = null; try { c = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {} set(c && c.profile); }
+    if (!profile) {
+      var c = null; try { c = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+      // نسخة شركة تانية (رابطها لحاله): إعداداتها مبنية بالصفحة، فأول ظهور بيكون باسمها ولوغوها مباشرة
+      var boot = null; try { boot = root.MZ_COMPANY_BOOT || null; } catch (e) {}
+      var p = c && c.profile; if (boot && !(p && p.nameEn)) p = boot;
+      if (boot && p && !p.logo && boot.logo) p = Object.assign({}, p, { logo: boot.logo });
+      set(p);
+    }
     return profile;
   }
   function serverUrl() {

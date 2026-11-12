@@ -1,0 +1,33 @@
+{
+ "nameEn": "Sufiya Glass",
+ "nameAr": "صوفية",
+ "fullNameEn": "Sufiya Glass",
+ "taglineEn": "Art in its purest form of Glass",
+ "email": "sufiya.art79@gmail.com",
+ "website": "",
+ "phone": "+963116625999",
+ "cities": "دمشق",
+ "logo": "img/company-logo.png",
+ "colors": {
+  "accent": "#14aacc",
+  "text": "#1d3856"
+ },
+ "branches": {
+  "uae": {
+   "enabled": false
+  },
+  "syria": {
+   "enabled": true,
+   "refPrefix": "S",
+   "labelEn": "Damascus, Syria",
+   "labelAr": "دمشق، سوريا",
+   "flag": "🇸🇾",
+   "addressHtml": "Damascus, Syria &nbsp; Tel: +963116625999 &nbsp; e: sufiya.art79@gmail.com",
+   "hasVat": false,
+   "trn": "",
+   "jurisdictionEn": "Damascus courts shall have exclusive jurisdiction over any dispute arising from this contract.",
+   "jurisdictionAr": "الاختصاص القضائي لحل أي نزاع ناتج عن هذا العقد ينعقد لمحاكم مدينة دمشق.",
+   "bank": null
+  }
+ }
+}

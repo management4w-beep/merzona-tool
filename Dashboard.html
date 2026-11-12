@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- saved from url=(0162)file:///C:/Users/Ard%20Jood/Downloads/%D9%84%D9%88%D8%AD%D8%A9_%D8%A5%D8%AD%D8%B5%D8%A7%D8%A6%D9%8A%D8%A7%D8%AA_%D9%85%D9%8A%D8%B1%D8%B2%D9%88%D9%86%D8%A7_41.html -->
 <html lang="ar" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<script src="company.js?v=2026-11-11.2"></script><!-- 🏢 إعدادات الشركة -->
+<script src="company.js?v=2026-11-12.1"></script><!-- 🏢 إعدادات الشركة -->
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
 <script id="mz-error-reporter">
@@ -11556,7 +11556,7 @@ window.mzRunMaintenance = runMaintenance;
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; }); }
   function htmlToText(h){ var d = document.createElement('div'); d.innerHTML = String(h || ''); return d.textContent.replace(/ /g, ' ').replace(/\s{2,}/g, '  ').trim(); }
   function textToHtml(t){ return esc(String(t || '').trim()).replace(/ {2,}/g, ' &nbsp; '); }
-  var ERR = { 'name-required': 'لازم تكتب اسم الشركة بالإنكليزي', 'bad-logo': 'اللوغو لازم يكون صورة PNG أو JPG أو WEBP', 'logo-too-big': 'اللوغو كبير - جرب صورة أصغر', 'same-ref-prefix': 'حرف المرجع لازم يختلف بين الفرعين', 'bad-ref-prefix': 'حرف المرجع لازم يكون حرف إنكليزي كبير واحد (متل M)', 'owner-only': 'التعديل للمالك بس', 'rev-mismatch': 'حدا عدّل الإعدادات من جهاز تاني - سكّر وافتح من جديد' };
+  var ERR = { 'name-required': 'لازم تكتب اسم الشركة بالإنكليزي', 'bad-logo': 'اللوغو لازم يكون صورة PNG أو JPG أو WEBP', 'logo-too-big': 'اللوغو كبير - جرب صورة أصغر', 'same-ref-prefix': 'حرف المرجع لازم يختلف بين الفرعين', 'bad-ref-prefix': 'حرف المرجع لازم يكون حرف إنكليزي كبير واحد (متل M)', 'owner-only': 'التعديل للمالك بس', 'one-branch-required': 'لازم يضل فرع واحد مفعّل عالأقل', 'rev-mismatch': 'حدا عدّل الإعدادات من جهاز تاني - سكّر وافتح من جديد' };
 
   window.mzOpenCompanySettings = async function(){
     var old = document.getElementById('mzCoModal'); if(old) old.remove();
@@ -11570,7 +11570,8 @@ window.mzRunMaintenance = runMaintenance;
     var br = function(k, title){
       var b = B[k] || {}, bk = b.bank || {};
       return '<fieldset style="border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin:10px 0"><legend style="font-weight:700;padding:0 6px">' + title + '</legend>'
-        + (k === 'syria' ? '<label style="display:block;margin:4px 0"><input type="checkbox" id="co-' + k + '-enabled"' + (b.enabled !== false ? ' checked' : '') + '> الفرع مفعّل</label>' : '')
+        + '<label style="display:block;margin:4px 0"><input type="checkbox" id="co-' + k + '-enabled"' + (b.enabled !== false ? ' checked' : '') + '> الفرع مفعّل</label>'
+        + (k === 'uae' ? '<div style="font-size:12px;color:#64748b">عروضه بالدرهم مع ضريبة 5%</div>' : '<div style="font-size:12px;color:#64748b">عروضه بالدولار أو الليرة السورية، بدون ضريبة إماراتية</div>')
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'
         + f('co-' + k + '-labelAr', 'اسم الفرع (عربي)', b.labelAr) + f('co-' + k + '-labelEn', 'اسم الفرع (إنكليزي)', b.labelEn, '', 'ltr')
         + f('co-' + k + '-refPrefix', 'حرف الرقم المرجعي (متل M → M-Q-260001)', b.refPrefix, 'M', 'ltr') + f('co-' + k + '-flag', 'علم (إيموجي)', b.flag)
@@ -11630,7 +11631,7 @@ window.mzRunMaintenance = runMaintenance;
           addressHtml: textToHtml(v('co-' + k + '-address')), hasVat: $('co-' + k + '-hasVat').checked, trn: v('co-' + k + '-trn'),
           jurisdictionAr: v('co-' + k + '-jurAr'), jurisdictionEn: v('co-' + k + '-jurEn'),
           bank: (bank.iban || bank.account) ? bank : null };
-        if(k === 'syria') o.enabled = $('co-syria-enabled').checked;
+        o.enabled = $('co-' + k + '-enabled').checked;
         return o;
       };
       var prof = { nameAr: v('co-nameAr'), nameEn: v('co-nameEn'), fullNameEn: v('co-fullNameEn'), email: v('co-email'), website: v('co-website'), phone: v('co-phone'), cities: v('co-cities'),
@@ -11642,6 +11643,7 @@ window.mzRunMaintenance = runMaintenance;
         else if(JSON.stringify(x) !== JSON.stringify(y)){ r[k] = x; any = true; } }); return any ? r : undefined; };
       var diff = strip(prof, base) || {};
       if(!prof.nameEn){ $('co-msg').textContent = '❌ ' + ERR['name-required']; return; }
+      if(!prof.branches.uae.enabled && !prof.branches.syria.enabled){ $('co-msg').textContent = '❌ لازم يضل فرع واحد مفعّل عالأقل'; return; }
       if(prof.nameEn !== P.nameEn && !confirm('رح يتغيّر اسم الشركة بكل السيستم (عروض الأسعار، العقود، الطباعة، صفحة التوقيع) من "' + P.nameEn + '" لـ "' + prof.nameEn + '".\n\nمتأكد؟')) return;
       $('co-save').disabled = true; $('co-msg').style.color = '#334155'; $('co-msg').textContent = '⏳ عم احفظ...';
       try{
