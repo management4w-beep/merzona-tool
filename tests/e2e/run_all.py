@@ -632,7 +632,7 @@ async def t_company(p, b, port):
         r = await pg.evaluate("""() => ({ br: document.getElementById('m-branch').value, ref: document.getElementById('m-ref').value,
           cur: getComputedStyle(document.getElementById('currency-row')).display, vat: getComputedStyle(document.getElementById('vat-row')).display,
           bank: getComputedStyle(document.getElementById('bank-info-section')).display, addr: document.getElementById('branch-address-text').textContent,
-          fromRef: getBranchFromRef('G-Q-260001'), row: getComputedStyle(document.getElementById('m-branch').closest('.meta-row')).display }""")
+          fromRef: getBranchFromRef('G-Q-260001'), row: getComputedStyle(document.getElementById('m-branch').closest('.meta-row')).display })""")
         check(r['br'] == 'syria' and r['ref'].startswith('G-Q-') and r['fromRef'] == 'syria', 'الفرع الوحيد سوريا، والمرجع G-Q ' + str(r)[:90])
         check(r['cur'] != 'none' and r['vat'] == 'none' and r['bank'] == 'none' and r['row'] == 'none', 'دولار/ليرة، بلا ضريبة، بلا بنك، بلا قائمة فروع')
         check('+963116625999' in r['addr'] and 'sufiya.art79@gmail.com' in r['addr'], 'عنوان دمشق ورقمهم وإيميلهم ' + r['addr'][:70])
@@ -650,16 +650,11 @@ async def main():
     print('فحص:', SRC)
     async with async_playwright() as p:
         b = await p.chromium.launch()
-        await t_types_and_roundtrip(p, b, port)
-        await t_old_misguessed(p, b, port)
-        await t_edit_panel(p, b, port, False)
-        await t_edit_panel(p, b, port, True)
-        await t_catalog(p, b, port)
-        await t_drive_proxy(p, b, port)
-        await t_share_pdf(p, b, port)
-        await t_cad_import(p, b, port)
-        await t_quotes_server(p, b, port)
-        await t_company(p, b, port)
+        only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
+        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ())]:
+            if only and fn.__name__ not in only: continue
+            await fn(p, b, port, *args)
         await b.close()
     httpd.shutdown(); shutil.rmtree(tmp, ignore_errors=True)
     bad = [n for ok, n in results if not ok]
