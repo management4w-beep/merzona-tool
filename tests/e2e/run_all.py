@@ -685,10 +685,17 @@ async def t_sufiya_site(p, b, port, root):
             check(ls['dev'] != 'MERZONA-DEV' and ls['ses'] != 'MERZONA-SES', 'صوفية ما بتشوف جهاز/جلسة ميرزونا ' + str(ls))
             await pg.evaluate("localStorage.setItem('merzona-device-token','SUFIYA-DEV')")
             logos = await pg.evaluate("Array.from(document.images).filter(i => i.getAttribute('data-co-logo')).map(i => i.getAttribute('src').slice(0, 30))")
+            sufStamp = 'data:image/png;base64,' + base64.b64encode(open(os.path.join(ROOT, 'tools', 'sufiya', 'stamp.png'), 'rb').read()).decode()
+            check(await pg.evaluate("SETTLEMENT_STAMP_IMG") == sufStamp, 'ختم صوفية على المخالصات والتسويات')
             check(not await pg.evaluate("!!document.getElementById('mzSeedWarn')"), 'ما في تحذير القائمة القديمة تبع ميرزونا')
             check(logos and all(('company-logo' in l or l.startswith('data:image')) for l in logos), 'لوغو صوفية ' + str(logos[:3]))
         if page == 'index.html':
             r2 = await pg.evaluate("({ br: document.getElementById('m-branch').value, ref: document.getElementById('m-ref').value, vat: getComputedStyle(document.getElementById('vat-row')).display, bank: getComputedStyle(document.getElementById('bank-info-section')).display })")
+            st = await pg.evaluate("({ stamp: (document.querySelector('img[alt=\"Company stamp\"]') || {}).src || '', print: (document.querySelector('.print-logo') || {}).src || '' })")
+            sufStamp = 'data:image/png;base64,' + base64.b64encode(open(os.path.join(ROOT, 'tools', 'sufiya', 'stamp.png'), 'rb').read()).decode()
+            check(st['stamp'] == sufStamp, 'ختم صوفية على عرض السعر (مش ختم ميرزونا)')
+            check(st['print'].endswith('img/company-logo.png'), 'ترويسة الطباعة لوغو صوفية ' + st['print'][-40:])
+            await pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'sufiya-quote.png'), full_page=True)
             check(r2['br'] == 'syria' and r2['ref'].startswith('S-') and r2['vat'] == 'none' and r2['bank'] == 'none', 'عرض السعر: فرع دمشق، S، بلا ضريبة وبلا بنك ' + str(r2))
         await pg.close()
     srvreq = [u for u in reqs if u.startswith(SRV)]
