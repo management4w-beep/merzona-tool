@@ -645,6 +645,73 @@ async def t_company(p, b, port):
     finally:
         proc.kill()
 
+async def t_sufiya_site(p, b, port, root):
+    """🏢 نسخة صوفية (رابطها لحاله): ولا كلمة ميرزونا، كل الطلبات لبرنامج صوفية بالسيرفر، والتخزين مفصول."""
+    print('• نسخة صوفية (رابط لحاله)')
+    import subprocess
+    dest = os.path.join(root, 'sufiya')
+    r = subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'release.py'), 'sufiya-build', dest], capture_output=True, text=True)
+    if r.returncode != 0: check(False, 'بناء نسخة صوفية ' + r.stdout + r.stderr); return
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    seed = os.path.join(sdir, 'tenants', 'sufiya', 'company.json')
+    prof = json.load(open(seed, encoding='utf8')) if os.path.isfile(seed) else {'rev': 1, 'profile': json.load(open(os.path.join(ROOT, 'tools', 'sufiya', 'profile.json'), encoding='utf8'))}
+    MERZ = ['13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS', '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy', '13QxtnBbXx3SuOZIu8hA90TiD7T2CiMoC']
+    reqs = []; errs = []
+    ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+    # جهاز عليه ميرزونا من قبل (نفس github.io)
+    await ctx.add_init_script("if(!window.MZ_TENANT){localStorage.setItem('merzona-device-token','MERZONA-DEV');localStorage.setItem('merzona-session-token','MERZONA-SES');}")
+    async def srv(route):
+        u = route.request.url; reqs.append(u)
+        if u.split('?')[0].endswith('/t/sufiya/company/public'): return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'rev': prof['rev'], 'profile': prof['profile']}))
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else {}
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    await ctx.route('https://www.googleapis.com/**', lambda r: (reqs.append(r.request.url), asyncio.ensure_future(r.fulfill(status=401, body='{}')))[1])
+    first = []
+    for page in ['Dashboard.html', 'index.html', 'sign.html', 'catalog.html', 'salary.html', 'accounting.html', 'procurement.html']:
+        pg = await ctx.new_page(); pg.on('pageerror', lambda e, page=page: errs.append(page + ': ' + str(e)[:150])); pg.on('dialog', lambda d: asyncio.ensure_future(d.dismiss()))
+        # أول ظهور (قبل ما يرد السيرفر): لازم يكون باسم صوفية
+        await pg.add_init_script("document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){var o=[],w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),n;while((n=w.nextNode())){var e=n.parentElement;if(!e||/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(e.tagName)||!e.getClientRects().length)continue;o.push(n.nodeValue)}window.__first=document.title+' | '+o.join(' ')},50)})")
+        await pg.goto(f'http://127.0.0.1:{port}/sufiya/{page}'); await pg.wait_for_timeout(2500)
+        t = await pg.evaluate("document.title + ' | ' + document.body.innerText")
+        f = await pg.evaluate("window.__first || ''")
+        bad = [w for w in ['Merzona', 'MERZONA', 'ميرزونا', 'مرزونا'] if w in t or w in f]
+        def ctxw(x):
+            import re as _re
+            return [x[max(0, m.start() - 40):m.end() + 20].replace('\n', ' ') for m in _re.finditer('Merzona|MERZONA|ميرزونا|مرزونا', x)][:3]
+        check(not bad, page + ': ولا كلمة ميرزونا ' + (str(bad) + ' final=' + str(ctxw(t)) + ' first=' + str(ctxw(f)) if bad else ''))
+        if page == 'Dashboard.html':
+            ls = await pg.evaluate("({ dev: localStorage.getItem('merzona-device-token'), ses: localStorage.getItem('merzona-session-token'), n: localStorage.length })")
+            check(ls['dev'] != 'MERZONA-DEV' and ls['ses'] != 'MERZONA-SES', 'صوفية ما بتشوف جهاز/جلسة ميرزونا ' + str(ls))
+            await pg.evaluate("localStorage.setItem('merzona-device-token','SUFIYA-DEV')")
+            logos = await pg.evaluate("Array.from(document.images).filter(i => i.getAttribute('data-co-logo')).map(i => i.getAttribute('src').slice(0, 30))")
+            check(logos and all(('company-logo' in l or l.startswith('data:image')) for l in logos), 'لوغو صوفية ' + str(logos[:3]))
+        if page == 'index.html':
+            r2 = await pg.evaluate("({ br: document.getElementById('m-branch').value, ref: document.getElementById('m-ref').value, vat: getComputedStyle(document.getElementById('vat-row')).display, bank: getComputedStyle(document.getElementById('bank-info-section')).display })")
+            check(r2['br'] == 'syria' and r2['ref'].startswith('S-') and r2['vat'] == 'none' and r2['bank'] == 'none', 'عرض السعر: فرع دمشق، S، بلا ضريبة وبلا بنك ' + str(r2))
+        await pg.close()
+    srvreq = [u for u in reqs if u.startswith(SRV)]
+    check(srvreq and all(u.startswith(SRV + '/t/sufiya/') for u in srvreq), 'كل طلبات السيرفر لبرنامج صوفية بس ' + str([u for u in srvreq if not u.startswith(SRV + '/t/sufiya/')][:3]))
+    check(not [u for u in reqs if any(m in u for m in MERZ)], 'ولا طلب لمجلدات درايف ميرزونا')
+    # وميرزونا على نفس الموقع ما تأثرت
+    pm = await ctx.new_page(); await pm.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pm.wait_for_timeout(1500)
+    ls = await pm.evaluate("({ dev: localStorage.getItem('merzona-device-token'), suf: localStorage.getItem('sufiya:merzona-device-token') })")
+    check(ls['dev'] == 'MERZONA-DEV' and ls['suf'] == 'SUFIYA-DEV', 'جهاز ميرزونا ما تغيّر، وجهاز صوفية لحاله ' + str(ls))
+    # جهاز جديد (لسا ما انقبل): شاشة طلب الدخول كمان باسم صوفية
+    c2 = await b.new_context(viewport={"width": 1400, "height": 900})
+    async def srv2(route):
+        u = route.request.url
+        if u.split('?')[0].endswith('/t/sufiya/company/public'): return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'rev': prof['rev'], 'profile': prof['profile']}))
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps({'status': 'pending'} if '/access/' in u else {}))
+    await c2.route(SRV + '/**', srv2)
+    for page in ['Dashboard.html', 'index.html']:
+        g = await c2.new_page(); await g.goto(f'http://127.0.0.1:{port}/sufiya/{page}'); await g.wait_for_timeout(2500)
+        t = await g.evaluate("document.title + ' | ' + document.documentElement.innerText")
+        check(not any(w in t for w in ['Merzona', 'MERZONA', 'ميرزونا', 'مرزونا']), page + ' (جهاز جديد): ولا كلمة ميرزونا ' + t[:100].replace('\n', ' '))
+    await c2.close()
+    check(not errs, 'ما في أخطاء ' + '; '.join(errs[:3]))
+    await ctx.close()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -652,7 +719,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ())]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
