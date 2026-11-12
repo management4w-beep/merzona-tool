@@ -589,7 +589,7 @@ async def t_company(p, b, port):
         logo = 'data:image/png;base64,' + base64.b64encode(open(os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'sufiya-logo.png'), 'rb').read()).decode()
         await pd.evaluate("mzOpenCompanySettings()"); await pd.wait_for_selector('#co-save'); await pd.wait_for_timeout(300)
         await pd.evaluate("""(logo) => { const set = (id, v) => { document.getElementById(id).value = v; };
-          set('co-nameEn', 'Sufiya Glass'); set('co-nameAr', 'صوفية'); set('co-fullNameEn', 'Sufiya Glass for Aluminum & Glass'); set('co-email', 'info@sufiyaglass.com'); set('co-website', 'www.sufiyaglass.com'); set('co-phone', '+971500000001');
+          set('co-nameEn', 'Sufiya Glass'); set('co-nameAr', 'صوفيه'); set('co-fullNameEn', 'Sufiya Glass for Aluminum & Glass'); set('co-email', 'info@sufiyaglass.com'); set('co-website', 'www.sufiyaglass.com'); set('co-phone', '+971500000001');
           set('co-uae-refPrefix', 'G'); set('co-uae-address', 'Dubai, UAE  Tel: +971500000001  e: info@sufiyaglass.com'); set('co-uae-trn', '100200300400500');
           set('co-uae-bankEn', 'Emirates NBD'); set('co-uae-bankAr', 'بنك الإمارات دبي الوطني'); set('co-uae-acc', '1234567'); set('co-uae-accName', 'Sufiya Glass'); set('co-uae-iban', 'AE000000000001234567');
           set('co-uae-jurEn', 'Dubai courts shall have exclusive jurisdiction over any dispute arising from this contract.'); set('co-uae-jurAr', 'الاختصاص القضائي لمحاكم دبي.');
@@ -646,12 +646,12 @@ async def t_company(p, b, port):
         proc.kill()
 
 async def t_sufiya_site(p, b, port, root):
-    """🏢 نسخة صوفية (رابطها لحاله): ولا كلمة ميرزونا، كل الطلبات لبرنامج صوفية بالسيرفر، والتخزين مفصول."""
-    print('• نسخة صوفية (رابط لحاله)')
+    """🏢 نسخة صوفيه (رابطها لحاله): ولا كلمة ميرزونا، كل الطلبات لبرنامج صوفيه بالسيرفر، والتخزين مفصول."""
+    print('• نسخة صوفيه (رابط لحاله)')
     import subprocess
     dest = os.path.join(root, 'sufiya')
     r = subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'release.py'), 'sufiya-build', dest], capture_output=True, text=True)
-    if r.returncode != 0: check(False, 'بناء نسخة صوفية ' + r.stdout + r.stderr); return
+    if r.returncode != 0: check(False, 'بناء نسخة صوفيه ' + r.stdout + r.stderr); return
     sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
     seed = os.path.join(sdir, 'tenants', 'sufiya', 'company.json')
     prof = json.load(open(seed, encoding='utf8')) if os.path.isfile(seed) else {'rev': 1, 'profile': json.load(open(os.path.join(ROOT, 'tools', 'sufiya', 'profile.json'), encoding='utf8'))}
@@ -670,7 +670,7 @@ async def t_sufiya_site(p, b, port, root):
     first = []
     for page in ['Dashboard.html', 'index.html', 'sign.html', 'catalog.html', 'salary.html', 'accounting.html', 'procurement.html']:
         pg = await ctx.new_page(); pg.on('pageerror', lambda e, page=page: errs.append(page + ': ' + str(e)[:150])); pg.on('dialog', lambda d: asyncio.ensure_future(d.dismiss()))
-        # أول ظهور (قبل ما يرد السيرفر): لازم يكون باسم صوفية
+        # أول ظهور (قبل ما يرد السيرفر): لازم يكون باسم صوفيه
         await pg.add_init_script("document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){var o=[],w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),n;while((n=w.nextNode())){var e=n.parentElement;if(!e||/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(e.tagName)||!e.getClientRects().length)continue;o.push(n.nodeValue)}window.__first=document.title+' | '+o.join(' ')},50)})")
         await pg.goto(f'http://127.0.0.1:{port}/sufiya/{page}'); await pg.wait_for_timeout(2500)
         t = await pg.evaluate("document.title + ' | ' + document.body.innerText")
@@ -682,30 +682,30 @@ async def t_sufiya_site(p, b, port, root):
         check(not bad, page + ': ولا كلمة ميرزونا ' + (str(bad) + ' final=' + str(ctxw(t)) + ' first=' + str(ctxw(f)) if bad else ''))
         if page == 'Dashboard.html':
             ls = await pg.evaluate("({ dev: localStorage.getItem('merzona-device-token'), ses: localStorage.getItem('merzona-session-token'), n: localStorage.length })")
-            check(ls['dev'] != 'MERZONA-DEV' and ls['ses'] != 'MERZONA-SES', 'صوفية ما بتشوف جهاز/جلسة ميرزونا ' + str(ls))
+            check(ls['dev'] != 'MERZONA-DEV' and ls['ses'] != 'MERZONA-SES', 'صوفيه ما بتشوف جهاز/جلسة ميرزونا ' + str(ls))
             await pg.evaluate("localStorage.setItem('merzona-device-token','SUFIYA-DEV')")
             logos = await pg.evaluate("Array.from(document.images).filter(i => i.getAttribute('data-co-logo')).map(i => i.getAttribute('src').slice(0, 30))")
             sufStamp = 'data:image/png;base64,' + base64.b64encode(open(os.path.join(ROOT, 'tools', 'sufiya', 'stamp.png'), 'rb').read()).decode()
-            check(await pg.evaluate("SETTLEMENT_STAMP_IMG") == sufStamp, 'ختم صوفية على المخالصات والتسويات')
+            check(await pg.evaluate("SETTLEMENT_STAMP_IMG") == sufStamp, 'ختم صوفيه على المخالصات والتسويات')
             check(not await pg.evaluate("!!document.getElementById('mzSeedWarn')"), 'ما في تحذير القائمة القديمة تبع ميرزونا')
-            check(logos and all(('company-logo' in l or l.startswith('data:image')) for l in logos), 'لوغو صوفية ' + str(logos[:3]))
+            check(logos and all(('company-logo' in l or l.startswith('data:image')) for l in logos), 'لوغو صوفيه ' + str(logos[:3]))
         if page == 'index.html':
             r2 = await pg.evaluate("({ br: document.getElementById('m-branch').value, ref: document.getElementById('m-ref').value, vat: getComputedStyle(document.getElementById('vat-row')).display, bank: getComputedStyle(document.getElementById('bank-info-section')).display })")
             st = await pg.evaluate("({ stamp: (document.querySelector('img[alt=\"Company stamp\"]') || {}).src || '', print: (document.querySelector('.print-logo') || {}).src || '' })")
             sufStamp = 'data:image/png;base64,' + base64.b64encode(open(os.path.join(ROOT, 'tools', 'sufiya', 'stamp.png'), 'rb').read()).decode()
-            check(st['stamp'] == sufStamp, 'ختم صوفية على عرض السعر (مش ختم ميرزونا)')
-            check(st['print'].endswith('img/company-logo.png'), 'ترويسة الطباعة لوغو صوفية ' + st['print'][-40:])
+            check(st['stamp'] == sufStamp, 'ختم صوفيه على عرض السعر (مش ختم ميرزونا)')
+            check(st['print'].endswith('img/company-logo.png'), 'ترويسة الطباعة لوغو صوفيه ' + st['print'][-40:])
             await pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'sufiya-quote.png'), full_page=True)
             check(r2['br'] == 'syria' and r2['ref'].startswith('S-') and r2['vat'] == 'none' and r2['bank'] == 'none', 'عرض السعر: فرع دمشق، S، بلا ضريبة وبلا بنك ' + str(r2))
         await pg.close()
     srvreq = [u for u in reqs if u.startswith(SRV)]
-    check(srvreq and all(u.startswith(SRV + '/t/sufiya/') for u in srvreq), 'كل طلبات السيرفر لبرنامج صوفية بس ' + str([u for u in srvreq if not u.startswith(SRV + '/t/sufiya/')][:3]))
+    check(srvreq and all(u.startswith(SRV + '/t/sufiya/') for u in srvreq), 'كل طلبات السيرفر لبرنامج صوفيه بس ' + str([u for u in srvreq if not u.startswith(SRV + '/t/sufiya/')][:3]))
     check(not [u for u in reqs if any(m in u for m in MERZ)], 'ولا طلب لمجلدات درايف ميرزونا')
     # وميرزونا على نفس الموقع ما تأثرت
     pm = await ctx.new_page(); await pm.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pm.wait_for_timeout(1500)
     ls = await pm.evaluate("({ dev: localStorage.getItem('merzona-device-token'), suf: localStorage.getItem('sufiya:merzona-device-token') })")
-    check(ls['dev'] == 'MERZONA-DEV' and ls['suf'] == 'SUFIYA-DEV', 'جهاز ميرزونا ما تغيّر، وجهاز صوفية لحاله ' + str(ls))
-    # جهاز جديد (لسا ما انقبل): شاشة طلب الدخول كمان باسم صوفية
+    check(ls['dev'] == 'MERZONA-DEV' and ls['suf'] == 'SUFIYA-DEV', 'جهاز ميرزونا ما تغيّر، وجهاز صوفيه لحاله ' + str(ls))
+    # جهاز جديد (لسا ما انقبل): شاشة طلب الدخول كمان باسم صوفيه
     c2 = await b.new_context(viewport={"width": 1400, "height": 900})
     async def srv2(route):
         u = route.request.url

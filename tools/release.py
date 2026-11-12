@@ -37,9 +37,9 @@ def beta_transform(name, text):
     text = text.replace('</body>', BANNER + '\n</body>', 1) if '</body>' in text else text + BANNER
     return text
 
-# ───────── 🏢 نسخة صوفية (رابط لحاله، 2026-11-12) ─────────
+# ───────── 🏢 نسخة صوفيه (رابط لحاله، 2026-11-12) ─────────
 # طلب حمدي: "بدي يكون في رابط لحاله... يدخل مباشره على صوفيا ما يشوف ميرزونا ابدا".
-# نفس الصفحات بالضبط، بس: السيرفر = برنامج صوفية (/t/sufiya على نفس سيرفرنا)، مجلدات درايف صوفية،
+# نفس الصفحات بالضبط، بس: السيرفر = برنامج صوفيه (/t/sufiya على نفس سيرفرنا)، مجلدات درايف صوفيه،
 # اسمها ولوغوها مبنيين بالصفحة، وتخزين المتصفح مفصول (لأنو الموقعين على نفس github.io).
 SERVER = 'https://merzona-server-production.up.railway.app'
 SUFIYA = {
@@ -61,7 +61,7 @@ Object.defineProperty(S,'length',{configurable:true,get:function(){return own(th
 if(window.IDBFactory){var F=IDBFactory.prototype,o=F.open,d=F.deleteDatabase;F.open=function(n,v){return v===undefined?o.call(this,P+n):o.call(this,P+n,v)};F.deleteDatabase=function(n){return d.call(this,P+n)};}
 window.MZ_TENANT='sufiya';}catch(e){}})();</script>"""
 
-# صور ميرزونا المزروعة جوّا الصفحات (منعرفها من بصمة الصورة) ← بديل صوفية
+# صور ميرزونا المزروعة جوّا الصفحات (منعرفها من بصمة الصورة) ← بديل صوفيه
 # 2635fe75 ختم عرض السعر · fa0c9f00 ختم التسويات/المخالصات · a78697f0 لوغو ترويسة الطباعة
 MERZONA_IMAGES = {'2635fe75': 'stamp', 'fa0c9f00': 'stamp', 'a78697f0': 'logo'}
 
@@ -103,7 +103,7 @@ def build_sufiya(dest):
         if os.path.isdir(os.path.join(ROOT, d)):
             shutil.rmtree(os.path.join(dest, d), ignore_errors=True); shutil.copytree(os.path.join(ROOT, d), os.path.join(dest, d))
     img = os.path.join(dest, 'img'); shutil.rmtree(img, ignore_errors=True); os.makedirs(img)
-    # ولا صورة من ميرزونا: كل أسماء اللوغو القديمة = لوغو صوفية
+    # ولا صورة من ميرزونا: كل أسماء اللوغو القديمة = لوغو صوفيه
     for n in ['logo.png', 'logo-light.png', 'logo-light-word.png', 'company-logo.png']: shutil.copy(os.path.join(sd, 'logo.png'), os.path.join(img, n))
     for n in ['logo-mark.png', 'logo-light-mark.png']: shutil.copy(os.path.join(sd, 'logo-vertical.png'), os.path.join(img, n))
     shutil.copy(os.path.join(sd, 'icon.png'), os.path.join(img, 'catalog-icon.png'))
@@ -121,7 +121,7 @@ def run_tests():
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else ''
     if mode == 'sufiya-build':  # بناء محلي بس (للفحص): release.py sufiya-build <مجلد>
-        dest = sys.argv[2]; os.makedirs(dest, exist_ok=True); build_sufiya(dest); print('✓ انبنت نسخة صوفية:', dest); return
+        dest = sys.argv[2]; os.makedirs(dest, exist_ok=True); build_sufiya(dest); print('✓ انبنت نسخة صوفيه:', dest); return
     if mode not in ('beta', 'prod', 'sufiya'): sys.exit(__doc__)
     if sh('git', 'rev-parse', '--abbrev-ref', 'HEAD') != 'develop': sys.exit('✗ لازم تكون على فرع develop')
     if sh('git', 'status', '--porcelain'): sys.exit('✗ في تعديلات مش محفوظة (commit) على develop')
@@ -131,7 +131,7 @@ def main():
     rev = sh('git', 'rev-parse', '--short', 'HEAD')
     if mode == 'beta' or '--no-tests' not in sys.argv: run_tests()
     if mode == 'sufiya':
-        # نفس النسخة يلي نزلت لميرزونا (main) بتنزل لصوفية - بمستودعها ورابطها لحالها
+        # نفس النسخة يلي نزلت لميرزونا (main) بتنزل لصوفيه - بمستودعها ورابطها لحالها
         tmp = tempfile.mkdtemp(prefix='sufiya-release-')
         try:
             sh('git', 'clone', '-q', '--depth', '1', SUFIYA['remote'], tmp)
@@ -139,10 +139,10 @@ def main():
                 if f != '.git': (shutil.rmtree if os.path.isdir(os.path.join(tmp, f)) else os.remove)(os.path.join(tmp, f))
             build_sufiya(tmp)
             sh('git', 'add', '-A', '.', cwd=tmp)
-            if not sh('git', 'status', '--porcelain', cwd=tmp): print('ما في شي جديد لصوفية.'); return
+            if not sh('git', 'status', '--porcelain', cwd=tmp): print('ما في شي جديد لصوفيه.'); return
             sh('git', 'commit', '-q', '-m', 'release: develop@' + rev + '\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>', cwd=tmp)
             sh('git', 'push', '-q', 'origin', 'HEAD:main', cwd=tmp)
-            print('✓ نزلت صوفية:', SUFIYA['base'])
+            print('✓ نزلت صوفيه:', SUFIYA['base'])
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
         return
