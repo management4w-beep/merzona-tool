@@ -663,7 +663,7 @@ async def t_sufiya_site(p, b, port, root):
     async def srv(route):
         u = route.request.url; reqs.append(u)
         if u.split('?')[0].endswith('/t/sufiya/company/public'): return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'rev': prof['rev'], 'profile': prof['profile']}))
-        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else {}
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else ([] if '/dashboard-seed' in u else {})
         await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
     await ctx.route(SRV + '/**', srv)
     await ctx.route('https://www.googleapis.com/**', lambda r: (reqs.append(r.request.url), asyncio.ensure_future(r.fulfill(status=401, body='{}')))[1])
@@ -685,6 +685,7 @@ async def t_sufiya_site(p, b, port, root):
             check(ls['dev'] != 'MERZONA-DEV' and ls['ses'] != 'MERZONA-SES', 'صوفية ما بتشوف جهاز/جلسة ميرزونا ' + str(ls))
             await pg.evaluate("localStorage.setItem('merzona-device-token','SUFIYA-DEV')")
             logos = await pg.evaluate("Array.from(document.images).filter(i => i.getAttribute('data-co-logo')).map(i => i.getAttribute('src').slice(0, 30))")
+            check(not await pg.evaluate("!!document.getElementById('mzSeedWarn')"), 'ما في تحذير القائمة القديمة تبع ميرزونا')
             check(logos and all(('company-logo' in l or l.startswith('data:image')) for l in logos), 'لوغو صوفية ' + str(logos[:3]))
         if page == 'index.html':
             r2 = await pg.evaluate("({ br: document.getElementById('m-branch').value, ref: document.getElementById('m-ref').value, vat: getComputedStyle(document.getElementById('vat-row')).display, bank: getComputedStyle(document.getElementById('bank-info-section')).display })")
