@@ -43,8 +43,8 @@ def beta_transform(name, text):
 # اسمها ولوغوها مبنيين بالصفحة، وتخزين المتصفح مفصول (لأنو الموقعين على نفس github.io).
 SERVER = 'https://merzona-server-production.up.railway.app'
 SUFIYA = {
-    'base': os.environ.get('SUFIYA_BASE', 'https://management4w-beep.github.io/sufiya/'),
-    'remote': os.environ.get('SUFIYA_REMOTE', 'https://github.com/management4w-beep/sufiya.git'),
+    'base': os.environ.get('SUFIYA_BASE', 'https://management4w-beep.github.io/Sufiya/'),
+    'remote': os.environ.get('SUFIYA_REMOTE', 'https://github.com/management4w-beep/Sufiya.git'),
     'server': SERVER + '/t/sufiya',
     'drive': {'13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D': '1w3Oc1It95tJfdTXJyVqrMfErCBMcblj7',   # الرئيسي (فرع الإمارات بميرزونا)
               '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS': '1CYCE3CwiGDRV5itxLCxhWE-fmf-JtMmC',   # عروض الأسعار (فرع سوريا)
@@ -71,6 +71,7 @@ def sufiya_transform(name, text, profile):
         m = re.search(r'<meta[^>]*charset[^>]*>', text[:2000], re.I) or re.search(r'<head[^>]*>', text)
         text = text[:m.end()] + '\n' + STORAGE_SHIM + boot + text[m.end():] if m else STORAGE_SHIM + boot + text
         text = re.sub(r'<title>([^<]*)</title>', lambda t: '<title>' + t.group(1).replace('Merzona Tool', profile['nameEn']).replace('Merzona', profile['nameEn']).replace('ميرزونا', profile['nameAr']) + '</title>', text, count=1)
+        text = text.replace('<title>M-Q-260</title>', '<title>' + profile['branches']['syria'].get('refPrefix', 'S') + '-Q-260</title>', 1)
     return text
 
 def build_sufiya(dest):
