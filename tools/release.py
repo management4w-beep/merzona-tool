@@ -61,8 +61,25 @@ Object.defineProperty(S,'length',{configurable:true,get:function(){return own(th
 if(window.IDBFactory){var F=IDBFactory.prototype,o=F.open,d=F.deleteDatabase;F.open=function(n,v){return v===undefined?o.call(this,P+n):o.call(this,P+n,v)};F.deleteDatabase=function(n){return d.call(this,P+n)};}
 window.MZ_TENANT='sufiya';}catch(e){}})();</script>"""
 
+# صور ميرزونا المزروعة جوّا الصفحات (منعرفها من بصمة الصورة) ← بديل صوفية
+# 2635fe75 ختم عرض السعر · fa0c9f00 ختم التسويات/المخالصات · a78697f0 لوغو ترويسة الطباعة
+MERZONA_IMAGES = {'2635fe75': 'stamp', 'fa0c9f00': 'stamp', 'a78697f0': 'logo'}
+
+def _data_url(path):
+    import base64
+    return 'data:image/png;base64,' + base64.b64encode(open(path, 'rb').read()).decode()
+
+def replace_merzona_images(text, repl):
+    import hashlib
+    def sub(m):
+        k = MERZONA_IMAGES.get(hashlib.md5(m.group(2).encode()).hexdigest()[:8])
+        return repl[k] if k else m.group(0)
+    return re.sub(r'data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]{2000,})', sub, text)
+
 def sufiya_transform(name, text, profile):
     S = SUFIYA
+    sd = os.path.join(ROOT, 'tools', 'sufiya')
+    text = replace_merzona_images(text, {'stamp': _data_url(os.path.join(sd, 'stamp.png')), 'logo': 'img/company-logo.png'})
     text = text.replace(BASE, S['base']).replace(SERVER, S['server'])
     for a, b in S['drive'].items(): text = text.replace(a, b)
     if name.endswith('.html'):
