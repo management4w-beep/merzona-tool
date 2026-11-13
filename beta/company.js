@@ -178,10 +178,58 @@
     }
   }
   function fix1(s) { return brand(s); }
-  function onReady() {
-    get(); applyAll(); load();
+
+  /* 💵 شريط سعر صرف الدولار (2026-11-13) - طلب حمدي: "يكون مكتوب سعر الصرف فوق دائما ويكون ابديتيت كل يوم".
+     السعر من السيرفر (/fx/usd-syp) يلي بيجيبه من sp-today.com مرة باليوم. صفحات الزبون (التوقيع والكتالوج) ما فيها الشريط. */
+  var FX_KEY = 'mz-fx-usd-syp-v1';
+  function fxNum(n) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fxWhen(iso) {
+    try { var d = new Date(iso); return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Damascus', day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Damascus', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
   }
-  var api = { DEFAULT: DEFAULT, get: get, set: set, load: load, brand: brand, applyAll: applyAll, applyNode: applyNode, isDefault: function () { get(); return isDefault; }, _merge: merge, _replacements: replacements };
+  function fxPage() {
+    try { var p = (location.pathname.split('/').pop() || 'index.html').toLowerCase(); return !/^(sign|catalog|about|privacy)\.html$/.test(p); } catch (e) { return false; }
+  }
+  function fxRender(r) {
+    if (!r || !r.sell || typeof document === 'undefined' || !document.body) return;
+    var bar = document.getElementById('mzFxBar');
+    if (!bar) {
+      if (!document.getElementById('mzFxCss')) {
+        var st = document.createElement('style'); st.id = 'mzFxCss';
+        st.textContent = '#mzFxBar{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;justify-content:center;padding:4px 10px;font:600 12.5px/1.5 Tajawal,Cairo,system-ui,sans-serif;direction:rtl;background:#0f2336;color:#fff;text-decoration:none;position:relative;z-index:5}' +
+          '#mzFxBar b{font-variant-numeric:tabular-nums;color:#9fe0ff}#mzFxBar .o{opacity:.7;font-weight:500}#mzFxBar .up{color:#ff9b9b}#mzFxBar .dn{color:#8be0a4}@media print{#mzFxBar{display:none!important}}';
+        (document.head || document.documentElement).appendChild(st);
+      }
+      bar = document.createElement('a'); bar.id = 'mzFxBar'; bar.href = (r.source && r.source.url) || 'https://sp-today.com/currency/us-dollar'; bar.target = '_blank'; bar.rel = 'noopener';
+      bar.title = 'سعر صرف الدولار بالليرة السورية - المصدر sp-today.com (بيتحدّث كل يوم)';
+      document.body.insertBefore(bar, document.body.firstChild);
+      // بعض الصفحات إلها هامش حوالين الـ body: الشريط بيلغيه ليلزق بأعلى الشاشة وبعرضها كلها
+      try {
+        var cs = getComputedStyle(document.body), px = function (k) { return parseFloat(cs[k]) || 0; };
+        var t = px('marginTop') + px('paddingTop'), l = px('marginLeft') + px('paddingLeft'), rr = px('marginRight') + px('paddingRight');
+        bar.style.margin = (-t) + 'px ' + (-rr) + 'px ' + t + 'px ' + (-l) + 'px';
+      } catch (e) {}
+    }
+    var arrow = r.prevSell && r.prevSell !== r.sell ? (r.sell > r.prevSell ? ' <span class="up">▲</span>' : ' <span class="dn">▼</span>') : '';
+    bar.innerHTML = '💵 <span>الدولار:</span> <span>شراء <b>' + fxNum(r.buy) + '</b></span> <span>مبيع <b>' + fxNum(r.sell) + '</b>' + arrow + '</span> <span>ل.س جديدة</span>' +
+      ' <span class="o">(' + Math.round(r.sell * 100).toLocaleString('en-US') + ' قديمة)</span> <span class="o">· ' + fxWhen(r.fetchedAt || r.at) + ' · sp-today</span>';
+  }
+  function fxStart() {
+    if (!fxPage() || typeof fetch !== 'function') return;
+    try { fxRender(JSON.parse(localStorage.getItem(FX_KEY) || 'null')); } catch (e) {}
+    var pull = function () {
+      fetch(serverUrl() + '/fx/usd-syp').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        if (!j || !j.sell) return;
+        try { localStorage.setItem(FX_KEY, JSON.stringify(j)); } catch (e) {}
+        fxRender(j);
+      }).catch(function () {});
+    };
+    pull(); setInterval(pull, 30 * 60 * 1000);
+  }
+
+  function onReady() {
+    get(); applyAll(); load(); fxStart();
+  }
+  var api = { DEFAULT: DEFAULT, get: get, set: set, load: load, brand: brand, applyAll: applyAll, applyNode: applyNode, isDefault: function () { get(); return isDefault; }, _merge: merge, _replacements: replacements, _fxRender: fxRender };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else {
     root.MzCompany = api;
