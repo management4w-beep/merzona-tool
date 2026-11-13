@@ -147,7 +147,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-13.2';
+  var CURRENT_VERSION = '2026-11-13.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -10930,7 +10930,7 @@ function buildHandrailPlanSVG(it, o){
     for(let k = 0; k < d.n; k++){
       const s0 = k*(d.pw + gapMm), s1 = s0 + d.pw;
       const p0 = P(d.x0 + d.dx*s0, d.y0 + d.dy*s0), p1 = P(d.x0 + d.dx*s1, d.y0 + d.dy*s1);
-      out += '<line x1="' + p0[0].toFixed(1) + '" y1="' + p0[1].toFixed(1) + '" x2="' + p1[0].toFixed(1) + '" y2="' + p1[1].toFixed(1) + '" stroke="url(#' + gid + 'g)" stroke-width="' + (o.compact ? 5 : 6) + '" stroke-linecap="butt"/>';
+      out += '<line x1="' + p0[0].toFixed(1) + '" y1="' + p0[1].toFixed(1) + '" x2="' + p1[0].toFixed(1) + '" y2="' + p1[1].toFixed(1) + '" stroke="#2f86b5" stroke-width="' + (o.compact ? 5 : 6) + '" stroke-linecap="butt"/>';
       if(k > 0){ const t = 7; out += '<line x1="' + (p0[0]-lx*t).toFixed(1) + '" y1="' + (p0[1]-ly*t).toFixed(1) + '" x2="' + (p0[0]+lx*t).toFixed(1) + '" y2="' + (p0[1]+ly*t).toFixed(1) + '" stroke="#1d3a4f" stroke-width="1.2"/>'; }
     }
     // الطول (برّا)
@@ -12933,7 +12933,7 @@ function buildHandrailSVG(it){
         <line x1="${range.end}" y1="${segDimY-5}" x2="${range.end}" y2="${segDimY+5}" stroke="${dimColor}" stroke-width="1"/>
         ${HIT('segLen', seg.id, seg.totalLength, midX-60, segDimY+2, 120, 24)}
         <text x="${midX}" y="${segDimY+18}" fill="${dimColor}" font-size="13" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)" direction="ltr" ${HE('segLen', seg.id, seg.totalLength)}>${Math.round(seg.totalLength)} mm</text>
-        ${seg.type==='landing' ? `<text x="${midX}" y="${segDimY+31}" fill="${dimColor}" font-size="9.5" text-anchor="middle">${it.hrKind==='flat' ? 'مستقيم' : 'استراحة'}</text>` : ''}`;
+        ${seg.type==='landing' ? `<text x="${midX}" y="${segDimY+31}" fill="${dimColor}" font-size="9.5" text-anchor="middle">${hrHasPlan(it) ? 'ضلع ' + (ensureHandrailSegments(it).indexOf(seg)+1) : (it.hrKind==='flat' ? 'مستقيم' : 'استراحة')}</text>` : ''}`;
     });
   }
 
@@ -21016,7 +21016,15 @@ function renderGallery(){
       <span class="type-badge">${SHAPE_LABELS[it.shapeType] || 'شباك'}</span>`;
     const canvasDiv = document.createElement('div');
     canvasDiv.className = 'card-canvas';
-    canvasDiv.innerHTML = (hrHasPlan(it) ? '<div class="hr-plan-wrap" style="flex:0 0 100%;width:100%;box-sizing:border-box;margin-bottom:10px;background:#fff;border-radius:8px;padding:6px;">' + buildHandrailPlanSVG(it, { maxW: 520, maxH: 300 }) + '</div>' : '') + buildItemSVG(it);
+    canvasDiv.innerHTML = (hrHasPlan(it) ? '<div class="hr-plan-wrap" style="width:100%;box-sizing:border-box;margin-bottom:10px;background:#fff;border-radius:8px;padding:6px;">' + buildHandrailPlanSVG(it, { maxW: 520, maxH: 300 }) + '</div>' : '') + buildItemSVG(it);
+    // 🛠️ 2026-11-13 (حمدي: "راح تصميم السكتش... لازم يكون المسقط والسكتش مع بعض بمربع واحد"): المربع كان صف واحد
+    // (flex) فالمسقط بعرض 100% كان يعصر الواجهة لعرض صفر. هلق بالعمود: المسقط فوق والواجهة تحته بنفس المربع.
+    if(hrHasPlan(it)){ canvasDiv.style.flexDirection = 'column'; canvasDiv.style.alignItems = 'center'; }
+    if(isHandrail(it)){
+      // عالموبايل: رسمة الهاندريل (والمسقط) لازم يصغروا على عرض الشاشة - قبل كانت الواجهة بعرض ثابت وتطلع برّا البطاقة
+      canvasDiv.style.minWidth = '0'; card.style.minWidth = '0'; card.style.maxWidth = '100%';
+      canvasDiv.querySelectorAll('svg').forEach(function(sv){ sv.style.maxWidth = '100%'; sv.style.height = 'auto'; });
+    }
     const svgEl = canvasDiv.querySelector('svg:not(.hr-plan-svg)');
     if(svgEl){
       svgEl.querySelectorAll('.drag-split').forEach(r=>{
