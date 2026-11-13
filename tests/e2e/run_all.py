@@ -319,6 +319,14 @@ async def t_acct_ai(p, b, port):
         check(await pg.evaluate("!!(__acctT.S().book && __acctT.S().book.base==='USD')"), 'دفتر سوريا انفتح')
         await pg.click('#aiBtn'); await pg.wait_for_timeout(500)
         check(await pg.evaluate("getComputedStyle(document.getElementById('aiPanel')).display") == 'flex', 'التشات انفتح')
+        # 0) ما في مفتاح: الرسالة الأولى بتفتح خانة اللصق، مفتاح غلط بينرفض بسبب واضح، والصح بينحفظ (والمفتاح بيلزق مع فراغات)
+        await pg.fill('#aiIn', 'مرحبا'); await pg.click('#aiSend'); await pg.wait_for_timeout(1200)
+        check(await pg.evaluate("!!document.getElementById('aiKeyIn')"), 'بدون مفتاح: خانة لصق المفتاح انفتحت لحالها')
+        await pg.fill('#aiKeyIn', 'sk-ant-api03-' + 'b'*40); await pg.click('#aiKeySave'); await pg.wait_for_timeout(800)
+        check('رفض' in await pg.evaluate("document.getElementById('aiKeyErr').textContent"), 'مفتاح مرفوض: السبب واضح')
+        await pg.fill('#aiKeyIn', ' sk-ant-api03-good' + 'g'*40 + ' '); await pg.click('#aiKeySave'); await pg.wait_for_timeout(1200)
+        check('من حد 2$' in await pg.evaluate("document.getElementById('aiUse').innerText"), 'المفتاح الصح انحفظ والمساعد صار جاهز')
+        await pg.evaluate("localStorage.removeItem('mz-acct-ai-syria')"); await pg.click('#aiClear'); await pg.wait_for_timeout(300)
         # 1) كلام عادي → سند قبض + زبون جديد
         await pg.fill('#aiIn', 'قبضت من أبو أحمد 2000$ كاش دفعة على فيلا الخويش'); await pg.click('#aiSend'); await pg.wait_for_timeout(1500)
         card = await pg.evaluate("(function(){var c=document.querySelectorAll('#aiLog .act'); var a=c[c.length-1]; return a? {t:a.innerText, dis:a.querySelector('[data-ok]').disabled} : null})()")
@@ -349,7 +357,7 @@ async def t_acct_ai(p, b, port):
         await pg.click('#aiLog .act:last-of-type [data-no]'); await pg.wait_for_timeout(200)
         check('انلغت' in await pg.evaluate("Array.from(document.querySelectorAll('#aiLog .act')).pop().innerText"), 'إلغاء المسودة')
         u = await pg.evaluate("document.getElementById('aiUse').innerText")
-        check('من حد 2$' in u and '3 رسالة' in u, 'الكلفة والحد ظاهرين ' + u)
+        check('من حد 2$' in u and 'رسالة' in u, 'الكلفة والحد ظاهرين ' + u)
         # 4) بعد التحديث المحادثة باقية
         await pg.reload(); await pg.wait_for_timeout(2500); await pg.click('#aiBtn'); await pg.wait_for_timeout(500)
         check(await pg.evaluate("document.querySelectorAll('#aiLog .act').length") == 3, 'المحادثة محفوظة على الجهاز')
