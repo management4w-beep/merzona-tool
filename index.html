@@ -147,7 +147,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-13.1';
+  var CURRENT_VERSION = '2026-11-13.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -11126,6 +11126,7 @@ function hpeEnsureOverlay(){
     '#hpeOverlay .hpe-top b{font-size:15px;margin-left:auto}#hpeOverlay button{font-family:inherit;border:0;border-radius:8px;cursor:pointer;touch-action:manipulation}' +
     '#hpeOverlay .tb{background:rgba(255,255,255,.14);color:#fff;padding:7px 10px;font-size:13px}#hpeOverlay .tb.ok{background:#22a35a;font-weight:700}' +
     '#hpeOverlay .hpe-stage{flex:1;position:relative;min-height:160px;background:#fff;touch-action:none;overflow:hidden}#hpeOverlay .hpe-stage svg{width:100%;height:100%;display:block}' +
+    '#hpeOverlay .hpe-zoom{position:absolute;left:8px;bottom:8px;display:flex;flex-direction:column;gap:6px}#hpeOverlay .hpe-zoom button{width:40px;height:40px;background:#fff;color:#12324a;font-size:20px;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.2)}' +
     '#hpeOverlay .hpe-info{position:absolute;top:6px;right:8px;left:8px;font-size:12px;color:#455a64;pointer-events:none;text-align:center}' +
     '#hpeOverlay .hpe-bottom{background:#e9eef2;padding:8px;border-top:1px solid #cfd8dc}#hpeOverlay .tabs{display:flex;gap:6px;margin-bottom:6px}' +
     '#hpeOverlay .tabs button{flex:1;padding:8px;background:#fff;color:#12324a;font-weight:700;font-size:13px}#hpeOverlay .tabs button.on{background:#0f88cd;color:#fff}' +
@@ -11153,14 +11154,15 @@ function hpeEnsureOverlay(){
     '<button type="button" class="tb" onclick="hpeUndo()">↶ تراجع</button><button type="button" class="tb" onclick="hpeRedo()">↷ إعادة</button>' +
     '<button type="button" class="tb" onclick="hpeClear()">🗑 من جديد</button><button type="button" class="tb" onclick="hpePhoto()">📷 من صورة الدفتر</button>' +
     '<button type="button" class="tb" onclick="hpeClose(false)">✕</button><button type="button" class="tb ok" onclick="hpeClose(true)">✓ تم</button></div>' +
-    '<div class="hpe-stage" id="hpeStage"><svg id="hpeSvg" xmlns="http://www.w3.org/2000/svg" font-family="Tajawal, Cairo, Arial, sans-serif"></svg><div class="hpe-info" id="hpeInfo"></div></div>' +
+    '<div class="hpe-stage" id="hpeStage"><svg id="hpeSvg" xmlns="http://www.w3.org/2000/svg" font-family="Tajawal, Cairo, Arial, sans-serif"></svg><div class="hpe-info" id="hpeInfo"></div>' +
+    '<div class="hpe-zoom"><button type="button" onclick="hpeZoom(1.3)" title="تكبير">＋</button><button type="button" onclick="hpeZoom(1/1.3)" title="تصغير">－</button><button type="button" onclick="hpeFit()" title="ملاءمة الرسمة كلها">⤢</button></div></div>' +
     '<div class="hpe-bottom">' +
     '<div class="ai" id="hpeAi"></div>' +
     '<div class="edit" id="hpeEdit"></div>' +
     '<div class="tabs"><button type="button" id="hpeTabKeys" onclick="hpeSetMode(\'keys\')">🔢 أرقام وأسهم</button><button type="button" id="hpeTabDraw" onclick="hpeSetMode(\'draw\')">✍️ رسم بالإصبع</button></div>' +
     '<div id="hpeKeys"><div class="disp"><span id="hpeBuf">—</span><small id="hpeBufMm"></small><button type="button" class="u" onclick="hpeToggleUnit()" id="hpeUnit">سم</button></div><div class="pad">' + pad + '</div>' +
-    '<div class="hint">اكتب الطول وكبّس السهم بالاتجاه يلي رايح فيه الزجاج. "نفس الاتجاه" بيكمّل دغري. كبّس على أي خط بالرسمة لتعدّله.</div></div>' +
-    '<div id="hpeDrawHelp" class="hint" style="display:none;padding:6px 4px;">✍️ ارسم الشكل بإصبعك (خط واحد أو كذا خط ورا بعض) - بيتعدّل لحاله لزوايا 45° و90°.<br>بعدين كبّس على كل خط واكتب طوله الحقيقي. الشبكة كل مربع = 1 متر.</div>' +
+    '<div class="hint">اكتب الطول وكبّس السهم بالاتجاه يلي رايح فيه الزجاج. "نفس الاتجاه" بيكمّل دغري. كبّس على أي خط بالرسمة لتعدّله. حرّك الرسمة بإصبعك، وكبّر/صغّر بإصبعين.</div></div>' +
+    '<div id="hpeDrawHelp" class="hint" style="display:none;padding:6px 4px;">✍️ ارسم الشكل بإصبعك (خط واحد أو كذا خط ورا بعض) - بيتعدّل لحاله لزوايا 45° و90°.<br>بعدين كبّس على كل خط واكتب طوله الحقيقي. الشبكة كل مربع = 1 متر. لتحرّك الرسمة: إصبعين (أو ＋ － ⤢).</div>' +
     '<input type="file" id="hpeFile" accept="image/*" capture="environment" style="display:none" onchange="hpePhotoPicked(this)">' +
     '</div>';
   document.body.appendChild(ov);
@@ -11168,7 +11170,8 @@ function hpeEnsureOverlay(){
   st.addEventListener('pointerdown', hpePointerDown);
   st.addEventListener('pointermove', hpePointerMove);
   st.addEventListener('pointerup', hpePointerUp);
-  st.addEventListener('pointercancel', () => { hpe.drawing = null; hpeRender(); });
+  st.addEventListener('pointercancel', (e) => { hpe.ptrs.delete(e.pointerId); hpe._pinch = null; hpe._down = null; hpe.drawing = null; hpeRender(); });
+  st.addEventListener('wheel', hpeWheel, { passive: false });
   window.addEventListener('resize', () => { if(ov.style.display === 'flex'){ hpe.view = null; hpeRender(); } });
   document.addEventListener('keydown', (e) => {
     if(ov.style.display !== 'flex' || hpe.mode !== 'keys') return;
@@ -11184,7 +11187,7 @@ function hpeEnsureOverlay(){
 function openHandrailPlanEditor(){
   const it = getSelected(); if(!it || !isHandrail(it)) return;
   const ov = hpeEnsureOverlay();
-  hpe.itemId = it.id; hpe.sides = hpeFromItem(it); hpe.buf = ''; hpe.undo = []; hpe.redo = []; hpe.sel = -1; hpe.view = null; hpe.drawing = null;
+  hpe.itemId = it.id; hpe.sides = hpeFromItem(it); hpe.buf = ''; hpe.undo = []; hpe.redo = []; hpe.sel = -1; hpe.view = null; hpe.drawing = null; hpe.userView = false; hpe.ptrs.clear(); hpe._pinch = null; hpe._down = null;
   try{ hpe.unit = localStorage.getItem('mz-hpe-unit') || 'cm'; }catch(e){}
   ov.style.display = 'flex';
   hpeSetMode(hpe.sides.length ? 'keys' : (hpe.mode || 'keys'));
@@ -11266,8 +11269,13 @@ function hpeToMm(v, px, py){ return [(px - v.ox)/v.s, (v.oy - py)/v.s]; }
 function hpeFmt(mm){ return hpe.unit === 'cm' ? (Math.round(mm/10*10)/10) + '' : Math.round(mm) + ''; }
 function hpeRender(){
   const svg = document.getElementById('hpeSvg'); if(!svg) return;
-  if(!hpe.view || hpe.drawing === null && hpe.mode === 'keys') hpe.view = hpeComputeView();
-  if(!hpe.view) hpe.view = hpeComputeView();
+  if(!hpe.view) hpe.view = hpe.userView ? hpeComputeView() : hpeComputeView();
+  else if(!hpe.userView && hpe.mode === 'keys' && !hpe.drawing && !hpe._pinch) hpe.view = hpeComputeView();
+  else if(hpe.userView && !hpe.drawing && !hpe._pinch && !(hpe._down && hpe._down.panned)){
+    // إذا الضلع الجديد طلع برّا الشاشة، منرجع نلائم
+    const lp = hpePoints().slice(-1)[0], v0 = hpe.view, q = [v0.ox + lp[0]*v0.s, v0.oy - lp[1]*v0.s];
+    if(q[0] < 10 || q[1] < 10 || q[0] > v0.W - 10 || q[1] > v0.H - 10){ hpe.userView = false; hpe.view = hpeComputeView(); }
+  }
   const v = hpe.view, pts = hpePoints();
   svg.setAttribute('viewBox', '0 0 ' + v.W + ' ' + v.H);
   let g = '';
@@ -11338,20 +11346,54 @@ function hpeDeleteSide(){ if(hpe.sel < 0) return; hpePush(); hpe.sides.splice(hp
 
 // ---- الإصبع: كبسة على خط = تعديله، سحب = رسم ----
 function hpeLocal(e){ const r = document.getElementById('hpeStage').getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+// 🛠️ 2026-11-13 (حمدي: "ماعم اقدر حرك الشاشة بايدي لما عم ارسم المسقط"):
+// بوضع الأرقام: إصبع واحد بيحرّك الرسمة. بوضع الرسم: إصبع واحد بيرسم وإصبعين بيحرّكوا. إصبعين (قرصة) = تكبير/تصغير
+// بكل الأوضاع. كبسة بدون حركة = اختيار خط لتعدّله. بعد ما تحرّك/تكبّر، الرسمة بتضل مكانها لحد ما تكبس ⤢ ملاءمة.
+hpe.ptrs = new Map();
+function hpePinchState(){ const p = Array.from(hpe.ptrs.values()); return { mid: [(p[0][0]+p[1][0])/2, (p[0][1]+p[1][1])/2], dist: Math.max(10, Math.hypot(p[0][0]-p[1][0], p[0][1]-p[1][1])) }; }
 function hpePointerDown(e){
   const p = hpeLocal(e);
-  hpe._down = { p, t: Date.now(), side: e.target && e.target.getAttribute ? e.target.getAttribute('data-side') : null };
-  if(hpe.mode === 'draw'){ hpe.drawing = { pts: [p] }; try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){} }
+  hpe.ptrs.set(e.pointerId, p);
+  try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(_){}
+  if(hpe.ptrs.size === 2){
+    // إصبعين: تحريك/تكبير - منلغي أي رسم بلش
+    hpe.drawing = null; hpe._down = null;
+    hpe._pinch = Object.assign(hpePinchState(), { view: Object.assign({}, hpe.view) });
+    hpeRender(); return;
+  }
+  if(hpe.ptrs.size > 2) return;
+  hpe._down = { p, t: Date.now(), side: e.target && e.target.getAttribute ? e.target.getAttribute('data-side') : null, panned: false, view: Object.assign({}, hpe.view) };
+  if(hpe.mode === 'draw' && e.pointerType !== 'mouse' || hpe.mode === 'draw' && e.button === 0 && !e.shiftKey) hpe.drawing = { pts: [p] };
 }
 function hpePointerMove(e){
-  if(!hpe.drawing) return;
-  const p = hpeLocal(e), q = hpe.drawing.pts[hpe.drawing.pts.length-1];
-  if(Math.hypot(p[0]-q[0], p[1]-q[1]) > 2){ hpe.drawing.pts.push(p); hpeRender(); }
+  if(!hpe.ptrs.has(e.pointerId)) return;
+  const p = hpeLocal(e); hpe.ptrs.set(e.pointerId, p);
+  if(hpe._pinch && hpe.ptrs.size === 2){
+    const now = hpePinchState(), v0 = hpe._pinch.view, k = now.dist / hpe._pinch.dist;
+    const s = Math.min(1.5, Math.max(0.004, v0.s * k)), kk = s / v0.s;
+    // النقطة يلي تحت نص الإصبعين بتضل تحتهن
+    hpe.view = Object.assign({}, v0, { s, ox: now.mid[0] - (hpe._pinch.mid[0] - v0.ox)*kk, oy: now.mid[1] - (hpe._pinch.mid[1] - v0.oy)*kk });
+    hpe.userView = true; hpeRender(); return;
+  }
+  if(hpe.drawing){
+    const q = hpe.drawing.pts[hpe.drawing.pts.length-1];
+    if(Math.hypot(p[0]-q[0], p[1]-q[1]) > 2){ hpe.drawing.pts.push(p); hpeRender(); }
+    return;
+  }
+  const d = hpe._down; if(!d) return;
+  const dx = p[0]-d.p[0], dy = p[1]-d.p[1];
+  if(!d.panned && Math.hypot(dx, dy) < 8) return;
+  d.panned = true;
+  hpe.view = Object.assign({}, d.view, { ox: d.view.ox + dx, oy: d.view.oy + dy });
+  hpe.userView = true; hpeRender();
 }
 function hpePointerUp(e){
+  const had = hpe.ptrs.has(e.pointerId); hpe.ptrs.delete(e.pointerId);
+  if(hpe._pinch){ if(hpe.ptrs.size < 2) hpe._pinch = null; if(hpe.ptrs.size === 1){ const [id, q] = Array.from(hpe.ptrs.entries())[0]; hpe._down = { p: q, side: null, panned: true, view: Object.assign({}, hpe.view) }; } return; }
+  if(!had) return;
   const d = hpe._down; hpe._down = null;
   const p = hpeLocal(e);
-  const tap = d && Math.hypot(p[0]-d.p[0], p[1]-d.p[1]) < 10;
+  const tap = d && !d.panned && Math.hypot(p[0]-d.p[0], p[1]-d.p[1]) < 10;
   if(tap){
     hpe.drawing = null;
     if(d.side !== null && d.side !== undefined){ hpe.sel = Number(d.side); hpe.buf = ''; hpeRender(); setTimeout(() => { const i = document.getElementById('hpeEdLen'); if(i && hpe.mode === 'draw'){ i.focus(); i.select(); } }, 30); }
@@ -11360,6 +11402,14 @@ function hpePointerUp(e){
   }
   if(hpe.drawing){ const pts = hpe.drawing.pts; hpe.drawing = null; hpeStrokeToSides(pts); }
 }
+function hpeWheel(e){
+  e.preventDefault();
+  const p = hpeLocal(e), v = hpe.view || hpeComputeView(), k = Math.exp(-e.deltaY*0.0015);
+  const s = Math.min(1.5, Math.max(0.004, v.s*k)), kk = s/v.s;
+  hpe.view = Object.assign({}, v, { s, ox: p[0] - (p[0]-v.ox)*kk, oy: p[1] - (p[1]-v.oy)*kk }); hpe.userView = true; hpeRender();
+}
+function hpeZoom(k){ const v = hpe.view || hpeComputeView(); const c = [v.W/2, v.H/2]; const s = Math.min(1.5, Math.max(0.004, v.s*k)), kk = s/v.s; hpe.view = Object.assign({}, v, { s, ox: c[0]-(c[0]-v.ox)*kk, oy: c[1]-(c[1]-v.oy)*kk }); hpe.userView = true; hpeRender(); }
+function hpeFit(){ hpe.userView = false; hpe.view = null; hpeRender(); }
 // تبسيط الخط (Ramer–Douglas–Peucker) + تعديل الزوايا لمضاعفات 45° + تقريب الطول لـ 10 سم
 function hpeRdp(pts, eps){
   if(pts.length < 3) return pts.slice();
@@ -11451,7 +11501,7 @@ async function hpeAiSetKey(){
   const r = await hpeSrv('POST', '/ai/key', { key: k.trim() });
   hpeAiBox(r.status === 200 ? '✅ انحفظ المفتاح. جرّب الصورة كمان مرة. <button type="button" onclick="hpePhoto()">📷 صوّر</button>' : '⚠️ المفتاح ما انقبل (' + escAttr((r.j && r.j.error) || r.status) + ').');
 }
-['openHandrailPlanEditor','hpeClose','hpeSetMode','hpeToggleUnit','hpeKey','hpeArrow','hpeUndo','hpeRedo','hpeClear','hpeEditSide','hpeSplitSide','hpeDeleteSide','hpePhoto','hpePhotoPicked','hpeUseAi','hpeAiSetKey','hpeAiBox','hpeRender'].forEach(n => { window[n] = eval(n); });
+['openHandrailPlanEditor','hpeClose','hpeSetMode','hpeToggleUnit','hpeKey','hpeArrow','hpeUndo','hpeRedo','hpeClear','hpeEditSide','hpeSplitSide','hpeDeleteSide','hpePhoto','hpePhotoPicked','hpeUseAi','hpeAiSetKey','hpeAiBox','hpeRender','hpeZoom','hpeFit'].forEach(n => { window[n] = eval(n); });
 window.hpe = hpe;
 
 function onShowerSidePanelToggle(side){

@@ -234,6 +234,23 @@ async def t_handrail_draw(p, b, port, mobile):
     await pg.click('#hpeKeys .pad button:text-is("↶")') if False else None
     dbg = await pg.evaluate("hpe.undo.map(function(u){return JSON.parse(u).map(function(s){return s.n}).join(',')})")
     await pg.evaluate("hpeUndo()"); check(await pg.evaluate("hpe.sides[0].n") == 6, 'تراجع ' + str(dbg)); await pg.evaluate("hpeRedo()")
+    # تحريك الرسمة بإصبع واحد (وضع الأرقام) + قرصة إصبعين (تكبير) + ملاءمة
+    v0 = await pg.evaluate("[hpe.view.ox, hpe.view.oy, hpe.view.s]")
+    st0 = await pg.evaluate("(function(){var r=document.getElementById('hpeStage').getBoundingClientRect(); return [r.left,r.top,r.width,r.height]})()")
+    await pg.mouse.move(st0[0] + st0[2]*0.3, st0[1] + st0[3]*0.85); await pg.mouse.down()
+    for i in range(1, 11): await pg.mouse.move(st0[0] + st0[2]*0.3 + i*8, st0[1] + st0[3]*0.85 - i*4)
+    await pg.mouse.up(); await pg.wait_for_timeout(100)
+    v1 = await pg.evaluate("[hpe.view.ox, hpe.view.oy, hpe.view.s, hpe.sides.length, hpe.sel]")
+    check(abs(v1[0] - v0[0] - 80) < 2 and abs(v1[1] - v0[1] + 40) < 2 and v1[3] == 2 and v1[4] == -1, 'إصبع واحد بيحرّك الرسمة (وما بيرسم ولا بيختار) ' + str([v0, v1]))
+    await pg.evaluate('''(function(){ var st=document.getElementById('hpeStage'), r=st.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+      function ev(t,id,x,y){ st.dispatchEvent(new PointerEvent(t,{pointerId:id,clientX:x,clientY:y,bubbles:true,pointerType:'touch',isPrimary:id===1})); }
+      ev('pointerdown',1,cx-40,cy); ev('pointerdown',2,cx+40,cy);
+      for(var i=1;i<=10;i++){ ev('pointermove',1,cx-40-i*6,cy); ev('pointermove',2,cx+40+i*6,cy); }
+      ev('pointerup',1,cx-100,cy); ev('pointerup',2,cx+100,cy); })()''')
+    v2 = await pg.evaluate("[hpe.view.s, hpe.sides.length]")
+    check(v2[0] > v1[2]*2.2 and v2[1] == 2, 'إصبعين (قرصة) بيكبّروا ' + str([v1[2], v2]))
+    await pg.evaluate("hpeZoom(1/1.3)"); check(await pg.evaluate("hpe.view.s") < v2[0], 'زر التصغير')
+    await pg.evaluate("hpeFit()"); check(abs(await pg.evaluate("hpe.view.s") - v0[2]) < 1e-6, 'زر الملاءمة بيرجّع الرسمة كلها')
     # (2) الإصبع: خط تقريبي معوّج لتحت ← بيصير ضلع لتحت بزاوية 90
     await pg.click('#hpeTabDraw'); await pg.wait_for_timeout(200)
     st = await pg.evaluate("(function(){var r=document.getElementById('hpeStage').getBoundingClientRect(); return [r.left,r.top,r.width,r.height]})()")
