@@ -29,7 +29,11 @@ const fakeFetch = async (u, o) => {
   return { ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 9000, output_tokens: 400 } }) };
 };
 const { createAcctAi, mountAcctAiRoutes } = require(path.join(SERVER_DIR, 'acct-ai.js'));
-const ai = createAcctAi({ dataDir: DATA, getKey: () => 'sk-ant-test', fetch: fakeFetch, log: { error() {} } });
+const { createAiSketch, mountAiRoutes } = require(path.join(SERVER_DIR, 'ai-sketch.js'));
+const keyFetch = async (u, o) => (String(u).includes('/v1/models') ? { ok: /good/.test(o.headers['x-api-key']), status: /good/.test(o.headers['x-api-key']) ? 200 : 401 } : fakeFetch(u, o));
+const sketch = createAiSketch({ keyFile: path.join(DATA, 'ai-key.json'), fetch: keyFetch, log: { error() {} } });
+mountAiRoutes(app, sketch, { who: (req) => { const w = acct.who(req); return w && !w.needLogin ? w : w; } });
+const ai = createAcctAi({ dataDir: DATA, getKey: () => sketch.key(), fetch: fakeFetch, log: { error() {} } });
 mountAcctAiRoutes(app, ai, { who: acct.who, books: acct.BOOK_IDS });
 app.get('/__asked', (req, res) => res.json({ n: asked.length, last: asked[asked.length - 1] ? { model: asked[asked.length - 1].model, types: (asked[asked.length - 1].messages.slice(-1)[0].content || []).map ? asked[asked.length - 1].messages.slice(-1)[0].content.map((c) => c.type) : [] } : null }));
 
