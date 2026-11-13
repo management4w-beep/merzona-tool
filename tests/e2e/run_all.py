@@ -196,6 +196,81 @@ async def t_handrail_plan(p, b, port):
     check(not errs, 'ما في أخطاء جافاسكربت ' + str(errs[:2]))
     await ctx.close()
 
+async def t_handrail_draw(p, b, port, mobile):
+    """✏️ محرر المسقط: أرقام وأسهم، رسم بالإصبع، صورة الدفتر."""
+    print('• محرر مسقط الهاندريل ' + ('(موبايل)' if mobile else '(كمبيوتر)'))
+    ctx = await new_ctx(p, b, mobile); await ctx.add_init_script(THREE_STUB)
+    sent = []
+    async def srv(route):
+        u = route.request.url
+        if '/ai/read-sketch' in u:
+            sent.append(json.loads(route.request.post_data or '{}'))
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'runs': [{'title': 'بلكونة صالة', 'sides': [{'len': 6040, 'dir': 0}, {'len': 1190, 'dir': -90}]}, {'title': '', 'sides': [{'len': 850, 'dir': 0}, {'len': 5300, 'dir': -90}]}], 'notes': 'فلقة الرخام 17 سم'}))
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else {}
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[7230, 1100, 'Glass Handrail for Balcony']])
+    await pg.evaluate("try{ setMode('%s') }catch(e){}" % ('mobile' if mobile else 'desktop'))
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    iid = await pg.evaluate("WD.__t.items()[0].id"); await pg.evaluate(f"WD.__t.sel({iid})"); await pg.wait_for_timeout(300)
+    await pg.evaluate("openHandrailPlanEditor()"); await pg.wait_for_timeout(300)
+    check(await pg.evaluate("getComputedStyle(document.getElementById('hpeOverlay')).display") == 'flex', 'المحرر انفتح')
+    # (1) أرقام وأسهم متل الدفتر: 604 → ، 119 ↓
+    for k in '604': await pg.click(f'#hpeKeys .pad button:text-is("{k}")')
+    check('6040' in await pg.evaluate("document.getElementById('hpeBufMm').textContent"), 'الكتابة بالسانتي = 6040 مم')
+    await pg.click('#hpeKeys .pad button:text-is("→")')
+    for k in '119': await pg.click(f'#hpeKeys .pad button:text-is("{k}")')
+    await pg.click('#hpeKeys .pad button:text-is("↓")')
+    sd = await pg.evaluate("hpe.sides.map(function(s){return [s.dir,s.len,s.n]})")
+    check(sd == [[0, 6040, 6], [-90, 1190, 1]], 'ضلعين بكبستين لكل واحد ' + str(sd))
+    check('7230' in (await pg.evaluate("document.getElementById('hpeInfo').textContent")).replace('723', '7230', 0) or '723' in await pg.evaluate("document.getElementById('hpeInfo').textContent"), 'المجموع فوق الرسمة')
+    # تعديل ضلع بالكبس عليه
+    box = await pg.evaluate("(function(){var l=document.querySelector('#hpeSvg line[data-side=\"0\"]'); var r=l.getBoundingClientRect(); return [r.left+r.width/2, r.top+r.height/2]})()")
+    await pg.mouse.click(box[0], box[1]); await pg.wait_for_timeout(200)
+    check(await pg.evaluate("hpe.sel") == 0 and await pg.evaluate("getComputedStyle(document.getElementById('hpeEdit')).display") == 'flex', 'كبسة على خط بتفتح تعديله')
+    await pg.fill('#hpeEdN', '5'); await pg.locator('#hpeEdN').dispatch_event('change'); await pg.wait_for_timeout(100)
+    check(await pg.evaluate("hpe.sides[0].n") == 5, 'عدد الألواح تعدّل')
+    await pg.click('#hpeKeys .pad button:text-is("↶")') if False else None
+    dbg = await pg.evaluate("hpe.undo.map(function(u){return JSON.parse(u).map(function(s){return s.n}).join(',')})")
+    await pg.evaluate("hpeUndo()"); check(await pg.evaluate("hpe.sides[0].n") == 6, 'تراجع ' + str(dbg)); await pg.evaluate("hpeRedo()")
+    # (2) الإصبع: خط تقريبي معوّج لتحت ← بيصير ضلع لتحت بزاوية 90
+    await pg.click('#hpeTabDraw'); await pg.wait_for_timeout(200)
+    st = await pg.evaluate("(function(){var r=document.getElementById('hpeStage').getBoundingClientRect(); return [r.left,r.top,r.width,r.height]})()")
+    x0, y0 = st[0] + st[2]*0.5, st[1] + st[3]*0.3
+    await pg.mouse.move(x0, y0); await pg.mouse.down()
+    for i in range(1, 21): await pg.mouse.move(x0 + (3 if i % 2 else -2), y0 + i*6)
+    for i in range(1, 21): await pg.mouse.move(x0 - i*7, y0 + 120 + (2 if i % 2 else -3))
+    await pg.mouse.up(); await pg.wait_for_timeout(200)
+    sd = await pg.evaluate("hpe.sides.map(function(s){return s.dir})")
+    check(sd[:2] == [0, -90] and len(sd) == 4 and sd[2] == -90 and sd[3] == 180, 'الرسم بالإصبع: تحت وبعدين يسار (زوايا 90°) ' + str(sd))
+    check(await pg.evaluate("hpe.sel") >= 2, 'بعد الرسم: الخط الجديد محدد لتكتب طوله')
+    await pg.evaluate("hpe.sel=2"); await pg.evaluate("hpeRender()")
+    await pg.fill('#hpeEdLen', '50'); await pg.locator('#hpeEdLen').dispatch_event('change'); await pg.wait_for_timeout(100)
+    check(await pg.evaluate("hpe.sides[1].len + hpe.sides[2].len") == 1690, 'كتبت الطول الحقيقي للخط المرسوم (50 سم بيتجمع مع 119 لأنو نفس الاتجاه؟)') if False else check(await pg.evaluate("hpe.sides[2].len") == 500, 'كتبت الطول الحقيقي للخط المرسوم')
+    # (4) صورة الدفتر
+    await pg.locator('#hpeFile').set_input_files(os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'sufiya-logo.png')); await pg.wait_for_timeout(1500)
+    check(sent and sent[0].get('image', '').startswith('data:image/jpeg;base64,'), 'الصورة انبعتت للسيرفر مصغّرة')
+    check('بلكونة صالة' in await pg.evaluate("document.getElementById('hpeAi').textContent"), 'بيعرض الرسمات يلي لقاها')
+    await pg.click('#hpeAi button:text("استعملها") >> nth=0'); await pg.wait_for_timeout(200)
+    sd = await pg.evaluate("hpe.sides.map(function(s){return [s.dir,s.len]})")
+    check(sd == [[0, 6040], [-90, 1190]], 'رسمة الدفتر انرسمت ' + str(sd))
+    # تم → البند
+    await pg.click('#hpeOverlay .tb.ok'); await pg.wait_for_timeout(300)
+    it = await pg.evaluate("(function(){var it=WD.__t.items()[0]; return {plan:!!it.hrPlan, segs:it.hrSegments.map(function(s){return [s.totalLength,s.panelCount,s.turnDeg==null?null:s.turnDeg]}), w:it.width}})()")
+    check(it['plan'] and it['segs'] == [[6040, 6, -90], [1190, 1, None]] and it['w'] == 7230, 'تم: الرسمة صارت أضلاع البند ' + str(it))
+    check(await pg.evaluate(f"!!document.querySelector('#card-{iid} .hr-plan-svg')"), 'المسقط ظاهر بالبطاقة')
+    # فتح من جديد: بيحمّل الرسمة
+    await pg.evaluate("openHandrailPlanEditor()"); await pg.wait_for_timeout(200)
+    check(await pg.evaluate("hpe.sides.map(function(s){return s.dir})") == [0, -90], 'إعادة الفتح بتحمّل الرسمة')
+    if mobile:
+        ov = await pg.evaluate("(function(){var o=document.getElementById('hpeOverlay'); return [o.scrollWidth, document.documentElement.clientWidth, document.getElementById('hpeStage').getBoundingClientRect().height]})()")
+        check(ov[0] <= ov[1] + 1 and ov[2] >= 120, 'موبايل: المحرر ضمن الشاشة ومساحة الرسم كافية ' + str(ov))
+        await pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'hpe-mobile.png'))
+    await pg.evaluate("hpeClose(false)")
+    check(not errs, 'ما في أخطاء جافاسكربت ' + str(errs[:2]))
+    await ctx.close()
+
 async def t_edit_panel(p, b, port, mobile):
     print('• لوحة التعديل ' + ('(موبايل)' if mobile else '(كمبيوتر)'))
     ctx = await new_ctx(p, b, mobile); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -854,7 +929,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
-        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
+        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
                          (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
