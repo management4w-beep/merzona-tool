@@ -81,7 +81,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-13.2';
+  var CURRENT_VERSION = '2026-11-13.3';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'accounting';
   var VERSION_URL = 'version.json';
@@ -1396,7 +1396,34 @@ function aiUse(){
   var s = AI.status;
   u.innerHTML = s.enabled ? 'كلفة هالشهر: ' + s.monthUsd.toFixed(3) + '$ من حد ' + s.monthlyUsd + '$ · ' + s.msgs + ' رسالة' + (s.owner ? ' · <a href="#" id="aiBud">تغيير الحد</a>' : '') : '⚠️ المساعد بيحتاج مفتاح الذكاء الاصطناعي على السيرفر.' + (s.owner ? ' <a href="#" id="aiKeyL">🔑 حط المفتاح</a>' : ' خبّر المالك.');
   var b = document.getElementById('aiBud'); if(b) b.onclick = function(e){ e.preventDefault(); var v = prompt('الحد الشهري بالدولار (المساعد بيوقف لما يوصله):', s.monthlyUsd); if(v === null) return; api('POST', '/acct/' + S.bookId + '/ai/budget', { monthlyUsd: pv(v) }).then(function(r){ if(r.__status === 200){ AI.status = Object.assign(AI.status, r); aiUse(); toast('✅ انحفظ الحد'); } else toast('⚠️ ما انحفظ'); }); };
-  var k = document.getElementById('aiKeyL'); if(k) k.onclick = function(e){ e.preventDefault(); var v = prompt('الصق مفتاح Anthropic API (بيبلش بـ sk-ant-). بينحفظ على السيرفر بس:'); if(!v) return; api('POST', '/ai/key', { key: v.trim() }).then(function(r){ toast(r.__status === 200 ? '✅ انحفظ المفتاح' : '⚠️ المفتاح ما انقبل'); aiStatus(); }); };
+  var k = document.getElementById('aiKeyL'); if(k) k.onclick = function(e){ e.preventDefault(); aiKeyForm(); };
+}
+// 🛠️ 2026-11-13 (حمدي: "عم حطو ماعم يمشي الحال"): خانة لصق واضحة بدل نافذة prompt، والسبب الحقيقي إذا ما انقبل
+function aiKeyMsg(r){
+  var e = r && r.error;
+  if(r && r.__status === 200) return '';
+  return e === 'key-rejected' ? 'Anthropic رفض هالمفتاح - تأكد إنك نسخته كامل (من sk-ant- لآخره) وإنو ما انحذف من الكونسول.' :
+    e === 'bad-key-format' ? 'هالنص مش مفتاح كامل (' + (r.len || 0) + ' حرف). انسخ المفتاح كله مرة تانية.' :
+    e === 'owner-only' ? 'حفظ المفتاح للمالك بس - افتح المحاسبة من جهاز المالك.' :
+    r && r.__status === 401 ? 'هالجهاز مش معتمد عند السيرفر.' :
+    e === 'timeout' ? 'السيرفر ما رد - جرّب كمان مرة.' : 'ما انحفظ (' + (e || (r && r.__status) || '؟') + ').';
+}
+function aiKeyForm(){
+  var u = document.getElementById('aiUse'); if(!u) return;
+  u.innerHTML = '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:8px;font-size:13px;color:#5d4037">🔑 الصق المفتاح هون (بيبلش بـ sk-ant-):' +
+    '<input id="aiKeyIn" type="password" autocomplete="off" style="width:100%;box-sizing:border-box;margin:6px 0;padding:8px;font-size:15px;direction:ltr;border:1px solid #cfd8dc;border-radius:6px" placeholder="sk-ant-...">' +
+    '<div style="display:flex;gap:6px"><button type="button" id="aiKeySave" style="background:#22a35a;color:#fff;border:0;border-radius:6px;padding:7px 14px;font-weight:700">حفظ</button><button type="button" id="aiKeyCancel" style="border:0;border-radius:6px;padding:7px 12px">إلغاء</button></div><div id="aiKeyErr" style="color:#c62828;margin-top:4px"></div></div>';
+  var inp = document.getElementById('aiKeyIn'); inp.focus();
+  document.getElementById('aiKeyCancel').onclick = aiUse;
+  document.getElementById('aiKeySave').onclick = function(){
+    var v = inp.value.replace(/\s+/g, ''); if(!v){ inp.focus(); return; }
+    var b = this; b.disabled = true; b.textContent = '⏳ عم يتأكد من المفتاح...';
+    api('POST', '/ai/key', { key: v }).then(function(r){
+      b.disabled = false; b.textContent = 'حفظ';
+      if(r.__status === 200){ toast('✅ انحفظ المفتاح - جرّب المساعد هلق'); aiStatus(); }
+      else document.getElementById('aiKeyErr').textContent = '⚠️ ' + aiKeyMsg(r);
+    }).catch(function(){ b.disabled = false; b.textContent = 'حفظ'; document.getElementById('aiKeyErr').textContent = '⚠️ ما في اتصال بالسيرفر.'; });
+  };
 }
 function aiAddFiles(list){
   Array.prototype.slice.call(list || []).forEach(function(f){
@@ -1428,7 +1455,8 @@ function aiSend(){
       AI.msgs.push({ role: 'assistant', text: r.reply || '', actions: (r.actions || []).map(function(a){ return { summary: a.summary, newParty: a.newParty, doc: a.doc, state: '' }; }) });
       if(AI.status && r.usage){ AI.status.monthUsd = r.usage.monthUsd; AI.status.msgs = (AI.status.msgs || 0) + 1; }
     } else {
-      var msg = r.error === 'no-key' ? '⚠️ المساعد بيحتاج مفتاح الذكاء الاصطناعي على السيرفر (المالك بيحطه من تحت).' :
+      if(r.error === 'no-key' && AI.status && AI.status.owner) setTimeout(aiKeyForm, 50);
+      var msg = r.error === 'no-key' ? '⚠️ المساعد بيحتاج مفتاح الذكاء الاصطناعي على السيرفر' + (AI.status && AI.status.owner ? ' - الصقه بالخانة تحت 👇' : ' (المالك بيحطه من عنده).') :
         r.error === 'budget-reached' ? '⚠️ خلص الحد الشهري للمساعد (' + (r.status ? r.status.monthlyUsd : '') + '$). المالك فيه يغيّره من تحت.' :
         r.error === 'no-accounting-permission' ? '⚠️ ما عندك صلاحية المحاسبة.' : '⚠️ ما قدرت جاوب هلق (' + esc(r.error || r.__status) + '). جرّب كمان شوي.';
       AI.msgs.push({ role: 'assistant', text: msg, err: true });
