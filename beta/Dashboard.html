@@ -2637,7 +2637,7 @@ async function mzFetchSeed(){
   }catch(e){ if(!__mzSeedRefs.size) mzSeedWarn('تعذّر الاتصال بالسيرفر لتنزيل القائمة القديمة.'); retryMs = 60000; }
   if(retryMs && __mzSeedTries < 40) setTimeout(mzFetchSeed, retryMs);
 }
-// 🏢 القائمة القديمة (dashboard-seed) خاصة بميرزونا - شركة تانية (صوفية) بلشت جديدة وما عندها قائمة قديمة
+// 🏢 القائمة القديمة (dashboard-seed) خاصة بميرزونا - شركة تانية (صوفيه) بلشت جديدة وما عندها قائمة قديمة
 if(!window.MZ_TENANT) setTimeout(mzFetchSeed, 0); // بعد ما يخلص تحميل السكربت (DASH_SERVER_AUTH_TOKEN معرّف تحت)
 
 
