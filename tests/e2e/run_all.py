@@ -645,6 +645,49 @@ async def t_company(p, b, port):
     finally:
         proc.kill()
 
+FX_RATE = {'buy': 146.75, 'sell': 147.25, 'at': '2026-11-13T08:30:00Z', 'fetchedAt': '2026-11-13T08:31:00Z', 'prevSell': 146.5, 'source': {'name': 'sp-today.com', 'url': 'https://sp-today.com/currency/us-dollar'}}
+
+async def t_fx_bar(p, b, port):
+    """💵 شريط سعر الدولار فوق بكل صفحات الشغل (مش بصفحات الزبون)، وما بيغطّي شي."""
+    print('• شريط سعر صرف الدولار')
+    ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+    hits = []
+    async def srv(route):
+        u = route.request.url
+        if '/fx/usd-syp' in u: hits.append(u); return await route.fulfill(status=200, content_type='application/json', headers={'access-control-allow-origin': '*'}, body=json.dumps(FX_RATE))
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else {}
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    errs = []
+    for page in ['Dashboard.html', 'index.html', 'accounting.html', 'procurement.html', 'salary.html']:
+        pg = await ctx.new_page(); pg.on('pageerror', lambda e, page=page: errs.append(page + ': ' + str(e)[:120])); pg.on('dialog', lambda d: asyncio.ensure_future(d.dismiss()))
+        await pg.goto(f'http://127.0.0.1:{port}/{page}'); await pg.wait_for_timeout(2000)
+        r = await pg.evaluate("""(() => { const b = document.getElementById('mzFxBar'); if (!b) return null; const r = b.getBoundingClientRect();
+            let nxt = b.nextElementSibling; while (nxt && (['fixed', 'absolute'].includes(getComputedStyle(nxt).position) || !nxt.getBoundingClientRect().height)) nxt = nxt.nextElementSibling; const n = nxt ? nxt.getBoundingClientRect() : null;
+            return { text: b.innerText, top: r.top, h: r.height, w: r.width, first: document.body.firstElementChild === b, below: n ? n.top >= r.bottom - 1 : true,
+                     printHidden: [...document.styleSheets].some(s => { try { return [...s.cssRules].some(x => x.cssText.includes('print') && x.cssText.includes('mzFxBar')); } catch (e) { return false; } }) }; })()""")
+        check(r and '146.75' in r['text'] and '147.25' in r['text'] and '14,725' in r['text'] and '▲' in r['text'], page + ': سعر الدولار فوق ' + (r['text'][:90].replace('\n', ' ') if r else 'ما في شريط'))
+        if r: check(r['first'] and r['top'] == 0 and r['h'] < 60 and r['w'] >= 1380 and r['below'] and r['printHidden'], page + ': الشريط بأول الصفحة، ما بيغطّي، وما بينطبع ' + str({k: r[k] for k in ('top', 'h', 'w', 'below', 'printHidden')}))
+        if page == 'Dashboard.html': await pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'fx-dashboard.png'))
+        await pg.close()
+    # الموبايل: الشريط بيلتف وما بيعمل سكرول عرضي
+    m = await b.new_context(viewport={"width": 375, "height": 800}); await m.route(SRV + '/**', srv)
+    pg = await m.new_page(); await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2000)
+    r = await pg.evaluate("(() => { const b = document.getElementById('mzFxBar'); return b ? { w: b.scrollWidth, cw: b.clientWidth, h: b.getBoundingClientRect().height } : null })()")
+    check(r and r['w'] <= r['cw'] + 1 and r['h'] < 70, 'موبايل: الشريط ما بيطلع برّا الشاشة ' + str(r))
+    await pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'fx-mobile.png')); await m.close()
+    # صفحات الزبون: ما في سعر صرف
+    for page in ['sign.html', 'catalog.html']:
+        pg = await ctx.new_page(); await pg.goto(f'http://127.0.0.1:{port}/{page}'); await pg.wait_for_timeout(1500)
+        check(not await pg.evaluate("!!document.getElementById('mzFxBar')"), page + ': صفحة الزبون بلا سعر صرف'); await pg.close()
+    # السيرفر ما رد: ما في شريط فاضي ولا خطأ
+    c3 = await b.new_context(); await c3.route(SRV + '/**', lambda r: asyncio.ensure_future(r.fulfill(status=503, body='{}')))
+    pg = await c3.new_page(); await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(1500)
+    check(not await pg.evaluate("!!document.getElementById('mzFxBar')"), 'إذا ما في سعر: ما في شريط فاضي'); await c3.close()
+    check(all(h.startswith(SRV + '/fx/usd-syp') for h in hits), 'ميرزونا بتقرا السعر من سيرفرها')
+    check(not errs, 'ما في أخطاء ' + '; '.join(errs[:3]))
+    await ctx.close()
+
 async def t_sufiya_site(p, b, port, root):
     """🏢 نسخة صوفيه (رابطها لحاله): ولا كلمة ميرزونا، كل الطلبات لبرنامج صوفيه بالسيرفر، والتخزين مفصول."""
     print('• نسخة صوفيه (رابط لحاله)')
@@ -663,6 +706,7 @@ async def t_sufiya_site(p, b, port, root):
     async def srv(route):
         u = route.request.url; reqs.append(u)
         if u.split('?')[0].endswith('/t/sufiya/company/public'): return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'rev': prof['rev'], 'profile': prof['profile']}))
+        if u.split('?')[0].endswith('/t/sufiya/fx/usd-syp'): return await route.fulfill(status=200, content_type='application/json', body=json.dumps(FX_RATE))
         body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else ([] if '/dashboard-seed' in u else {})
         await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
     await ctx.route(SRV + '/**', srv)
@@ -687,6 +731,7 @@ async def t_sufiya_site(p, b, port, root):
             logos = await pg.evaluate("Array.from(document.images).filter(i => i.getAttribute('data-co-logo')).map(i => i.getAttribute('src').slice(0, 30))")
             sufStamp = 'data:image/png;base64,' + base64.b64encode(open(os.path.join(ROOT, 'tools', 'sufiya', 'stamp.png'), 'rb').read()).decode()
             check(await pg.evaluate("SETTLEMENT_STAMP_IMG") == sufStamp, 'ختم صوفيه على المخالصات والتسويات')
+            check('147.25' in (await pg.evaluate("(document.getElementById('mzFxBar') || {}).innerText || ''")), 'صوفيه: سعر الدولار فوق (من برنامج صوفيه بالسيرفر)')
             check(not await pg.evaluate("!!document.getElementById('mzSeedWarn')"), 'ما في تحذير القائمة القديمة تبع ميرزونا')
             check(logos and all(('company-logo' in l or l.startswith('data:image')) for l in logos), 'لوغو صوفيه ' + str(logos[:3]))
         if page == 'accounting.html':
@@ -733,7 +778,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
