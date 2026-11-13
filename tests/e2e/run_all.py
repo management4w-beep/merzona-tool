@@ -689,6 +689,9 @@ async def t_sufiya_site(p, b, port, root):
             check(await pg.evaluate("SETTLEMENT_STAMP_IMG") == sufStamp, 'ختم صوفيه على المخالصات والتسويات')
             check(not await pg.evaluate("!!document.getElementById('mzSeedWarn')"), 'ما في تحذير القائمة القديمة تبع ميرزونا')
             check(logos and all(('company-logo' in l or l.startswith('data:image')) for l in logos), 'لوغو صوفيه ' + str(logos[:3]))
+        if page == 'accounting.html':
+            nm = await pg.evaluate("mzCoNameOf('Merzona')")
+            check(nm == 'Sufiya Glass · صوفيه', 'سند القبض والفواتير باسم صوفيه ' + nm)
         if page == 'index.html':
             r2 = await pg.evaluate("({ br: document.getElementById('m-branch').value, ref: document.getElementById('m-ref').value, vat: getComputedStyle(document.getElementById('vat-row')).display, bank: getComputedStyle(document.getElementById('bank-info-section')).display })")
             st = await pg.evaluate("({ stamp: (document.querySelector('img[alt=\"Company stamp\"]') || {}).src || '', print: (document.querySelector('.print-logo') || {}).src || '' })")
@@ -702,6 +705,9 @@ async def t_sufiya_site(p, b, port, root):
     check(srvreq and all(u.startswith(SRV + '/t/sufiya/') for u in srvreq), 'كل طلبات السيرفر لبرنامج صوفيه بس ' + str([u for u in srvreq if not u.startswith(SRV + '/t/sufiya/')][:3]))
     check(not [u for u in reqs if any(m in u for m in MERZ)], 'ولا طلب لمجلدات درايف ميرزونا')
     # وميرزونا على نفس الموقع ما تأثرت
+    pa = await ctx.new_page(); await pa.goto(f'http://127.0.0.1:{port}/accounting.html'); await pa.wait_for_timeout(1500)
+    nm = await pa.evaluate("mzCoNameOf('Merzona')")
+    check(nm == 'Merzona', 'ميرزونا: الفواتير والسندات متل ما هي ' + nm); await pa.close()
     pm = await ctx.new_page(); await pm.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pm.wait_for_timeout(1500)
     ls = await pm.evaluate("({ dev: localStorage.getItem('merzona-device-token'), suf: localStorage.getItem('sufiya:merzona-device-token') })")
     check(ls['dev'] == 'MERZONA-DEV' and ls['suf'] == 'SUFIYA-DEV', 'جهاز ميرزونا ما تغيّر، وجهاز صوفيه لحاله ' + str(ls))

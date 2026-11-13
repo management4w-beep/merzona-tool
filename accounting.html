@@ -81,7 +81,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-11.1';
+  var CURRENT_VERSION = '2026-11-13.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'accounting';
   var VERSION_URL = 'version.json';
@@ -885,7 +885,7 @@ function statement(pid){
   });
   var items = C.openItems(B, 'ar').concat(C.openItems(B, 'ap')).filter(function(i){ return i.partyId === pid; });
   if(items.length) html += '<h3 style="margin:12px 0 6px;">المستندات المفتوحة</h3><div class="tw"><table><tr><th>الرقم</th><th>التاريخ</th><th>الاستحقاق</th><th class="n">القيمة</th><th class="n">المتبقي</th></tr>' + items.map(function(i){ return '<tr><td>' + esc(i.no) + '</td><td>' + esc(i.date) + '</td><td>' + esc(i.due) + '</td><td class="n">' + money(i.total, i.currency) + '</td><td class="n">' + money(i.open, i.currency) + '</td></tr>'; }).join('') + '</table></div>';
-  var m = modal('📄 كشف حساب: ' + esc(p.name), html || '<div class="empty">ما في حركات</div>', [['🖨 طباعة', '', function(){ printHtml('<h1>كشف حساب</h1><p><b>' + esc(p.name) + '</b> — ' + esc(B.settings.companyName) + ' — ' + today() + '</p>' + html); }]]);
+  var m = modal('📄 كشف حساب: ' + esc(p.name), html || '<div class="empty">ما في حركات</div>', [['🖨 طباعة', '', function(){ printHtml('<h1>كشف حساب</h1><p><b>' + esc(p.name) + '</b> — ' + esc(coName()) + ' — ' + today() + '</p>' + html); }]]);
   bindDocRows(m.body);
 }
 
@@ -1003,7 +1003,7 @@ function vReports(){
   }
   out.innerHTML = html;
   out.querySelectorAll('[data-gl]').forEach(function(r){ r.onclick = function(){ S.tab = 'journal'; S.filters.glAcct = r.dataset.gl; S.filters.glTo = f.to; S.filters.glFrom = ''; render(); }; });
-  box.querySelector('#rprint').onclick = function(){ printHtml('<div class="hd"><div><h1>' + esc(title) + '</h1><div>' + esc(B.settings.companyName) + ' — ' + esc(C.BOOKS[S.bookId].name) + '</div></div><div>' + esc((f.from ? 'من ' + f.from + ' ' : '') + 'لغاية ' + (f.to || today())) + (f.project ? '<br>المشروع: ' + esc(f.project) : '') + '<br>العملة: ' + esc(cur) + '</div></div>' + out.innerHTML); };
+  box.querySelector('#rprint').onclick = function(){ printHtml('<div class="hd"><div><h1>' + esc(title) + '</h1><div>' + esc(coName()) + ' — ' + esc(C.BOOKS[S.bookId].name) + '</div></div><div>' + esc((f.from ? 'من ' + f.from + ' ' : '') + 'لغاية ' + (f.to || today())) + (f.project ? '<br>المشروع: ' + esc(f.project) : '') + '<br>العملة: ' + esc(cur) + '</div></div>' + out.innerHTML); };
   box.querySelector('#rcsv').onclick = function(){ var t = out.querySelector('table'); if(t) csvFromTable(t, f.r + '.csv'); };
 }
 
@@ -1011,7 +1011,7 @@ function vReports(){
 function vSettings(){
   var B = S.book, st = B.settings, adm = isAdmin();
   var p = panel('⚙️ إعدادات ' + esc(C.BOOKS[S.bookId].name), (adm ? '' : '<div class="note">الإعدادات ودليل الحسابات للأدمن بس.</div>') +
-    '<div class="fg" style="margin-top:8px;"><label>اسم الشركة (بيطلع بالفواتير)<input id="sN" value="' + esc(st.companyName) + '"' + (adm ? '' : ' disabled') + '></label>' +
+    '<div class="fg" style="margin-top:8px;"><label>اسم الشركة (بيطلع بالفواتير)<input id="sN" value="' + esc(coName()) + '"' + (adm ? '' : ' disabled') + '></label>' +
     '<label>الرقم الضريبي TRN<input id="sT" class="num" value="' + esc(st.trn) + '"' + (adm ? '' : ' disabled') + '></label>' +
     '<label>العنوان<input id="sA" value="' + esc(st.address) + '"' + (adm ? '' : ' disabled') + '></label>' +
     (S.bookId === 'uae' ? '<label>نسبة الضريبة % (للمستندات الجديدة)<input id="sV" class="num" value="' + esc(st.vatRate) + '"' + (adm ? '' : ' disabled') + '></label>' : '') +
@@ -1329,11 +1329,19 @@ function printHtml(inner){
   pa.innerHTML = '<div class="pdoc" dir="rtl">' + inner + '</div>';
   setTimeout(function(){ window.print(); }, 50);
 }
+// 🏢 اسم الشركة بالمطبوعات: شركة تانية (صوفيه) دفترها لسا عليه الاسم الافتراضي "Merzona" → اسمها هي
+function coName(){ return coNameOf((S.book && S.book.settings && S.book.settings.companyName) || ''); }
+function coNameOf(n){
+  n = n || '';
+  try { var co = window.MzCompany && MzCompany.get(); if(co && !MzCompany.isDefault() && (!n.trim() || /^merzona$/i.test(n.trim()))) return co.nameEn + (co.nameAr ? ' · ' + co.nameAr : ''); } catch(e) {}
+  return n || 'Merzona';
+}
+window.mzCoNameOf = coNameOf;
 function printDoc(d){
   var B = S.book, st = B.settings, cur = d.currency || base(), t = C.docTotals(d, B), p = B.parties[d.partyId] || {};
   var uaeTax = S.bookId === 'uae' && C.num(d.taxRate) > 0;
   var titles = { invoice: uaeTax ? 'فاتورة ضريبية · Tax Invoice' : 'فاتورة · Invoice', credit: uaeTax ? 'إشعار دائن ضريبي · Tax Credit Note' : 'إشعار دائن · Credit Note', receipt: 'سند قبض · Receipt Voucher', vpayment: 'سند صرف · Payment Voucher', bill: 'فاتورة مورد · Bill', expense: 'سند مصروف · Expense', deposit: 'سند قبض · Deposit' };
-  var html = '<div class="hd"><div><h1>' + esc(st.companyName || 'Merzona') + '</h1>' + (st.address ? '<div>' + esc(st.address) + '</div>' : '') + (st.trn ? '<div>TRN: ' + esc(st.trn) + '</div>' : '') + '</div><div style="text-align:left"><h1>' + titles[d.type] + '</h1><div>No: <b>' + esc(d.no) + '</b></div><div>Date: ' + esc(d.date) + '</div>' + (d.due ? '<div>Due: ' + esc(d.due) + '</div>' : '') + '</div></div>';
+  var html = '<div class="hd"><div><h1>' + esc(coName()) + '</h1>' + (st.address ? '<div>' + esc(st.address) + '</div>' : '') + (st.trn ? '<div>TRN: ' + esc(st.trn) + '</div>' : '') + '</div><div style="text-align:left"><h1>' + titles[d.type] + '</h1><div>No: <b>' + esc(d.no) + '</b></div><div>Date: ' + esc(d.date) + '</div>' + (d.due ? '<div>Due: ' + esc(d.due) + '</div>' : '') + '</div></div>';
   if(d.partyId) html += '<p><b>' + (C.DOC_TYPES[d.type].party === 'vendor' ? 'المورد' : 'الزبون') + ':</b> ' + esc(p.name) + (p.trn ? ' · TRN: ' + esc(p.trn) : '') + (p.phone ? ' · ' + esc(p.phone) : '') + (p.address ? '<br>' + esc(p.address) : '') + '</p>';
   if(d.project) html += '<p><b>المشروع / العقد:</b> ' + esc(d.project) + '</p>';
   if(d.lines && d.lines.length){
