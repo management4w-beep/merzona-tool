@@ -153,6 +153,8 @@ async def t_handrail_plan(p, b, port):
     check(g['w'] == 7230, 'طول البند = مجموع الأضلاع (متل حساب العرض) ' + str(g['w']))
     card = await pg.evaluate(f"(function(){{var c=document.querySelector('#card-{iid} .hr-plan-svg'); return c? {{t:c.textContent, lines:c.querySelectorAll('line').length}} : null}})()")
     check(card and '6040' in card['t'] and '1190' in card['t'] and '7230' in card['t'] and card['lines'] >= 6, 'المسقط مرسوم فوق الواجهة بالأطوال ' + str(card and card['t'][:80]))
+    vis = await pg.evaluate(f"(function(){{var c=document.querySelector('#card-{iid} .card-canvas'); var pl=c.querySelector('.hr-plan-svg').getBoundingClientRect(); var el=c.querySelector('svg:not(.hr-plan-svg)').getBoundingClientRect(); return [Math.round(pl.width),Math.round(pl.height),Math.round(el.width),Math.round(el.height),Math.round(el.top-pl.bottom)]}})()")
+    check(vis[0] > 150 and vis[2] > 150 and vis[3] > 40 and vis[4] >= 0, 'المسقط والواجهة سوا بنفس المربع (الواجهة تحت المسقط وظاهرة) ' + str(vis))
     check(await pg.evaluate("!!document.querySelector('#hrPlanPreview svg') && document.getElementById('hrPlanTotal').textContent.indexOf('7230')>=0"), 'معاينة المسقط بلوحة التعديل')
     # ضلع تالت بيلف يسار، وزاوية 45 على التاني
     await pg.click('#btnHrAddLanding'); await pg.wait_for_timeout(300)
@@ -277,6 +279,12 @@ async def t_handrail_draw(p, b, port, mobile):
     it = await pg.evaluate("(function(){var it=WD.__t.items()[0]; return {plan:!!it.hrPlan, segs:it.hrSegments.map(function(s){return [s.totalLength,s.panelCount,s.turnDeg==null?null:s.turnDeg]}), w:it.width}})()")
     check(it['plan'] and it['segs'] == [[6040, 6, -90], [1190, 1, None]] and it['w'] == 7230, 'تم: الرسمة صارت أضلاع البند ' + str(it))
     check(await pg.evaluate(f"!!document.querySelector('#card-{iid} .hr-plan-svg')"), 'المسقط ظاهر بالبطاقة')
+    vis = await pg.evaluate(f"(function(){{var c=document.querySelector('#card-{iid} .card-canvas'); var el=c.querySelector('svg:not(.hr-plan-svg)').getBoundingClientRect(); var pl=c.querySelector('.hr-plan-svg').getBoundingClientRect(); return [Math.round(el.width),Math.round(el.height),Math.round(pl.width)]}})()")
+    vw = await pg.evaluate(f"(function(){{var c=document.querySelector('#card-{iid}').getBoundingClientRect(); var q=document.querySelectorAll('#card-{iid} .card-canvas svg'); var m=0; q.forEach(function(x){{m=Math.max(m,x.getBoundingClientRect().right)}}); return [Math.round(c.right), Math.round(m), document.documentElement.clientWidth]}})()")
+    check(vis[0] > 120 and vis[1] > 30 and vis[2] > 120 and vw[1] <= vw[0] + 1, 'الواجهة (السكتش) ظاهرة تحت المسقط وما في شي طالع برّا المربع ' + str([vis, vw]))
+    if mobile:
+        await pg.evaluate("try{ mzEdClose && mzEdClose() }catch(e){}")
+        await pg.locator(f'#card-{iid}').screenshot(path=os.path.join(tempfile.gettempdir(), 'hr-card-mobile.png'))
     # فتح من جديد: بيحمّل الرسمة
     await pg.evaluate("openHandrailPlanEditor()"); await pg.wait_for_timeout(200)
     check(await pg.evaluate("hpe.sides.map(function(s){return s.dir})") == [0, -90], 'إعادة الفتح بتحمّل الرسمة')
