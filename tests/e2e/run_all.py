@@ -296,6 +296,69 @@ async def t_handrail_draw(p, b, port, mobile):
     check(not errs, 'ما في أخطاء جافاسكربت ' + str(errs[:2]))
     await ctx.close()
 
+async def t_acct_ai(p, b, port):
+    """💬 المساعد المحاسبي: مسودات بس، الاعتماد بيمر بنفس الحفظ، الملفات، الأخطاء، الحد الشهري."""
+    print('• المساعد المحاسبي')
+    import subprocess
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_acct.js'), sdir], stdout=subprocess.PIPE, text=True)
+    aport = int(proc.stdout.readline().split()[1])
+    try:
+        ctx = await b.new_context(viewport={"width": 1300, "height": 900})
+        await ctx.add_init_script("try{ if(!localStorage.getItem('merzona-device-token')) localStorage.setItem('merzona-device-token','OWNERDEV'); localStorage.setItem('merzona-acct-book','syria'); }catch(e){}")
+        async def fwd(route):
+            u = route.request.url
+            if '/access/status' in u: return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'status': 'approved', 'isOwner': True}))
+            if '/acct/' in u or '/ai/' in u:
+                resp = await route.fetch(url=u.replace(SRV, f'http://127.0.0.1:{aport}'))
+                return await route.fulfill(response=resp)
+            await route.fulfill(status=200, content_type='application/json', body='{}')
+        await ctx.route(SRV + '/**', fwd)
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pg.goto(f'http://127.0.0.1:{port}/accounting.html'); await pg.wait_for_timeout(2500)
+        check(await pg.evaluate("!!(__acctT.S().book && __acctT.S().book.base==='USD')"), 'دفتر سوريا انفتح')
+        await pg.click('#aiBtn'); await pg.wait_for_timeout(500)
+        check(await pg.evaluate("getComputedStyle(document.getElementById('aiPanel')).display") == 'flex', 'التشات انفتح')
+        # 1) كلام عادي → سند قبض + زبون جديد
+        await pg.fill('#aiIn', 'قبضت من أبو أحمد 2000$ كاش دفعة على فيلا الخويش'); await pg.click('#aiSend'); await pg.wait_for_timeout(1500)
+        card = await pg.evaluate("(function(){var c=document.querySelectorAll('#aiLog .act'); var a=c[c.length-1]; return a? {t:a.innerText, dis:a.querySelector('[data-ok]').disabled} : null})()")
+        check(card and 'سند قبض' in card['t'] and 'زبون جديد' in card['t'] and 'أبو أحمد' in card['t'] and not card['dis'], 'مسودة سند قبض مع زبون جديد ' + str(card and card['t'][:120]))
+        check(await pg.evaluate("Object.keys(__acctT.S().book.docs).length") == 0, 'ما انسجّل شي قبل الموافقة')
+        await pg.click('#aiLog .act [data-ok]'); await pg.wait_for_timeout(2000)
+        d = await pg.evaluate("(function(){var ds=Object.values(__acctT.S().book.docs); var r=ds.find(function(x){return x.type==='receipt'}); if(!r) return null; return {amt:r.amount, party:__acctT.S().book.parties[r.partyId]&&__acctT.S().book.parties[r.partyId].name, acct:r.acct, notes:r.notes, project:r.project, no:r.no}})()")
+        check(d and d['amt'] == 2000 and d['party'] == 'أبو أحمد' and d['acct'] == '1000' and 'من المساعد' in d['notes'] and d['project'] == 'فيلا الخويش', 'اعتمد: الزبون انضاف والسند انحفظ ' + str(d))
+        check('انعتمدت' in await pg.evaluate("document.querySelector('#aiLog .act').innerText"), 'البطاقة صارت معتمدة')
+        # 2) صورة فاتورة → فاتورة مورد، بالتعديل
+        await pg.locator('#aiFile').set_input_files(os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'sufiya-logo.png')); await pg.wait_for_timeout(600)
+        check('sufiya-logo.png' in await pg.evaluate("document.getElementById('aiFiles').innerText"), 'الملف مرفق')
+        await pg.click('#aiSend'); await pg.wait_for_timeout(1500)
+        asked = json.loads(await pg.evaluate(f"fetch('http://127.0.0.1:{aport}/__asked').then(function(r){{return r.text()}})"))
+        check(asked['last']['model'] == 'claude-haiku-5-5' and 'image' in asked['last']['types'], 'الصورة انبعتت للنموذج الرخيص ' + str(asked['last']))
+        await pg.click('#aiLog .act:last-of-type [data-ed]'); await pg.wait_for_timeout(1200)
+        mf = await pg.evaluate("(function(){var m=document.querySelector('.modal-bg'); return m? {ref:(m.querySelector('#fRef')||{}).value, txt:m.innerText.slice(0,300)} : null})()")
+        check(mf and mf['ref'] == '125', 'عدّل: النموذج العادي انفتح معبّى ' + str(mf and mf['ref']))
+        await pg.click('.modal-bg .mf .pri'); await pg.wait_for_timeout(2500)
+        bill = await pg.evaluate("(function(){var r=Object.values(__acctT.S().book.docs).find(function(x){return x.type==='bill'}); return r? {party:__acctT.S().book.parties[r.partyId].name, total:AcctCore.docTotals(r,__acctT.S().book).total, ref:r.ref} : null})()")
+        check(bill and bill['party'] == 'مؤسسة النور' and bill['total'] == 1190 and bill['ref'] == '125', 'فاتورة المورد انحفظت من النموذج ' + str(bill))
+        await pg.wait_for_timeout(1000)
+        check('انعتمدت' in await pg.evaluate("Array.from(document.querySelectorAll('#aiLog .act')).pop().innerText"), 'بطاقة الفاتورة صارت معتمدة بعد الحفظ من النموذج')
+        # 3) مسودة ناقصة → زر الاعتماد موقّف وبيقول شو ناقص
+        await pg.fill('#aiIn', 'سجّل مازوت 50 غلط'); await pg.click('#aiSend'); await pg.wait_for_timeout(1500)
+        c3 = await pg.evaluate("(function(){var a=Array.from(document.querySelectorAll('#aiLog .act')).pop(); return {t:a.innerText, dis:a.querySelector('[data-ok]').disabled}})()")
+        check(c3['dis'] and 'حساب الدفع' in c3['t'], 'مسودة ناقصة ما بتنعتمد وبتقول شو ناقص ' + c3['t'][:160])
+        await pg.click('#aiLog .act:last-of-type [data-no]'); await pg.wait_for_timeout(200)
+        check('انلغت' in await pg.evaluate("Array.from(document.querySelectorAll('#aiLog .act')).pop().innerText"), 'إلغاء المسودة')
+        u = await pg.evaluate("document.getElementById('aiUse').innerText")
+        check('من حد 2$' in u and '3 رسالة' in u, 'الكلفة والحد ظاهرين ' + u)
+        # 4) بعد التحديث المحادثة باقية
+        await pg.reload(); await pg.wait_for_timeout(2500); await pg.click('#aiBtn'); await pg.wait_for_timeout(500)
+        check(await pg.evaluate("document.querySelectorAll('#aiLog .act').length") == 3, 'المحادثة محفوظة على الجهاز')
+        await pg.screenshot(path=os.path.join(tempfile.gettempdir(), 'acct-ai.png'))
+        check(not errs, 'ما في أخطاء جافاسكربت ' + str(errs[:2]))
+        await ctx.close()
+    finally:
+        proc.kill()
+
 async def t_edit_panel(p, b, port, mobile):
     print('• لوحة التعديل ' + ('(موبايل)' if mobile else '(كمبيوتر)'))
     ctx = await new_ctx(p, b, mobile); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -955,7 +1018,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
