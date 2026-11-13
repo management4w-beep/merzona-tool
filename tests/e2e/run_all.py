@@ -119,6 +119,83 @@ async def t_old_misguessed(p, b, port):
     check(not errs, 'ما في أخطاء جافاسكربت')
     await ctx.close()
 
+THREE_STUB = """(function(){ if(window.THREE) return; var made={mesh:0,line:0};
+function O(){ this.position={x:0,y:0,z:0,set:function(x,y,z){this.x=x;this.y=y;this.z=z;},copy:function(p){this.x=p.x;this.y=p.y;this.z=p.z;}}; this.rotation={x:0,y:0,z:0}; this.children=[]; }
+O.prototype.add=function(c){ this.children.push(c); }; O.prototype.traverse=function(f){ f(this); this.children.forEach(function(c){ c.traverse? c.traverse(f): f(c); }); };
+function G(){ this.dispose=function(){}; } function Mt(){ this.dispose=function(){}; }
+function Mesh(g,m){ O.call(this); this.geometry=g; this.material=m; made.mesh++; } Mesh.prototype=Object.create(O.prototype);
+function LS(g,m){ O.call(this); this.geometry=g; this.material=m; made.line++; } LS.prototype=Object.create(O.prototype);
+function Scene(){ O.call(this); } Scene.prototype=Object.create(O.prototype);
+function Group(){ O.call(this); } Group.prototype=Object.create(O.prototype);
+function Light(){ O.call(this); } Light.prototype=Object.create(O.prototype);
+function Cam(){ O.call(this); this.lookAt=function(){}; this.updateProjectionMatrix=function(){}; } Cam.prototype=Object.create(O.prototype);
+function R(){ this.domElement=document.createElement('canvas'); this.setPixelRatio=function(){}; this.setSize=function(){}; this.render=function(){ window.__hrRendered=(window.__hrRendered||0)+1; }; this.dispose=function(){}; }
+function OC(){ this.target={set:function(){}}; this.update=function(){}; this.dispose=function(){}; }
+window.THREE={ Scene:Scene, Group:Group, Mesh:Mesh, LineSegments:LS, BoxGeometry:G, CylinderGeometry:G, PlaneGeometry:G, EdgesGeometry:G, MeshStandardMaterial:Mt, LineBasicMaterial:Mt,
+  HemisphereLight:Light, DirectionalLight:Light, AmbientLight:Light, PerspectiveCamera:Cam, WebGLRenderer:R, OrbitControls:OC, Color:function(){}, DoubleSide:2, __made:made }; })();"""
+
+async def t_handrail_plan(p, b, port):
+    """📐 مسقط الهاندريل بأضلاع وزوايا + طباعة + ثري دي."""
+    print('• مسقط الهاندريل والثري دي')
+    ctx = await new_ctx(p, b); await ctx.add_init_script(THREE_STUB)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[7230, 1100, 'Glass Handrail for Balcony']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    iid = await pg.evaluate("WD.__t.items()[0].id"); await pg.evaluate(f"WD.__t.sel({iid})"); await pg.wait_for_timeout(300)
+    check(await pg.evaluate("getComputedStyle(document.getElementById('hrPlanStartWrap')).display") != 'none', 'زر المسقط ظاهر للهاندريل المسطح')
+    await pg.click('#btnHrPlanStart'); await pg.wait_for_timeout(400)
+    segs = await pg.evaluate("WD.__t.items()[0].hrSegments.map(function(s){return s.id})")
+    # سكتش حمدي: 604 سم (5 ألواح) وبعدين بيلف يمين 119 سم
+    await pg.evaluate(f"onHrSegField({iid},'{segs[0]}','totalLength',6040); onHrSegField({iid},'{segs[0]}','panelCount',5); onHrSegField({iid},'{segs[1]}','totalLength',1190); onHrSegField({iid},'{segs[1]}','panelCount',1)")
+    await pg.wait_for_timeout(300)
+    g = await pg.evaluate("(function(){var it=WD.__t.items()[0]; var g=hrPlanGeometry(it); return {n:g.sides.length,total:g.total,end:[Math.round(g.sides[1].x1),Math.round(g.sides[1].y1)],w:it.width}})()")
+    check(g['n'] == 2 and g['total'] == 7230 and g['end'] == [6040, -1190], 'ضلعين: 6040 وبعدين يمين 1190 ' + str(g))
+    check(g['w'] == 7230, 'طول البند = مجموع الأضلاع (متل حساب العرض) ' + str(g['w']))
+    card = await pg.evaluate(f"(function(){{var c=document.querySelector('#card-{iid} .hr-plan-svg'); return c? {{t:c.textContent, lines:c.querySelectorAll('line').length}} : null}})()")
+    check(card and '6040' in card['t'] and '1190' in card['t'] and '7230' in card['t'] and card['lines'] >= 6, 'المسقط مرسوم فوق الواجهة بالأطوال ' + str(card and card['t'][:80]))
+    check(await pg.evaluate("!!document.querySelector('#hrPlanPreview svg') && document.getElementById('hrPlanTotal').textContent.indexOf('7230')>=0"), 'معاينة المسقط بلوحة التعديل')
+    # ضلع تالت بيلف يسار، وزاوية 45 على التاني
+    await pg.click('#btnHrAddLanding'); await pg.wait_for_timeout(300)
+    segs = await pg.evaluate("WD.__t.items()[0].hrSegments.map(function(s){return s.id})")
+    check(len(segs) == 3 and await pg.evaluate("WD.__t.items()[0].hrSegments[1].turnDeg") == -90, 'ضلع جديد بيلف يمين افتراضيًا')
+    await pg.click('.hr-turn-row >> nth=1 >> text=يسار'); await pg.wait_for_timeout(300)
+    check(await pg.evaluate("WD.__t.items()[0].hrSegments[1].turnDeg") == 90, 'زر يسار')
+    await pg.evaluate(f"onHrSegTurn({iid},'{segs[1]}',45)"); await pg.wait_for_timeout(200)
+    check('135°' in await pg.evaluate(f"document.querySelector('#card-{iid} .hr-plan-svg').textContent"), 'الزاوية الغير قائمة مكتوبة (135°)')
+    await pg.evaluate(f"onHrSegTurn({iid},'{segs[1]}',-90)")
+    # حفظ وإعادة فتح
+    await reopen(pg)
+    st = await pg.evaluate("(function(){var it=WD.__t.items()[0]; return {plan:!!it.hrPlan, turns:it.hrSegments.map(function(s){return s.turnDeg||0}), n:it.hrSegments.length}})()")
+    check(st['plan'] and st['n'] == 3 and st['turns'][:2] == [-90, -90], 'المسقط والزوايا محفوظين بعد إعادة الفتح ' + str(st))
+    await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(800)
+    rows = await pg.evaluate(ROWS); check(rows[0] == '8430x1100', 'جدول العرض = مجموع الأضلاع ' + str(rows))
+    # الطباعة: المسقط بصفحة الهاندريل
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1000)
+    await pg.evaluate("preparePrint()"); await pg.wait_for_timeout(1200)
+    check(await pg.evaluate("!!document.querySelector('.print-item-canvas .hr-plan-svg')"), 'المسقط بالطباعة')
+    try:
+        await pg.locator('.print-item:has(.hr-plan-svg)').first.screenshot(path=os.path.join(tempfile.gettempdir(), 'hr-plan-print.png'))
+    except Exception as e:
+        print('   (print shot)', str(e)[:80])
+    # ثري دي
+    await pg.evaluate(f"WD.__t.sel({iid})"); await pg.click('#btnHr3D'); await pg.wait_for_timeout(600)
+    d3 = await pg.evaluate("window.__getHr3DDebugState__()")
+    check(d3['open'] and d3['stats']['panels'] == 7 and d3['stats']['sides'] == 3 and d3['stats']['totalMm'] == 8430, 'ثري دي: 3 أضلاع، 7 ألواح ' + str(d3))
+    check(await pg.evaluate("(window.__hrRendered||0) > 0 && getComputedStyle(document.getElementById('hr3DOverlay')).display == 'block'"), 'المشهد عم ينرسم')
+    await pg.evaluate("closeHandrail3D()")
+    check(await pg.evaluate("getComputedStyle(document.getElementById('hr3DOverlay')).display") == 'none', 'سكّر الثري دي')
+    try:
+        await pg.locator(f'#card-{iid}').screenshot(path=os.path.join(tempfile.gettempdir(), 'hr-plan-card.png'))
+        await pg.locator('#hrPlanTools').screenshot(path=os.path.join(tempfile.gettempdir(), 'hr-plan-tools.png'))
+        await pg.locator('#hrSegmentsList').screenshot(path=os.path.join(tempfile.gettempdir(), 'hr-plan-segs.png'))
+    except Exception:
+        pass
+    # بدون مسقط: الأضلاع على خط واحد (رجوع)
+    await pg.evaluate(f"WD.__t.sel({iid})"); await pg.evaluate("disableHandrailPlan()"); await pg.wait_for_timeout(300)
+    check(not await pg.evaluate(f"!!document.querySelector('#card-{iid} .hr-plan-svg')"), 'إلغاء المسقط بيرجع الواجهة لحالها')
+    check(not errs, 'ما في أخطاء جافاسكربت ' + str(errs[:2]))
+    await ctx.close()
+
 async def t_edit_panel(p, b, port, mobile):
     print('• لوحة التعديل ' + ('(موبايل)' if mobile else '(كمبيوتر)'))
     ctx = await new_ctx(p, b, mobile); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -777,7 +854,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
-        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
+        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
                          (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
