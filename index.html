@@ -8445,14 +8445,25 @@ window.wdApplyBack = function(results){
           <div id="hrFlatBackWrap" style="display:none;margin-top:6px;">
             <button onclick="disableHandrailFlatSegments()" class="small" style="width:100%;">↩ رجوع للمسطح البسيط (بدون أجزاء)</button>
           </div>
+          <!-- 🆕 2026-11-13 (طلب حمدي: "بالسكتش لازم ارسم مسقط حتى يبين كيف شكل رسمة الزجاج عالأرض وبعدين بيلحقو
+               التصميم... وياريت لو منقدر نعملها ثري دي") - مسقط بأضلاع وزوايا (L، U، بلكونة بزوايا...) -->
+          <div id="hrPlanStartWrap" style="display:none;margin-top:6px;">
+            <button id="btnHrPlanStart" onclick="enableHandrailPlan()" class="small" style="width:100%;">📐 مسقط بأضلاع وزوايا (بلكونة L / U / مسبح...)</button>
+          </div>
 
           <div id="hrStairInputs" style="display:none;">
             <label id="hrSegTitle" style="margin-top:8px;">أجزاء الدرج (مائل / استراحة)</label>
             <p class="hint">ضيف جزء "استراحة" لتمثيل المسطح اللي بيجي عند دوران الدرج أو الوصول للطابق يلي بعده - كل جزء إله عدد ألواح وطول إجمالي لحاله.</p>
             <div id="hrSegmentsList"></div>
             <div class="add-row" style="margin-top:6px;">
-              <button onclick="addHandrailSegment('flight')" class="small" style="flex:1;">+ جزء مائل</button>
-              <button onclick="addHandrailSegment('landing')" class="small" style="flex:1;">+ استراحة</button>
+              <button id="btnHrAddFlight" onclick="addHandrailSegment('flight')" class="small" style="flex:1;">+ جزء مائل</button>
+              <button id="btnHrAddLanding" onclick="addHandrailSegment('landing')" class="small" style="flex:1;">+ استراحة</button>
+            </div>
+            <div id="hrPlanTools" style="display:none;margin-top:8px;">
+              <label style="margin-top:4px;">📐 المسقط (شكل الزجاج عالأرض)</label>
+              <div id="hrPlanPreview" style="background:#fff;border:1px solid #dfe3e8;border-radius:6px;padding:4px;"></div>
+              <div id="hrPlanTotal" class="hint" style="margin-top:4px;"></div>
+              <button onclick="disableHandrailPlan()" class="small" style="width:100%;margin-top:6px;">↩ بدون مسقط (أجزاء على خط واحد)</button>
             </div>
           </div>
 
@@ -8460,6 +8471,7 @@ window.wdApplyBack = function(results){
             <label>ارتفاع الزجاج (مم) - افتراضي 1200، قابل للتعديل</label>
             <input type="text" inputmode="decimal" id="inHrHeight" min="200" oninput="restrictMeasureChars(this);onHandrailHeightChange()" onblur="evalMeasureField(this);onHandrailHeightChange()" value="1200">
           </div>
+          <button id="btnHr3D" type="button" onclick="openHandrail3D()" style="width:100%;margin-top:8px;display:none;">🧊 ثري دي حقيقي (دوّر وشوف من كل الجهات)</button>
           <p class="hint" style="margin-top:8px;">فاصل ثابت 5mm بين كل لوح وللي جنبه. كل الألواح بنفس الجزء الواحد لازم تكون متساوية بالمقاس.</p>
         </div>
 
@@ -10282,7 +10294,10 @@ function getHandrailTotalLength(it){
 function addHandrailSegment(type){
   const it = getSelected(); if(!it) return;
   pushHistory(true);
-  ensureHandrailSegments(it).push({ id:'s'+(hrSegIdCounter++), type, panelCount: type==='landing'?1:4, totalLength: type==='landing'?1200:4800, mergedWithNext:false, riseCm:0, inclined:false });
+  const _segs = ensureHandrailSegments(it);
+  // 📐 بالمسقط: الضلع الجديد بيلف (افتراضيًا يمين 90° متل آخر لفة) عن يلي قبله
+  if(hrHasPlan(it) && _segs.length){ const last = _segs[_segs.length-1]; if(last.turnDeg == null || last.turnDeg === 0){ const prev = _segs.slice(0,-1).reverse().find(x => Number(x.turnDeg)); last.turnDeg = prev ? Number(prev.turnDeg) : -90; } }
+  _segs.push({ id:'s'+(hrSegIdCounter++), type, panelCount: type==='landing'?1:4, totalLength: type==='landing'?1200:4800, mergedWithNext:false, riseCm:0, inclined:false });
   syncHandrailDims(it);
   renderHandrailSegmentsUI(it);
   renderGallery();
@@ -10347,7 +10362,7 @@ function renderHandrailSegmentsUI(it){
   wrap.innerHTML = segs.map((seg,idx)=>{
     const row = `
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;padding:6px;background:#f4f5f7;border-radius:4px;">
-      <span style="font-size:12px;font-weight:600;min-width:64px;">${seg.type==='flight'?'🪜 مائل':(it.hrKind==='flat'?'▬ مستقيم':'▬ استراحة')} ${idx+1}</span>
+      <span style="font-size:12px;font-weight:600;min-width:64px;">${seg.type==='flight'?'🪜 مائل':(hrHasPlan(it)?'📐 ضلع':(it.hrKind==='flat'?'▬ مستقيم':'▬ استراحة'))} ${idx+1}</span>
       <input type="number" min="1" step="1" style="width:56px;" value="${seg.panelCount}" onchange="onHrSegField(${it.id},'${seg.id}','panelCount',this.value)" title="عدد الألواح">
       <input type="text" inputmode="decimal" min="1" style="width:84px;" value="${Math.round(seg.totalLength)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegField(${it.id},'${seg.id}','totalLength',this.value)" title="الطول الإجمالي (مم) - تقدر تكتب مثلاً 4800+350">
       <button class="small danger" style="margin-right:auto;" onclick="removeHandrailSegment(${it.id},'${seg.id}')" ${segs.length<=1?'disabled':''}>×</button>
@@ -10377,8 +10392,19 @@ function renderHandrailSegmentsUI(it){
     <div style="display:flex;justify-content:center;margin:-2px 0 6px;">
       <button class="small${seg.mergedWithNext?' active':''}" style="font-size:10.5px;${seg.mergedWithNext?'background:var(--wd-accent,#0f88cd);color:#fff;':''}" onclick="toggleHandrailSegmentMerge(${it.id},'${seg.id}')" title="ادمج هالقطعة مع اللي بعدها كلوح زجاج واحد متواصل بدون فاصل">${seg.mergedWithNext ? '🔗 مدموجة مع اللي بعدها (بدون فاصل)' : '⛓️‍💥 دمج مع القطعة التالية'}</button>
     </div>` : '';
-    return row + riseRow + triRow + mergeRow;
+    // 📐 المسقط (2026-11-13): بعد كل ضلع - لوين بيلف الزجاج (يسار/مستقيم/يمين أو زاوية)
+    const td = Number(seg.turnDeg) || 0;
+    const tb = (v, txt, tip) => `<button class="small${Math.abs(td - v) < 0.05 ? ' active' : ''}" style="font-size:11px;${Math.abs(td - v) < 0.05 ? 'background:var(--wd-accent,#0f88cd);color:#fff;' : ''}" onclick="onHrSegTurn(${it.id},'${seg.id}',${v})" title="${tip}">${txt}</button>`;
+    const turnRow = (hrHasPlan(it) && idx < segs.length-1) ? `
+    <div class="hr-turn-row" style="display:flex;gap:5px;align-items:center;margin:-2px 0 8px;padding:4px 6px;flex-wrap:wrap;border-right:3px solid #0f88cd;background:#eef6fb;border-radius:4px;">
+      <span style="font-size:11px;color:var(--wd-accent,#0f88cd);font-weight:700;">↪ بعد الضلع ${idx+1}:</span>
+      ${tb(90, '↰ يسار', 'الزجاج بيلف لليسار 90°')}${tb(0, '⬆ مستقيم', 'بيكمّل بنفس الاتجاه')}${tb(-90, '↱ يمين', 'الزجاج بيلف لليمين 90°')}
+      <input type="number" step="1" min="-179" max="179" style="width:58px;" value="${td}" onchange="onHrSegTurn(${it.id},'${seg.id}',this.value)" title="زاوية اللفة بالدرجات: موجب = يسار، سالب = يمين (مثلاً 45 أو -135)">
+      <span style="font-size:11px;color:#6b7280;">°</span>
+    </div>` : '';
+    return row + riseRow + triRow + mergeRow + turnRow;
   }).join('');
+  if(hrHasPlan(it)) hrRenderPlanPreview(it);
 }
 function toggleHandrailSegmentTri(itemId, segId){
   const it = items.find(i=>i.id===itemId); if(!it) return;
@@ -10663,7 +10689,15 @@ function hrApplyModeUI(it){
   document.getElementById('hrStairInputs').style.display = seg ? 'block' : 'none';
   const addInc = document.getElementById('hrFlatAddInclineWrap'); if(addInc) addInc.style.display = (flat && !seg) ? 'block' : 'none';
   const back = document.getElementById('hrFlatBackWrap'); if(back) back.style.display = (flat && seg) ? 'block' : 'none';
-  const ttl = document.getElementById('hrSegTitle'); if(ttl) ttl.textContent = flat ? 'أجزاء الهاندريل (مستقيم / مائل)' : 'أجزاء الدرج (مائل / استراحة)';
+  const ttl = document.getElementById('hrSegTitle'); if(ttl) ttl.textContent = hrHasPlan(it) ? 'أضلاع المسقط (طول كل ضلع + لوين بيلف بعده)' : (flat ? 'أجزاء الهاندريل (مستقيم / مائل)' : 'أجزاء الدرج (مائل / استراحة)');
+  // 📐 المسقط (2026-11-13)
+  const plan = hrHasPlan(it);
+  const ps = document.getElementById('hrPlanStartWrap'); if(ps) ps.style.display = (flat && !plan) ? 'block' : 'none';
+  const pt = document.getElementById('hrPlanTools'); if(pt) pt.style.display = plan ? 'block' : 'none';
+  const back2 = document.getElementById('hrFlatBackWrap'); if(back2 && plan) back2.style.display = 'none';
+  const bl = document.getElementById('btnHrAddLanding'); if(bl) bl.textContent = plan ? '+ ضلع جديد' : (flat ? '+ جزء مستقيم' : '+ استراحة');
+  const b3 = document.getElementById('btnHr3D'); if(b3) b3.style.display = flat ? 'block' : 'none';
+  if(plan) hrRenderPlanPreview(it);
 }
 // تفعيل الأجزاء للهاندريل المسطح: الجزء المستقيم الحالي بيصير "استراحة" (مسطحة) + بنضيف جزء مائل
 function enableHandrailFlatSegments(){
@@ -10779,6 +10813,283 @@ function onHandrailHeightChange(){
   syncHandrailDims(it);
   scheduleGalleryRerender(); // 🛠️ 2026-10-01: إصلاح أداء - شوف الشرح قرب scheduleGalleryRerender
 }
+
+/* =====================================================================================
+   📐 مسقط الهاندريل + 🧊 ثري دي حقيقي (2026-11-13) - طلب حمدي: "انا كعرض سعر بحسبها بجمع الاطوال كلها
+   ولكن بالسكتش لازم ارسم مسقط حتى يبين كيف شكل رسمة الزجاج عالأرض وبعدين بيلحقو التصميم... وياريت لو
+   منقدر نعملها ثري دي اخر شي بس يخلص المسقط ويبين التصميم".
+   الفكرة: نفس أجزاء الهاندريل المسطح (hrSegments) - كل جزء = ضلع بالمسقط، ولكل ضلع "لوين بيلف بعده"
+   (seg.turnDeg: +90 يسار، -90 يمين، 0 مستقيم، أو أي زاوية). الطول الإجمالي للعرض = مجموع الأضلاع (متل
+   ما بيحسب حمدي)، والواجهة (Elevation) بتضل نفسها (الأضلاع مفرودة جنب بعض)، والمسقط بينرسم فوقها.
+   ===================================================================================== */
+function hrHasPlan(it){ return !!it && isHandrail(it) && it.hrKind === 'flat' && !!it.hrFlatSegs && !!it.hrPlan; }
+
+// نقاط المسقط بالمم: البداية (0,0) والاتجاه الأول لليمين (شرق)، y لفوق
+function hrPlanGeometry(it){
+  const segs = ensureHandrailSegments(it);
+  let x = 0, y = 0, dir = 0, turnSum = 0;
+  const sides = segs.map((seg, i) => {
+    const len = Math.max(1, seg.totalLength || 0);
+    const a = dir * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a);
+    const side = { seg, i, len, x0: x, y0: y, x1: x + dx*len, y1: y + dy*len, dx, dy, dir, n: Math.max(1, seg.panelCount || 1), pw: hrSegPanelWidth(seg) };
+    x = side.x1; y = side.y1;
+    if(i < segs.length - 1){ const t = Number(seg.turnDeg) || 0; dir += t; turnSum += t; }
+    return side;
+  });
+  return { sides, turnSum, total: sides.reduce((s, d) => s + d.len, 0), panels: sides.reduce((s, d) => s + d.n, 0) };
+}
+
+function enableHandrailPlan(){
+  const it = getSelected(); if(!it || !isHandrail(it)) return;
+  pushHistory(true);
+  if(it.hrKind !== 'flat') it.hrKind = 'flat';
+  if(!it.hrFlatSegs){
+    const total = Math.round(getHandrailTotalLength(it)), n = Math.max(1, it.hrPanelCount || 1);
+    it.hrFlatBackup = { dimMode: it.hrDimMode, total: it.hrTotalLength, count: it.hrPanelCount, pw: it.hrPanelWidth };
+    it.hrFlatSegs = true;
+    // ضلعين كبداية (متل سكتش حمدي: طويل وبعدين بيلف يمين)
+    it.hrSegments = [
+      { id:'s'+(hrSegIdCounter++), type:'landing', panelCount:n, totalLength:total, mergedWithNext:false, riseCm:0, inclined:false, turnDeg:-90 },
+      { id:'s'+(hrSegIdCounter++), type:'landing', panelCount:1, totalLength:1200, mergedWithNext:false, riseCm:0, inclined:false }
+    ];
+  } else {
+    const segs = ensureHandrailSegments(it);
+    segs.forEach((s, i) => { if(i < segs.length-1 && s.turnDeg == null) s.turnDeg = 0; });
+  }
+  it.hrPlan = true;
+  document.getElementById('btnHrKindStair').classList.remove('active');
+  document.getElementById('btnHrKindFlat').classList.add('active');
+  hrApplyModeUI(it);
+  renderHandrailSegmentsUI(it);
+  syncHandrailDims(it);
+  renderGallery();
+}
+function disableHandrailPlan(){
+  const it = getSelected(); if(!it || !isHandrail(it)) return;
+  pushHistory(true);
+  it.hrPlan = false; // الأضلاع بتضل (أجزاء على خط واحد)، والزوايا محفوظة إذا رجعت فعّلت المسقط
+  hrApplyModeUI(it);
+  renderHandrailSegmentsUI(it);
+  renderGallery();
+}
+function onHrSegTurn(itemId, segId, value){
+  const it = items.find(i=>i.id===itemId); if(!it) return;
+  const seg = ensureHandrailSegments(it).find(s=>s.id===segId); if(!seg) return;
+  pushHistory();
+  let v = parseFloat(value); if(!Number.isFinite(v)) v = 0;
+  v = Math.max(-179, Math.min(179, Math.round(v*10)/10));
+  seg.turnDeg = v;
+  renderHandrailSegmentsUI(it);
+  hrRenderPlanPreview(it);
+  renderGallery();
+}
+window.enableHandrailPlan = enableHandrailPlan;
+window.disableHandrailPlan = disableHandrailPlan;
+window.onHrSegTurn = onHrSegTurn;
+
+function hrRenderPlanPreview(it){
+  const box = document.getElementById('hrPlanPreview'); if(!box) return;
+  if(!hrHasPlan(it)){ box.innerHTML = ''; return; }
+  box.innerHTML = buildHandrailPlanSVG(it, { maxW: 340, maxH: 240, compact: true });
+  const g = hrPlanGeometry(it);
+  const tot = document.getElementById('hrPlanTotal');
+  if(tot) tot.innerHTML = 'مجموع الأطوال (للعرض): <b>' + Math.round(g.total) + ' مم</b> = ' + (Math.round(g.total)/1000).toFixed(2) + ' م.ط · ' + g.panels + ' لوح · ' + g.sides.length + ' ضلع';
+}
+
+// رسمة المسقط (SVG): خط زجاج لكل ضلع، تقسيم الألواح، طول كل ضلع، الزوايا، والمجموع
+function buildHandrailPlanSVG(it, o){
+  o = o || {};
+  const g = hrPlanGeometry(it);
+  if(!g.sides.length) return '';
+  const maxW = o.maxW || 520, maxH = o.maxH || 300;
+  let minX = 0, maxX = 0, minY = 0, maxY = 0;
+  g.sides.forEach(d => { [[d.x0,d.y0],[d.x1,d.y1]].forEach(([x,y]) => { minX = Math.min(minX,x); maxX = Math.max(maxX,x); minY = Math.min(minY,y); maxY = Math.max(maxY,y); }); });
+  const fs = o.compact ? 11 : 13, padPx = fs*4.2;
+  const spanX = Math.max(1, maxX-minX), spanY = Math.max(1, maxY-minY);
+  const sc = Math.min((maxW - padPx*2)/spanX, (maxH - padPx*2 - fs*2)/spanY, 0.5);
+  const W = Math.max(spanX*sc + padPx*2, o.compact ? 200 : 260), H = spanY*sc + padPx*2 + fs*2;
+  const offX = (W - spanX*sc)/2 - minX*sc, offY = padPx + maxY*sc;
+  const P = (x, y) => [offX + x*sc, offY - y*sc];
+  // جهة الداخل (لوين بيلف المسقط) - الأطوال منكتبها برّا
+  const inSign = g.turnSum > 0.5 ? 1 : (g.turnSum < -0.5 ? -1 : 0);
+  const gid = 'hrp' + Math.random().toString(36).slice(2,7);
+  let out = '', labels = '';
+  g.sides.forEach(d => {
+    const [ax, ay] = P(d.x0, d.y0), [bx, by] = P(d.x1, d.y1);
+    // اتجاه وعمود بالبكسل (y لتحت)
+    const ux = d.dx, uy = -d.dy, lx = uy, ly = -ux; // يسار الاتجاه بالشاشة = (uy, -ux)
+    const outS = inSign === 0 ? 1 : -inSign; // برّا = عكس جهة الداخل
+    // الفلقة/الأرضية تحت الزجاج (شريط خفيف لجهة الداخل)
+    const slabW = Math.max(6, 200*sc);
+    const sx = -lx*outS*slabW, sy = -ly*outS*slabW;
+    out += '<polygon points="' + [[ax,ay],[bx,by],[bx+sx,by+sy],[ax+sx,ay+sy]].map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' ') + '" fill="#eef1f4"/>';
+    // الألواح
+    const gapMm = HANDRAIL_GAP_MM;
+    for(let k = 0; k < d.n; k++){
+      const s0 = k*(d.pw + gapMm), s1 = s0 + d.pw;
+      const p0 = P(d.x0 + d.dx*s0, d.y0 + d.dy*s0), p1 = P(d.x0 + d.dx*s1, d.y0 + d.dy*s1);
+      out += '<line x1="' + p0[0].toFixed(1) + '" y1="' + p0[1].toFixed(1) + '" x2="' + p1[0].toFixed(1) + '" y2="' + p1[1].toFixed(1) + '" stroke="url(#' + gid + 'g)" stroke-width="' + (o.compact ? 5 : 6) + '" stroke-linecap="butt"/>';
+      if(k > 0){ const t = 7; out += '<line x1="' + (p0[0]-lx*t).toFixed(1) + '" y1="' + (p0[1]-ly*t).toFixed(1) + '" x2="' + (p0[0]+lx*t).toFixed(1) + '" y2="' + (p0[1]+ly*t).toFixed(1) + '" stroke="#1d3a4f" stroke-width="1.2"/>'; }
+    }
+    // الطول (برّا)
+    const mx = (ax+bx)/2 + lx*outS*(fs*1.5), my = (ay+by)/2 + ly*outS*(fs*1.5);
+    let ang = Math.atan2(by-ay, bx-ax)*180/Math.PI; if(ang > 90) ang -= 180; if(ang < -90) ang += 180;
+    labels += '<g transform="translate(' + mx.toFixed(1) + ',' + my.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')"><text x="0" y="0" font-size="' + fs + '" font-weight="700" fill="#0d47a1" text-anchor="middle" dominant-baseline="middle">' + Math.round(d.len) + '</text>' +
+      '<text x="0" y="' + (fs*1.05) + '" font-size="' + (fs*0.78) + '" fill="#546e7a" text-anchor="middle" dominant-baseline="middle">' + d.n + (d.n === 1 ? ' لوح' : ' ألواح') + '</text></g>';
+    // رقم الضلع (جوّا)
+    const ix = (ax+bx)/2 - lx*outS*(fs*1.1), iy = (ay+by)/2 - ly*outS*(fs*1.1);
+    labels += '<circle cx="' + ix.toFixed(1) + '" cy="' + iy.toFixed(1) + '" r="' + (fs*0.72) + '" fill="#fff" stroke="#90a4ae"/><text x="' + ix.toFixed(1) + '" y="' + (iy+0.5).toFixed(1) + '" font-size="' + (fs*0.8) + '" fill="#455a64" text-anchor="middle" dominant-baseline="middle">' + (d.i+1) + '</text>';
+  });
+  // الزوايا
+  g.sides.forEach((d, i) => {
+    if(i === g.sides.length-1) return;
+    const t = Number(d.seg.turnDeg) || 0; if(!t) return;
+    const [cx, cy] = P(d.x1, d.y1);
+    out += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="3.2" fill="#0f88cd"/>';
+    if(Math.abs(Math.abs(t) - 90) > 0.05){
+      labels += '<text x="' + (cx + 6).toFixed(1) + '" y="' + (cy - 6).toFixed(1) + '" font-size="' + (fs*0.8) + '" fill="#e65100">' + Math.round(180 - Math.abs(t)) + '°</text>';
+    }
+  });
+  // البداية والنهاية (تثبيت عالجدار/العمود)
+  [[g.sides[0].x0, g.sides[0].y0], [g.sides[g.sides.length-1].x1, g.sides[g.sides.length-1].y1]].forEach(([x, y]) => {
+    const [px, py] = P(x, y); out += '<rect x="' + (px-3.5).toFixed(1) + '" y="' + (py-3.5).toFixed(1) + '" width="7" height="7" fill="#37474f"/>';
+  });
+  const title = o.compact ? '' : '<text x="' + (W/2).toFixed(1) + '" y="' + (fs*1.2) + '" font-size="' + (fs*1.05) + '" font-weight="700" fill="#263238" text-anchor="middle">مسقط الهاندريل · Plan View</text>';
+  const foot = '<text x="' + (W/2).toFixed(1) + '" y="' + (H - fs*0.5).toFixed(1) + '" font-size="' + (fs*0.9) + '" fill="#37474f" text-anchor="middle">مجموع الأطوال: ' + Math.round(g.total) + ' mm · ' + g.panels + ' لوح</text>';
+  const style = o.print ? 'width:100%;max-height:' + Math.round(maxH) + 'px;' : 'width:100%;max-width:' + Math.round(W) + 'px;display:block;margin:0 auto;';
+  return '<svg class="hr-plan-svg" viewBox="0 ' + (o.compact ? 0 : -fs*0.6).toFixed(1) + ' ' + W.toFixed(1) + ' ' + (H + (o.compact ? 0 : fs*0.6)).toFixed(1) + '" style="' + style + '" xmlns="http://www.w3.org/2000/svg" font-family="Tajawal, Arial, sans-serif">' +
+    '<defs><linearGradient id="' + gid + 'g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7cc4e6"/><stop offset="1" stop-color="#2f86b5"/></linearGradient></defs>' +
+    title + out + labels + foot + '</svg>';
+}
+
+// ---------- 🧊 ثري دي حقيقي (THREE.js - نفس المكتبة يلي بيستخدمها مشهد الغرفة) ----------
+const hr3D = { renderer: null, scene: null, camera: null, controls: null, animId: null, onResize: null, stats: null };
+function hrEnsure3DOverlay(){
+  let ov = document.getElementById('hr3DOverlay');
+  if(ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'hr3DOverlay';
+  ov.style.cssText = 'display:none;position:fixed;inset:0;z-index:100000;background:#1b2530;';
+  ov.innerHTML = '<div style="display:flex;gap:10px;align-items:center;padding:8px 12px;color:#fff;font-family:Tajawal,Cairo,sans-serif;direction:rtl;flex-wrap:wrap;">' +
+    '<b>🧊 الهاندريل ثري دي</b><span id="hr3DInfo" style="opacity:.8;font-size:12px;"></span><span style="opacity:.6;font-size:12px;">اسحب لتدوّر · قرّب بأصبعين أو بالعجلة</span><span style="flex:1"></span>' +
+    '<button type="button" onclick="closeHandrail3D()" style="background:#fff;color:#1b2530;border:0;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer;">✕ سكّر</button></div>' +
+    '<div id="hr3DCanvasWrap" style="width:100%;height:calc(100vh - 52px);touch-action:none;"></div>';
+  document.body.appendChild(ov);
+  return ov;
+}
+// بيبني المشهد (بالمتر): X = شرق المسقط، Z = -شمال، Y = لفوق
+function hrBuild3DScene(it){
+  const T = THREE, M = 0.001;
+  const glassH = Math.max(0.2, (it.hrGlassHeight || 1200) * M);
+  const mount = it.hrMount || 'standoff';
+  const plan = hrHasPlan(it);
+  // بدون مسقط: كل الأجزاء على خط واحد
+  const g = plan ? hrPlanGeometry(it) : (function(){
+    const segs = hrSegMode(it) ? ensureHandrailSegments(it) : [{ totalLength: getHandrailTotalLength(it), panelCount: it.hrPanelCount || 1 }];
+    let x = 0; const sides = segs.map((seg, i) => { const len = Math.max(1, seg.totalLength || 0); const n = Math.max(1, seg.panelCount || 1); const d = { seg, i, len, x0: x, y0: 0, x1: x + len, y1: 0, dx: 1, dy: 0, dir: 0, n, pw: (len - (n-1)*HANDRAIL_GAP_MM)/n }; x += len; return d; });
+    return { sides, turnSum: 0, total: x, panels: sides.reduce((s, d) => s + d.n, 0) };
+  })();
+  const scene = new T.Scene();
+  scene.background = new T.Color(0xdfe9f1);
+  scene.add(new T.HemisphereLight(0xffffff, 0x8a9aa8, 0.95));
+  const sun = new T.DirectionalLight(0xffffff, 0.75); sun.position.set(6, 12, 8); scene.add(sun);
+  const glassMat = new T.MeshStandardMaterial({ color: 0x9fd3ea, transparent: true, opacity: 0.38, roughness: 0.08, metalness: 0.1, side: T.DoubleSide, depthWrite: false });
+  const edgeMat = new T.LineBasicMaterial({ color: 0x4f7488 });
+  const steelMat = new T.MeshStandardMaterial({ color: 0xb8bec4, roughness: 0.3, metalness: 0.85 });
+  const slabMat = new T.MeshStandardMaterial({ color: 0xf1ede6, roughness: 0.7 });
+  const floorMat = new T.MeshStandardMaterial({ color: 0xcfc8bd, roughness: 0.95 });
+  const inSign = g.turnSum > 0.5 ? 1 : (g.turnSum < -0.5 ? -1 : 1);
+  let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9, panels = 0;
+  const glassBase = mount === 'spigot' ? 0.1 : (mount === 'hidden' ? 0.03 : -0.12);
+  g.sides.forEach(d => {
+    const a = Math.atan2(d.dy, d.dx);
+    const lenM = d.len * M, cx = (d.x0 + d.x1)/2 * M, cz = -(d.y0 + d.y1)/2 * M;
+    // يسار الاتجاه بالمسقط (-dy, dx) → بالمشهد (x, z) = (-dy, -dx)
+    const leftX = -d.dy, leftZ = -d.dx;
+    const inX = leftX*inSign, inZ = leftZ*inSign;
+    // الفلقة (رخام/بلاط) تحت الزجاج لجهة الداخل
+    const slab = new T.Mesh(new T.BoxGeometry(lenM, 0.05, 0.35), slabMat);
+    slab.position.set(cx + inX*0.13, -0.025, cz + inZ*0.13); slab.rotation.y = a; scene.add(slab);
+    if(mount === 'hidden'){
+      const ch = new T.Mesh(new T.BoxGeometry(lenM, 0.06, 0.07), steelMat);
+      ch.position.set(cx, 0.03, cz); ch.rotation.y = a; scene.add(ch);
+    }
+    const outOff = mount === 'standoff' ? -0.05 : 0; // ستاند أوف: الزجاج عوجه الفلقة من برّا
+    for(let k = 0; k < d.n; k++){
+      const s0 = k*(d.pw + HANDRAIL_GAP_MM), mid = (s0 + d.pw/2);
+      const px = (d.x0 + d.dx*mid) * M + inX*outOff, pz = -(d.y0 + d.dy*mid) * M + inZ*outOff;
+      const geo = new T.BoxGeometry(Math.max(0.02, d.pw*M), glassH, 0.012);
+      const mesh = new T.Mesh(geo, glassMat);
+      mesh.position.set(px, glassBase + glassH/2, pz); mesh.rotation.y = a; scene.add(mesh);
+      const edges = new T.LineSegments(new T.EdgesGeometry(geo), edgeMat);
+      edges.position.copy(mesh.position); edges.rotation.y = a; scene.add(edges);
+      panels++;
+      [0.2, 0.8].forEach(f => {
+        const along = s0 + d.pw*f, qx = (d.x0 + d.dx*along) * M, qz = -(d.y0 + d.dy*along) * M;
+        if(mount === 'spigot'){
+          const post = new T.Mesh(new T.CylinderGeometry(0.025, 0.028, 0.16, 20), steelMat); post.position.set(qx, 0.08, qz); scene.add(post);
+          const plate = new T.Mesh(new T.CylinderGeometry(0.055, 0.055, 0.01, 24), steelMat); plate.position.set(qx, 0.005, qz); scene.add(plate);
+        } else if(mount === 'standoff'){
+          [0.06, 0.2].forEach(h => {
+            const bolt = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.06, 18), steelMat);
+            bolt.rotation.x = Math.PI/2; bolt.rotation.z = 0; const holder = new T.Group(); holder.add(bolt); holder.rotation.y = a;
+            holder.position.set(qx + inX*(outOff - 0.02), -0.12 + h + 0.0, qz + inZ*(outOff - 0.02)); scene.add(holder);
+          });
+        }
+      });
+    }
+    [[d.x0, d.y0], [d.x1, d.y1]].forEach(([x, y]) => { minX = Math.min(minX, x*M); maxX = Math.max(maxX, x*M); minZ = Math.min(minZ, -y*M); maxZ = Math.max(maxZ, -y*M); });
+  });
+  const spanX = maxX - minX, spanZ = maxZ - minZ, size = Math.max(spanX, spanZ, 1);
+  const floor = new T.Mesh(new T.PlaneGeometry(size*3 + 6, size*3 + 6), floorMat);
+  floor.rotation.x = -Math.PI/2; floor.position.set((minX+maxX)/2, -0.051, (minZ+maxZ)/2); scene.add(floor);
+  return { scene, center: { x: (minX+maxX)/2, z: (minZ+maxZ)/2 }, size, glassH, stats: { panels, sides: g.sides.length, totalMm: Math.round(g.total) } };
+}
+function openHandrail3D(){
+  const it = getSelected(); if(!it || !isHandrail(it)) return;
+  closeHandrail3D();
+  const ov = hrEnsure3DOverlay(); ov.style.display = 'block';
+  const wrap = document.getElementById('hr3DCanvasWrap');
+  if(typeof THREE === 'undefined' || typeof THREE.OrbitControls === 'undefined'){
+    wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:Tajawal,sans-serif;">⚠️ تعذّر تحميل مكتبة الثري دي - تأكد من الإنترنت وحدّث الصفحة.</p>';
+    return;
+  }
+  try{
+    const b = hrBuild3DScene(it);
+    const w = wrap.clientWidth || window.innerWidth, h = wrap.clientHeight || (window.innerHeight - 52);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); renderer.setSize(w, h);
+    wrap.innerHTML = ''; wrap.appendChild(renderer.domElement);
+    const r = Math.max(2.5, b.size*0.95 + b.glassH*1.5);
+    const camera = new THREE.PerspectiveCamera(50, w/h, 0.05, 500);
+    camera.position.set(b.center.x + r*0.75, b.glassH + r*0.6, b.center.z + r);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(b.center.x, b.glassH*0.45, b.center.z);
+    controls.maxPolarAngle = Math.PI*0.495; controls.minDistance = 0.6; controls.maxDistance = r*4; controls.update();
+    Object.assign(hr3D, { renderer, scene: b.scene, camera, controls, stats: b.stats });
+    const info = document.getElementById('hr3DInfo'); if(info) info.textContent = b.stats.sides + ' ضلع · ' + b.stats.panels + ' لوح · ' + b.stats.totalMm + ' مم';
+    const loop = () => { hr3D.animId = requestAnimationFrame(loop); controls.update(); renderer.render(b.scene, camera); };
+    loop();
+    hr3D.onResize = () => { const ww = wrap.clientWidth || window.innerWidth, hh = wrap.clientHeight || (window.innerHeight - 52); camera.aspect = ww/hh; camera.updateProjectionMatrix(); renderer.setSize(ww, hh); };
+    window.addEventListener('resize', hr3D.onResize);
+  } catch(e){
+    wrap.innerHTML = '<p style="color:#fff;padding:20px;font-family:Tajawal,sans-serif;">⚠️ صار خطأ ببناء المشهد: ' + escAttr(String(e && e.message || e)) + '</p>';
+  }
+}
+function closeHandrail3D(){
+  if(hr3D.animId){ cancelAnimationFrame(hr3D.animId); hr3D.animId = null; }
+  if(hr3D.onResize){ window.removeEventListener('resize', hr3D.onResize); hr3D.onResize = null; }
+  if(hr3D.controls){ try{ hr3D.controls.dispose(); }catch(e){} }
+  if(hr3D.scene){ try{ disposeThreeSceneDeep(hr3D.scene); }catch(e){} }
+  if(hr3D.renderer){ try{ renderer_dispose_safe(hr3D.renderer); }catch(e){} }
+  hr3D.renderer = hr3D.scene = hr3D.camera = hr3D.controls = null;
+  const ov = document.getElementById('hr3DOverlay'); if(ov) ov.style.display = 'none';
+}
+window.openHandrail3D = openHandrail3D;
+window.closeHandrail3D = closeHandrail3D;
+window.hrPlanGeometry = hrPlanGeometry;
+window.buildHandrailPlanSVG = buildHandrailPlanSVG;
+window.__getHr3DDebugState__ = function(){ return { open: !!hr3D.renderer, stats: hr3D.stats }; };
 
 function onShowerSidePanelToggle(side){
   const it = getSelected(); if(!it) return;
@@ -19732,9 +20043,10 @@ function renderDimChain(segments, axis, linePos, color){
 }
 
 // ---- طباعة الهاندريل: نفس هندسة الألواح (رسمة المصمم) بس بألوان الطباعة (أبيض/أسود/برتقالي القياسات) ----
-function buildHandrailPrintSVG(it, pageItemCount){
+function buildHandrailPrintSVG(it, pageItemCount, hFactor){
   // الهاندريل دايمًا بياخد صفحته الخاصة بعرض الصفحة كامل (forceFullFill) حتى يضل واضح ومقروء بالتفاصيل
-  const { availW, availH } = getPrintAvailPx(pageItemCount, true);
+  const _ap = getPrintAvailPx(pageItemCount, true);
+  const availW = _ap.availW, availH = _ap.availH * (hFactor || 1); // 📐 hFactor: لما المسقط فوقها بنفس الصفحة
   const glassH = Math.max(50, it.hrGlassHeight || 1200);
   const gap = HANDRAIL_GAP_MM;
   const isStair = hrSegMode(it);
@@ -19946,7 +20258,14 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
 
 function buildPrintSVG(it, pageItemCount){
   if(isPergola(it)) return buildPergolaSVG(it, pageItemCount);
-  if(isHandrail(it)) return buildHandrailPrintSVG(it, pageItemCount);
+  if(isHandrail(it)){
+    if(hrHasPlan(it)){
+      // 📐 صفحة الهاندريل: المسقط فوق (حوالي 40%) والواجهة تحت
+      const { availW, availH } = getPrintAvailPx(pageItemCount, true);
+      return '<div style="margin-bottom:6px;">' + buildHandrailPlanSVG(it, { maxW: availW, maxH: availH*0.4, print: true }) + '</div>' + buildHandrailPrintSVG(it, pageItemCount, 0.55);
+    }
+    return buildHandrailPrintSVG(it, pageItemCount);
+  }
   if(isMirror(it)) return buildMirrorPrintSVG(it, pageItemCount);
   if(isShowerDoor(it)) return buildShowerDoorPrintSVG(it, pageItemCount);
   const W = it.width, H = it.height;
@@ -20284,8 +20603,8 @@ function renderGallery(){
       <span class="type-badge">${SHAPE_LABELS[it.shapeType] || 'شباك'}</span>`;
     const canvasDiv = document.createElement('div');
     canvasDiv.className = 'card-canvas';
-    canvasDiv.innerHTML = buildItemSVG(it);
-    const svgEl = canvasDiv.querySelector('svg');
+    canvasDiv.innerHTML = (hrHasPlan(it) ? '<div class="hr-plan-wrap" style="flex:0 0 100%;width:100%;box-sizing:border-box;margin-bottom:10px;background:#fff;border-radius:8px;padding:6px;">' + buildHandrailPlanSVG(it, { maxW: 520, maxH: 300 }) + '</div>' : '') + buildItemSVG(it);
+    const svgEl = canvasDiv.querySelector('svg:not(.hr-plan-svg)');
     if(svgEl){
       svgEl.querySelectorAll('.drag-split').forEach(r=>{
         r.addEventListener('pointerdown', (e)=> onDragStart(e, r), { passive:false });
@@ -20609,7 +20928,7 @@ function mzFixMisguessedHandrail(it, rd){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial'];
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
