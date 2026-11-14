@@ -1111,6 +1111,83 @@ async def t_price_sync(p, b, port):
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
+async def t_acct_en(p, b, port):
+    """🌐 المحاسبة بالانكليزي: الواجهة مترجمة واتجاهها ltr، البيانات ما بتتغيّر، والعربي ما تأثّر."""
+    print('• المحاسبة بالانكليزي')
+    import subprocess, re as _re
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_acct.js'), sdir], stdout=subprocess.PIPE, text=True)
+    aport = int(proc.stdout.readline().split()[1])
+    try:
+        async def mk(lang):
+            ctx = await b.new_context(viewport={"width": 1300, "height": 900})
+            await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','OWNERDEV'); localStorage.setItem('merzona-acct-book','syria');" + ("localStorage.setItem('mz-lang','en');" if lang == 'en' else "") + "}catch(e){}")
+            async def fwd(route):
+                u = route.request.url
+                if '/access/status' in u: return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'status': 'approved', 'isOwner': True}))
+                if '/acct/' in u or '/ai/' in u:
+                    resp = await route.fetch(url=u.replace(SRV, f'http://127.0.0.1:{aport}'))
+                    return await route.fulfill(response=resp)
+                await route.fulfill(status=200, content_type='application/json', body='{}')
+            await ctx.route(SRV + '/**', fwd)
+            pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+            await pg.goto(f'http://127.0.0.1:{port}/accounting.html'); await pg.wait_for_timeout(2500)
+            return ctx, pg, errs
+        # عربي: متل ما كان
+        ctx, pg, errs = await mk('ar')
+        st = await pg.evaluate("[document.documentElement.dir, document.body.innerText.indexOf('المحاسبة')>=0, (document.querySelector('#mzLangSlot .mz-lang-btn')||{}).textContent]")
+        check(st[0] == 'rtl' and st[1] and st[2] == 'EN', 'العربي متل ما هو، وفي زر EN ' + str(st))
+        await ctx.close()
+        # انكليزي: نسجّل سند قبض فيه اسم عربي ونتأكد إنو الاسم ما تترجم
+        ctx, pg, errs = await mk('en')
+        st = await pg.evaluate("[document.documentElement.dir, document.documentElement.lang, (document.querySelector('#mzLangSlot .mz-lang-btn')||{}).textContent]")
+        check(st[0] == 'ltr' and st[1] == 'en' and st[2] == 'ع', 'الصفحة ltr وانكليزي، وزر ع للرجوع ' + str(st))
+        await pg.evaluate("""(async function(){ var B=__acctT.S().book; })()""")
+        views = ['home', 'docs', 'reports', 'accounts']
+        leftovers = {}
+        for v in ['#tabs button', 'nav button', '.tabs button']:
+            pass
+        btns = await pg.evaluate("Array.from(document.querySelectorAll('header button, nav button, .tabs button, .chip')).map(function(b){return b.textContent.trim()}).filter(Boolean).slice(0,30)")
+        await pg.screenshot(path='/tmp/claude-0/acct-en-home.png', full_page=False)
+        txt = await pg.evaluate("document.body.innerText")
+        ar = _re.findall(r'[\u0621-\u064A][\u0621-\u064A ]*', txt)
+        check(len(ar) <= 3, 'الصفحة الرئيسية شبه بلا عربي (' + str(len(ar)) + ') ' + ' | '.join(ar[:10]))
+        # كل التبويبات + نموذج فاتورة
+        tabs = await pg.evaluate("Array.from(document.querySelectorAll('[data-tab]')).map(function(b){return b.dataset.tab})")
+        allar = {}
+        for t in tabs:
+            await pg.click(f'[data-tab="{t}"]'); await pg.wait_for_timeout(700)
+            await pg.screenshot(path=f'/tmp/claude-0/acct-en-{t}.png', full_page=True)
+            txt = await pg.evaluate("document.body.innerText")
+            for a in _re.findall(r'[\u0621-\u064A][\u0621-\u064A ]*', txt):
+                if a.strip() != 'ع': allar[a.strip()] = t
+        txt_rep = ''
+        await pg.click('[data-tab="reports"]') if 'reports' in tabs else None
+        await pg.wait_for_timeout(500)
+        txt_rep = await pg.evaluate("document.body.innerText")
+        check(len(allar) == 0, 'كل التبويبات بلا عربي (' + str(len(allar)) + ') ' + str(list(allar.items())[:20]))
+        check('Profit & loss' in txt_rep, 'أسماء التقارير بالانكليزي')
+        await pg.click('[data-tab="home"]'); await pg.wait_for_timeout(500)
+        await pg.click('text=Sales invoice'); await pg.wait_for_timeout(800)
+        await pg.screenshot(path='/tmp/claude-0/acct-en-invoice.png', full_page=False)
+        txt = await pg.evaluate("document.body.innerText")
+        far = [a.strip() for a in _re.findall(r'[\u0621-\u064A][\u0621-\u064A ]*', txt) if a.strip() != 'ع']
+        check(not far, 'نموذج الفاتورة بلا عربي ' + str(far[:15]))
+        # تنبيه مترجم
+        msg = await pg.evaluate("(function(){ var got=''; var o=window.__realAlert; return MZ_I18N.t('القيد مش موزون'); })()")
+        check(msg == 'The entry is not balanced', 'رسائل التنبيه بتترجم')
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
+        # رابط المحاسب ?lang=en بيفتح انكليزي وبيتذكّر
+        ctx, pg, errs = await mk('ar')
+        await pg.goto(f'http://127.0.0.1:{port}/accounting.html?lang=en'); await pg.wait_for_timeout(2500)
+        check(await pg.evaluate("document.documentElement.dir") == 'ltr', 'رابط ?lang=en بيفتح انكليزي')
+        await pg.goto(f'http://127.0.0.1:{port}/accounting.html'); await pg.wait_for_timeout(2000)
+        check(await pg.evaluate("document.documentElement.dir") == 'ltr', 'وبيضل انكليزي بالمرات الجاية')
+        await ctx.close()
+    finally:
+        proc.kill()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1118,7 +1195,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
