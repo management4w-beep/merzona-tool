@@ -1061,6 +1061,56 @@ async def t_wa_quote_draft(p, b, port):
     check(not errs, 'بلا أخطاء جافاسكربت ' + str(errs[:2]))
     await ctx.close()
 
+async def t_wa_pdf(p, b, port):
+    """📄 PDF مسودة عرض السعر: نفس كود السيرفر بيطبع الأداة الحقيقية مع السكتشات وعلامة مسودة."""
+    print('• PDF مسودة عرض السعر')
+    import subprocess
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    out = os.path.join(tempfile.mkdtemp(prefix='mz-pdf-'), 'draft.pdf')
+    r = subprocess.run(['node', os.path.join(ROOT, 'tests', 'e2e', 'render_pdf.js'), sdir, f'http://127.0.0.1:{port}/index.html', out], capture_output=True, text=True, timeout=300)
+    line = [l for l in r.stdout.splitlines() if l.startswith('INFO ') or l.startswith('FAIL ')]
+    check(r.returncode == 0 and line and line[-1].startswith('INFO '), 'انطبع PDF ' + (line[-1][:300] if line else r.stderr[-300:]))
+    if r.returncode != 0: return
+    info = json.loads(line[-1][5:])
+    check(info['rows'] == 3, '3 بنود ' + str(info))
+    check(info['sketches'] >= 3 and info.get('sketchPrint'), 'سكتش لكل بند بعد عرض السعر ' + str(info))
+    check(info.get('stampShown') is False, 'المسودة بلا ختم وبلا توقيع الإدارة')
+    check(not info.get('pageErrors'), 'بلا أخطاء بالصفحة ' + str(info.get('pageErrors')))
+    data = open(out, 'rb').read()
+    check(data[:4] == b'%PDF' and len(data) > 20000, 'ملف PDF حقيقي ' + str(len(data)))
+    txt = subprocess.run(['pdftotext', '-layout', out, '-'], capture_output=True, text=True).stdout if shutil.which('pdftotext') else ''
+    if txt:
+        check('DRAFT' in txt, 'علامة مسودة/DRAFT بالملف')
+        check('12000' in txt and '2000' in txt and 'S-Q-DRAFT' in txt, 'القياسات والرقم (مسودة) بالملف')
+    shutil.copy(out, '/tmp/claude-0/wa-draft-sample.pdf') if os.path.isdir('/tmp/claude-0') else None
+
+async def t_price_sync(p, b, port):
+    """💲 آخر سعر لكل بند بيتزامن مع السيرفر: بيجيب أسعار السيرفر، بيرفع القديم، وبيبعت كل سعر جديد."""
+    print('• مزامنة الأسعار مع السيرفر')
+    posts = []
+    ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+    await ctx.add_init_script("if(!sessionStorage.getItem('x')){sessionStorage.setItem('x','1');localStorage.setItem('merzona-device-token','dev1');localStorage.setItem('merzona-access-status','approved');localStorage.setItem('merzona-price-memory', JSON.stringify({'uae|aed|Glass Room':'700'}));}")
+    async def srv(route):
+        u = route.request.url
+        if u.endswith('/prices') and route.request.method == 'GET':
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'prices': {'syria|usd|Handrail (Hidden Glass)': {'v': '95', 'at': 1}}}))
+        if u.endswith('/prices') and route.request.method == 'POST':
+            posts.append(json.loads(route.request.post_data or '{}')); return await route.fulfill(status=200, content_type='application/json', body='{"ok":true}')
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else {}
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(6000)
+    mem = await pg.evaluate("JSON.parse(localStorage.getItem('merzona-price-memory')||'{}')")
+    check(mem.get('syria|usd|Handrail (Hidden Glass)') == '95', 'سعر السيرفر وصل للجهاز ' + str(mem))
+    check(any('uae|aed|Glass Room' in (x.get('set') or {}) for x in posts), 'السعر القديم بالجهاز انرفع للسيرفر ' + str(posts))
+    await pg.evaluate("(function(){ var i=ITEMS.findIndex(function(t){return t.en==='Glass Room'}); addQtyRow('1000','1000','1','',i); var rows=document.querySelectorAll('#qty-rows tr'); var pr=rows[rows.length-1].querySelector('.price'); pr.value='777'; onPriceInput(pr); })()")
+    await pg.wait_for_timeout(2500)
+    check(any('777' in (x.get('set') or {}).values() for x in posts), 'السعر الجديد انبعت للسيرفر ' + str(posts))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1068,7 +1118,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_wa_quote_draft, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
