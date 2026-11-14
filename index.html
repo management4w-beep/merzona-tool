@@ -147,7 +147,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-13.4';
+  var CURRENT_VERSION = '2026-11-14.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -11451,6 +11451,63 @@ async function hpeSrv(method, pathName, body){
   let j = null; try{ j = await r.json(); }catch(e){}
   return { status: r.status, j };
 }
+/* 📱 2026-11-14: مسودة عرض سعر من مساعد الواتس اب - طلب حمدي ("بدي منو يعمل عرض سعر... وهاد شي مهم").
+   المساعد بيبعت رابط index.html#wadraft=<رقم>. الصفحة بتجيب المسودة من السيرفر (بجهاز مسجّل بس) وبتعبّي
+   الفرع والعملة والزبون والبنود والقياسات. ما في شي بينحفظ لحاله: حمدي بيراجع الأسعار وبيحفظ بإيده. */
+function mzWaDraftBanner(html, kind){
+  let b = document.getElementById('mzWaDraftBanner');
+  if(!b){ b = document.createElement('div'); b.id = 'mzWaDraftBanner'; b.className = 'no-print';
+    b.style.cssText = 'position:sticky;top:0;z-index:9998;margin:0 0 10px;padding:10px 14px;border-radius:10px;font:600 14px/1.6 system-ui,sans-serif;direction:rtl;display:flex;gap:10px;align-items:center;justify-content:space-between';
+    const fx = document.getElementById('mzFxBar'); if(fx && fx.parentNode) fx.parentNode.insertBefore(b, fx.nextSibling); else document.body.insertBefore(b, document.body.firstChild); }
+  b.style.background = kind === 'err' ? '#fdecea' : '#e8f4fb'; b.style.color = kind === 'err' ? '#8a1c12' : '#0d4a6b'; b.style.border = '1px solid ' + (kind === 'err' ? '#f5c2bd' : '#b9dcef');
+  b.innerHTML = '<span>' + html + '</span><button type="button" class="small" onclick="this.parentNode.remove()">✕</button>';
+}
+function mzWaMatchItem(name){
+  const raw = String(name || '').replace(/\s+/g, ' ').trim(); if(!raw) return -1;
+  const n = normalizeForMatch(raw);
+  let i = n ? ITEMS.findIndex(it => normalizeForMatch(it.en) === n) : -1;
+  if(i < 0) i = ITEMS.findIndex(it => String(it.ar || '').replace(/\s+/g, ' ').trim() === raw);
+  if(i < 0 && n && typeof findBestItemMatch === 'function') i = findBestItemMatch(raw);
+  return (i >= 0 && ITEMS[i]) ? i : -1;
+}
+function mzApplyWaDraft(d){
+  resetAllNoConfirm();
+  const br = document.getElementById('m-branch');
+  if(br && (d.branch === 'syria' || d.branch === 'uae') && br.value !== d.branch){ br.value = d.branch; onBranchChange(); }
+  const cur = document.getElementById('m-currency');
+  if(cur && d.branch === 'syria' && (d.currency === 'usd' || d.currency === 'syp') && cur.value !== d.currency){ cur.value = d.currency; onCurrencyChange(); }
+  const set = (id, v) => { const el = document.getElementById(id); if(el && v) el.value = String(v); };
+  set('m-client', d.client); set('m-number', d.phone); set('m-project', d.project); set('m-location', d.location);
+  // صفوف الكميات: منشيل الصف الفاضي الافتراضي ومنضيف البنود
+  document.querySelectorAll('#qty-rows tr').forEach(tr => { const v = (tr.querySelector('.item-input') || {}).value; if(!String(v || '').trim()) tr.remove(); });
+  const unmatched = [];
+  (d.items || []).forEach(x => {
+    const idx = mzWaMatchItem(x.name);
+    addQtyRow(x.w === '' || x.w == null ? '' : String(x.w), x.h === '' || x.h == null ? '' : String(x.h), String(x.qty || 1), x.price === '' || x.price == null ? '' : String(x.price), idx);
+    if(idx < 0){ const rows = document.querySelectorAll('#qty-rows tr'); const inp = rows[rows.length - 1] && rows[rows.length - 1].querySelector('.item-input'); if(inp) inp.value = x.name; unmatched.push(x.name); }
+  });
+  renumber(); recalc();
+  try{ syncPage2Header(); }catch(e){}
+  window.__mzDirty = true;
+  const noPrice = (d.items || []).filter((x, i) => { const r = document.querySelectorAll('#qty-rows tr')[i]; return r && !String((r.querySelector('.price') || {}).value || '').trim(); }).length;
+  mzWaDraftBanner('📱 مسودة من مساعد الواتس اب' + (d.by ? ' (' + mzEscAttrFull(d.by) + ')' : '') + ': ' + (d.items || []).length + ' بنود للزبون ' + mzEscAttrFull(d.client || '') + '. راجع الأسعار والقياسات واحفظ بإيدك.'
+    + (noPrice ? ' ⚠️ ' + noPrice + ' بند بلا سعر.' : '') + (unmatched.length ? ' ⚠️ بنود مش من القائمة: ' + unmatched.map(mzEscAttrFull).join('، ') + '.' : '') + (d.notes ? ' 📝 ' + mzEscAttrFull(d.notes) : ''));
+}
+async function mzLoadWaDraftFromHash(){
+  const m = /[#&]wadraft=([0-9a-f]{8,40})/.exec(location.hash || '');
+  if(!m) return;
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  mzWaDraftBanner('⏳ عم جيب مسودة عرض السعر من مساعد الواتس اب...');
+  let r;
+  try{ r = await hpeSrv('GET', '/wa-agent/quote-draft/' + m[1]); }catch(e){ return mzWaDraftBanner('⚠️ ما قدرت وصل للسيرفر - تأكد من النت وافتح الرابط مرة تانية.', 'err'); }
+  if(r.status === 401) return mzWaDraftBanner('⚠️ هالجهاز مش مسجّل بالسيستم - افتح الرابط من جهاز مسجّل.', 'err');
+  if(r.status === 403) return mzWaDraftBanner('⚠️ لازم تسجّل دخول أول، وبعدين افتح الرابط مرة تانية.', 'err');
+  if(r.status === 404) return mzWaDraftBanner('⚠️ المسودة مش موجودة أو انتهت (بتضل 14 يوم). اطلب من المساعد يجهزها من جديد.', 'err');
+  if(r.status !== 200 || !r.j) return mzWaDraftBanner('⚠️ ما قدرت جيب المسودة (' + r.status + ').', 'err');
+  try{ mzApplyWaDraft(r.j); }catch(e){ console.error('[مسودة واتس اب]', e); mzWaDraftBanner('⚠️ صار خطأ وأنا عم عبّي المسودة: ' + mzEscAttrFull(e.message || e), 'err'); }
+}
+window.mzApplyWaDraft = mzApplyWaDraft;
+(function(){ const go = () => setTimeout(mzLoadWaDraftFromHash, 900); if(document.readyState === 'complete') go(); else window.addEventListener('load', go); })();
 function hpeAiBox(html){ const b = document.getElementById('hpeAi'); if(!b) return; b.style.display = html ? 'block' : 'none'; b.innerHTML = html || ''; }
 function hpePhoto(){ document.getElementById('hpeFile').click(); }
 function hpeShrinkImage(file){
