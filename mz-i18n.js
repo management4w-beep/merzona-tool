@@ -13,6 +13,8 @@
   var KEY = 'mz-lang', UKEY = 'mz-lang-user';
   function lsGet(k) { try { return root.localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { if (v == null) root.localStorage.removeItem(k); else root.localStorage.setItem(k, v); } catch (e) {} }
+  // رابط فيه ?lang=en أو #lang=en (مثلاً رابط المحاسب) بيثبّت اللغة على هالجهاز
+  try { var m = /[?#&]lang=(en|ar)\b/.exec(root.location.search + root.location.hash); if (m) lsSet(KEY, m[1]); } catch (e) {}
   function pick() { var l = lsGet(KEY) || lsGet(UKEY) || 'ar'; return l === 'en' ? 'en' : 'ar'; }
   var lang = pick();
   var dict = Object.create(null), phrases = [];

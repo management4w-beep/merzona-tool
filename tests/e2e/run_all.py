@@ -1178,6 +1178,13 @@ async def t_acct_en(p, b, port):
         check(msg == 'The entry is not balanced', 'رسائل التنبيه بتترجم')
         check(not errs, 'بلا أخطاء ' + str(errs[:2]))
         await ctx.close()
+        # رابط المحاسب ?lang=en بيفتح انكليزي وبيتذكّر
+        ctx, pg, errs = await mk('ar')
+        await pg.goto(f'http://127.0.0.1:{port}/accounting.html?lang=en'); await pg.wait_for_timeout(2500)
+        check(await pg.evaluate("document.documentElement.dir") == 'ltr', 'رابط ?lang=en بيفتح انكليزي')
+        await pg.goto(f'http://127.0.0.1:{port}/accounting.html'); await pg.wait_for_timeout(2000)
+        check(await pg.evaluate("document.documentElement.dir") == 'ltr', 'وبيضل انكليزي بالمرات الجاية')
+        await ctx.close()
     finally:
         proc.kill()
 
