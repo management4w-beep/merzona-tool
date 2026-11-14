@@ -1,7 +1,7 @@
 /* 🌐 قاموس المحاسبة بالانكليزي (2026-11-14) - شوف mz-i18n.js. المفتاح = النص العربي كما هو بالشاشة. */
 (function () {
   if (!window.MZ_I18N) return;
-  if (MZ_I18N.lang() === 'en') { var st = document.createElement('style'); st.textContent = 'html.mz-en th{text-align:left} html.mz-en td.n,html.mz-en th.n{text-align:right} html.mz-en .kpi .v{text-align:left}'; document.head.appendChild(st); }
+  if (window.MZ_I18N.lang() === 'en') { var st = document.createElement('style'); st.textContent = 'html.mz-en th{text-align:left} html.mz-en td.n,html.mz-en th.n{text-align:right} html.mz-en .kpi .v{text-align:left}'; document.head.appendChild(st); }
   window.MZ_I18N.add({
     // ---- عام ----
     'المحاسبة': 'Accounting', 'المساعد': 'Assistant', 'المساعد المحاسبي': 'Accounting assistant', 'الرئيسية': 'Home',
