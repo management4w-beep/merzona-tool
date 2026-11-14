@@ -1255,6 +1255,51 @@ async def t_auth_headers(p, b, port):
     check(seen.get('procurement-rules') == ('STAFFDEV1', 'SESS123'), 'قواعد المشتريات بتنطلب مع الجلسة ' + str(seen.get('procurement-rules')))
     await ctx.close()
 
+async def t_payroll_auto(p, b, port):
+    """💵 راتب شهري ثابت بينزل لحاله أول كل شهر (آية 350$ من نيسان 2026)، بلا تكرار، والحذف بيضل محذوف."""
+    print('• الراتب الشهري التلقائي')
+    ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+    await ctx.add_init_script("""if(!sessionStorage.getItem('pa')){ sessionStorage.setItem('pa','1'); localStorage.setItem('merzona-device-token','OWNERDEV');
+      localStorage.setItem('merzona_payroll_entries', JSON.stringify({ man1: { empId:'emp_aya', type:'monthly', month:'2026-05', amount:400, currency:'USD', note:'يدوي', paid:false, createdAt:1 } }));
+      localStorage.setItem('merzona_payroll_payments', JSON.stringify({ p1: { empId:'emp_aya', amount:500, currency:'USD', date:'2026-06-01', createdAt:1 } })); }""")
+    async def srv(route):
+        u = route.request.url
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else {}
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3000)
+    await pg.evaluate("showPayrollView()"); await pg.wait_for_timeout(800)
+    now = await pg.evaluate("payrollMonthNow()")
+    st = await pg.evaluate("""(function(){ var en = JSON.parse(localStorage.getItem('merzona_payroll_entries')); var aya = Object.values(en).filter(function(x){return x.empId==='emp_aya'});
+      var e = JSON.parse(localStorage.getItem('merzona_payroll_employees')).emp_aya;
+      return { months: aya.map(function(x){return x.month}).sort(), total: aya.reduce(function(a,x){return a+x.amount},0), auto: e.autoMonthly, start: e.salaryStart }; })()""")
+    import datetime
+    y, m = 2026, 4; exp = []
+    while '%d-%02d' % (y, m) <= now: exp.append('%d-%02d' % (y, m)); m += 1; (y, m) = (y + 1, 1) if m > 12 else (y, m)
+    check(st['auto'] and st['start'] == '2026-04', 'آية: راتب تلقائي من نيسان ' + str(st['start']))
+    check(st['months'] == exp, 'شهر لكل شهر من نيسان لهلق بلا تكرار ' + str(st['months']))
+    check(st['total'] == 400 + 350 * (len(exp) - 1), 'أيار اليدوي (400) ما انضاف فوقه، والباقي 350 ' + str(st['total']))
+    due = await pg.evaluate("document.getElementById('payrollView').innerText")
+    exp_due = 400 + 350 * (len(exp) - 1) - 500
+    check(('{:,}'.format(exp_due) in due) or (str(exp_due) in due), 'المستحق بالملخص = الرواتب ناقص يلي انعطى (' + str(exp_due) + ')')
+    # إعادة الفتح: ما بيتكرر
+    await pg.reload(); await pg.wait_for_timeout(2500); await pg.evaluate("showPayrollView()"); await pg.wait_for_timeout(600)
+    n2 = await pg.evaluate("Object.values(JSON.parse(localStorage.getItem('merzona_payroll_entries'))).filter(function(x){return x.empId==='emp_aya'}).length")
+    check(n2 == len(exp), 'بعد إعادة الفتح ما في تكرار ' + str(n2))
+    # حذف شهر تلقائي (إجازة) → ما بيرجع
+    await pg.evaluate("document.querySelector('[data-delentry=\"pr_monthly_emp_aya_2026-06_0\"]').click()"); await pg.wait_for_timeout(500)
+    await pg.evaluate("renderPayrollAll()"); await pg.wait_for_timeout(300)
+    gone = await pg.evaluate("!JSON.parse(localStorage.getItem('merzona_payroll_entries'))['pr_monthly_emp_aya_2026-06_0'] && JSON.parse(localStorage.getItem('merzona_payroll_employees')).emp_aya.autoSkip.indexOf('2026-06')!==-1")
+    check(gone, 'شهر محذوف بقصد ما بيرجع ينضاف لحاله')
+    # جهاز مربوط بالمزامنة ولسا ما سحب: ما بينزل شي
+    await pg.evaluate("localStorage.setItem('merzona_sync_connected','1'); window.__mzTeamPulledOnce=false; var en=JSON.parse(localStorage.getItem('merzona_payroll_entries')); delete en['pr_monthly_emp_aya_2026-07_0']; localStorage.setItem('merzona_payroll_entries', JSON.stringify(en)); renderPayrollAll();")
+    held = await pg.evaluate("!JSON.parse(localStorage.getItem('merzona_payroll_entries'))['pr_monthly_emp_aya_2026-07_0']")
+    check(held, 'قبل أول مزامنة بالجلسة ما بينزل رواتب على نسخة قديمة')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1262,7 +1307,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
