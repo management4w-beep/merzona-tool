@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <script src="company.js?v=2026-11-13.1"></script><!-- 🏢 إعدادات الشركة -->
+<script src="mz-i18n.js?v=2026-11-14.2"></script><script src="i18n-en-acct.js?v=2026-11-14.1"></script><script src="i18n-en-dash.js?v=2026-11-14.1"></script><script src="i18n-en-proc.js?v=2026-11-14.1"></script><!-- 🌐 اللغة (عربي/English) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="only light">
 <meta name="supported-color-schemes" content="light">
@@ -151,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-11.1';
+  var CURRENT_VERSION = '2026-11-14.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
@@ -284,6 +285,7 @@
       }).then(function(r){
         if(r && r.token){
           setSessionToken(r.token, r.username);
+          try{ if(window.MZ_I18N) MZ_I18N.applyUser(r.lang); }catch(_){}
           proceedIfPermitted(r.permissions);
         } else {
           btn.disabled = false; btn.textContent = 'إنشاء الحساب';
@@ -325,6 +327,7 @@
       }).then(function(r){
         if(r && r.token){
           setSessionToken(r.token, r.username);
+          try{ if(window.MZ_I18N) MZ_I18N.applyUser(r.lang); }catch(_){}
           proceedIfPermitted(r.permissions);
         } else {
           btn.disabled = false; btn.textContent = 'دخول';
@@ -351,7 +354,7 @@
         var token = getSessionToken();
         if(!token){ showLoginForm(deviceToken, r.username); return; }
         apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
-          if(me && me.permissions){ proceedIfPermitted(me.permissions); }
+          if(me && me.permissions){ try{ if(window.MZ_I18N) MZ_I18N.applyUser(me.lang); }catch(_){} proceedIfPermitted(me.permissions); }
           else { showLoginForm(deviceToken, r.username); }
         }).catch(function(){ showLoginForm(deviceToken, r.username); });
       } else if(r && r.hasAccount === false){

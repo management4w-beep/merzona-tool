@@ -2,6 +2,7 @@
 <!-- saved from url=(0162)file:///C:/Users/Ard%20Jood/Downloads/%D9%84%D9%88%D8%AD%D8%A9_%D8%A5%D8%AD%D8%B5%D8%A7%D8%A6%D9%8A%D8%A7%D8%AA_%D9%85%D9%8A%D8%B1%D8%B2%D9%88%D9%86%D8%A7_41.html -->
 <html lang="ar" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <script src="company.js?v=2026-11-13.1"></script><!-- 🏢 إعدادات الشركة -->
+<script src="mz-i18n.js?v=2026-11-14.2"></script><script src="i18n-en-acct.js?v=2026-11-14.1"></script><script src="i18n-en-dash.js?v=2026-11-14.1"></script><!-- 🌐 اللغة (عربي/English) -->
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
 <script id="mz-error-reporter">
@@ -150,7 +151,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-14.1';
+  var CURRENT_VERSION = '2026-11-14.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -288,6 +289,7 @@
       }).then(function(r){
         if(r && r.token){
           setSessionToken(r.token, r.username);
+          try{ if(window.MZ_I18N) MZ_I18N.applyUser(r.lang); }catch(_){}
           proceedIfPermitted(r.permissions);
         } else {
           btn.disabled = false; btn.textContent = 'إنشاء الحساب';
@@ -329,6 +331,7 @@
       }).then(function(r){
         if(r && r.token){
           setSessionToken(r.token, r.username);
+          try{ if(window.MZ_I18N) MZ_I18N.applyUser(r.lang); }catch(_){}
           proceedIfPermitted(r.permissions);
         } else {
           btn.disabled = false; btn.textContent = 'دخول';
@@ -356,7 +359,7 @@
         var token = getSessionToken();
         if(!token){ showLoginForm(deviceToken, r.username); return; }
         apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
-          if(me && me.permissions){ proceedIfPermitted(me.permissions); }
+          if(me && me.permissions){ try{ if(window.MZ_I18N) MZ_I18N.applyUser(me.lang); }catch(_){} proceedIfPermitted(me.permissions); }
           else { showLoginForm(deviceToken, r.username); }
         }).catch(function(){ showLoginForm(deviceToken, r.username); });
       } else if(r && r.hasAccount === false){
@@ -1194,6 +1197,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
         <span class="nav-pill" id="maintTabBtn" title="صيانة شاملة: بتختبر كل النظام بالخلفية (بنسخ معزولة) وبتصلّح المشاكل الآمنة وبتعطيك تقرير - ما بتوقف شغلك">🛠 صيانة</span>
         <span class="nav-pill" id="syncStatusPill" title="مزامنة تلقائية مع جوجل درايف لكل الفريق - اضغط للربط أول مرة أو لإعادة المحاولة">🔄 مزامنة الفريق</span>
         <span class="nav-pill" id="usersTabBtn" style="display:none;">👤 المستخدمين</span>
+        <span id="mzLangSlot" style="margin-inline-start:auto"></span>
         <span class="nav-pill" id="companySettingsBtn" style="display:none;" onclick="mzOpenCompanySettings()">🏢 إعدادات الشركة</span>
       </div>
       <div id="syncBanner">
