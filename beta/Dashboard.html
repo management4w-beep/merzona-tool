@@ -150,7 +150,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-12.1';
+  var CURRENT_VERSION = '2026-11-14.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1336,6 +1336,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
             <th style="padding:8px 6px;">مزامنة</th>
             <th style="padding:8px 6px;">إدارة مستخدمين</th>
             <th style="padding:8px 6px;">أدمن</th>
+            <th style="padding:8px 6px;">اللغة</th>
             <th style="padding:8px 6px;">إجراءات</th>
           </tr>
         </thead>
@@ -3758,9 +3759,10 @@ function renderUsersRows(users){
       '<td style="padding:6px;font-weight:600;">' + escapeHtml(u.username || key) + (u.deviceName ? '<div style="font-size:11px;color:var(--muted);">' + escapeHtml(u.deviceName) + '</div>' : '') + '</td>' +
       cols +
       '<td style="text-align:center;padding:6px;"><input type="checkbox" class="mz-users-isadmin" ' + adminChecked + ' ' + adminDisabled + ' /></td>' +
+      '<td style="text-align:center;padding:6px;">' + (isOwnerRow ? '' : '<select class="mz-users-lang" title="لغة الواجهة لهالمستخدم"><option value="ar"' + (u.lang !== 'en' ? ' selected' : '') + '>عربي</option><option value="en"' + (u.lang === 'en' ? ' selected' : '') + '>English</option></select>') + '</td>' +
       '<td style="padding:6px;white-space:nowrap;">' + actions + '</td>' +
       '</tr>';
-  }).join('') || '<tr><td colspan="19" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
+  }).join('') || '<tr><td colspan="20" style="padding:14px;text-align:center;color:var(--muted);">ما في مستخدمين لسا</td></tr>';
 }
 
 document.getElementById('usersTableBody').addEventListener('click', function(e){
@@ -3776,10 +3778,11 @@ document.getElementById('usersTableBody').addEventListener('click', function(e){
     });
     var isAdminCb = row.querySelector('.mz-users-isadmin');
     var isAdmin = !!(isAdminCb && isAdminCb.checked);
+    var langSel = row.querySelector('.mz-users-lang');
     fetch(merzonaServerUrl() + '/users/permissions', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(merzonaAdminAuthBody({ username: username, permissions: permissions, isAdmin: isAdmin }))
+      body: JSON.stringify(merzonaAdminAuthBody({ username: username, permissions: permissions, isAdmin: isAdmin, lang: langSel ? langSel.value : undefined }))
     }).then(function(r){ return r.json(); }).then(function(res){
       if(res && res.ok){ document.getElementById('usersListStatus').textContent = 'تم الحفظ ✅'; }
       else { alert((res && res.error) || 'صار خطأ بالحفظ'); }
