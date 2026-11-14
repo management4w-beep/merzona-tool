@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <script src="company.js?v=2026-11-13.1"></script><!-- 🏢 إعدادات الشركة -->
+<script src="mz-i18n.js?v=2026-11-14.2"></script><script src="i18n-en-acct.js?v=2026-11-14.1"></script><!-- 🌐 اللغة (عربي/English) -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="only light">
 <meta name="supported-color-schemes" content="light">
@@ -81,7 +82,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-13.3';
+  var CURRENT_VERSION = '2026-11-14.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'accounting';
   var VERSION_URL = 'version.json';
@@ -214,6 +215,7 @@
       }).then(function(r){
         if(r && r.token){
           setSessionToken(r.token, r.username);
+          try{ if(window.MZ_I18N) MZ_I18N.applyUser(r.lang); }catch(_){}
           proceedIfPermitted(r.isAdmin ? { accounting: true } : r.permissions);
         } else {
           btn.disabled = false; btn.textContent = 'إنشاء الحساب';
@@ -255,6 +257,7 @@
       }).then(function(r){
         if(r && r.token){
           setSessionToken(r.token, r.username);
+          try{ if(window.MZ_I18N) MZ_I18N.applyUser(r.lang); }catch(_){}
           proceedIfPermitted(r.isAdmin ? { accounting: true } : r.permissions);
         } else {
           btn.disabled = false; btn.textContent = 'دخول';
@@ -281,7 +284,7 @@
         var token = getSessionToken();
         if(!token){ showLoginForm(deviceToken, r.username); return; }
         apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
-          if(me && me.permissions){ proceedIfPermitted(me.isAdmin ? { accounting: true } : me.permissions); }
+          if(me && me.permissions){ try{ if(window.MZ_I18N) MZ_I18N.applyUser(me.lang); }catch(_){} proceedIfPermitted(me.isAdmin ? { accounting: true } : me.permissions); }
           else { showLoginForm(deviceToken, r.username); }
         }).catch(function(){ showLoginForm(deviceToken, r.username); });
       } else if(r && r.hasAccount === false){
@@ -559,6 +562,7 @@
   <h1>📒 المحاسبة — ميرزونا</h1>
   <span id="bookChips"></span>
   <button class="chip" id="aiBtn" title="المساعد المحاسبي (ذكاء اصطناعي)" onclick="aiOpen()" style="background:#0f88cd;color:#fff;font-weight:700;">💬 المساعد</button>
+  <span id="mzLangSlot"></span>
   <button class="chip" id="reloadBtn" title="تحديث من السيرفر">🔄</button>
 </div></header>
 <nav class="tabs" id="tabs"></nav>
@@ -1346,6 +1350,7 @@ function aiCtx(){
   var recent = Object.keys(B.docs).map(function(k){ return B.docs[k]; }).filter(function(d){ return d && !d.void; }).sort(function(a, b){ return (b.createdAt || b.date || '') < (a.createdAt || a.date || '') ? -1 : 1; }).slice(0, 15)
     .map(function(d){ return (d.no || d.id) + ' | ' + d.type + ' | ' + d.date + ' | ' + partyName(d.partyId) + ' | ' + C.docTotals(d, B).total + ' ' + (d.currency || base()) + (d.ref ? ' | ref ' + d.ref : ''); });
   return [
+    (window.MZ_I18N && MZ_I18N.lang() === 'en') ? 'IMPORTANT: the user reads English - write "reply" and every action "summary" in English (keep names/descriptions of parties as they are).' : '',
     'اليوم: ' + today() + ' · الدفتر: ' + bk.name + ' · العملة الأساسية: ' + base() + ' · العملات المسموحة: ' + bk.currencies.join(', ') + ' · الضريبة: ' + C.num(B.settings.vatRate) + '%',
     fxBar && fxBar.sell ? 'سعر الدولار اليوم (sp-today): مبيع ' + fxBar.sell + ' ل.س جديدة = ' + Math.round(fxBar.sell * 100) + ' ليرة قديمة (fx للـ SYP بهالدفتر ' + Math.round(fxBar.sell * 100) + ')' : '',
     '## الحسابات (كود | اسم | نوع | دور | رصيد | هالشهر):', accts.join('\n'),
@@ -1585,7 +1590,7 @@ window.__acctT = { S: function(){ return S; } };
 /* ---------------------------- طباعة ---------------------------- */
 function printHtml(inner){
   var pa = document.getElementById('printArea');
-  pa.innerHTML = '<div class="pdoc" dir="rtl">' + inner + '</div>';
+  pa.innerHTML = '<div class="pdoc" dir="rtl" data-no-i18n>' + inner + '</div>';
   setTimeout(function(){ window.print(); }, 50);
 }
 // 🏢 اسم الشركة بالمطبوعات: شركة تانية (صوفيه) دفترها لسا عليه الاسم الافتراضي "Merzona" → اسمها هي
