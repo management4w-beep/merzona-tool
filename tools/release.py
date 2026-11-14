@@ -14,7 +14,7 @@ import os, re, sys, json, shutil, subprocess, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAGES = ['Dashboard.html', 'index.html', 'accounting.html', 'procurement.html', 'designer.html', 'salary.html', 'sign.html',
-         'catalog.html', 'about.html', 'privacy.html', 'acct-core.js', 'company.js', 'cad-import.js', 'pdf-text.js', 'dwg-read.js', 'version.json']
+         'catalog.html', 'about.html', 'privacy.html', 'acct-core.js', 'company.js', 'cad-import.js', 'pdf-text.js', 'dwg-read.js', 'mz-i18n.js', 'i18n-en-acct.js', 'version.json']
 PROD_EXTRA_DIRS = ['tests', 'tools', 'fonts']
 BASE = 'https://management4w-beep.github.io/merzona-tool/'
 BANNER = ('<div id="mzBetaRibbon" style="position:fixed;left:8px;bottom:8px;z-index:2147483000;background:#c0392b;color:#fff;'
