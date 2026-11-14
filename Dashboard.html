@@ -2,7 +2,7 @@
 <!-- saved from url=(0162)file:///C:/Users/Ard%20Jood/Downloads/%D9%84%D9%88%D8%AD%D8%A9_%D8%A5%D8%AD%D8%B5%D8%A7%D8%A6%D9%8A%D8%A7%D8%AA_%D9%85%D9%8A%D8%B1%D8%B2%D9%88%D9%86%D8%A7_41.html -->
 <html lang="ar" dir="rtl"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <script src="company.js?v=2026-11-13.1"></script><!-- 🏢 إعدادات الشركة -->
-<script src="mz-i18n.js?v=2026-11-14.2"></script><script src="i18n-en-acct.js?v=2026-11-14.1"></script><script src="i18n-en-dash.js?v=2026-11-14.1"></script><!-- 🌐 اللغة (عربي/English) -->
+<script src="mz-i18n.js?v=2026-11-14.2"></script><script src="i18n-en-acct.js?v=2026-11-14.1"></script><script src="i18n-en-dash.js?v=2026-11-15.1"></script><!-- 🌐 اللغة (عربي/English) -->
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
 <script id="mz-error-reporter">
@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-14.3';
+  var CURRENT_VERSION = '2026-11-15.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1578,6 +1578,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
           <option value="AED">د.إ</option>
           <option value="USD">$</option>
         </select>
+        <label id="payrollEmpAutoWrap" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:7px;" title="الراتب الثابت بينزل مستحق لحاله أول كل شهر عن نفس الشهر"><input type="checkbox" id="payrollEmpAuto"> راتب ثابت بينزل لحاله أول كل شهر، من شهر <input type="month" id="payrollEmpStart" style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:13px;"></label>
         <input type="text" id="payrollEmpNotes" placeholder="ملاحظة (اختياري)" style="min-width:160px;flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:7px;font-family:'Inter',sans-serif;font-size:13px;">
         <button id="payrollEmpSaveBtn" class="export-btn">+ إضافة موظف</button>
         <button id="payrollEmpCancelEditBtn" class="nav-pill" style="display:none;">إلغاء التعديل</button>
@@ -4118,9 +4119,47 @@ function seedPayrollEmployeesIfEmpty(){
 let payrollEditingEmpId = null;
 let payrollEntriesFilter = 'all';
 
+/* 💵 2026-11-14 (طلب حمدي): "راتبها شهري... لازم من وقت انا سجلت راتبها كل اول شهر يكون 350 دولار".
+   الموظف الشهري يلي معلّم "راتب ثابت" بينزلو راتب الشهر مستحق لحالو أول كل شهر (عن نفس الشهر)، من "أول شهر"
+   لهلق. أي شهر إلو سجل راتب أصلاً (يدوي أو تلقائي) ما بينضاف مرة تانية. الـid ثابت (متل التسجيل اليدوي الأول
+   للشهر) فجهازين بيعملوا نفس الشي بيندمجوا بسجل واحد. إذا حذفت راتب شهر تلقائي (إجازة بلا راتب مثلاً)
+   بينحفظ بـ autoSkip وما بيرجع ينضاف. موظف متوقّف = ما بينزلو رواتب جديدة. */
+function payrollMonthNow(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); }
+function payrollNextMonth(m){ let y = +m.slice(0,4), mo = +m.slice(5,7) + 1; if(mo > 12){ mo = 1; y++; } return y + '-' + String(mo).padStart(2,'0'); }
+function payrollAutoAccrue(){
+  const emps = loadPayrollEmployees(); const entries = loadPayrollEntries();
+  const now = payrollMonthNow(); let added = 0;
+  Object.keys(emps).forEach(empId => {
+    const e = emps[empId];
+    if(!e || e.payType !== 'monthly' || !e.autoMonthly || e.active === false || !/^\d{4}-\d{2}$/.test(e.salaryStart || '') || !(e.rate > 0)) return;
+    const have = {}; Object.keys(entries).forEach(id => { const en = entries[id]; if(en && en.empId === empId && en.type === 'monthly') have[en.month] = true; });
+    const skip = e.autoSkip || [];
+    for(let m = e.salaryStart, guard = 0; m <= now && guard < 240; m = payrollNextMonth(m), guard++){
+      if(have[m] || skip.indexOf(m) !== -1) continue;
+      entries['pr_monthly_' + empId + '_' + m + '_0'] = { empId, type:'monthly', month:m, amount:e.rate, currency:e.currency, note:'راتب تلقائي', auto:true, paid:false, paidAt:null, createdAt:Date.now() };
+      added++;
+    }
+  });
+  if(added) savePayrollEntries(entries);
+  return added;
+}
+// مرة وحدة: راتب آية الثابت 350$ من نيسان 2026 (طلب حمدي 2026-11-14)
+function payrollMigrateAyaAuto(){
+  const emps = loadPayrollEmployees(); const e = emps.emp_aya;
+  if(!e || e.autoSet || e.payType !== 'monthly') return;
+  e.autoMonthly = true; e.salaryStart = '2026-04'; e.autoSet = true; if(!(e.rate > 0)) e.rate = 350; if(!e.autoSkip) e.autoSkip = [];
+  savePayrollEmployees(emps);
+}
+function payrollEmpAutoVis(){ const w = document.getElementById('payrollEmpAutoWrap'); if(w) w.style.display = document.getElementById('payrollEmpPayType').value === 'monthly' ? 'flex' : 'none'; }
+document.getElementById('payrollEmpPayType').addEventListener('change', payrollEmpAutoVis);
 function renderPayrollAll(){
   seedPayrollEmployeesIfEmpty();
   migrateLegacyPaidPayrollEntries();
+  // جهاز مربوط بمزامنة الفريق: منستنى أول سحب ناجح بهالجلسة؛ جهاز مش مربوط: منحسب على بياناته
+  if(window.__mzTeamPulledOnce || localStorage.getItem('merzona_sync_connected') !== '1'){
+    try{ payrollMigrateAyaAuto(); payrollAutoAccrue(); }catch(e){ console.warn('[payroll auto]', e); }
+  }
+  payrollEmpAutoVis();
   renderPayrollEmployeesTable();
   populatePayrollEmpSelects();
   renderPayrollLogFormForSelectedEmp();
@@ -4246,6 +4285,9 @@ function startEditPayrollEmployee(id){
   document.getElementById('payrollEmpCurrency').value = e.currency || 'AED';
   document.getElementById('payrollEmpPhone').value = e.phone || '';
   document.getElementById('payrollEmpNotes').value = e.notes || '';
+  document.getElementById('payrollEmpAuto').checked = !!e.autoMonthly;
+  document.getElementById('payrollEmpStart').value = e.salaryStart || '';
+  payrollEmpAutoVis();
   document.getElementById('payrollEmpSaveBtn').textContent = '💾 حفظ التعديل';
   document.getElementById('payrollEmpCancelEditBtn').style.display = '';
   document.getElementById('payrollEmpFormRow').scrollIntoView({behavior:'smooth', block:'center'});
@@ -4258,6 +4300,7 @@ document.getElementById('payrollEmpCancelEditBtn').addEventListener('click', ()=
   document.getElementById('payrollEmpRate').value = '';
   document.getElementById('payrollEmpPhone').value = '';
   document.getElementById('payrollEmpNotes').value = '';
+  document.getElementById('payrollEmpAuto').checked = false; document.getElementById('payrollEmpStart').value = '';
   document.getElementById('payrollEmpSaveBtn').textContent = '+ إضافة موظف';
   document.getElementById('payrollEmpCancelEditBtn').style.display = 'none';
 });
@@ -4271,6 +4314,9 @@ document.getElementById('payrollEmpSaveBtn').addEventListener('click', ()=>{
   const currency = document.getElementById('payrollEmpCurrency').value;
   const phone = document.getElementById('payrollEmpPhone').value.trim();
   const notes = document.getElementById('payrollEmpNotes').value.trim();
+  const autoMonthly = payType === 'monthly' && document.getElementById('payrollEmpAuto').checked;
+  const salaryStart = document.getElementById('payrollEmpStart').value || '';
+  if(autoMonthly && (!/^\d{4}-\d{2}$/.test(salaryStart) || !(rate > 0))){ alert('للراتب التلقائي لازم تحدد أول شهر وقيمة الراتب'); return; }
   const emps = loadPayrollEmployees();
   const id = payrollEditingEmpId || ('emp_' + Date.now() + '_' + Math.random().toString(16).slice(2,8));
   const existing = (payrollEditingEmpId && emps[payrollEditingEmpId]) ? emps[payrollEditingEmpId] : null;
@@ -4279,6 +4325,7 @@ document.getElementById('payrollEmpSaveBtn').addEventListener('click', ()=>{
   // سبق وانبعت للموظف كان رح ينكسر.
   const viewToken = (existing && existing.viewToken) ? existing.viewToken : generateSignTokenDash();
   emps[id] = { name, role, payType, rate, currency, phone, active: wasActive !== false, notes, viewToken,
+    autoMonthly, salaryStart: autoMonthly ? salaryStart : (existing && existing.salaryStart) || '', autoSkip: (existing && existing.autoSkip) || [], autoSet: true,
     lastLinkSentAt: existing ? (existing.lastLinkSentAt || null) : null,
     lastLinkSendStatus: existing ? (existing.lastLinkSendStatus || null) : null,
     lastLinkSendError: existing ? (existing.lastLinkSendError || null) : null };
@@ -4289,6 +4336,7 @@ document.getElementById('payrollEmpSaveBtn').addEventListener('click', ()=>{
   document.getElementById('payrollEmpRate').value = '';
   document.getElementById('payrollEmpPhone').value = '';
   document.getElementById('payrollEmpNotes').value = '';
+  document.getElementById('payrollEmpAuto').checked = false; document.getElementById('payrollEmpStart').value = '';
   document.getElementById('payrollEmpSaveBtn').textContent = '+ إضافة موظف';
   document.getElementById('payrollEmpCancelEditBtn').style.display = 'none';
   renderPayrollAll();
@@ -4650,8 +4698,11 @@ function renderPayrollEntriesTable(){
       const id = this.dataset.delentry;
       if(!confirm('متأكد إنك بدك تحذف هالسجل؟')) return;
       const ent = loadPayrollEntries();
+      const gone = ent[id];
       delete ent[id];
       savePayrollEntries(ent);
+      // راتب شهري تلقائي انحذف بقصد: منسجّل الشهر حتى ما يرجع ينضاف لحاله
+      if(gone && gone.type === 'monthly'){ const emps = loadPayrollEmployees(); const e = emps[gone.empId]; if(e && e.autoMonthly){ e.autoSkip = (e.autoSkip || []).filter(m => m !== gone.month).concat([gone.month]); savePayrollEmployees(emps); } }
       renderPayrollAll();
     });
   });
@@ -5762,7 +5813,10 @@ async function driveSyncPullAndMerge(silent, retried){
     dashSafeSetItem('merzona_sync_connected', '1');
     lastSyncErrorText = '';
     setSyncStatus('✅ متزامن مع الفريق', false);
-    if(changed) refreshVisibleView();
+    window.__mzTeamPulledOnce = true;
+    // 💵 الرواتب التلقائية بتنحسب بس بعد ما نجيب آخر بيانات الفريق (حتى ما ننزل رواتب على نسخة قديمة)
+    let accrued = 0; try{ payrollMigrateAyaAuto(); accrued = payrollAutoAccrue(); }catch(e){}
+    if(changed || accrued) refreshVisibleView();
     return true;
   }catch(err){
     syncInProgress = false;
