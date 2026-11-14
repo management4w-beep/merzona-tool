@@ -1188,6 +1188,49 @@ async def t_acct_en(p, b, port):
     finally:
         proc.kill()
 
+async def t_dash_en(p, b, port):
+    """🌐 الداشبورد (العقود، الرواتب) والمشتريات بالانكليزي - بلا عربي بالواجهة، والعربي ما تأثّر."""
+    print('• الداشبورد والمشتريات بالانكليزي')
+    import re as _re
+    async def mk(lang, page):
+        ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+        await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','OWNERDEV');" + ("localStorage.setItem('mz-lang','en');" if lang == 'en' else "") + "}catch(e){}")
+        async def srv(route):
+            u = route.request.url
+            body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else ({'isOwnerDevice': True} if '/users/status' in u else {})
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+        await ctx.route(SRV + '/**', srv)
+        await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pg.goto(f'http://127.0.0.1:{port}/{page}'); await pg.wait_for_timeout(3500)
+        return ctx, pg, errs
+    def leftovers(txt):
+        names = ('ع', 'آية', 'أبو عبد الله', 'طلحة', 'علاء', 'نور')  # أسماء موظفين (بيانات) بتضل متل ما هي
+        return sorted(set(a.strip() for a in _re.findall(r'[\u0621-\u064A][\u0621-\u064A ]*', txt) if a.strip() not in names))
+    ctx, pg, errs = await mk('ar', 'Dashboard.html')
+    st = await pg.evaluate("[document.documentElement.dir, (document.querySelector('#mzLangSlot .mz-lang-btn')||{}).textContent, document.body.innerText.indexOf('العقود')>=0]")
+    check(st[0] == 'rtl' and st[1] == 'EN' and st[2], 'الداشبورد بالعربي متل ما هو + زر EN ' + str(st))
+    await ctx.close()
+    ctx, pg, errs = await mk('en', 'Dashboard.html')
+    found = {}
+    for fn, name in [('showContractsView', 'contracts'), ('showPayrollView', 'payroll'), ('showUsersView', 'users')]:
+        await pg.evaluate(f"try{{ {fn}() }}catch(e){{}}"); await pg.wait_for_timeout(900)
+        await pg.screenshot(path=f'/tmp/claude-0/dash-en-{name}.png', full_page=False)
+        vis = await pg.evaluate("Array.from(document.querySelectorAll('.header, #contractsView, #payrollView, #usersView')).filter(function(e){return e.offsetParent!==null}).map(function(e){return e.innerText}).join('\\n')")
+        for a in leftovers(vis): found.setdefault(a, name)
+    print('LEFTOVERS_DASH', json.dumps(found, ensure_ascii=False))
+    check(len(found) <= 5, 'الداشبورد (القوائم، العقود، الرواتب، المستخدمين) شبه بلا عربي: ' + str(len(found)))
+    check(await pg.evaluate("document.documentElement.dir") == 'ltr', 'الداشبورد ltr')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+    ctx, pg, errs = await mk('en', 'procurement.html')
+    await pg.screenshot(path='/tmp/claude-0/proc-en.png', full_page=False)
+    lf = leftovers(await pg.evaluate("document.body.innerText"))
+    print('LEFTOVERS_PROC', json.dumps(lf, ensure_ascii=False))
+    check(len(lf) <= 5, 'المشتريات شبه بلا عربي: ' + str(len(lf)))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1195,7 +1238,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
