@@ -114,6 +114,11 @@
     var isReq = (typeof Request !== 'undefined') && (input instanceof Request);
     var url = isReq ? input.url : String(input);
     var m = RE.exec(url);
+    // 🔐 2026-11-14 (فحص الثغرات): هالمسارات صارت بدها تسجيل دخول المستخدم مش بس جهاز معتمد - منضيف هوية الجهاز والجلسة
+    if(!m && !isReq && url.indexOf(SRV_ROOT) === 0 && /^(dashboard-seed|send-quotation|procurement-rules)(\?|$)/.test(url.slice(SRV_ROOT.length))){
+      var o2 = Object.assign({}, init || {}); o2.headers = addAuth(new Headers(o2.headers || {}));
+      return orig.call(window, url, o2);
+    }
     if(!m) return orig.apply(this, arguments);
     var target = SRV + m[1];
     var o = Object.assign({}, init || {});
@@ -147,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-14.2';
+  var CURRENT_VERSION = '2026-11-14.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -11565,6 +11570,8 @@ async function hpePhotoPicked(inp){
       hpeAiBox('📷 قراءة الدفتر بتحتاج مفتاح الذكاء الاصطناعي على السيرفر (مرة وحدة).' + (await hpeAiOwnerKeyButton()));
       return;
     }
+    if(r.status === 402){ hpeAiBox('⚠️ خلص الحد الشهري لقراءة صور الدفتر - ارسم بالأرقام هالمرة، أو المالك بيرفع الحد. <button type="button" onclick="hpeAiBox(\'\')">تمام</button>'); return; }
+    if(r.status === 403 && r.j && r.j.error === 'no-permission'){ hpeAiBox('⚠️ قراءة الصور بس لمين عندو صلاحية عروض الأسعار. <button type="button" onclick="hpeAiBox(\'\')">تمام</button>'); return; }
     if(r.status !== 200 || !r.j || !r.j.runs){ hpeAiBox('⚠️ ما قدرت إقرا الصورة' + (r.j && r.j.error ? ' (' + escAttr(r.j.error) + ')' : '') + '. جرّب صورة أوضح من فوق، أو ارسم بالأرقام. <button type="button" onclick="hpeAiBox(\'\')">تمام</button>'); return; }
     hpe._ai = r.j;
     let html = '<b>📷 لقيت بالصورة:</b><br>';
