@@ -1231,6 +1231,30 @@ async def t_dash_en(p, b, port):
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
+async def t_auth_headers(p, b, port):
+    """🔐 المسارات المحمية (قائمة العروض القديمة، قواعد المشتريات) بتنبعت مع هوية الجهاز والجلسة."""
+    print('• هوية المستخدم بالمسارات المحمية')
+    seen = {}
+    ctx = await b.new_context(viewport={"width": 1300, "height": 900})
+    await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','STAFFDEV1'); localStorage.setItem('merzona-session-token','SESS123'); }catch(e){}")
+    async def srv(route):
+        u = route.request.url; h = route.request.headers
+        for k in ('dashboard-seed', 'procurement-rules'):
+            if '/' + k in u: seen[k] = (h.get('x-device'), h.get('x-session'))
+        body = {'status': 'approved'} if '/access/status' in u else ({'username': 'sami', 'permissions': {'dashboard': True, 'dashLog': True, 'procurement': True, 'quotation': True}} if '/users/me' in u else ([] if 'dashboard-seed' in u else {}))
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+    pg = await ctx.new_page(); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3500)
+    await pg.evaluate("fetch('" + SRV + "/dashboard-seed?device=STAFFDEV1')")
+    pp = await ctx.new_page(); await pp.goto(f'http://127.0.0.1:{port}/procurement.html'); await pp.wait_for_timeout(3000)
+    await pp.evaluate("fetch('" + SRV + "/procurement-rules?device=STAFFDEV1')")
+    await pg.wait_for_timeout(800)
+    check(seen.get('dashboard-seed') == ('STAFFDEV1', 'SESS123'), 'قائمة العروض القديمة بتنطلب مع الجلسة ' + str(seen.get('dashboard-seed')))
+    check(seen.get('procurement-rules') == ('STAFFDEV1', 'SESS123'), 'قواعد المشتريات بتنطلب مع الجلسة ' + str(seen.get('procurement-rules')))
+    await ctx.close()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1238,7 +1262,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
