@@ -1300,6 +1300,58 @@ async def t_payroll_auto(p, b, port):
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
+async def t_warranty_template(p, b, port):
+    """🛡️ الضمانات حسب الفرع (سوريا بلا إلا بالمربع) + حقول قالب الواتس اب (ألمنيوم، زجاج، ضمانات، توريد، خصم)."""
+    print('• الضمانات + حقول قالب عرض السعر')
+    ctx = await new_ctx(p, b)
+    async def srv(route):
+        u = route.request.url
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else {}
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(3000)
+    state = """(function(){ var vis=function(r){return getComputedStyle(r).display!=='none'};
+      var acc=Array.from(document.querySelectorAll('#acc-rows .bi-row')); var notes=Array.from(document.querySelectorAll('#notes-rows .notes-item'));
+      return { branch: document.getElementById('m-branch').value, on: document.getElementById('warranty-toggle').checked,
+        accVis: acc.filter(vis).map(function(r){return r.querySelector('textarea').value}), notesWarranty: notes.filter(function(r){return /warranty/i.test(r.querySelector('textarea').value)}).map(vis),
+        title: document.getElementById('acc-title-ar').textContent, rowVisible: getComputedStyle(document.getElementById('warranty-toggle-row')).display !== 'none' }; })()"""
+    st = await pg.evaluate(state)
+    check(st['branch'] == 'uae' and st['on'] and any('Warranty' in x for x in st['accVis']) and all(st['notesWarranty']), 'الإمارات: الضمانات ظاهرة افتراضيًا ' + str(st['accVis'][:3]))
+    await pg.evaluate("document.getElementById('m-branch').value='syria'; onBranchChange()"); await pg.wait_for_timeout(300)
+    st = await pg.evaluate(state)
+    check(st['branch'] == 'syria' and not st['on'] and not any(('Warranty' in x or 'Years' in x or 'years' in x) for x in st['accVis']) and not any(st['notesWarranty']), 'سوريا: كل صفوف الضمانات مخفية ' + str(st['accVis']))
+    check(any('Sillicon' in x for x in st['accVis']) and any('Screws' in x for x in st['accVis']), 'سوريا: الإكسسوارات العادية بتضل')
+    check(st['title'] == 'الإكسسوارات', 'العنوان بسوريا بلا "الضمانات" ' + st['title'])
+    pr = await pg.evaluate("(function(){ var w=window.open; return Array.from(document.querySelectorAll('#acc-rows .bi-row.mz-warranty-off')).length })()")
+    await pg.emulate_media(media='print')
+    hidden_print = await pg.evaluate("Array.from(document.querySelectorAll('#acc-rows .bi-row.mz-warranty-off')).every(function(r){return getComputedStyle(r).display==='none'}) && getComputedStyle(document.getElementById('warranty-toggle-row')).display==='none'")
+    await pg.emulate_media(media='screen')
+    check(pr >= 4 and hidden_print, 'بالطباعة كمان مخفية، والمربع ما بينطبع')
+    await pg.evaluate("var t=document.getElementById('warranty-toggle'); t.checked=true; t.dispatchEvent(new Event('change'))"); await pg.wait_for_timeout(200)
+    st = await pg.evaluate(state)
+    check(st['on'] and any('Warranty' in x for x in st['accVis']) and st['title'] == 'الإكسسوارات و الضمانات', 'علّمت المربع بسوريا → رجعت الضمانات')
+    # حفظ/فتح: الاختيار بيضل
+    data = await pg.evaluate("captureFullQuotationData()")
+    await pg.evaluate("resetAllNoConfirm()"); await pg.wait_for_timeout(200)
+    await pg.evaluate("(d)=>applyFullQuotationData(d)", data); await pg.wait_for_timeout(400)
+    st = await pg.evaluate(state)
+    check(st['branch'] == 'syria' and st['on'], 'عرض سوريا محفوظ مع ضمانات بيفتح مع ضمانات')
+    # مسودة واتس اب بحقول القالب
+    await pg.evaluate("""(async function(){ await mzApplyWaDraft({ branch:'syria', currency:'usd', client:'أبو خالد', items:[{name:'Handrail (Hidden Glass)', w:12000, h:1000, qty:1, price:95}],
+      aluminium:false, glassType:'guardian', warranty:null, deliveryDays:30, discountPct:5 }); })()"""); await pg.wait_for_timeout(500)
+    st2 = await pg.evaluate("""({ alum: document.getElementById('alum-section-toggle').checked, alumHidden: document.getElementById('alum-section').classList.contains('section-hidden'),
+      glass: document.getElementById('m-glassType').value, w: document.getElementById('warranty-toggle').checked, dd: document.getElementById('delivery-days').value, dp: document.getElementById('discount-pct').value,
+      da: document.getElementById('discount-amount').value })""")
+    check(st2['alum'] is False and st2['alumHidden'], 'ألمنيوم: لا → قسم الألمنيوم انشال')
+    check(st2['glass'] == 'guardian' and st2['w'] is False and st2['dd'] == '30' and st2['dp'] == '5' and st2['da'] != '', 'الزجاج أمريكي، بلا ضمانات (سوريا)، توريد 30، خصم 5% انحسب ' + str(st2))
+    await pg.evaluate("""(async function(){ await mzApplyWaDraft({ branch:'uae', currency:'aed', client:'Ali', items:[{name:'Glass Room', w:4000, h:3000, qty:1, price:''}], warranty:false, aluminium:true, alumColor:'9016' }); })()"""); await pg.wait_for_timeout(500)
+    st3 = await pg.evaluate("({ w: document.getElementById('warranty-toggle').checked, alum: document.getElementById('alum-section-toggle').checked, color: document.getElementById('m-alumColor').value, banner: (document.getElementById('mzWaDraftBanner')||{}).textContent||'' })")
+    check(st3['w'] is False and st3['alum'] is True, 'الإمارات + ضمانات 0 → بلا ضمانات ' + str(st3))
+    check(('9016' in st3['color']) or ('لون الألمنيوم' in st3['banner']), 'لون الألمنيوم انختار أو في تنبيه واضح ' + str(st3['color']))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1307,7 +1359,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
