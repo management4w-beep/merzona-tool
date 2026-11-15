@@ -152,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-14.3';
+  var CURRENT_VERSION = '2026-11-15.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -864,6 +864,7 @@
   .section-toggle-row label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
   .section-toggle-row input[type="checkbox"]{ cursor:pointer; }
   .section-hidden{ display:none !important; }
+  .mz-warranty-off{ display:none !important; }
   .color-confirm-label{ display:flex; flex-direction:column; font-size:11.5px; font-weight:600; min-width:200px; }
   .color-confirm-label .ar{ font-weight:600; }
   .color-confirm-picker{ display:flex; align-items:center; gap:8px; flex:1; min-width:180px; }
@@ -2038,7 +2039,13 @@
 
   <!-- ACCESSORIES -->
   <div class="section">
-    <div class="section-title"><span>Accessories Details and Guarantee</span><span class="ar">الإكسسوارات و الضمانات</span></div>
+    <!-- 🆕 2026-11-15 (طلب حمدي): "بفرع سوريا الضمانات كلها لازم تنشال... وينحط مربع في حال حابب أضيف ضمان".
+         مربع محلي (مخفي بالطباعة): بسوريا مطفي افتراضيًا (صفوف الضمانات مخفية من العرض والطباعة والـPDF)،
+         بالإمارات شغّال افتراضيًا. الصفوف ما بتنمسح - بس بتنخفى، فبترجع إذا علّمت المربع. -->
+    <div class="section-toggle-row branch-row-noprint" id="warranty-toggle-row">
+      <label><input type="checkbox" id="warranty-toggle" checked><span>Include warranties</span> / <span class="ar">تضمين الضمانات</span></label>
+    </div>
+    <div class="section-title"><span id="acc-title-en">Accessories Details and Guarantee</span><span class="ar" id="acc-title-ar">الإكسسوارات و الضمانات</span></div>
     <div id="acc-rows"><div class="bi-row">
     <textarea rows="1" placeholder="Accessory / guarantee (English)" onblur="autoTranslateRow(this); propagateRowEditToItems(this)" data-prev-height="27px" style="height: 27px;">German Sillicon Dow Company</textarea>
     <div>
@@ -3966,6 +3973,7 @@ function resetAllNoConfirm(){
   if(alumToggleEl){ alumToggleEl.checked = true; toggleQuoteSection('alum-section', true); }
   const glassToggleEl = document.getElementById('glass-section-toggle');
   if(glassToggleEl){ glassToggleEl.checked = true; toggleQuoteSection('glass-section', true); }
+  try{ setTimeout(mzWarrantySetDefault, 0); }catch(e){}
   document.getElementById('supply-rows').innerHTML='';
   document.getElementById('alum-spec-rows').innerHTML='';
   document.getElementById('specs-rows').innerHTML='';
@@ -4422,7 +4430,28 @@ const QUOTATION_ROW_CONTAINERS = ['supply-rows','alum-spec-rows','specs-rows','a
 // حتى أي حقل checkbox مستقبلي ينضاف هون يشتغل صح تلقائيًا بدون تعديل إضافي بالكود.
 // 🆕 2026-09-22: 'm-currency' (عملة فرع دمشق/سوريا - دولار أو ليرة سورية) عنصر select عادي فبيتخزن
 // عبر .value متل باقي الحقول (بدون حاجة لأي حالة خاصة متل checkbox).
-const QUOTATION_FIELD_IDS = ['m-title','m-date','m-client','m-number','m-project','m-location','m-ref','discount-amount','discount-pct','delivery-days','m-alumColor','m-glassType','m-glassTypeOther','alum-section-toggle','glass-section-toggle','m-currency'];
+const QUOTATION_FIELD_IDS = ['m-title','m-date','m-client','m-number','m-project','m-location','m-ref','discount-amount','discount-pct','delivery-days','m-alumColor','m-glassType','m-glassTypeOther','alum-section-toggle','glass-section-toggle','m-currency','warranty-toggle'];
+/* 🛡️ 2026-11-15: الضمانات (طلب حمدي) - بفرع سوريا ما في ضمانات إلا إذا علّمت "تضمين الضمانات"؛ بالإمارات موجودة
+   إلا إذا شلت العلامة (أو كتبت 0 جنب الضمانات بقالب الواتس اب). صف الضمان = بالإكسسوارات: فيه ضمان/سنة/سنوات/Warranty/Years؛
+   بالشروط: فيه ضمان/Warranty بس. */
+const MZ_WARRANTY_ACC_RE = /warrant|guarantee|ضمان|\b\d+\s*years?\b|سنة|سنوات/i, MZ_WARRANTY_NOTE_RE = /warrant|guarantee|ضمان/i;
+function mzRowText(r){ return Array.from(r.querySelectorAll('textarea,input')).map(function(e){ return e.value || ''; }).join(' '); }
+function mzWarrantyDefault(){ const b = document.getElementById('m-branch'); return !(b && b.value === 'syria'); }
+function mzWarrantyRefresh(){
+  const t = document.getElementById('warranty-toggle'); const on = !t || t.checked;
+  document.querySelectorAll('#acc-rows .bi-row').forEach(function(r){ r.classList.toggle('mz-warranty-off', !on && MZ_WARRANTY_ACC_RE.test(mzRowText(r))); });
+  document.querySelectorAll('#notes-rows .notes-item, #notes-rows .bi-row').forEach(function(r){ r.classList.toggle('mz-warranty-off', !on && MZ_WARRANTY_NOTE_RE.test(mzRowText(r))); });
+  const en = document.getElementById('acc-title-en'), ar = document.getElementById('acc-title-ar');
+  if(en) en.textContent = on ? 'Accessories Details and Guarantee' : 'Accessories Details';
+  if(ar) ar.textContent = on ? 'الإكسسوارات و الضمانات' : 'الإكسسوارات';
+}
+function mzWarrantySetDefault(){ const t = document.getElementById('warranty-toggle'); if(t){ t.checked = mzWarrantyDefault(); } mzWarrantyRefresh(); }
+(function(){
+  const t = document.getElementById('warranty-toggle'); if(t) t.addEventListener('change', mzWarrantyRefresh);
+  let tm = null; const later = function(){ clearTimeout(tm); tm = setTimeout(mzWarrantyRefresh, 120); };
+  ['acc-rows','notes-rows'].forEach(function(id){ const el = document.getElementById(id); if(el){ new MutationObserver(later).observe(el, { childList: true }); el.addEventListener('input', later); } });
+  setTimeout(mzWarrantySetDefault, 0);
+})();
 
 /* ================= لون الألمنيوم المعتمد (بودرة جوتن) + نوع/لون الزجاج المعتمد =================
    🆕 2026-09-01: طلب من حمدي إنو يكون في مكان ثابت (مش سطر حر قابل للحذف) بأول صفحة من عرض السعر/العقد
@@ -4594,6 +4623,9 @@ function applyFullQuotationData(data){
       if(el) el.innerHTML = '';
     });
     if(data.fields){
+      const hasWarrantyField = Object.prototype.hasOwnProperty.call(data.fields, 'warranty-toggle');
+      window.__mzRestoringQuote = true;
+      setTimeout(function(){ window.__mzRestoringQuote = false; try{ if(!hasWarrantyField) mzWarrantySetDefault(); else mzWarrantyRefresh(); }catch(e){} }, 60);
       Object.keys(data.fields).forEach(id=>{
         const el = document.getElementById(id);
         if(!el) return;
@@ -5477,6 +5509,8 @@ function onBranchChange(){
       return;
     }
   }
+  // 🛡️ الضمانات: تبديل الفرع بإيدك بيرجّع المربع لافتراضي الفرع الجديد (سوريا بلا، الإمارات مع) - بس مش وقت فتح عرض محفوظ
+  if(__mzLastBranchValue !== branch && !window.__mzRestoringQuote){ setTimeout(function(){ if(!window.__mzRestoringQuote) mzWarrantySetDefault(); }, 0); }
   __mzLastBranchValue = branch;
   const refEl = document.getElementById('m-ref');
   if(refEl){
@@ -11500,6 +11534,32 @@ function mzWaMatchItem(name){
   if(i < 0 && n && typeof findBestItemMatch === 'function') i = findBestItemMatch(raw);
   return (i >= 0 && ITEMS[i]) ? i : -1;
 }
+function mzApplyWaDraftExtras(d){
+  const warn = [];
+  const fire = (el, ev) => { try{ el.dispatchEvent(new Event(ev || 'change')); }catch(e){} };
+  const alumT = document.getElementById('alum-section-toggle');
+  if(alumT && (d.aluminium === false || d.aluminium === true)){ alumT.checked = d.aluminium; toggleQuoteSection('alum-section', d.aluminium); }
+  if(d.alumColor && d.aluminium !== false){
+    const sel = document.getElementById('m-alumColor');
+    const want = String(d.alumColor).toLowerCase(); const code = (want.match(/\d{4}/) || [])[0];
+    const opt = sel && Array.from(sel.options).find(o => o.value && ((code && (o.value + ' ' + o.textContent).indexOf(code) !== -1) || (o.textContent || '').toLowerCase().indexOf(want) !== -1 || want.indexOf((o.textContent || '').toLowerCase().trim()) !== -1));
+    if(opt){ sel.value = opt.value; onAlumColorChange(); } else warn.push('لون الألمنيوم "' + d.alumColor + '" مش بالقائمة - اختارو بإيدك');
+  }
+  if(d.alumSystem && d.aluminium !== false){
+    const ta = document.querySelector('#alum-spec-rows .bi-row textarea.ar');
+    if(ta){ ta.value = d.alumSystem; ta.textContent = d.alumSystem; warn.push('راجع نص نظام الألمنيوم بالانكليزي'); }
+  }
+  if(d.glassType){
+    const g = document.getElementById('m-glassType');
+    if(g){ g.value = d.glassType; onGlassTypeChange(); if(d.glassType === 'other'){ const o = document.getElementById('m-glassTypeOther'); if(o) o.value = d.glassOther || ''; } }
+  }
+  const wt = document.getElementById('warranty-toggle');
+  if(wt){ wt.checked = (d.warranty === true || d.warranty === false) ? d.warranty : mzWarrantyDefault(); mzWarrantyRefresh(); }
+  if(d.deliveryDays){ const dd = document.getElementById('delivery-days'); if(dd) dd.value = String(d.deliveryDays); }
+  if(d.discountPct){ const dp = document.getElementById('discount-pct'); if(dp){ dp.value = String(d.discountPct); try{ onDiscountPctInput(dp); }catch(e){} } }
+  else if(d.discountAmount){ const da = document.getElementById('discount-amount'); if(da){ da.value = String(d.discountAmount); try{ onDiscountAmountInput(da); }catch(e){} } }
+  return warn;
+}
 async function mzApplyWaDraft(d, opts){
   opts = opts || {};
   resetAllNoConfirm();
@@ -11530,11 +11590,13 @@ async function mzApplyWaDraft(d, opts){
   }catch(e){ console.warn('[مسودة واتس اب] السكتشات:', e); try{ document.getElementById('wdOverlay').style.display = 'none'; }catch(_){} }
   // المصمم ما لازم يغيّر أسماء البنود أو أسعارها
   Array.from(document.querySelectorAll('#qty-rows tr')).forEach((tr, i) => { if(!keep[i]) return; const it = tr.querySelector('.item-input'), pr = tr.querySelector('.price'); if(it && keep[i][0] && it.value !== keep[i][0]) it.value = keep[i][0]; if(pr && keep[i][1] && !pr.value) pr.value = keep[i][1]; });
+  // 📝 2026-11-15: حقول القالب (ألمنيوم، لون، نظام، زجاج، ضمانات، توريد، خصم) - بعد الانتظار حتى ما يلغيها شي افتراضي
+  const extraWarn = mzApplyWaDraftExtras(d);
   recalc();
   window.__mzDirty = true;
   const noPrice = (d.items || []).filter((x, i) => { const r = document.querySelectorAll('#qty-rows tr')[i]; return r && !String((r.querySelector('.price') || {}).value || '').trim(); }).length;
   mzWaDraftBanner('📱 مسودة من مساعد الواتس اب' + (d.by ? ' (' + mzEscAttrFull(d.by) + ')' : '') + ': ' + (d.items || []).length + ' بنود للزبون ' + mzEscAttrFull(d.client || '') + '. راجع الأسعار والقياسات واحفظ بإيدك.'
-    + (noPrice ? ' ⚠️ ' + noPrice + ' بند بلا سعر.' : '') + (unmatched.length ? ' ⚠️ بنود مش من القائمة: ' + unmatched.map(mzEscAttrFull).join('، ') + '.' : '') + (d.notes ? ' 📝 ' + mzEscAttrFull(d.notes) : ''));
+    + (noPrice ? ' ⚠️ ' + noPrice + ' بند بلا سعر.' : '') + (extraWarn.length ? ' ⚠️ ' + extraWarn.map(mzEscAttrFull).join(' ⚠️ ') : '') + (unmatched.length ? ' ⚠️ بنود مش من القائمة: ' + unmatched.map(mzEscAttrFull).join('، ') + '.' : '') + (d.notes ? ' 📝 ' + mzEscAttrFull(d.notes) : ''));
 }
 async function mzLoadWaDraftFromHash(){
   const m = /[#&]wadraft=([0-9a-f]{8,40})/.exec(location.hash || '');
