@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-15.1';
+  var CURRENT_VERSION = '2026-11-16.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -2638,8 +2638,14 @@ async function mzFetchSeed(){
       } else {
         if(!__mzSeedRefs.size){
           if(res.status === 404) mzSeedWarn('السيرفر لسا على النسخة القديمة - ارفع server.js الجديد وملف القائمة (العدد الظاهر ناقص).');
-          else if(res.status === 403) mzSeedWarn('هالجهاز مش معتمد عند السيرفر - القائمة القديمة ما نزلت.');
-          else if(res.status === 401) mzSeedWarn('رمز السيرفر غير مطابق - القائمة القديمة ما نزلت.');
+          // 🛠️ 2026-11-16 (حساب المحاسب): 403 مش دايمًا "جهاز مش معتمد" - السيرفر بيرجّع 403 كمان لمستخدم ما عندو
+          // صلاحية أقسام العروض (no-permission) أو لسا ما سجّل دخول (login-required). كانت تطلع رسالة برتقالية غلط.
+          else if(res.status === 403){
+            let err = ''; try{ err = ((await res.clone().json()) || {}).error || ''; }catch(e){}
+            if(err === 'no-permission'){ mzSeedWarn(null); return; } // ما إلو صلاحية هالقائمة أصلاً - طبيعي، ما في شي غلط
+            if(err !== 'login-required') mzSeedWarn('هالجهاز مش معتمد عند السيرفر - القائمة القديمة ما نزلت.');
+          }
+          else if(res.status === 401) mzSeedWarn('هالجهاز مش معتمد عند السيرفر - القائمة القديمة ما نزلت.');
           else mzSeedWarn('تعذّر تنزيل القائمة القديمة من السيرفر (' + res.status + ').');
         }
         retryMs = (res.status === 403 || res.status === 401) ? 15000 : 60000;
@@ -3859,6 +3865,9 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
   var coBtn = document.getElementById('companySettingsBtn'); if(coBtn) coBtn.style.display = isOwner ? '' : 'none'; // 🏢 للمالك بس
   var usersBtn = document.getElementById('usersTabBtn');
   if(usersBtn) usersBtn.style.display = allowed('manageUsers') ? '' : 'none';
+  // 🛠️ 2026-11-16: رسالة "اربط حسابك بجوجل درايف" بس لمين عندو مزامنة الفريق (المحاسب مثلاً ما بيحتاجها - المحاسبة كلها عالسيرفر)
+  window.__mzNoTeamSync = !allowed('teamSync');
+  if(!allowed('teamSync')){ var sb = document.getElementById('syncBanner'); if(sb) sb.classList.remove('show'); }
 
   // 🆕 2026-08-26 (نسخة معدّلة حسب طلب حمدي): بدل ما نخفي أقسام اللوحة الرئيسية بالكامل (كان
   // ممكن يحس إنو الداشبورد "خربانة" أو ناقصها شغلات)، هلق منسيب كل قسم بمكانه وبنفس شكل الداشبورد
@@ -5904,7 +5913,7 @@ function showSyncBannerIfNeeded(){
   try{
     const alreadyConnected = localStorage.getItem('merzona_sync_connected') === '1';
     const alreadyDismissed = localStorage.getItem('merzona_sync_banner_dismissed') === '1';
-    if(!alreadyConnected && !alreadyDismissed){
+    if(!alreadyConnected && !alreadyDismissed && !window.__mzNoTeamSync){
       document.getElementById('syncBanner').classList.add('show');
     }
   }catch(e){}

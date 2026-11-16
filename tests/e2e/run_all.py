@@ -1880,6 +1880,47 @@ async def t_print_titles(p, b, port):
     await ctx.close()
 
 
+async def t_dash_accountant(p, b, port):
+    """👤 حساب المحاسب (بس محاسبة، بلا جوجل درايف): ما في رسائل غلط ("الجهاز مش معتمد" / "اربط جوجل درايف")"""
+    print('• حساب المحاسب بالداشبورد: بلا رسائل غلط')
+    async def mk(seed_status, seed_body):
+        ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+        await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','ACCDEV'); localStorage.removeItem('merzona_sync_banner_dismissed'); localStorage.removeItem('merzona_sync_connected'); }catch(e){}")
+        async def srv(route):
+            u = route.request.url
+            if '/dashboard-seed' in u:
+                return await route.fulfill(status=seed_status, content_type='application/json', body=json.dumps(seed_body))
+            body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else ({'isOwnerDevice': True} if '/users/status' in u else {})
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+        await ctx.route(SRV + '/**', srv)
+        await ctx.route('https://merzona-server-production.up.railway.app/**', srv)
+        await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3500)
+        return ctx, pg, errs
+    ctx, pg, errs = await mk(403, {'error': 'no-permission'})
+    await pg.evaluate("window.applyMerzonaPermissions({ dashboard: true, accounting: true }, false); showSyncBannerIfNeeded();")
+    await pg.wait_for_timeout(300)
+    st = await pg.evaluate("""({ acct: getComputedStyle(document.getElementById('accountingTabBtn')).display !== 'none',
+        banner: document.getElementById('syncBanner').classList.contains('show'),
+        warn: (document.getElementById('mzSeedWarn') || {}).textContent || '', warnShown: !!(document.getElementById('mzSeedWarn') && document.getElementById('mzSeedWarn').offsetParent) })""")
+    check(st['acct'], 'المحاسب بيشوف تبويب المحاسبة')
+    check(not st['banner'], 'ما بتطلعلو رسالة "اربط حسابك بجوجل درايف" (ما بيحتاجها)')
+    check(not st['warnShown'] or 'معتمد' not in st['warn'], 'ما بتطلع رسالة "هالجهاز مش معتمد" الغلط ' + str(st['warn'][:60]))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+    # جهاز فعلاً مش معتمد (401) ← الرسالة لازم تضل تطلع
+    ctx, pg, errs = await mk(401, {'error': 'unauthorized'})
+    await pg.wait_for_timeout(500)
+    w = await pg.evaluate("(document.getElementById('mzSeedWarn') || {}).textContent || ''")
+    check('معتمد' in w, 'جهاز فعلاً مش معتمد: الرسالة بتضل تطلع ' + w[:60])
+    # المالك (عندو كل الصلاحيات) ← رسالة الربط بدرايف بتضل متل قبل
+    await pg.evaluate("localStorage.removeItem('merzona_sync_banner_dismissed'); localStorage.removeItem('merzona_sync_connected'); window.applyMerzonaPermissions(null, true); showSyncBannerIfNeeded();")
+    b2 = await pg.evaluate("document.getElementById('syncBanner').classList.contains('show')")
+    check(b2, 'المالك: رسالة ربط درايف متل قبل')
+    await ctx.close()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1887,7 +1928,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
