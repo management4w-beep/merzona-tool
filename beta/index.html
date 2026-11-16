@@ -152,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-16.1';
+  var CURRENT_VERSION = '2026-11-16.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -4405,12 +4405,32 @@ function setMainPageStyle(){
   }
   styleTag.textContent = `@page{ size: 210mm 297mm; margin: 12mm; }`;
 }
+/* 🏷️ 2026-11-16 - طلب حمدي: "اسم السكتش عند الحفظ عم يطلع ميرزونا لازم يكون مكتوب Sketch ويكتب الرفرنس" و"نفس
+   الشي للثري دي 3D Sketch". اسم ملف الـPDF وقت "حفظ كـPDF" بياخده المتصفح من عنوان الصفحة - والأداة بتشتغل جوا لوحة
+   التحكم (عنوانها Merzona)، فكان يطلع Merzona. هلق قبل الطباعة منحط العنوان الصح بالصفحة وبلوحة التحكم، ومنرجّعه بعدها. */
+function mzPrintRef(){ return ((document.getElementById('m-ref') || {}).value || '').trim().replace(/[\\/:*?"<>|]+/g, '_'); }
+function mzQuotePrintTitle(){
+  const ref = mzPrintRef(), client = ((document.getElementById('m-client') || {}).value || '').trim().replace(/[\\/:*?"<>|]+/g, '_');
+  return (ref || 'Merzona-Quotation') + (client ? ' - ' + client : '');
+}
+function mzSetPrintTitle(title){
+  const docs = [document];
+  try{ let w = window; while(w.parent && w.parent !== w){ w = w.parent; if(w.document) docs.push(w.document); } }catch(e){}
+  const saved = docs.map(d => [d, d.title]);
+  docs.forEach(d => { try{ d.title = title; }catch(e){} });
+  let done = false;
+  const restore = () => { if(done) return; done = true; window.removeEventListener('afterprint', restore); saved.forEach(([d, t]) => { try{ d.title = t; }catch(e){} }); };
+  window.addEventListener('afterprint', restore);
+  setTimeout(restore, 120000); // احتياط إذا المتصفح ما بعت afterprint
+}
+window.mzSetPrintTitle = mzSetPrintTitle;
 function doPrint(){
   validateBeforePrint(()=>{
     autosizeTextareasForPrint();
     syncPage2Header();
     applyElevationPrintGrouping();
     setMainPageStyle();
+    mzSetPrintTitle(mzQuotePrintTitle());
     window.print();
   });
 }
@@ -21270,7 +21290,7 @@ function preparePrint(){
   document.body.classList.add('wd-printing');
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      setTimeout(()=>{ window.print(); }, 250);
+      setTimeout(()=>{ mzSetPrintTitle('Sketch' + (mzPrintRef() ? ' - ' + mzPrintRef() : '')); window.print(); }, 250);
     });
   });
 }
@@ -21299,7 +21319,7 @@ function printMfgSizes(){
   document.body.classList.add('wd-printing');
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      setTimeout(()=>{ window.print(); }, 250);
+      setTimeout(()=>{ mzSetPrintTitle('Sketch (Manufacturing Sizes)' + (mzPrintRef() ? ' - ' + mzPrintRef() : '')); window.print(); }, 250);
     });
   });
 }
@@ -21321,7 +21341,7 @@ function printQuotationAndSketch(){
     document.body.classList.add('combined-printing');
     requestAnimationFrame(()=>{
       requestAnimationFrame(()=>{
-        setTimeout(()=>{ window.print(); }, 250);
+        setTimeout(()=>{ mzSetPrintTitle(mzQuotePrintTitle()); window.print(); }, 250);
       });
     });
   });
@@ -23468,7 +23488,7 @@ function close3DPreview(){
 
 function print3DPreview(){
   document.body.classList.add('three-d-printing');
-  setTimeout(()=>{ window.print(); }, 200);
+  setTimeout(()=>{ mzSetPrintTitle('3D Sketch' + (mzPrintRef() ? ' - ' + mzPrintRef() : '')); window.print(); }, 200);
 }
 window.addEventListener('afterprint', ()=> document.body.classList.remove('three-d-printing'));
 
