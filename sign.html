@@ -330,7 +330,10 @@ async function loadInfo(){
     return;
   }
   try{
-    const res = await fetchWithTimeout(API_BASE + '/sign/' + encodeURIComponent(REF) + '?t=' + encodeURIComponent(TOKEN), {}, 15000);
+    // 🎯 2026-11-16: إذا هالمتصفح جهاز من أجهزة الشركة (الموظف عم يجرّب الرابط) منقول للسيرفر، حتى ما ينحسب "الزبون شاف العرض"
+    let staffHdr = {};
+    try{ const d = localStorage.getItem('merzona-device-token'); if(d){ staffHdr = { 'x-device': d }; const s = localStorage.getItem('merzona-session-token'); if(s) staffHdr['x-session'] = s; } }catch(e){}
+    const res = await fetchWithTimeout(API_BASE + '/sign/' + encodeURIComponent(REF) + '?t=' + encodeURIComponent(TOKEN), { headers: staffHdr }, 15000);
     const data = await res.json().catch(()=> ({}));
     if(!res.ok || !data.ok){
       handleApiError(res.status, data && data.error);
