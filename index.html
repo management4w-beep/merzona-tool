@@ -152,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-16.2';
+  var CURRENT_VERSION = '2026-11-16.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -5845,6 +5845,7 @@ async function copySignLink(){
       document.body.removeChild(ta);
     }
     if(copied){
+      mzMarkQuoteSent(ref, 'sign-link');
       if(btn){ btn.textContent = '✅ انتسخ الرابط'; setTimeout(()=>{ if(btn) btn.textContent = origText; }, 2200); }
     } else {
       prompt('تعذّر النسخ التلقائي - انسخي الرابط يدويًا من هون:', url);
@@ -5883,15 +5884,15 @@ function mzShareModal(opts){
   const p = document.createElement('div'); p.style.cssText = 'font-size:13px;color:#555;white-space:pre-wrap;background:#f6f7f9;border-radius:8px;padding:8px 10px;margin:8px 0 12px;max-height:150px;overflow:auto;'; p.textContent = opts.text;
   box.append(h, p);
   const btn = (label, bg, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.style.cssText = 'display:block;width:100%;margin:6px 0;padding:11px 12px;border:0;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;color:#fff;background:' + bg + ';font-family:inherit;'; b.onclick = fn; box.appendChild(b); return b; };
-  if(opts.wa) btn('💬 افتح محادثة الزبون عالواتس اب (' + opts.phone + ')', '#1f9d55', () => { window.open(opts.wa, '_blank', 'noopener'); wrap.remove(); });
+  if(opts.wa) btn('💬 افتح محادثة الزبون عالواتس اب (' + opts.phone + ')', '#1f9d55', () => { window.open(opts.wa, '_blank', 'noopener'); mzMarkQuoteSent(opts.ref, 'whatsapp'); wrap.remove(); });
   else { const n = document.createElement('div'); n.style.cssText = 'font-size:12px;color:#b45309;margin:4px 0;'; n.textContent = '⚠️ ما في رقم موبايل صحيح للزبون بالعرض - فيك تبعت الملف أو تنسخ الرسالة.'; box.appendChild(n); }
   if(opts.file) btn('📎 أرسل ملف الـPDF (اختار واتساب والزبون)', '#2563eb', async () => {
-    try{ await navigator.share({ files: [opts.file], text: opts.text }); wrap.remove(); }
+    try{ await navigator.share({ files: [opts.file], text: opts.text }); mzMarkQuoteSent(opts.ref, 'pdf'); wrap.remove(); }
     catch(e){ if(e && e.name !== 'AbortError') alert('تعذّرت مشاركة الملف: ' + (e.message || e)); }
   });
   btn('📋 انسخ الرسالة', '#475569', async () => {
-    try{ await navigator.clipboard.writeText(opts.text); wrap.remove(); alert('✅ انتسخت الرسالة'); }
-    catch(e){ prompt('انسخ الرسالة من هون:', opts.text); }
+    try{ await navigator.clipboard.writeText(opts.text); mzMarkQuoteSent(opts.ref, 'copy'); wrap.remove(); alert('✅ انتسخت الرسالة'); }
+    catch(e){ prompt('انسخ الرسالة من هون:', opts.text); mzMarkQuoteSent(opts.ref, 'copy'); }
   });
   const c = document.createElement('button'); c.type = 'button'; c.textContent = 'إلغاء'; c.style.cssText = 'display:block;width:100%;margin-top:6px;padding:8px;border:0;background:transparent;color:#666;cursor:pointer;font-family:inherit;'; c.onclick = () => wrap.remove(); box.appendChild(c);
   wrap.appendChild(box); wrap.addEventListener('click', (e) => { if(e.target === wrap) wrap.remove(); });
@@ -7477,6 +7478,16 @@ async function mzQuoteServer(method, path, body, timeoutMs){
     let j = null; try{ j = await r.json(); }catch(e){}
     return { status: r.status, j };
   } finally { if(t) clearTimeout(t); }
+}
+// 🎯 2026-11-16 (حالة العروض): الموظف بعت العرض للزبون → منسجّل "انبعت" عالسيرفر (بدون ما نوقّف شي إذا فشل)
+function mzMarkQuoteSent(ref, via){
+  try{
+    ref = String(ref || '').trim(); if(!ref) return;
+    const h = { 'Content-Type': 'application/json' };
+    try{ h['x-device'] = localStorage.getItem('merzona-device-token') || ''; const s = localStorage.getItem('merzona-session-token'); if(s) h['x-session'] = s; }catch(e){}
+    fetch(MZ_QUOTES_URL.replace(/\/quotes$/, '') + '/quote-status/sent', { method: 'POST', headers: h, body: JSON.stringify({ ref, via: via || '' }), keepalive: true })
+      .catch((e) => console.warn('[حالة العروض] تعذّر تسجيل "انبعت":', e));
+  }catch(e){}
 }
 function mzFmtWhen(iso){ try{ return new Date(iso).toLocaleString('ar-SY-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }); }catch(e){ return String(iso || ''); } }
 // بترجع {rev} إذا السيرفر قبل، أو null إذا مش متاح (منكمل على درايف). بترمي خطأ إذا الموظف لغى.

@@ -1921,6 +1921,110 @@ async def t_dash_accountant(p, b, port):
     await ctx.close()
 
 
+async def t_quote_status(p, b, port):
+    """🎯 حالة العروض: الأداة بتسجّل "انبعت"، صفحة التوقيع بتعرّف أجهزة الشركة، ولوحة المبيعات بالداشبورد"""
+    print('• 🎯 حالة العروض والمبيعات')
+    import datetime as _dt
+    # 1) الأداة: كل طرق الإرسال بتسجّل "انبعت"
+    ctx = await new_ctx(p, b)
+    sent = []
+    async def qs(route):
+        try: sent.append(json.loads(route.request.post_data or '{}') | {'_dev': route.request.headers.get('x-device', '')})
+        except Exception: sent.append({})
+        await route.fulfill(status=200, content_type='application/json', body='{"ok":true,"status":{}}')
+    await ctx.route(SRV + '/quote-status/sent', qs)
+    await ctx.add_init_script("localStorage.setItem('merzona-device-token','DEV9');")
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2500)
+    await pg.evaluate("window.open = function(){ return null; }")
+    await pg.evaluate("mzShareModal({ ref: 'M-Q-260401', text: 'مرحبا', phone: '0501112233', wa: 'https://wa.me/971501112233?text=x', file: null })")
+    await pg.click('#mzShareModal button >> nth=0'); await pg.wait_for_timeout(400)
+    await pg.evaluate("mzShareModal({ ref: 'M-Q-260402', text: 'مرحبا', phone: '', wa: '', file: null })")
+    await pg.evaluate("navigator.clipboard.writeText = async function(){}")
+    await pg.click("#mzShareModal button:has-text('انسخ الرسالة')"); await pg.wait_for_timeout(400)
+    cancelled_before = len(sent)
+    await pg.evaluate("mzShareModal({ ref: 'M-Q-260403', text: 'x', phone: '', wa: '', file: null })")
+    await pg.click("#mzShareModal button:has-text('إلغاء')"); await pg.wait_for_timeout(300)
+    got = [(x.get('ref'), x.get('via'), x.get('_dev')) for x in sent]
+    check(('M-Q-260401', 'whatsapp', 'DEV9') in got and ('M-Q-260402', 'copy', 'DEV9') in got, 'زر الواتساب ونسخ الرسالة بيسجّلوا "انبعت" (مع هوية الجهاز) ' + str(got))
+    check(len(sent) == cancelled_before, '"إلغاء" ما بيسجّل شي')
+    await pg.route(SRV + '/quote-status/sent', lambda r: r.fulfill(status=500, body='x'))
+    await pg.evaluate("mzMarkQuoteSent('M-Q-260404', 'copy')"); await pg.wait_for_timeout(300)
+    check(not errs, 'إذا السيرفر فشل ما بيصير ولا خطأ ' + str(errs[:2]))
+    await ctx.close()
+    # 2) صفحة التوقيع: من جهاز الشركة بتبعت هوية الجهاز، من جهاز الزبون لأ
+    for staff in (True, False):
+        ctx = await b.new_context(); hdrs = []
+        async def sg(route):
+            hdrs.append(route.request.headers.get('x-device'))
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps({'ok': True, 'ref': 'M-Q-260401', 'client': 'ز', 'total': 5, 'signed': False}))
+        await ctx.route('https://merzona-server-production.up.railway.app/sign/**', sg)
+        if staff: await ctx.add_init_script("localStorage.setItem('merzona-device-token','DEV9');")
+        pg = await ctx.new_page(); await pg.goto(f'http://127.0.0.1:{port}/sign.html?ref=M-Q-260401&t=TOK'); await pg.wait_for_timeout(1500)
+        check((hdrs[:1] == ['DEV9']) if staff else (hdrs[:1] == [None]), ('صفحة التوقيع من جهاز الشركة: بتعرّف حالها' if staff else 'صفحة التوقيع عند الزبون: ما في أي هوية') + ' ' + str(hdrs))
+        await ctx.close()
+    # 3) لوحة المبيعات بالداشبورد
+    today = _dt.date.today(); iso = today.isoformat(); old = '2026-10-01'
+    items = {
+        'M-Q-260501': {'sentAt': 1, 'sentBy': 'سامي'},
+        'M-Q-260502': {'sentAt': 1, 'viewedAt': 2, 'lastViewedAt': 9e12, 'views': 3},
+        'M-Q-260503': {'sentAt': 1, 'viewedAt': 2, 'signedAt': 3, 'signerName': 'ز'},
+        'M-Q-260504': {'sentAt': 1, 'rejectedAt': 4, 'rejectReason': 'غالي'},
+    }
+    ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+    await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','OWNERDEV'); }catch(e){}")
+    posts = []
+    async def srv(route):
+        u = route.request.url
+        if u.endswith('/quote-status'):
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'items': items}))
+        if '/quote-status/reject' in u:
+            bd = json.loads(route.request.post_data or '{}'); posts.append(bd)
+            stt = dict(items.get(bd['ref'], {}))
+            if bd.get('undo'): stt.pop('rejectedAt', None)
+            else: stt['rejectedAt'] = 5; stt['rejectReason'] = bd.get('reason')
+            items[bd['ref']] = stt
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'ok': True, 'status': stt}))
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else ({'isOwnerDevice': True} if '/users/status' in u else {})
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    await ctx.route('https://merzona-server-production.up.railway.app/**', srv)
+    await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    prompts = []
+    def on_d(d):
+        prompts.append(d.message)
+        asyncio.ensure_future(d.accept('السعر غالي') if d.type == 'prompt' else d.accept())
+    pg.on('dialog', on_d)
+    await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3500)
+    await pg.evaluate("""([iso, old]) => { DATA.length = 0;
+      [['M-Q-260501', 1000], ['M-Q-260502', 2000], ['M-Q-260503', 3000], ['M-Q-260504', 4000], ['M-Q-260505', 500]].forEach(([r, t]) => DATA.push({ ref: r, client: 'زبون ' + r.slice(-1), phone: '0501112233', total: t, date: iso, year: iso.slice(0,4), url: '' }));
+      DATA.push({ ref: 'M-Q-260300', client: 'قديم', phone: '', total: 100, date: old, year: '2026', url: '' });
+      const c = loadContracts(); c['M-Q-260505'] = { client: 'زبون 5', ref: 'M-Q-260505' }; localStorage.setItem(CONTRACTS_KEY, JSON.stringify(c));
+      showQuotationsView(); }""", [iso, old])
+    await pg.wait_for_timeout(1500)
+    k = await pg.evaluate("Array.from(document.querySelectorAll('#mzQsKpis .kpi')).map(e => e.querySelector('.kpi-value').textContent + '|' + (e.querySelector('p:last-child')||{}).textContent)")
+    check(k and k[0].startswith('5|') and k[1].startswith('2|') and k[2].startswith('2|') and k[3].startswith('1|') and k[4].startswith('40%'), 'الأرقام هالشهر: انبعت 5، فتحهن 2، وقّعوا 2 (توقيع + عقد يدوي)، رفض 1، تحويل 40% ' + str(k))
+    check('3,500' in k[2], 'قيمة يلي وقّعوا ' + k[2])
+    if os.environ.get('MZ_SHOT'): await pg.evaluate("document.getElementById('mzQsPanel').scrollIntoView()"); await pg.screenshot(path=os.environ['MZ_SHOT'])
+    hot = await pg.evaluate("document.getElementById('mzQsHot').innerText")
+    check('M-Q-260502' in hot and 'M-Q-260503' not in hot, '🔥 "فتحه وما وقّع" فيه بس العرض الصح')
+    badges = await pg.evaluate("Object.fromEntries(Array.from(document.querySelectorAll('#tableBody tr')).map(tr => [tr.querySelector('.ref-badge').textContent.trim(), (tr.querySelector('.mz-qs-badge')||{}).dataset.qs]))")
+    check(badges.get('M-Q-260501') == 'sent' and badges.get('M-Q-260502') == 'viewed' and badges.get('M-Q-260503') == 'signed' and badges.get('M-Q-260504') == 'rejected' and badges.get('M-Q-260505') == 'signed' and badges.get('M-Q-260300') == 'old', 'إشارة الحالة بسجل العروض صح لكل عرض ' + str(badges))
+    await pg.click("#tableBody tr:has-text('M-Q-260501') .mz-qs-act"); await pg.wait_for_timeout(800)
+    b2 = await pg.evaluate("document.querySelector(\"#tableBody tr .mz-qs-badge\") && Array.from(document.querySelectorAll('#tableBody tr')).find(tr => tr.textContent.indexOf('M-Q-260501') >= 0).querySelector('.mz-qs-badge').dataset.qs")
+    check(posts and posts[-1].get('ref') == 'M-Q-260501' and posts[-1].get('reason') == 'السعر غالي' and b2 == 'rejected', 'زر "رفض؟" بيسأل عن السبب وبيعلّم العرض مرفوض')
+    await pg.click("#tableBody tr:has-text('M-Q-260501') .mz-qs-act"); await pg.wait_for_timeout(800)
+    b3 = await pg.evaluate("Array.from(document.querySelectorAll('#tableBody tr')).find(tr => tr.textContent.indexOf('M-Q-260501') >= 0).querySelector('.mz-qs-badge').dataset.qs")
+    check(posts[-1].get('undo') and b3 == 'sent', '↩️ بيلغي الرفض')
+    await pg.click(".mz-qs-period[data-p='all']"); await pg.wait_for_timeout(300)
+    k = await pg.evaluate("document.querySelector('#mzQsKpis .kpi p:last-child').textContent")
+    check('من 5' in k, '"الكل": العروض قبل التتبع ما بتنحسب بالنسبة ' + k)
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1928,7 +2032,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
