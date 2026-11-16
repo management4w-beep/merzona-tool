@@ -82,7 +82,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-14.2';
+  var CURRENT_VERSION = '2026-11-16.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'accounting';
   var VERSION_URL = 'version.json';
@@ -890,7 +890,20 @@ function statement(pid){
   });
   var items = C.openItems(B, 'ar').concat(C.openItems(B, 'ap')).filter(function(i){ return i.partyId === pid; });
   if(items.length) html += '<h3 style="margin:12px 0 6px;">المستندات المفتوحة</h3><div class="tw"><table><tr><th>الرقم</th><th>التاريخ</th><th>الاستحقاق</th><th class="n">القيمة</th><th class="n">المتبقي</th></tr>' + items.map(function(i){ return '<tr><td>' + esc(i.no) + '</td><td>' + esc(i.date) + '</td><td>' + esc(i.due) + '</td><td class="n">' + money(i.total, i.currency) + '</td><td class="n">' + money(i.open, i.currency) + '</td></tr>'; }).join('') + '</table></div>';
-  var m = modal('📄 كشف حساب: ' + esc(p.name), html || '<div class="empty">ما في حركات</div>', [['🖨 طباعة', '', function(){ printHtml('<h1>كشف حساب</h1><p><b>' + esc(p.name) + '</b> — ' + esc(coName()) + ' — ' + today() + '</p>' + html); }]]);
+  // 💬 2026-11-16 (المرحلة ٣ - التحصيل): كشف الحساب بالواتساب للزبون (بيفتح محادثته والرسالة جاهزة - إنت بتكبس إرسال)
+  function waText(){
+    var L = ['📄 *كشف حساب - ' + coName() + '*', p.name, today(), ''];
+    if(st.ar) L.push('الرصيد المستحق علينا منكم: *' + money(st.ar.closing, cur) + '*');
+    if(st.ap) L.push('رصيدكم عندنا: ' + money(st.ap.closing, cur));
+    var arItems = C.openItems(B, 'ar').filter(function(i){ return i.partyId === pid; });
+    if(arItems.length){ L.push('', 'الفواتير المفتوحة:'); arItems.slice(0, 15).forEach(function(i){ L.push('• ' + (i.no || '') + ' - ' + i.date + (i.due ? ' (استحقاق ' + i.due + ')' : '') + ': ' + money(i.open, i.currency || cur)); }); }
+    L.push('', 'شكراً لكم 🌹 - ' + coName());
+    return L.join('\n');
+  }
+  function waDigits(ph){ var d = String(ph || '').replace(/\D/g, ''); if(d.indexOf('00') === 0) d = d.slice(2); if(d.length === 10 && d.indexOf('09') === 0) d = '963' + d.slice(1); else if(d.length === 9 && d.charAt(0) === '9') d = '963' + d; else if(d.charAt(0) === '0') d = '971' + d.slice(1); return d.length >= 9 ? d : ''; }
+  var btnsSt = [['🖨 طباعة', '', function(){ printHtml('<h1>كشف حساب</h1><p><b>' + esc(p.name) + '</b> — ' + esc(coName()) + ' — ' + today() + '</p>' + html); }]];
+  btnsSt.push(['💬 واتساب' + (waDigits(p.phone) ? '' : ' (ما في رقم)'), '', function(){ var d = waDigits(p.phone); if(!d){ alert('ما في رقم موبايل لهالطرف - ضيفه من "الأطراف" ← تعديل.'); return; } window.open('https://wa.me/' + d + '?text=' + encodeURIComponent(waText()), '_blank', 'noopener'); }]);
+  var m = modal('📄 كشف حساب: ' + esc(p.name), html || '<div class="empty">ما في حركات</div>', btnsSt);
   bindDocRows(m.body);
 }
 
@@ -1585,7 +1598,7 @@ function aiEdit(a){
 }
 window.aiOpen = aiOpen;
 // للفحوصات بس (قراءة الحالة)
-window.__acctT = { S: function(){ return S; } };
+window.__acctT = { S: function(){ return S; }, statement: function(pid){ statement(pid); } };
 
 /* ---------------------------- طباعة ---------------------------- */
 function printHtml(inner){
