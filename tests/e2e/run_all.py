@@ -32,6 +32,7 @@ def prepare():
         if os.path.isfile(p) and (f.endswith('.html') or f.endswith('.js') or f.endswith('.json')): shutil.copy(p, tmp)
     img = os.path.join(SRC, 'img') if os.path.isdir(os.path.join(SRC, 'img')) else os.path.join(ROOT, 'img')
     if os.path.isdir(img): shutil.copytree(img, os.path.join(tmp, 'img'))
+    if os.environ.get('MZ_OLD_INDEX') and os.path.isfile(os.environ['MZ_OLD_INDEX']): shutil.copy(os.environ['MZ_OLD_INDEX'], os.path.join(tmp, 'index-old.html'))  # مقارنة مع نسخة قديمة
     # منكشف قائمة البنود للفحص بس (ما بيتغير الملف الأصلي)
     ip = os.path.join(tmp, 'index.html'); s = open(ip, encoding='utf8').read()
     a = "window.WD = window.WD || {};\n"
@@ -1421,6 +1422,420 @@ async def t_save_speed(p, b, port):
     finally:
         proc.kill()
 
+# ⚡ 2026-11-16: الحفظ السريع (ثانيتين) + الرفع لدرايف بالخلفية - كل الحالات
+def _start_fake_drive():
+    import subprocess
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_drive.js'), sdir], stdout=subprocess.PIPE, text=True)
+    fport = int(proc.stdout.readline().split()[1])
+    return proc, 'http://127.0.0.1:%d' % fport
+
+def _is_upload(u):
+    return ('/upload/' in u) or ('gdrive-upload-session' in u) or ('/__upload/' in u)
+
+async def _fast_ctx(p, b, LOCAL, ctl, mobile=False, real_pdf=False):
+    """ctl: delay (ثواني لكل رفعة) / fail (عدد الرفعات يلي بتفشل؛ -1 = كلها) / wa (رسائل الواتساب يلي انبعتت) / log"""
+    ctx = await new_ctx(p, b, mobile)
+    async def to_local(route):
+        u = route.request.url
+        try:
+            if _is_upload(u):
+                ctl.setdefault('log', []).append(route.request.method + ' ' + u.split('?')[0][-40:])
+                if ctl.get('delay'): await asyncio.sleep(ctl['delay'])
+                if ctl.get('fail'):
+                    if ctl['fail'] > 0: ctl['fail'] -= 1
+                    ctl['failed'] = ctl.get('failed', 0) + 1
+                    return await route.fulfill(status=503, body='{"error":"down"}')
+                if ctl.get('swallow') and route.request.method == 'PATCH':  # الرفع وصل لجوجل بس الرد ضاع
+                    ctl['swallow'] -= 1; ctl['swallowed'] = ctl.get('swallowed', 0) + 1
+                    target = u if u.startswith(LOCAL) else LOCAL + u[len(SRV):]
+                    await route.fetch(url=target)
+                    return await route.fulfill(status=503, body='{"error":"lost"}')
+            target = u if u.startswith(LOCAL) else LOCAL + u[len(SRV):]
+            resp = await route.fetch(url=target)
+            await route.fulfill(response=resp)
+        except Exception: pass
+    for pat in ['/gdrive/**', '/team/**', '/gdrive-upload-session', '/quotes', '/quotes?*', '/quotes/**']:
+        await ctx.route(SRV + pat, to_local)
+    await ctx.route(LOCAL + '/__upload/**', to_local)
+    async def wa(route):
+        try: ctl.setdefault('wa', []).append(json.loads(route.request.post_data or '{}'))
+        except Exception: ctl.setdefault('wa', []).append({})
+        await route.fulfill(status=200, content_type='application/json', body='{"ok":true}')
+    await ctx.route(SRV + '/send-quotation', wa)
+    await ctx.route(SRV + '/health', lambda r: r.fulfill(status=200, content_type='application/json', body='{"ok":true,"whatsappReady":true}'))
+    if real_pdf:
+        lib = os.path.join(os.environ.get('MZ_H2P', '/tmp/claude-0/-home-claude/763d6975-41b8-5b57-9416-4a2e9e40fbf3/scratchpad/h2p/dist'), 'html2pdf.bundle.min.js')
+        await ctx.route('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/**', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(lib, 'rb').read()))
+    else:
+        await ctx.add_init_script(FAKE_PDF.replace("toCanvas: async function(){", "toCanvas: async function(){ await new Promise(function(r){ setTimeout(r, window.__fakePdfMs || 1200); });"))
+    await ctx.add_init_script("window.__mzDriveRetryWaits = [150, 300];")
+    return ctx
+
+async def _fast_page(ctx, port, ref, client, dialogs, answer=None):
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    def on_d(d):
+        dialogs.append((d.type, d.message))
+        ok = True if answer is None else answer[0]
+        asyncio.ensure_future(d.accept() if ok else d.dismiss())
+    pg.on('dialog', on_d)
+    await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2500)
+    await pg.evaluate(ADD % json.dumps([[1200, 2100, 'Window'], [900, 2100, 'Door']]))
+    await pg.evaluate("""([ref, client]) => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles:true})); };
+      set('m-ref', ref); set('m-client', client); set('m-number', '0501112233');
+      document.querySelectorAll('#qty-rows tr').forEach((tr, i) => { const n = tr.querySelector('.item-input'); if(n && !n.value){ n.value = ['Window', 'Door'][i] || 'Item'; n.dispatchEvent(new Event('input', {bubbles:true})); } }); }""", [ref, client])
+    await pg.wait_for_timeout(300)
+    return pg, errs
+
+async def _status(pg):
+    return await pg.evaluate("(() => { const e = document.getElementById('mzDriveStatus'); return e ? (e.dataset.state || '') + '|' + e.textContent : ''; })()")
+
+async def _wait_status(pg, state, secs):
+    for _ in range(int(secs * 10)):
+        s = await _status(pg)
+        if s.startswith(state + '|'): return s
+        await pg.wait_for_timeout(100)
+    return await _status(pg)
+
+def _drive(LOCAL):
+    import urllib.request
+    return json.loads(urllib.request.urlopen(LOCAL + '/__state').read())['files']
+
+def _dfile(LOCAL, name):
+    import urllib.request, urllib.parse
+    try: return urllib.request.urlopen(LOCAL + '/__file/' + urllib.parse.quote(name)).read()
+    except Exception: return None
+
+def _quotes(LOCAL):
+    import urllib.request
+    return json.loads(urllib.request.urlopen(LOCAL + '/__quotes').read())
+
+async def t_fast_save(p, b, port):
+    print('• ⚡ الحفظ السريع: "انحفظ" بثانيتين + الرفع لدرايف بالخلفية')
+    import time as _t
+    proc, LOCAL = _start_fake_drive()
+    try:
+        for _ in range(50):
+            st = _quotes(LOCAL)['status']
+            if not st.get('running') and not st.get('never'): break
+            await asyncio.sleep(0.1)
+        ctl = {'delay': 1.5}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl)
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260801', 'زبون أصلي', dialogs)
+        # 1) كبسة زر الحفظ الحقيقي ← القفل بيبيّن ← "انحفظ" بأقل من ثانيتين
+        t0 = _t.time()
+        await pg.click('#driveSaveBtn')
+        await pg.wait_for_timeout(150)
+        locked = await pg.evaluate("!!document.getElementById('mzSaveLock')")
+        s = await _wait_status(pg, 'busy', 5); t_fast = _t.time() - t0
+        check(locked, 'وقت الحفظ الشاشة بتنقفل (ما بيتغيّر شي بالنص)')
+        check(s.startswith('busy|') and t_fast < 2.0, '"✅ انحفظ" بأقل من ثانيتين: %.2f ثانية (النت بطيء: 1.5 ثانية لكل رفعة)' % t_fast)
+        srv = _quotes(LOCAL)['items'].get('M-Q-260801') or {}
+        check(srv.get('rev') == 1 and srv['data']['fields']['m-client'] == 'زبون أصلي', 'لحظة "انحفظ" العرض موجود عالسيرفر (نسخة 1)')
+        pend = await pg.evaluate("JSON.parse(localStorage.getItem('merzona-drive-pending') || 'null')")
+        check(pend and pend.get('ref') == 'M-Q-260801', 'علامة "لسا ما خلص رفعه" محفوظة بالمتصفح (لو تسكّرت الصفحة)')
+        # 2) القفل بينشال بعد الـPDF (قبل ما يخلص الرفع) - وبيقدر يكمّل شغل
+        for _ in range(60):
+            if not await pg.evaluate("!!document.getElementById('mzSaveLock')"): break
+            await pg.wait_for_timeout(100)
+        t_unlock = _t.time() - t0
+        st_now = await _status(pg)
+        check(st_now.startswith('busy|'), 'الشاشة انفتحت بعد %.1f ثانية والرفع لسا شغال بالخلفية' % t_unlock)
+        ev = await pg.evaluate("(() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; })()")
+        check(ev, 'إذا حاول يسكّر الصفحة والرفع شغال → المتصفح بيسأل')
+        check(await pg.evaluate("window.__mzIsDriveSaveInFlight()"), 'فحص صلاحية الجهاز بيعرف إنو في حفظ شغال (ما بيعمل تحديث للصفحة بالنص)')
+        # 3) بيعدّل بعد "انحفظ" والرفع شغال → درايف لازم ياخد النسخة يلي انحفظت، مش التعديل
+        await pg.evaluate("() => { const e = document.getElementById('m-client'); e.value = 'تعديل بعد الحفظ'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        s = await _wait_status(pg, 'done', 30); t_full = _t.time() - t0
+        check(s.startswith('done|'), 'الرفع لدرايف خلص بالخلفية (%.1f ثانية) وبيّنت "✅ خلص الرفع"' % t_full)
+        data = json.loads(_dfile(LOCAL, 'M-Q-260801-data.json') or b'{}')
+        html = (_dfile(LOCAL, 'M-Q-260801.html') or b'').decode('utf8', 'ignore')
+        names = [f['name'] for f in _drive(LOCAL)]
+        check(data.get('fields', {}).get('m-client') == 'زبون أصلي' and 'تعديل بعد الحفظ' not in html and 'زبون أصلي' in html, 'درايف فيه النسخة يلي انحفظت بالضبط (مش التعديل يلي صار بعدها)')
+        check(data.get('quotationSavedAt') == srv['data'].get('quotationSavedAt'), 'نفس وقت الحفظ بدرايف وبالسيرفر')
+        check('M-Q-260801.pdf' in names and sum(1 for n in names if n.startswith('M-Q-260801-نسخة-')) == 1, 'الـPDF + نسخة بسجل النسخ انرفعوا')
+        check('id="mzSaveLock"' not in html and 'id="mzDriveStatus"' not in html, 'طبقة القفل والإشارة ما انحفظوا بنسخة الـHTML')
+        await pg.wait_for_timeout(600)
+        srv = _quotes(LOCAL)['items'].get('M-Q-260801') or {}
+        row = next((x for x in _quotes(LOCAL)['list']['items'] if x['ref'] == 'M-Q-260801'), {})
+        check(row.get('refFolderId') and row.get('url', '').startswith('https://drive.google.com/file/d/'), 'السيرفر سجّل مكان الملفات على درايف (finalize)')
+        check(data.get('signBoxRect') is None or isinstance(data.get('signBoxRect'), dict), 'مكان صندوق التوقيع (إذا موجود) بملف البيانات')
+        wa = ctl.get('wa') or []
+        check(len(wa) == 1 and wa[0].get('client') == 'زبون أصلي' and wa[0].get('ref') == 'M-Q-260801' and len(wa[0].get('items') or []) >= 2, 'رسالة مجموعة الواتساب انبعتت مرة وحدة بمعلومات العرض يلي انحفظ ' + str([(w.get('client'), len(w.get('items') or [])) for w in wa]))
+        pend = await pg.evaluate("localStorage.getItem('merzona-drive-pending')")
+        check(pend is None, 'علامة "لسا ما خلص" انشالت')
+        check(not await pg.evaluate("window.__mzIsDriveSaveInFlight()"), 'وبعد ما خلص: ما في حفظ شغال')
+        ev = await pg.evaluate("(() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return { prevented: e.defaultPrevented, dirty: window.__mzIsDirty && window.__mzIsDirty() }; })()")
+        check(ev['dirty'] or not ev['prevented'], 'بعد ما يخلص الرفع: التسكير ما بيسأل إلا إذا في تعديل ما انحفظ')
+        check(not [d for d in dialogs], 'ولا رسالة منبثقة بكل الحفظ ' + str(dialogs[:2]))
+        # 4) حفظ تاني للتعديل، وفورًا حفظ تالت بدون تعديل (نفس الحفظة)
+        ctl['delay'] = 1.0
+        t0 = _t.time()
+        await pg.click('#driveSaveBtn')
+        s = await _wait_status(pg, 'busy', 5); t2 = _t.time() - t0
+        for _ in range(60):
+            if not await pg.evaluate("!!document.getElementById('mzSaveLock')"): break
+            await pg.wait_for_timeout(100)
+        revs_before = _quotes(LOCAL)['items']['M-Q-260801']['rev']
+        await pg.click('#driveSaveBtn'); await pg.wait_for_timeout(500)
+        revs_after = _quotes(LOCAL)['items']['M-Q-260801']['rev']
+        check(t2 < 2.0 and revs_before == 2 and revs_after == 2, 'حفظ تاني بعد التعديل: %.2f ثانية (نسخة 2) - وكبسة حفظ تانية بدون تعديل ما بتعمل نسخة جديدة' % t2)
+        s = await _wait_status(pg, 'done', 30)
+        await pg.wait_for_timeout(600)
+        data = json.loads(_dfile(LOCAL, 'M-Q-260801-data.json') or b'{}')
+        names = [f['name'] for f in _drive(LOCAL)]
+        cnt = lambda nm: sum(1 for n in names if n == nm)
+        check(data.get('fields', {}).get('m-client') == 'تعديل بعد الحفظ' and cnt('M-Q-260801-data.json') == 1 and cnt('M-Q-260801.pdf') == 1 and cnt('M-Q-260801.html') == 1, 'درايف فيه آخر نسخة وما في ولا ملف مكرر')
+        check(sum(1 for n in names if n.startswith('M-Q-260801-نسخة-')) == 2 and not dialogs, 'سجل النسخ فيه نسختين، بلا ولا سؤال ' + str(dialogs[:1]))
+        # 5) حفظتين ورا بعض بسرعة (تعديل بين الاتنين) والرفع بطيء → التانية بتستنى الأولى، والنتيجة آخر نسخة
+        ctl['delay'] = 1.5
+        await pg.evaluate("() => { const e = document.getElementById('m-client'); e.value = 'نسخة 3'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        p1 = await pg.evaluate("() => { window.__r1 = runSaveToGoogleDriveInnerShared().then(()=>'ok', e=>String(e.message)); return 1; }")
+        await pg.wait_for_timeout(50)
+        await pg.evaluate("() => { const e = document.getElementById('m-client'); e.value = 'نسخة 4'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        await pg.evaluate("() => { window.__r2 = runSaveToGoogleDriveInnerShared().then(()=>'ok', e=>String(e.message)); return 1; }")
+        r = await pg.evaluate("Promise.all([window.__r1, window.__r2])")
+        await pg.wait_for_timeout(600)
+        data = json.loads(_dfile(LOCAL, 'M-Q-260801-data.json') or b'{}')
+        q = _quotes(LOCAL)['items']['M-Q-260801']
+        names = [f['name'] for f in _drive(LOCAL)]
+        check(r == ['ok', 'ok'] and q['rev'] == 4 and data['fields']['m-client'] == q['data']['fields']['m-client'], 'حفظتين بنفس اللحظة: الاتنين نجحوا (نسخة 4) ودرايف = السيرفر ' + str((r, q['rev'], data['fields'].get('m-client'), q['data']['fields'].get('m-client'))))
+        check(sum(1 for n in names if n == 'M-Q-260801-data.json') == 1 and sum(1 for n in names if n == 'M-Q-260801.pdf') == 1 and not dialogs, 'وما في ملفات مكررة ولا أسئلة')
+        check(not errs, 'بلا أخطاء بالصفحة ' + str(errs[:2]))
+        await ctx.close()
+
+        # 6) النت انقطع بنص الرفع (كل الرفعات بتفشل) ← "انحفظ" عالسيرفر + إشارة حمرا + أعد المحاولة
+        ctl = {'delay': 0.2, 'fail': -1}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl)
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260802', 'زبون انقطاع', dialogs)
+        t0 = _t.time(); await pg.click('#driveSaveBtn')
+        s = await _wait_status(pg, 'busy', 5); t_fast = _t.time() - t0
+        s = await _wait_status(pg, 'fail', 30)
+        srv = _quotes(LOCAL)['items'].get('M-Q-260802') or {}
+        check(t_fast < 2.0 and srv.get('rev') == 1, 'النت مقطوع عن درايف: "انحفظ" عالسيرفر بـ %.2f ثانية' % t_fast)
+        check(s.startswith('fail|') and 'ما كمل' in s and any('انحفظ عالسيرفر' in m for _, m in dialogs), 'الرفع فشل بعد 3 محاولات ← إشارة حمرا + رسالة واضحة ' + s[:80])
+        check(ctl.get('failed', 0) >= 3, 'جرّب كذا مرة قبل ما يستسلم (%d محاولة)' % ctl.get('failed', 0))
+        ev = await pg.evaluate("(() => { const e = new Event('beforeunload', {cancelable: true}); window.dispatchEvent(e); return e.defaultPrevented; })()")
+        pend = await pg.evaluate("JSON.parse(localStorage.getItem('merzona-drive-pending') || 'null')")
+        check(ev and pend and pend['ref'] == 'M-Q-260802', 'الرفع فاشل: التسكير بيسأل + العلامة محفوظة')
+        # الموظف بلّش عرض تاني بنفس الصفحة، والنت رجع، وكبس أعد المحاولة ← بيرفع العرض الأول (مش يلي مفتوح)
+        await pg.evaluate("() => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles:true})); }; set('m-ref', 'M-Q-260803'); set('m-client', 'عرض تاني مفتوح'); }")
+        ctl['fail'] = 0; nd = len(dialogs)
+        await pg.click('#mzDriveRetryBtn')
+        s = await _wait_status(pg, 'done', 30)
+        await pg.wait_for_timeout(600)
+        data = json.loads(_dfile(LOCAL, 'M-Q-260802-data.json') or b'{}')
+        names = [f['name'] for f in _drive(LOCAL)]
+        check(s.startswith('done|') and data.get('fields', {}).get('m-client') == 'زبون انقطاع' and 'M-Q-260802.pdf' in names and not any(n.startswith('M-Q-260803') for n in names), 'أعد المحاولة: رفع العرض الصح (يلي انحفظ) حتى لو فاتح عرض تاني')
+        pend = await pg.evaluate("localStorage.getItem('merzona-drive-pending')")
+        wa = ctl.get('wa') or []
+        check(pend is None and len(wa) == 1 and wa[0].get('client') == 'زبون انقطاع' and len(dialogs) == nd, 'العلامة انشالت + رسالة الواتساب انبعتت للعرض الصح')
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
+
+        # 7) نت متقطّع (أول رفعتين بيفشلوا) ← بيعيد لحاله وبينجح بلا أي رسالة
+        ctl = {'delay': 0.2, 'fail': 2}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl)
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260804', 'زبون متقطع', dialogs)
+        await pg.click('#driveSaveBtn')
+        s = await _wait_status(pg, 'done', 30)
+        names = [f['name'] for f in _drive(LOCAL)]
+        check(s.startswith('done|') and ctl.get('failed') == 2 and 'M-Q-260804.pdf' in names and 'M-Q-260804-data.json' in names and not dialogs, 'نت متقطّع: فشلت رفعتين وأعاد لحاله ونجح بلا ولا رسالة')
+        await ctx.close()
+
+        # 8) الصفحة تسكّرت قبل ما يخلص الرفع ← أول ما تنفتح الأداة بتذكّر، وبكبسة بيكمّل
+        ctl = {'delay': 0.2, 'fail': -1}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl)
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260805', 'زبون سكّر الصفحة', dialogs)
+        await pg.click('#driveSaveBtn')
+        await _wait_status(pg, 'busy', 5)
+        await pg.wait_for_timeout(300)
+        await pg.close()
+        ctl['fail'] = 0
+        pg2 = await ctx.new_page(); errs2 = []; pg2.on('pageerror', lambda e: errs2.append(str(e)[:200]))
+        dialogs2 = []; pg2.on('dialog', lambda d: (dialogs2.append(d.message), asyncio.ensure_future(d.accept())))
+        await pg2.goto(f'http://127.0.0.1:{port}/index.html')
+        s = await _wait_status(pg2, 'fail', 12)
+        check(s.startswith('fail|') and 'M-Q-260805' in s, 'فتح الأداة من جديد: "آخر حفظ للعرض ما خلص رفعه" مع زر يكمّل ' + s[:90])
+        await pg2.click('#mzDriveRetryBtn')
+        s = await _wait_status(pg2, 'done', 40)
+        await pg2.wait_for_timeout(600)
+        data = json.loads(_dfile(LOCAL, 'M-Q-260805-data.json') or b'{}')
+        names = [f['name'] for f in _drive(LOCAL)]
+        pend = await pg2.evaluate("localStorage.getItem('merzona-drive-pending')")
+        check(s.startswith('done|') and data.get('fields', {}).get('m-client') == 'زبون سكّر الصفحة' and 'M-Q-260805.pdf' in names and pend is None, 'بكبسة وحدة: جاب العرض من السيرفر وكمّل رفعه لدرايف')
+        check(_quotes(LOCAL)['items']['M-Q-260805']['rev'] == 2 and not [m for m in dialogs2 if 'جهاز تاني' in m or 'مسبق' in m], 'بلا تحذير "انعدّل من جهاز تاني" (نفس النسخة) ' + str(dialogs2[:2]))
+        check(not errs2, 'بلا أخطاء ' + str(errs2[:2]))
+        await ctx.close()
+
+        # 9) جهاز تاني فتح العرض من درايف (أقدم) والسيرفر عندو أحدث ← بيعرض الأحدث
+        ctl = {'delay': 0, 'fail': -1}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl)
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260801', 'نسخة 5 بالسيرفر بس', dialogs)
+        await pg.evaluate("() => { window.__quotationSavedAtBaseline = %d; window.__mzOwnedRefSafe = 'M-Q-260801'; }" % int(json.loads(_dfile(LOCAL, 'M-Q-260801-data.json'))['quotationSavedAt']))
+        await pg.click('#driveSaveBtn'); await _wait_status(pg, 'fail', 30)
+        await ctx.close()
+        older = json.loads(_dfile(LOCAL, 'M-Q-260801-data.json'))
+        ctx = await _fast_ctx(p, b, LOCAL, {'delay': 0})
+        await ctx.add_init_script("if(!sessionStorage.getItem('mzOnce')){ sessionStorage.setItem('mzOnce','1'); localStorage.setItem('merzona-pending-load', %s); localStorage.removeItem('merzona-drive-pending'); }" % json.dumps(json.dumps(older)))
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+        dialogs = []; pg.on('dialog', lambda d: (dialogs.append(d.message), asyncio.ensure_future(d.accept())))
+        await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(5000)
+        cl = await pg.evaluate("document.getElementById('m-client').value")
+        check(any('نسخة أحدث' in m for m in dialogs) and cl == 'نسخة 5 بالسيرفر بس', 'فتح من درايف نسخة أقدم من السيرفر ← سأل وفتح الأحدث ' + str((cl, [m[:40] for m in dialogs])))
+        # ونفس الشي بس النسخة مطابقة ← ما بيسأل
+        await ctx.close()
+        ctx = await _fast_ctx(p, b, LOCAL, {'delay': 0})
+        same = dict(older); same['quotationSavedAt'] = _quotes(LOCAL)['items']['M-Q-260801']['data']['quotationSavedAt']
+        await ctx.add_init_script("if(!sessionStorage.getItem('mzOnce')){ sessionStorage.setItem('mzOnce','1'); localStorage.setItem('merzona-pending-load', %s); localStorage.removeItem('merzona-drive-pending'); }" % json.dumps(json.dumps(same)))
+        pg = await ctx.new_page(); dialogs = []; pg.on('dialog', lambda d: (dialogs.append(d.message), asyncio.ensure_future(d.accept())))
+        await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(5000)
+        check(not [m for m in dialogs if 'نسخة أحدث' in m], 'النسخة مطابقة للسيرفر ← ما بيسأل شي')
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
+
+        # 10) السيرفر مقطوع ← الحفظ بيكمّل متل قبل بالضبط (بيستنى درايف ورسالة "تم الحفظ لجوجل درايف")
+        import urllib.request
+        urllib.request.urlopen(LOCAL + '/__quotes-off')
+        ctl = {'delay': 0.2}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl)
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260806', 'زبون بلا سيرفر', dialogs)
+        await pg.click('#driveSaveBtn')
+        for _ in range(150):
+            if any('تم الحفظ لجوجل درايف بنجاح' in m for _, m in dialogs): break
+            await pg.wait_for_timeout(100)
+        urllib.request.urlopen(LOCAL + '/__quotes-on')
+        names = [f['name'] for f in _drive(LOCAL)]
+        pend = await pg.evaluate("localStorage.getItem('merzona-drive-pending')")
+        check(any('تم الحفظ لجوجل درايف بنجاح' in m for _, m in dialogs) and 'M-Q-260806.pdf' in names and 'M-Q-260806-data.json' in names and pend is None, 'السيرفر مقطوع: الحفظ متل قبل (بيخلص كامل وبعدين "تم الحفظ")')
+        check(len(ctl.get('wa') or []) == 1 and not errs, 'ورسالة الواتساب انبعتت، بلا أخطاء')
+        await ctx.close()
+
+        # 11) "أرسل للزبون" بعد الحفظ والرفع لسا شغال ← بيستنى الرفع يخلص قبل ما يعطي الرابط
+        ctl = {'delay': 1.5}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl)
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260807', 'زبون مشاركة', dialogs)
+        await pg.click('#driveSaveBtn'); await _wait_status(pg, 'busy', 5)
+        for _ in range(60):
+            if not await pg.evaluate("!!document.getElementById('mzSaveLock')"): break
+            await pg.wait_for_timeout(100)
+        r = await pg.evaluate("""async () => { const before = (window.__mzLastSavedSig === mzQuoteSig()); await shareQuotationToClient(); return { before, modal: !!document.getElementById('mzShareModal'), saved: window.__mzLastSavedSig === mzQuoteSig() }; }""")
+        names = [f['name'] for f in _drive(LOCAL)]
+        check(not r['before'] and r['modal'] and r['saved'] and 'M-Q-260807.pdf' in names and 'M-Q-260807-data.json' in names, 'أرسل للزبون: استنى الرفع يخلص (الـPDF وملف البيانات بدرايف) وبعدين فتح المشاركة ' + str(r))
+        check(_quotes(LOCAL)['items']['M-Q-260807']['rev'] == 1 and not errs, 'وما عمل حفظة زيادة، بلا أخطاء')
+        await ctx.close()
+
+        # 12) الموبايل: نفس الشي + الشاشة بترجع متل ما كانت (viewport)
+        ctl = {'delay': 0.5}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl, mobile=True)
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260808', 'زبون موبايل', dialogs)
+        vp0 = await pg.evaluate("document.querySelector('meta[name=viewport]').getAttribute('content')")
+        t0 = _t.time(); await pg.evaluate("saveToGoogleDrive({ target: document.getElementById('driveSaveBtn') })")
+        s = await _wait_status(pg, 'busy', 5); t_fast = _t.time() - t0
+        s = await _wait_status(pg, 'done', 30)
+        vp1 = await pg.evaluate("document.querySelector('meta[name=viewport]').getAttribute('content')")
+        mob = await pg.evaluate("document.body.classList.contains('mode-mobile') + '|' + document.body.classList.contains('pdf-capturing')")
+        check(t_fast < 2.0 and s.startswith('done|') and vp0 == vp1 and not mob.endswith('true'), 'الموبايل: "انحفظ" بـ %.2f ثانية، الرفع خلص، والشاشة رجعت متل ما كانت' % t_fast)
+        check(not errs and not dialogs, 'بلا أخطاء ولا رسائل ' + str((errs[:1], dialogs[:1])))
+        await ctx.close()
+
+        # 13) الـPDF فشل بعد "انحفظ" ← رسالة واضحة + أعد المحاولة بيعيد الحفظ كامل
+        ctl = {'delay': 0.2}; dialogs = []
+        ctx = await _fast_ctx(p, b, LOCAL, ctl)
+        await ctx.add_init_script("(function(){ var t = setInterval(function(){ if(window.html2pdf && !window.__wrapped){ window.__wrapped = 1; var o = window.html2pdf; window.html2pdf = function(){ var w = o.apply(this, arguments); var tc = w.toCanvas; w.toCanvas = async function(){ if(window.__breakPdf) throw new Error('canvas boom'); return tc.apply(this, arguments); }; return w; }; clearInterval(t); } }, 20); })();")
+        pg, errs = await _fast_page(ctx, port, 'M-Q-260809', 'زبون PDF فاشل', dialogs)
+        await pg.evaluate("window.__breakPdf = true")
+        await pg.click('#driveSaveBtn')
+        s = await _wait_status(pg, 'fail', 15)
+        locked = await pg.evaluate("!!document.getElementById('mzSaveLock')")
+        check(s.startswith('fail|') and 'M-Q-260809' in s and any('PDF' in m and 'انحفظ عالسيرفر' in m for _, m in dialogs) and not locked, 'الـPDF فشل بعد "انحفظ": رسالة واضحة + إشارة حمرا والشاشة مش مقفولة ' + s[:70])
+        pend = await pg.evaluate("JSON.parse(localStorage.getItem('merzona-drive-pending') || 'null')")
+        check(pend and pend['ref'] == 'M-Q-260809', 'والعلامة باقية لحتى يكمل')
+        await pg.evaluate("window.__breakPdf = false")
+        await pg.click('#mzDriveRetryBtn')
+        s = await _wait_status(pg, 'done', 30)
+        await pg.wait_for_timeout(600)
+        names = [f['name'] for f in _drive(LOCAL)]
+        pend = await pg.evaluate("localStorage.getItem('merzona-drive-pending')")
+        check(s.startswith('done|') and 'M-Q-260809.pdf' in names and pend is None and not [m for _, m in dialogs if 'جهاز تاني' in m], 'أعد المحاولة: انعمل الـPDF وانرفع كل شي، بلا تحذير تعارض')
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        # 14) الرفع وصل لجوجل بس الرد ضاع ← إعادة المحاولة ما بتطلّع تحذير "جهاز تاني" غلط
+        await pg.evaluate("() => { const e = document.getElementById('m-client'); e.value = 'رد ضايع'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        ctl['swallow'] = 3; n0 = len(dialogs)
+        await pg.click('#driveSaveBtn')
+        await _wait_status(pg, 'busy', 5)
+        s = await _wait_status(pg, 'done', 30)
+        await pg.wait_for_timeout(600)
+        data = json.loads(_dfile(LOCAL, 'M-Q-260809-data.json') or b'{}')
+        check(ctl.get('swallowed', 0) >= 1 and s.startswith('done|') and data['fields']['m-client'] == 'رد ضايع' and len(dialogs) == n0, 'الرد ضاع %d مرة: أعاد بهدوء، بلا تحذير غلط ' % ctl.get('swallowed', 0) + str(dialogs[n0:][:1]))
+        # 15) حفظتين ورا بعض: الإشارة ما بتقول "خلص" إلا لما يخلصوا التنين
+        ctl['delay'] = 1.2
+        await pg.evaluate("() => { const e = document.getElementById('m-client'); e.value = 'أ'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        await pg.click('#driveSaveBtn'); await _wait_status(pg, 'busy', 5)
+        for _ in range(60):
+            if not await pg.evaluate("!!document.getElementById('mzSaveLock')"): break
+            await pg.wait_for_timeout(100)
+        await pg.evaluate("() => { const e = document.getElementById('m-client'); e.value = 'ب'; e.dispatchEvent(new Event('input', {bubbles:true})); }")
+        await pg.click('#driveSaveBtn')
+        seen = []
+        for _ in range(400):
+            st = await _status(pg); seen.append((await pg.evaluate("window.__mzIsDriveSaveInFlight()"), st.split('|')[0]))
+            if st.startswith('done|') or not st: break
+            await pg.wait_for_timeout(50)
+        bad = [x for x in seen if x[1] == 'done' and x[0]]
+        data = json.loads(_dfile(LOCAL, 'M-Q-260809-data.json') or b'{}')
+        check(seen and seen[-1][1] == 'done' and not bad and data['fields']['m-client'] == 'ب', '"✅ خلص" بس لما يخلص آخر رفع (ودرايف فيه آخر نسخة)')
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
+    finally:
+        proc.kill()
+
+async def t_fast_save_real_pdf(p, b, port):
+    """نفس عرض السعر بمكتبة الـPDF الحقيقية: النسخة الجديدة لازم تطلّع نفس الـPDF يلي كانت تطلعو القديمة"""
+    print('• ⚡ الحفظ السريع: الـPDF الحقيقي متل قبل بالضبط')
+    lib = os.path.join(os.environ.get('MZ_H2P', '/tmp/claude-0/-home-claude/763d6975-41b8-5b57-9416-4a2e9e40fbf3/scratchpad/h2p/dist'), 'html2pdf.bundle.min.js')
+    if not os.path.isfile(lib): print('  SKIP ما لقيت مكتبة html2pdf'); return
+    old_html = os.environ.get('MZ_OLD_INDEX')
+    proc, LOCAL = _start_fake_drive()
+    try:
+        out = {}
+        for label, path in [('new', 'index.html'), ('old', 'index-old.html' if old_html else None)]:
+            if not path: continue
+            ctl = {'delay': 0}; dialogs = []
+            ctx = await _fast_ctx(p, b, LOCAL, ctl, real_pdf=True)
+            pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+            pg.on('dialog', lambda d: (dialogs.append(d.message), asyncio.ensure_future(d.accept())))
+            await pg.goto(f'http://127.0.0.1:{port}/{path}'); await pg.wait_for_timeout(3000)
+            await pg.evaluate(ADD % json.dumps([[1200, 2100, 'Window'], [900, 2100, 'Door'], [3000, 1000, 'Handrail (Hidden Glass)']]))
+            ref = 'M-Q-26090' + ('1' if label == 'new' else '2')
+            await pg.evaluate("""([ref]) => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles:true})); };
+              set('m-ref', ref); set('m-client', 'زبون PDF حقيقي'); set('m-number', '0501112233'); }""", [ref])
+            await pg.wait_for_timeout(500)
+            import time as _t
+            t0 = _t.time()
+            r = await pg.evaluate("async () => { try { const x = await saveToGoogleDriveInner(); return { ok: true, n: x.pdfBlob.size, head: await x.pdfBlob.slice(0, 8).text() }; } catch(e) { return { ok: false, e: String(e && e.message || e) }; } }")
+            dt = _t.time() - t0
+            pdf = _dfile(LOCAL, ref + '.pdf') or b''
+            if os.environ.get('MZ_DUMP_PDF'): open(os.path.join(os.environ['MZ_DUMP_PDF'], label + '.pdf'), 'wb').write(pdf)
+            pages = pdf.count(b'/Type /Page') - pdf.count(b'/Type /Pages')
+            data = json.loads(_dfile(LOCAL, ref + '-data.json') or b'{}')
+            out[label] = {'ok': r.get('ok'), 'size': len(pdf), 'pages': pages, 'sign': data.get('signBoxRect'), 'dt': dt, 'errs': errs, 'dialogs': dialogs, 'r': r}
+            await ctx.close()
+        n = out['new']
+        check(n['ok'] and n['size'] > 20000 and n['pages'] >= 1 and n['r'].get('head', '').startswith('%PDF'), 'الـPDF الحقيقي انعمل وانرفع (%d صفحة، %d كيلو، %.1f ثانية)' % (n['pages'], n['size'] // 1024, n['dt']))
+        check(isinstance(n['sign'], dict) and all(k in n['sign'] for k in ('pageIndex', 'xMm', 'yMm', 'wMm', 'hMm')), 'مكان صندوق التوقيع انحفظ بملف البيانات (للتوقيع الإلكتروني) ' + str(n['sign']))
+        if 'old' in out:
+            o = out['old']
+            check(o['ok'] and n['pages'] == o['pages'], 'نفس عدد الصفحات متل النسخة القديمة (%d = %d)' % (n['pages'], o['pages']))
+            check(abs(n['size'] - o['size']) <= max(4096, o['size'] * 0.02), 'نفس حجم الـPDF تقريبًا متل القديمة (%d / %d كيلو)' % (n['size'] // 1024, o['size'] // 1024))
+            so, sn = o['sign'] or {}, n['sign'] or {}
+            check(so and all(abs(float(so[k]) - float(sn[k])) < 0.01 for k in ('xMm', 'yMm', 'wMm', 'hMm')) and so['pageIndex'] == sn['pageIndex'], 'مكان صندوق التوقيع نفسه بالضبط متل القديمة')
+        check(not n['errs'] and not n['dialogs'], 'بلا أخطاء ولا رسائل ' + str((n['errs'][:1], n['dialogs'][:1])))
+    finally:
+        proc.kill()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1428,7 +1843,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_save_speed, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
