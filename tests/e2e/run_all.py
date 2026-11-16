@@ -1352,6 +1352,75 @@ async def t_warranty_template(p, b, port):
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
+async def t_hr3d_toolbar(p, b, port):
+    """🧊 زر "عرض ثري دي" فوق: الهاندريل يلي إلو مسقط بينرسم ثري دي حسب المسقط + المسقط تحته."""
+    print('• زر الثري دي للهاندريل مع المسقط')
+    ctx = await new_ctx(p, b); await ctx.add_init_script(THREE_STUB)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[7230, 1100, 'Glass Handrail for Balcony'], [1000, 2000, 'Aluminum Door with Glass']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    iid = await pg.evaluate("WD.__t.items()[0].id"); await pg.evaluate(f"WD.__t.sel({iid})"); await pg.wait_for_timeout(300)
+    await pg.click('#btnHrPlanStart'); await pg.wait_for_timeout(400)
+    segs = await pg.evaluate("WD.__t.items()[0].hrSegments.map(function(s){return s.id})")
+    await pg.evaluate(f"onHrSegField({iid},'{segs[0]}','totalLength',6040); onHrSegField({iid},'{segs[0]}','panelCount',5); onHrSegField({iid},'{segs[1]}','totalLength',1190); onHrSegField({iid},'{segs[1]}','panelCount',1)")
+    await pg.wait_for_timeout(300)
+    await pg.evaluate("open3DPreview()"); await pg.wait_for_timeout(500)
+    r = await pg.evaluate("""(function(){ var cards = Array.from(document.querySelectorAll('#threeDGrid .threeD-card')); var c = cards[0];
+      var s3 = c && c.querySelector('.hr3d-plan-svg'); var pl = c && c.querySelector('.hr-plan-svg');
+      return { cards: cards.length, has3d: !!s3, glass: s3 ? Array.from(s3.querySelectorAll('polygon')).filter(function(p){return /150,205,232/.test(p.getAttribute('fill'))}).length : 0,
+        txt: s3 ? s3.textContent : '', plan: !!pl, other: cards[1] ? !cards[1].querySelector('.hr3d-plan-svg') && !!cards[1].querySelector('svg') : false,
+        bbox: s3 ? [Math.round(s3.getBoundingClientRect().width), Math.round(s3.getBoundingClientRect().height)] : null }; })()""")
+    await pg.screenshot(path='/tmp/claude-0/hr3d-toolbar.png', full_page=False)
+    check(r['cards'] == 2 and r['has3d'] and r['plan'], 'الهاندريل: رسمة ثري دي حسب المسقط + المسقط تحتها ' + str(r))
+    check(r['glass'] == 6, 'كل الألواح مرسومة (5 + 1) ' + str(r['glass']))
+    check('6040' in r['txt'] and '1190' in r['txt'] and '7230' in r['txt'], 'أطوال الأضلاع والمجموع على الرسمة')
+    check(r['bbox'] and r['bbox'][0] > 300 and r['bbox'][1] > 120, 'الرسمة بحجم واضح ' + str(r['bbox']))
+    check(r['other'], 'البنود التانية (الباب) بتنرسم متل قبل')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+async def t_save_speed(p, b, port):
+    """⚡ حفظ عرض السعر لدرايف: الرفعات بنفس الوقت مع تجهيز الـPDF - كل الملفات بتنحفظ متل قبل وبوقت أقصر."""
+    print('• سرعة حفظ عرض السعر لدرايف')
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    import subprocess, urllib.request, time as _t
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_drive.js'), sdir], stdout=subprocess.PIPE, text=True)
+    try:
+        fport = int(proc.stdout.readline().split()[1]); LOCAL = 'http://127.0.0.1:%d' % fport
+        get = lambda pth: json.loads(urllib.request.urlopen(LOCAL + pth).read())
+        UPL_DELAY = 1.2
+        async def to_local(route):
+            u = route.request.url
+            try:
+                if '/upload/' in u or '/__upload/' in u or 'uploadType' in u: await asyncio.sleep(UPL_DELAY)  # نت بطيء متل سوريا
+                resp = await route.fetch(url=LOCAL + u[len(SRV):])
+                await route.fulfill(response=resp)
+            except Exception: pass  # الصفحة تسكّرت بنص الطلب
+        ctx = await new_ctx(p, b)
+        await ctx.add_init_script("localStorage.setItem('merzona-device-token','dev1');localStorage.setItem('merzona-session-token','s1');")
+        for pat in ['/gdrive/**', '/team/**', '/gdrive-upload-session', '/quotes', '/quotes?*', '/quotes/**']:
+            await ctx.route(SRV + pat, to_local)
+        await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+        await ctx.add_init_script(FAKE_PDF.replace("toCanvas: async function(){", "toCanvas: async function(){ await new Promise(function(r){ setTimeout(r, 3000); });"))
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2500)
+        await pg.evaluate("""() => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles:true})); };
+          set('m-ref', 'M-Q-260777'); set('m-client', 'زبون السرعة'); }""")
+        t0 = _t.time()
+        r = await pg.evaluate("async () => { try { await saveToGoogleDriveInner(); return 'ok'; } catch(e) { return String(e && e.message || e); } }")
+        dt = _t.time() - t0
+        names = [f['name'] for f in get('/__state')['files']]
+        check(r == 'ok', 'الحفظ نجح ' + str(r))
+        check('M-Q-260777.html' in names and 'M-Q-260777-data.json' in names and 'M-Q-260777.pdf' in names and any(n.startswith('M-Q-260777-نسخة-') for n in names), 'كل الملفات انحفظت: HTML + بيانات + سجل النسخ + PDF')
+        data = json.loads(urllib.request.urlopen(LOCAL + '/__file/' + urllib.parse.quote('M-Q-260777-data.json')).read())
+        check(data.get('fields', {}).get('m-client') == 'زبون السرعة', 'ملف البيانات فيه العرض الصح')
+        # بالترتيب القديم: 4 رفعات × 1.2 + PDF 3 ثواني ≈ 7.8+ ثانية؛ هلق الرفعات بتمشي مع الـPDF
+        check(dt < 7.0, 'الحفظ أسرع (الرفعات بنفس الوقت مع الـPDF): %.1f ثانية' % dt)
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
+    finally:
+        proc.kill()
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1359,7 +1428,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_save_speed, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
