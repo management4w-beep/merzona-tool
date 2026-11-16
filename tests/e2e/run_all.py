@@ -2025,6 +2025,50 @@ async def t_quote_status(p, b, port):
     await ctx.close()
 
 
+async def t_proc_products(p, b, port):
+    """📦 إعدادات المشتريات: المواد حسب المنتج (شيل مادة مو لازمة + مواد خاصة بمنتج)"""
+    print('• 📦 إعدادات المشتريات: المواد حسب المنتج')
+    ctx = await new_ctx(p, b)
+    await ctx.route(SRV + '/procurement-rules**', lambda r: r.fulfill(status=200, content_type='application/json', body=json.dumps({'rev': 0, 'rules': None}) if r.request.method == 'GET' else json.dumps({'ok': True, 'rev': 1})))
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/procurement.html'); await pg.wait_for_timeout(2500)
+    keys = lambda js: pg.evaluate("(() => { const T = window.__mzProcTest; " + js + " })()")
+    HR = "T.generic('هاندريل', { aluMm: 3000, glassM2: 2, hw: { hinges: 4, handles: 2, locks: 1 }, leaves: 0 })"
+    FD = "T.generic('باب فولدينغ', { aluMm: 5000, glassM2: 4, hw: { hinges: 6, handles: 1, locks: 1, rollers: 2 }, leaves: 3 })"
+    k0 = await keys("return T.boq(" + HR + ").map(r => r.key);")
+    check(set(k0) >= {'alu', 'glass', 'hinges', 'handle', 'lock'}, 'قبل الإعدادات: الهاندريل كان يطلع فيه مفصلات وقفل ومسكة ' + str(k0))
+    check(await keys("return T.productKeyOf(" + HR + ") + '|' + T.productKeyOf(" + FD + ") + '|' + T.productKeyOf(T.generic('بند آخر', {}));") == 'g:handrail|g:foldingDoor|g:other', 'كل منتج بيتعرف صح')
+    await keys("T.setRules({ exclude: { 'g:handrail': ['hinges', 'lock', 'handle'] }, extras: [ { id: 'sil', name: 'سيليكون', qty: 2, unit: 'أنبوب', basis: 'per_item', products: ['g:handrail'] }, { id: 'old', name: 'برغي قديم', qty: 1, unit: 'علبة', basis: 'per_item', types: ['generic'] } ] }); return 1;")
+    k1 = await keys("return T.boq(" + HR + ").map(r => r.key);")
+    k2 = await keys("return T.boq(" + FD + ").map(r => r.key);")
+    check('hinges' not in k1 and 'lock' not in k1 and 'handle' not in k1 and 'alu' in k1 and 'glass' in k1, 'بعد الإعدادات: الهاندريل بلا مفصلات/قفل/مسكة، والألمنيوم والزجاج باقيين ' + str(k1))
+    check('hinges' in k2 and 'lock' in k2, 'باب الفولدينغ ما تأثّر ' + str(k2))
+    check('x_sil' in k1 and 'x_sil' not in k2, 'مادة خاصة بالهاندريل (سيليكون) بتطلع بس معه')
+    check('x_old' in k1 and 'x_old' in k2, 'مواد إضافية قديمة (محددة بالنوع) لسا شغالة متل قبل على كل الفولدينغ/شاور/هاندريل')
+    n0 = await keys("const r = T.normalize({ exclude: { 'g:handrail': ['hinges', 'BAD KEY'], 'evil': ['x'] } }); return JSON.stringify(r.exclude);")
+    check(n0 == '{"g:handrail":["hinges"]}', 'القيم الغلط بتنشال ' + n0)
+    # الواجهة: تبويب الإعدادات
+    await keys("T.setRules({}); return 1;")
+    await pg.click("button[data-tab='settings']"); await pg.wait_for_timeout(500)
+    cards = await pg.evaluate("Array.from(document.querySelectorAll('#productsMaterials .product-card')).map(c => c.dataset.product)")
+    check(len(cards) == 9 and 'g:handrail' in cards, 'قائمة المنتجات بصفحة الإعدادات (' + str(len(cards)) + ')')
+    await pg.evaluate("document.querySelector(\"#productsMaterials .product-card[data-product='g:handrail']\").open = true")
+    await pg.click("#productsMaterials .product-card[data-product='g:handrail'] input[data-mat='hinges']"); await pg.wait_for_timeout(300)
+    ex = await keys("return JSON.stringify(T.rules().exclude);")
+    saved = await pg.evaluate("JSON.parse(localStorage.getItem('merzona-proc-rules-v1')).rules.exclude")
+    check(ex == '{"g:handrail":["hinges"]}' and saved == {'g:handrail': ['hinges']}, 'شيلت العلامة عن "مفصلات" للهاندريل ← انحفظت ' + ex)
+    await pg.click("#productsMaterials .product-card[data-product='g:handrail'] button"); await pg.wait_for_timeout(400)
+    ex2 = await keys("const x = T.rules().extras; return x.length + '|' + JSON.stringify(x[x.length-1].products);")
+    check(ex2 == '1|["g:handrail"]', 'زر "+ مادة خاصة بـهاندريل" بيضيف مادة مربوطة فيه ' + ex2)
+    if os.environ.get('MZ_SHOT'): await pg.evaluate("document.getElementById('productsMaterials').scrollIntoView()"); await pg.screenshot(path=os.environ['MZ_SHOT'])
+    await pg.reload(); await pg.wait_for_timeout(2500)
+    await pg.click("button[data-tab='settings']"); await pg.wait_for_timeout(500)
+    st = await pg.evaluate("[document.querySelector(\"#productsMaterials .product-card[data-product='g:handrail'] input[data-mat='hinges']\").checked, document.querySelector(\"#productsMaterials .product-card[data-product='g:handrail'] input[data-mat='glass']\").checked]")
+    check(st == [False, True], 'بعد إعادة فتح الصفحة الإعدادات باقية ' + str(st))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -2032,7 +2076,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
