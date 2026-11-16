@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-15.1';
+  var CURRENT_VERSION = '2026-11-16.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1355,6 +1355,21 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
   </div>
 
   <div id="quotationsView" style="display:none;">
+
+    <div class="panel" id="mzQsPanel">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;">
+        <p class="panel-title" style="margin:0;">🎯 حالة العروض والمبيعات</p>
+        <div>
+          <span class="year-chip mz-qs-period active" data-p="month">هالشهر</span>
+          <span class="year-chip mz-qs-period" data-p="3m">آخر 3 أشهر</span>
+          <span class="year-chip mz-qs-period" data-p="year">هالسنة</span>
+          <span class="year-chip mz-qs-period" data-p="all">الكل</span>
+        </div>
+      </div>
+      <div class="kpis" id="mzQsKpis" style="margin-top:10px;"></div>
+      <div id="mzQsHot"></div>
+      <p style="font-size:11.5px;color:var(--muted);margin:10px 0 0;">📌 "انبعت" بيتسجّل لما تبعت العرض من زر "📤 أرسل للزبون" أو "نسخ رابط التوقيع". "شافه" = الزبون فتح رابط التوقيع (فتحك إنت من أجهزة الشركة ما بينحسب). "رفض" بتعلّمه إنت من سجل العروض تحت. التتبع بلّش 16/11/2026.</p>
+    </div>
 
     <div class="panel">
       <p class="panel-title">📊 متابعة عروض الأسعار حسب الفترة</p>
@@ -2638,8 +2653,14 @@ async function mzFetchSeed(){
       } else {
         if(!__mzSeedRefs.size){
           if(res.status === 404) mzSeedWarn('السيرفر لسا على النسخة القديمة - ارفع server.js الجديد وملف القائمة (العدد الظاهر ناقص).');
-          else if(res.status === 403) mzSeedWarn('هالجهاز مش معتمد عند السيرفر - القائمة القديمة ما نزلت.');
-          else if(res.status === 401) mzSeedWarn('رمز السيرفر غير مطابق - القائمة القديمة ما نزلت.');
+          // 🛠️ 2026-11-16 (حساب المحاسب): 403 مش دايمًا "جهاز مش معتمد" - السيرفر بيرجّع 403 كمان لمستخدم ما عندو
+          // صلاحية أقسام العروض (no-permission) أو لسا ما سجّل دخول (login-required). كانت تطلع رسالة برتقالية غلط.
+          else if(res.status === 403){
+            let err = ''; try{ err = ((await res.clone().json()) || {}).error || ''; }catch(e){}
+            if(err === 'no-permission'){ mzSeedWarn(null); return; } // ما إلو صلاحية هالقائمة أصلاً - طبيعي، ما في شي غلط
+            if(err !== 'login-required') mzSeedWarn('هالجهاز مش معتمد عند السيرفر - القائمة القديمة ما نزلت.');
+          }
+          else if(res.status === 401) mzSeedWarn('هالجهاز مش معتمد عند السيرفر - القائمة القديمة ما نزلت.');
           else mzSeedWarn('تعذّر تنزيل القائمة القديمة من السيرفر (' + res.status + ').');
         }
         retryMs = (res.status === 403 || res.status === 401) ? 15000 : 60000;
@@ -3017,6 +3038,7 @@ function render(){
   // 🔧 2026-08-27: منحدّث بطاقات الإحصائيات (عدد العروض/المتوسط/الأعلى) مع كل إعادة رسم للجدول -
   // هيك أي مطابقة جديدة مع جوجل درايف (يدوية أو تلقائية بالخلفية) بتنعكس فورًا عالبطاقات، مش بس عالجدول.
   updateKpis();
+  try{ mzQsRender(); }catch(e){}
   let rows = getFiltered();
   rows.sort((a,b)=>{
     let va=a[sortKey], vb=b[sortKey];
@@ -3054,7 +3076,7 @@ function render(){
     const deleteBtn = '<button class="delete-quotation-btn" data-ref="'+escapeHtml(d.ref)+'" title="حذف عرض السعر هاد نهائيًا (بينقل مجلده لسلة المحذوفات بجوجل درايف)" style="font-size:14px;line-height:1;padding:4px 7px;border-radius:6px;border:r(--danger);color:var(--danger);background:#fff;cursor:pointer;">🗑️</button>';
     tr.innerHTML =
       '<td style="text-align:center;">'+deleteBtn+'</td>'+
-      '<td><span class="year-tag">'+escapeHtml(d.year)+'</span>'+refCell+openLatestBtn+convertToContractBtn+'</td>'+
+      '<td><span class="year-tag">'+escapeHtml(d.year)+'</span>'+refCell+openLatestBtn+convertToContractBtn+mzQsBadge(d)+'</td>'+
       '<td><span class="client-edit" data-ref="'+escapeHtml(d.ref)+'" title="اضغط لتعديل اسم الزبون" style="cursor:pointer;border-bottom:1px dashed var(--line);">'+escapeHtml(clientName)+'</span></td>'+
       '<td dir="ltr" style="text-align:right">'+phoneCell+'</td>'+
       '<td class="num">'+fmt(d.total)+' <small style="color:var(--muted);font-size:10.5px;">'+currencyLabel(getEntryCurrency(d))+'</small></td>';
@@ -3386,12 +3408,117 @@ function showClientsView(){
   document.getElementById('clientsTabBtn').classList.add('active');
   renderClientsDirectory();
 }
+/* 🎯 2026-11-16 - حالة عروض الأسعار (طلب حمدي - المبيعات): انبعت / شافه الزبون / وقّع / رفض + نسبة التحويل.
+   المصدر: السيرفر (/quote-status) + العقود (أي عرض صار عقد = وقّع، حتى لو انعمل عقد يدوي).
+   التتبع بلّش 2026-11-16 - العروض الأقدم ما إلها معلومة "انبعت/شاف" (منكتب "قبل التتبع"). */
+const MZ_QS_URL = 'https://merzona-server-production.up.railway.app/quote-status';
+const MZ_QS_START = '2026-11-16';
+let __mzQS = {}, __mzQSLoadedAt = 0, __mzQSPeriod = 'month';
+function mzQsHeaders(){ const h = { 'Content-Type': 'application/json' }; try{ h['x-device'] = localStorage.getItem('merzona-device-token') || ''; const s = localStorage.getItem('merzona-session-token'); if(s) h['x-session'] = s; }catch(e){} return h; }
+async function mzQsLoad(force){
+  if(!force && Date.now() - __mzQSLoadedAt < 60000) return;
+  try{
+    const r = await dashFetchWithTimeout(MZ_QS_URL, { headers: mzQsHeaders(), cache: 'no-store' }, 20000);
+    if(!r.ok) return;
+    const j = await r.json(); __mzQS = (j && j.items) || {}; __mzQSLoadedAt = Date.now();
+    try{ if(document.getElementById('quotationsView').style.display !== 'none'){ mzQsRender(); render(); } }catch(e){}
+  }catch(e){ console.warn('[حالة العروض]', e); }
+}
+function mzQsIso(d){ const dt = parseDate(d.date); if(!dt) return ''; return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0'); }
+// الحالة النهائية لكل عرض
+function mzQsOf(d){
+  const s = __mzQS[d.ref] || {};
+  const contracts = (typeof loadContracts === 'function') ? loadContracts() : {};
+  if(s.signedAt || contracts[d.ref]) return { key: 'signed', s };
+  if(s.rejectedAt) return { key: 'rejected', s };
+  if(s.viewedAt) return { key: 'viewed', s };
+  if(s.sentAt) return { key: 'sent', s };
+  const iso = mzQsIso(d);
+  return { key: (iso && iso < MZ_QS_START) ? 'old' : 'notsent', s };
+}
+const MZ_QS_LABEL = { signed: '✅ وقّع', rejected: '❌ رفض', viewed: '👁️ شافه', sent: '📤 انبعت', notsent: '⚪ ما انبعت', old: '· قبل التتبع' };
+const MZ_QS_COLOR = { signed: ['#e9f6ee','#1d6b3a'], rejected: ['#fdecec','#a02622'], viewed: ['#eef4ff','#1d4ed8'], sent: ['#fff7e6','#7a5200'], notsent: ['#f1f3f5','#555'], old: ['transparent','#9aa0aa'] };
+function mzQsWhen(t){ try{ return new Date(t).toLocaleString('ar-SY-u-nu-latn', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }catch(e){ return ''; } }
+function mzQsBadge(d){
+  const st = mzQsOf(d), c = MZ_QS_COLOR[st.key], s = st.s;
+  let tip = '';
+  if(s.sentAt) tip += 'انبعت: ' + mzQsWhen(s.sentAt) + (s.sentBy ? ' (' + s.sentBy + ')' : '') + '\n';
+  if(s.viewedAt) tip += 'الزبون فتحه: ' + mzQsWhen(s.viewedAt) + (s.views > 1 ? ' - ' + s.views + ' مرات، آخرها ' + mzQsWhen(s.lastViewedAt) : '') + '\n';
+  if(s.signedAt) tip += 'وقّع: ' + mzQsWhen(s.signedAt) + (s.signerName ? ' - ' + s.signerName : '') + '\n';
+  if(s.rejectedAt) tip += 'رفض: ' + mzQsWhen(s.rejectedAt) + (s.rejectReason ? ' - ' + s.rejectReason : '') + '\n';
+  const lbl = MZ_QS_LABEL[st.key] + (st.key === 'viewed' && s.views > 1 ? ' ×' + s.views : '');
+  let act = '';
+  if(st.key !== 'signed' && st.key !== 'old'){
+    act = st.key === 'rejected'
+      ? '<button class="mz-qs-act" data-ref="' + escapeHtml(d.ref) + '" data-undo="1" title="ألغي الرفض" style="border:0;background:none;cursor:pointer;font-size:11px;color:#666;padding:0 3px;">↩️</button>'
+      : '<button class="mz-qs-act" data-ref="' + escapeHtml(d.ref) + '" title="علّم إنو الزبون رفض العرض" style="border:0;background:none;cursor:pointer;font-size:11px;color:#a02622;padding:0 3px;">رفض؟</button>';
+  }
+  return '<span class="mz-qs-badge" data-qs="' + st.key + '" title="' + escapeHtml(tip.trim()) + '" style="display:inline-block;margin-inline-start:6px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;background:' + c[0] + ';color:' + c[1] + ';white-space:nowrap;">' + lbl + '</span>' + act;
+}
+async function mzQsReject(ref, undo){
+  let reason = '';
+  if(undo){ if(!confirm('تلغي "رفض" عن العرض ' + ref + '؟')) return; }
+  else { reason = prompt('ليش رفض الزبون العرض ' + ref + '؟ (اختياري - مثلاً: السعر غالي، راح لغيرنا، تأجّل المشروع)', ''); if(reason === null) return; }
+  try{
+    const r = await dashFetchWithTimeout(MZ_QS_URL + '/reject', { method: 'POST', headers: mzQsHeaders(), body: JSON.stringify({ ref, reason, undo: !!undo }) }, 20000);
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok){ alert('ما انحفظ: ' + ((j && j.error) || r.status)); return; }
+    __mzQS[ref] = j.status || __mzQS[ref]; mzQsRender(); render();
+  }catch(e){ alert('ما انحفظ - تأكد من النت: ' + (e.message || e)); }
+}
+function mzQsInPeriod(d){
+  const iso = mzQsIso(d); if(!iso) return __mzQSPeriod === 'all';
+  const now = new Date(); const y = now.getFullYear(), m = now.getMonth();
+  if(__mzQSPeriod === 'month') return iso.slice(0, 7) === y + '-' + String(m + 1).padStart(2, '0');
+  if(__mzQSPeriod === '3m'){ const from = new Date(y, m - 2, 1); return parseDate(d.date) >= from; }
+  if(__mzQSPeriod === 'year') return iso.slice(0, 4) === String(y);
+  return true;
+}
+function mzQsRender(){
+  const box = document.getElementById('mzQsPanel'); if(!box) return;
+  const rows = DATA.filter(d => (activeBranch === 'all' || getEntryBranch(d) === activeBranch) && mzQsInPeriod(d));
+  const n = { total: rows.length, tracked: 0, sent: 0, viewed: 0, signed: 0, rejected: 0, notsent: 0 };
+  const signedVal = {}, hot = [];
+  rows.forEach(d => {
+    const st = mzQsOf(d);
+    if(st.key !== 'old') n.tracked++;
+    if(st.key === 'notsent') n.notsent++;
+    const s = st.s, sentish = !!(s.sentAt || s.viewedAt || st.key === 'signed' || st.key === 'rejected');
+    if(sentish && st.key !== 'old') n.sent++;
+    if(s.viewedAt) n.viewed++;
+    if(st.key === 'signed'){ n.signed++; const cur = currencyLabel(getEntryCurrency(d)); signedVal[cur] = (signedVal[cur] || 0) + (d.total || 0); }
+    if(st.key === 'rejected') n.rejected++;
+    if(st.key === 'viewed') hot.push(d);
+  });
+  const pct = (a, b) => b ? Math.round(a * 100 / b) + '%' : '—';
+  const valStr = Object.keys(signedVal).map(k => fmt(Math.round(signedVal[k])) + ' ' + k).join(' · ') || '—';
+  const kpi = (label, val, sub, cls) => '<div class="kpi' + (cls ? ' ' + cls : '') + '"><p class="kpi-label">' + label + '</p><p class="kpi-value">' + val + '</p>' + (sub ? '<p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;">' + sub + '</p>' : '') + '</div>';
+  document.getElementById('mzQsKpis').innerHTML =
+    kpi('📤 انبعتوا للزبون', n.sent, 'من ' + n.tracked + ' عرض (' + n.notsent + ' ما انبعت)') +
+    kpi('👁️ الزبون فتحهن', n.viewed, pct(n.viewed, n.sent) + ' من يلي انبعتوا') +
+    kpi('✅ وقّعوا', n.signed, valStr, 'gold') +
+    kpi('❌ رفضوا', n.rejected, pct(n.rejected, n.sent) + ' من يلي انبعتوا') +
+    kpi('🎯 نسبة التحويل', pct(n.signed, n.sent), 'وقّعوا ÷ انبعتوا');
+  hot.sort((a, b) => ((__mzQS[b.ref] || {}).lastViewedAt || 0) - ((__mzQS[a.ref] || {}).lastViewedAt || 0));
+  const hb = document.getElementById('mzQsHot');
+  hb.innerHTML = hot.length
+    ? '<p style="font-weight:700;margin:14px 0 6px;font-size:13.5px;">🔥 الزبون فتحهن وما وقّع لسا (' + hot.length + ') - أحسن وقت تتابع معهن</p>' +
+      hot.slice(0, 12).map(d => { const s = __mzQS[d.ref] || {}; return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px;"><span class="ref-badge">' + escapeHtml(d.ref) + '</span><span>' + escapeHtml(getClientName(d)) + '</span><span class="num">' + fmt(d.total) + ' ' + currencyLabel(getEntryCurrency(d)) + '</span><span style="color:var(--muted);">آخر فتحة: ' + mzQsWhen(s.lastViewedAt) + (s.views > 1 ? ' (' + s.views + ' مرات)' : '') + '</span>' + (toWaLink(d.phone) ? '<a href="' + toWaLink(d.phone) + '" target="_blank" rel="noopener" class="wa-link">💬 ' + escapeHtml(d.phone) + '</a>' : '') + '</div>'; }).join('')
+    : '';
+  box.querySelectorAll('.mz-qs-period').forEach(b => b.classList.toggle('active', b.dataset.p === __mzQSPeriod));
+}
+document.addEventListener('click', function(e){
+  const a = e.target.closest && e.target.closest('.mz-qs-act'); if(a){ e.preventDefault(); e.stopPropagation(); mzQsReject(a.dataset.ref, a.dataset.undo === '1'); return; }
+  const p = e.target.closest && e.target.closest('.mz-qs-period'); if(p){ __mzQSPeriod = p.dataset.p; mzQsRender(); }
+}, true);
+setInterval(() => { try{ if(document.getElementById('quotationsView').style.display !== 'none') mzQsLoad(true); }catch(e){} }, 120000);
 function showQuotationsView(){
   hideAllViews();
   document.getElementById('quotationsView').style.display = 'block';
   document.getElementById('quotationsTabBtn').classList.add('active');
   render();
   renderQuotationsTracking();
+  mzQsRender(); mzQsLoad();
 }
 function showDashboardView(){
   hideAllViews();
@@ -3859,6 +3986,9 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
   var coBtn = document.getElementById('companySettingsBtn'); if(coBtn) coBtn.style.display = isOwner ? '' : 'none'; // 🏢 للمالك بس
   var usersBtn = document.getElementById('usersTabBtn');
   if(usersBtn) usersBtn.style.display = allowed('manageUsers') ? '' : 'none';
+  // 🛠️ 2026-11-16: رسالة "اربط حسابك بجوجل درايف" بس لمين عندو مزامنة الفريق (المحاسب مثلاً ما بيحتاجها - المحاسبة كلها عالسيرفر)
+  window.__mzNoTeamSync = !allowed('teamSync');
+  if(!allowed('teamSync')){ var sb = document.getElementById('syncBanner'); if(sb) sb.classList.remove('show'); }
 
   // 🆕 2026-08-26 (نسخة معدّلة حسب طلب حمدي): بدل ما نخفي أقسام اللوحة الرئيسية بالكامل (كان
   // ممكن يحس إنو الداشبورد "خربانة" أو ناقصها شغلات)، هلق منسيب كل قسم بمكانه وبنفس شكل الداشبورد
@@ -5904,7 +6034,7 @@ function showSyncBannerIfNeeded(){
   try{
     const alreadyConnected = localStorage.getItem('merzona_sync_connected') === '1';
     const alreadyDismissed = localStorage.getItem('merzona_sync_banner_dismissed') === '1';
-    if(!alreadyConnected && !alreadyDismissed){
+    if(!alreadyConnected && !alreadyDismissed && !window.__mzNoTeamSync){
       document.getElementById('syncBanner').classList.add('show');
     }
   }catch(e){}
