@@ -157,7 +157,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-14.2';
+  var CURRENT_VERSION = '2026-11-16.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
@@ -664,6 +664,10 @@
   .extra-row input[type=number]{width:90px;}
   .extra-row select{font-family:inherit;font-size:13px;padding:5px 6px;border:1px solid #9aa5b5;border-radius:6px;}
   .extra-row .chk{font-size:12.5px;font-weight:600;gap:3px;}
+  .product-card{border:1px solid var(--border);border-radius:8px;background:#fff;margin:6px 0;padding:6px 10px;}
+  .product-card summary{cursor:pointer;font-weight:700;font-size:14px;padding:4px 0;}
+  .product-mats{display:flex;flex-wrap:wrap;gap:6px 14px;margin:8px 0;}
+  .product-mats .chk{font-size:13px;display:inline-flex;align-items:center;gap:4px;cursor:pointer;}
   .extra-row .types-box{display:inline-flex;flex-wrap:wrap;gap:8px;padding:2px 6px;border:1px dashed var(--border);border-radius:6px;}
   .extra-note{width:100%;font-size:12px;color:#92400e;}
   .label-row{display:flex;gap:10px;align-items:center;margin:4px 0;}
@@ -1234,6 +1238,30 @@ if (typeof module !== 'undefined') {
     'generic:lock': 'قفل (تقدير)',
     'generic:rollers': 'رولات (تقدير)'
   };
+  /* 📦 2026-11-16 - طلب حمدي: "بالمشتريات في بنود مكتوب فيهم مواد مو لازم تكون، لازم يكون في صفحة إعدادات للمشتريات
+     لحتى تنضبط... لازم عبيهم بشكل يدوي". كل منتج إله قائمة مواده: بتشيل أي مادة محسوبة مو لازمة إله (✓/✗)،
+     وبتضيف مواد خاصة فيه (بقسم "مواد إضافية" - بتختار لأي منتجات). */
+  var PRODUCTS = [
+    { key: 'curtainwall', type: 'curtainwall', name: 'شبابيك / كرتن وول' },
+    { key: 'sliding', type: 'sliding', name: 'سحاب (أبواب وشبابيك)' },
+    { key: 'hinged', type: 'hinged', name: 'أبواب مفصلية' },
+    { key: 'g:handrail', type: 'generic', name: 'هاندريل' },
+    { key: 'g:foldingDoor', type: 'generic', name: 'باب فولدينغ' },
+    { key: 'g:showerGlassDoor', type: 'generic', name: 'باب شاور زجاجي' },
+    { key: 'g:mirror', type: 'generic', name: 'مرآة' },
+    { key: 'g:pergola', type: 'generic', name: 'بيرغولا / مظلة' },
+    { key: 'g:other', type: 'generic', name: 'بنود تانية (يدوية)' }
+  ];
+  var PRODUCT_KEYS = PRODUCTS.map(function (p) { return p.key; });
+  var GENERIC_LABEL_TO_KEY = { 'باب فولدينغ': 'g:foldingDoor', 'باب شاور زجاجي': 'g:showerGlassDoor', 'هاندريل': 'g:handrail', 'مرآة': 'g:mirror', 'بيرغولا / مظلة': 'g:pergola' };
+  function productKeyOf(item) {
+    if (!item) return '';
+    if (item.type !== 'generic') return item.type;
+    return GENERIC_LABEL_TO_KEY[String(item.genericLabel || '').trim()] || 'g:other';
+  }
+  function productMaterialKeys(p) { // المواد المحسوبة تلقائياً لهالنوع
+    return Object.keys(LABEL_DEFS).filter(function (k) { return k.indexOf(p.type + ':') === 0; }).map(function (k) { return k.split(':')[1]; });
+  }
   function ruleNum(v, def, min, max) {
     var n = parseFloat(v);
     if (!isFinite(n)) n = def;
@@ -1245,7 +1273,7 @@ if (typeof module !== 'undefined') {
       curtain: { stayArmsPerOpenable: 3, handlesPerOpenable: 1 },
       sliding: { rollersPerLeaf: 2, handlesPerLeaf: 1 },
       hinged: { hingesPerLeaf: 3, locksPerLeaf: 1, handlesPerLeaf: 1 },
-      labels: {}, extras: []
+      labels: {}, extras: [], exclude: {}
     };
   }
   function normalizeRules(o) {
@@ -1264,6 +1292,13 @@ if (typeof module !== 'undefined') {
         if (v && /^[a-z]+:[a-z_]+$/.test(k)) r.labels[k] = v;
       });
     }
+    if (o.exclude && typeof o.exclude === 'object' && !Array.isArray(o.exclude)) {
+      Object.keys(o.exclude).forEach(function (pk) {
+        if (PRODUCT_KEYS.indexOf(pk) < 0 || !Array.isArray(o.exclude[pk])) return;
+        var ks = o.exclude[pk].filter(function (k) { return typeof k === 'string' && /^[a-z_]+$/.test(k); }).slice(0, 50);
+        if (ks.length) r.exclude[pk] = ks;
+      });
+    }
     if (Array.isArray(o.extras)) {
       o.extras.slice(0, 100).forEach(function (x) {
         if (!x || typeof x !== 'object') return;
@@ -1274,6 +1309,9 @@ if (typeof module !== 'undefined') {
           qty: ruleNum(x.qty, 1, 0, 100000),
           basis: EXTRA_BASES[x.basis] ? x.basis : 'per_item',
           types: Array.isArray(x.types) ? x.types.filter(function (t) { return EXTRA_TYPES[t]; }) : [],
+          // لأي منتجات (فاضي = كل المنتجات). المواد القديمة (types بس) بتتحوّل لنفس المعنى بالمنتجات
+          products: Array.isArray(x.products) ? x.products.filter(function (k) { return PRODUCT_KEYS.indexOf(k) >= 0; })
+            : (Array.isArray(x.types) ? PRODUCTS.filter(function (p) { return x.types.indexOf(p.type) >= 0; }).map(function (p) { return p.key; }) : []),
           enabled: x.enabled !== false,
           note: String(x.note == null ? '' : x.note).slice(0, 200)
         });
@@ -2043,9 +2081,13 @@ if (typeof module !== 'undefined') {
       if (!rows.length) rows.push({ key: 'note', material: '⚠️ ما وصلت أرقام لهاد البند — افتح أداة التصميم مرة وحدة وارجع زامن', qty: 0, unit: 'قطعة' });
     }
     // المواد الإضافية المعرّفة بالإعدادات (غير "مرة وحدة للمشروع" - هاديك بتنحسب مرة وحدة بـ computeProjectExtras)
+    var PK = productKeyOf(item);
+    var excl = (RULES.exclude && RULES.exclude[PK]) || [];
+    if (excl.length) rows = rows.filter(function (row) { return excl.indexOf(row.key) < 0; }); // 📦 مواد مشالة من الإعدادات لهالمنتج
     RULES.extras.forEach(function (x) {
       if (!x.enabled || !x.name || x.basis === 'per_project') return;
-      if (x.types.length && x.types.indexOf(T) < 0) return;
+      if (x.products && x.products.length) { if (x.products.indexOf(PK) < 0) return; }
+      else if (x.types.length && x.types.indexOf(T) < 0) return;
       var pu = x.basis === 'per_item' ? x.qty
         : x.basis === 'per_sqm_glass' ? x.qty * glassPU
         : x.basis === 'per_meter_alu' ? x.qty * linPU
@@ -2061,12 +2103,20 @@ if (typeof module !== 'undefined') {
     return rows;
   }
   // مواد إضافية بأساس "مرة وحدة للمشروع كله" (مثلاً سيليكون، مسامير): بتظهر بصف مستقل مو مربوط ببند.
+  // 🧪 للفحوصات بس (قراءة وحساب - ما بتغيّر شي)
+  window.__mzProcTest = {
+    rules: function () { return RULES; }, setRules: function (o) { RULES = normalizeRules(o); },
+    boq: function (item) { return computeItemBOQ(item); }, projectExtras: function () { return computeProjectExtras(); },
+    generic: function (label, summary) { var g = newGenericItem(label); g.summary = summary; return g; },
+    productKeyOf: productKeyOf, normalize: normalizeRules
+  };
   function computeProjectExtras() {
     var rows = [];
     if (!state.items.length) return rows;
     RULES.extras.forEach(function (x) {
       if (!x.enabled || !x.name || x.basis !== 'per_project' || !(x.qty > 0)) return;
-      if (x.types.length && !state.items.some(function (i) { return x.types.indexOf(i.type) >= 0; })) return;
+      if (x.products && x.products.length) { if (!state.items.some(function (i) { return x.products.indexOf(productKeyOf(i)) >= 0; })) return; }
+      else if (x.types.length && !state.items.some(function (i) { return x.types.indexOf(i.type) >= 0; })) return;
       var row = { key: 'x_' + x.id, material: x.name, qty: round2(x.qty), unit: x.unit, extra: true, ovKey: 'project|x_' + x.id };
       row.autoQty = row.qty;
       if (state.overrides[row.ovKey] !== undefined) { row.qty = state.overrides[row.ovKey]; row.overridden = true; }
@@ -2225,6 +2275,45 @@ if (typeof module !== 'undefined') {
       box.appendChild(s);
     }
 
+    // 📦 المواد حسب المنتج
+    var prSec = el('div', { class: 'rules-section', id: 'productsMaterials' }, [el('h3', { text: '📦 المواد حسب المنتج' })]);
+    prSec.appendChild(el('div', { class: 'hint', text: 'لكل منتج: شيل العلامة ✓ عن أي مادة مو لازمة إله، وما عاد تطلع بجدول المشتريات لهالمنتج. لتضيف مادة خاصة بمنتج معيّن، استعمل "مواد إضافية" تحت واختار المنتج.' }));
+    PRODUCTS.forEach(function (pr) {
+      var keys = productMaterialKeys(pr);
+      var ex = (RULES.exclude[pr.key] || []);
+      var card = el('details', { class: 'product-card', 'data-product': pr.key });
+      function sumText() {
+        var offN = (RULES.exclude[pr.key] || []).filter(function (k) { return keys.indexOf(k) >= 0; }).length;
+        var extrasN = RULES.extras.filter(function (x) { return x.enabled && x.name && (!x.products.length || x.products.indexOf(pr.key) >= 0); }).length;
+        return pr.name + '  ·  ' + (keys.length - offN) + ' مادة محسوبة' + (offN ? ' (' + offN + ' مشالة)' : '') + (extrasN ? ' + ' + extrasN + ' إضافية' : '');
+      }
+      var sumEl = el('summary', { text: sumText() });
+      card.appendChild(sumEl);
+      var grid = el('div', { class: 'product-mats' });
+      keys.forEach(function (k) {
+        var c = el('input', { type: 'checkbox', 'data-mat': k }); c.checked = ex.indexOf(k) < 0;
+        c.addEventListener('change', function () {
+          var cur = (RULES.exclude[pr.key] || []).filter(function (x) { return x !== k; });
+          if (!c.checked) cur.push(k);
+          if (cur.length) RULES.exclude[pr.key] = cur; else delete RULES.exclude[pr.key];
+          sumEl.textContent = sumText();
+          rulesChanged();
+        });
+        grid.appendChild(el('label', { class: 'chk' }, [c, el('span', { text: matLabel(pr.type, k) })]));
+      });
+      card.appendChild(grid);
+      var mine = RULES.extras.filter(function (x) { return x.name && x.products.indexOf(pr.key) >= 0; });
+      if (mine.length) card.appendChild(el('div', { class: 'hint', text: 'مواد إضافية خاصة فيه: ' + mine.map(function (x) { return x.name + (x.enabled ? '' : ' (موقفة)'); }).join('، ') }));
+      card.appendChild(mkBtn('+ مادة خاصة بـ' + pr.name, function () {
+        RULES.extras.push({ id: 'x' + Date.now().toString(36) + Math.floor(Math.random() * 1000), name: '', unit: 'قطعة', qty: 1, basis: 'per_item', types: [], products: [pr.key], enabled: true, note: '' });
+        rulesChanged(); renderSettingsTab();
+        var rowsEx = document.querySelectorAll('.extras-list .extra-row'); var last = rowsEx[rowsEx.length - 1];
+        if (last) { last.scrollIntoView({ block: 'center' }); var nm = last.querySelector('input[type=text]'); if (nm) nm.focus(); }
+      }, 'small'));
+      prSec.appendChild(card);
+    });
+    box.appendChild(prSec);
+
     section('عام', 'طول القضيب يلي منقسم عليه الأمتار الطولية لنحسب عدد القضبان. الهدر بيتضاف على الأمتار الطولية وعلى الزجاج بكل الجداول (0 = بدون هدر).', [
       numRow('طول القضيب القياسي', function () { return RULES.barLength; }, function (v) { RULES.barLength = v; }, { step: 0.1, min: 1, max: 20, unit: 'متر' }),
       numRow('هدر الأمتار الطولية', function () { return RULES.wasteLinearPct; }, function (v) { RULES.wasteLinearPct = v; }, { step: 0.5, min: 0, max: 100, unit: '%' }),
@@ -2276,15 +2365,18 @@ if (typeof module !== 'undefined') {
       Object.keys(EXTRA_BASES).forEach(function (k) { var o = el('option', { value: k, text: EXTRA_BASES[k] }); if (k === x.basis) o.selected = true; bs.appendChild(o); });
       bs.addEventListener('change', function () { x.basis = bs.value; rulesChanged(); });
       row.appendChild(bs);
-      var tp = el('span', { class: 'types-box' });
-      Object.keys(EXTRA_TYPES).forEach(function (k) {
-        var c = el('input', { type: 'checkbox' }); c.checked = x.types.indexOf(k) >= 0;
+      // 📦 لأي منتجات (ولا وحدة معلّمة = كل المنتجات)
+      var tp = el('span', { class: 'types-box', title: 'لأي منتجات - إذا ما علّمت ولا وحدة بتنطبق على كل المنتجات' });
+      tp.appendChild(el('span', { class: 'unit-note', text: 'لـ:' }));
+      PRODUCTS.forEach(function (pr) {
+        var c = el('input', { type: 'checkbox', 'data-prod': pr.key }); c.checked = x.products.indexOf(pr.key) >= 0;
         c.addEventListener('change', function () {
-          x.types = x.types.filter(function (t) { return t !== k; });
-          if (c.checked) x.types.push(k);
+          x.products = x.products.filter(function (t) { return t !== pr.key; });
+          if (c.checked) x.products.push(pr.key);
+          x.types = []; // صار التحديد بالمنتجات
           rulesChanged();
         });
-        tp.appendChild(el('label', { class: 'chk' }, [c, el('span', { text: EXTRA_TYPES[k] })]));
+        tp.appendChild(el('label', { class: 'chk' }, [c, el('span', { text: pr.name })]));
       });
       row.appendChild(tp);
       row.appendChild(mkBtn('🗑', function () {
@@ -2297,7 +2389,7 @@ if (typeof module !== 'undefined') {
     });
     exSec.appendChild(list);
     exSec.appendChild(mkBtn('+ إضافة مادة', function () {
-      RULES.extras.push({ id: 'x' + Date.now().toString(36) + Math.floor(Math.random() * 1000), name: '', unit: 'قطعة', qty: 1, basis: 'per_item', types: [], enabled: true, note: '' });
+      RULES.extras.push({ id: 'x' + Date.now().toString(36) + Math.floor(Math.random() * 1000), name: '', unit: 'قطعة', qty: 1, basis: 'per_item', types: [], products: [], enabled: true, note: '' });
       rulesChanged(); renderSettingsTab();
     }, 'primary'));
     box.appendChild(exSec);
