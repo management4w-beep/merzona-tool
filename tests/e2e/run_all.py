@@ -1836,6 +1836,50 @@ async def t_fast_save_real_pdf(p, b, port):
         proc.kill()
 
 
+async def t_print_titles(p, b, port):
+    """🏷️ اسم ملف الـPDF وقت الطباعة: Sketch / 3D Sketch + رقم العرض - حتى لما الأداة جوا لوحة التحكم (عنوانها Merzona)"""
+    print('• اسم ملف السكتش والثري دي وعرض السعر وقت الحفظ كـPDF')
+    ctx = await new_ctx(p, b)
+    await ctx.add_init_script("window.__titles = []; window.print = function(){ var t = null; try{ t = window.top.document.title; }catch(e){} window.__titles.push({ self: document.title, top: t }); };")
+    host = f'http://127.0.0.1:{port}/__host.html'
+    await ctx.route(host, lambda r: r.fulfill(status=200, content_type='text/html', body='<!doctype html><html><head><title>Merzona</title></head><body style="margin:0"><iframe id="f" src="index.html" style="width:1400px;height:900px;border:0"></iframe></body></html>'))
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(host); await pg.wait_for_timeout(3500)
+    fr = pg.frame_locator('#f'); f = pg.frames[1]
+    await f.evaluate(ADD % json.dumps([[1200, 2100, 'Window'], [3000, 1000, 'Handrail (Hidden Glass)']]))
+    await f.evaluate("""() => { const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input', {bubbles:true})); }; set('m-ref', 'M-Q-260555'); set('m-client', 'زبون تجربة'); }""")
+    await f.wait_for_timeout(400)
+    async def run(js, wait=900):
+        await f.evaluate("window.__titles = []")
+        await f.evaluate(js); await f.wait_for_timeout(wait)
+        t = await f.evaluate("window.__titles.slice()")
+        await f.evaluate("window.dispatchEvent(new Event('afterprint'))"); await f.wait_for_timeout(150)
+        after = {'self': await f.evaluate("document.title"), 'top': await pg.evaluate("document.title")}
+        return (t[-1] if t else {}), after
+    t, after = await run("preparePrint()")
+    check(t.get('self') == 'Sketch - M-Q-260555' and t.get('top') == 'Sketch - M-Q-260555', 'طباعة السكتش جوا لوحة التحكم: اسم الملف "Sketch - M-Q-260555" ' + str(t))
+    check(after['top'] == 'Merzona' and after['self'] == 'M-Q-260555 - زبون تجربة', 'بعد الطباعة العناوين رجعت متل ما كانت ' + str(after))
+    t, after = await run("open3DPreview(); print3DPreview()")
+    check(t.get('self') == '3D Sketch - M-Q-260555' and t.get('top') == '3D Sketch - M-Q-260555', 'طباعة الثري دي: "3D Sketch - M-Q-260555" ' + str(t))
+    await f.evaluate("close3DPreview()")
+    t, after = await run("printMfgSizes()")
+    check(t.get('self') == 'Sketch (Manufacturing Sizes) - M-Q-260555', 'طباعة مقاسات التصنيع: "Sketch (Manufacturing Sizes) - M-Q-260555" ' + str(t))
+    t, after = await run("collectPrintWarnings = function(){ return []; }; doPrint()", 1500)
+    check(t.get('self') == 'M-Q-260555 - زبون تجربة' and t.get('top') == 'M-Q-260555 - زبون تجربة', 'طباعة عرض السعر: "رقم العرض - الزبون" (مش Merzona) ' + str(t))
+    check(after['top'] == 'Merzona', 'ولوحة التحكم رجع عنوانها')
+    # الأداة لحالها (مش جوا لوحة التحكم)
+    pg2 = await ctx.new_page(); pg2.on('pageerror', lambda e: errs.append(str(e)[:200])); pg2.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg2.goto(f'http://127.0.0.1:{port}/index.html'); await pg2.wait_for_timeout(2500)
+    await pg2.evaluate(ADD % json.dumps([[1200, 2100, 'Window']]))
+    await pg2.evaluate("""() => { const e = document.getElementById('m-ref'); e.value = 'M-Q-260556'; e.dispatchEvent(new Event('input', {bubbles:true})); }""")
+    await pg2.evaluate("window.__titles = []; preparePrint()"); await pg2.wait_for_timeout(900)
+    t = await pg2.evaluate("window.__titles.slice()")
+    check(t and t[-1]['self'] == 'Sketch - M-Q-260556', 'الأداة لحالها: نفس الشي "Sketch - M-Q-260556" ' + str(t[-1:] if t else t))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -1843,7 +1887,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
