@@ -152,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-15.1';
+  var CURRENT_VERSION = '2026-11-15.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -7388,7 +7388,11 @@ async function saveToGoogleDriveInner(){
     // نسخة HTML الكاملة من الأداة (نفس نظامك الحالي بالضبط)
     const htmlContent = buildBakedHtmlSnapshot();
     const htmlBlob = new Blob([htmlContent], {type:'text/html'});
-    const __mzHtmlUp = await uploadOrUpdateFileInDriveFolder(refSafe + '.html', 'text/html', htmlBlob, refFolderId, token);
+    // ⚡ 2026-11-15 (طلب حمدي: "حفظ عرض السعر لجوجل درايف متعب جدا واحيانا عم ياخد دقيقة كاملة"):
+    // الرفعات المستقلة (نسخة HTML الكبيرة ~2 ميغا، ملف البيانات، سجل النسخ) صارت تمشي *بنفس الوقت* مع تجهيز
+    // الـPDF بدل ما نستنى كل وحدة تخلص قبل التانية. منستنى كل شي يخلص قبل ما نقول "انحفظ" - نفس الضمانات.
+    const __mzHtmlUpP = uploadOrUpdateFileInDriveFolder(refSafe + '.html', 'text/html', htmlBlob, refFolderId, token);
+    __mzHtmlUpP.catch(()=>{});
 
     // نسخة بيانات خفيفة (JSON بس، بدون كود) - هاي يلي بتخلي "افتح بآخر نسخة" من لوحة التحكم يشتغل بسرعة ودقة
     // مباشرة من غير ما يحتاج يحلّل نسخة HTML كاملة، ومع أي تصليح مستقبلي عالأداة هيك بيطبّق تلقائيًا.
@@ -7397,7 +7401,7 @@ async function saveToGoogleDriveInner(){
     // أثناء تجهيز الـPDF تحت) نضيفه لنفس الكائن ونرفعه فوق نفس الملف (PATCH) بدل ما ننشئ ملف تاني.
     let quotationFullDataForSignBox = null;
     let quotationDataJsonFileId = null;
-    try{
+    const __mzDataUpP = (async()=>{ try{
       const fullData = captureFullQuotationData();
       fullData.draftId = null;
       fullData.quotationSavedAt = __mzSrvData.quotationSavedAt; // نفس وقت الحفظ يلي بالسيرفر (هيك أي جهاز بيفتحه من درايف بيطابق السيرفر)
@@ -7406,7 +7410,7 @@ async function saveToGoogleDriveInner(){
       const dataUploadResult = await uploadOrUpdateFileInDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
       quotationDataJsonFileId = dataUploadResult && dataUploadResult.id;
       mzReportQuoteTotal(refRaw, fullData.grandTotal);
-    }catch(e){ console.warn('تعذّر حفظ ملف بيانات JSON الإضافي (مش عائق - نسخة HTML اتحفظت تمام):', e); }
+    }catch(e){ console.warn('تعذّر حفظ ملف بيانات JSON الإضافي (مش عائق - نسخة HTML اتحفظت تمام):', e); } })();
 
     // 🆕 2026-09-30 (طلب حمدي صراحة: "ميزة الهيتوري HISTORY يللي طلبتها منك انك تبنيها لحتى اعرف شو
     // التغييرات يللي صارت بعرض السعر لاقدر ارجعلها او اختار يللي بدي ياه") - كل ما ينحفظ عرض السعر
@@ -7417,12 +7421,12 @@ async function saveToGoogleDriveInner(){
     // يلي بس بيشتغل بنفس جلسة المتصفح المفتوحة وبيضيع لما تنسكر الصفحة. لوحة "🕘 سجل النسخ السابقة"
     // (شوف openVersionHistoryPanel تحت) هي يلي بتعرض هالنسخ وبتخلي حمدي يرجع/يستعرض أي وحدة فيهم.
     // best-effort بحت - لو فشلت هاي الخطوة لأي سبب (مثلاً مشكلة شبكة مؤقتة)، ما بتوقف باقي الحفظ الأساسي.
-    try{
+    const __mzHistP = (async()=>{ try{
       const historyFolderId = await findOrCreateDriveFolder('سجل النسخ', refFolderId, token);
       const histSnapshot = quotationFullDataForSignBox || captureFullQuotationData();
       const histBlob = new Blob([JSON.stringify(histSnapshot)], {type:'application/json'});
       await uploadOrUpdateFileInDriveFolder(refSafe + '-نسخة-' + Date.now() + '.json', 'application/json', histBlob, historyFolderId, token);
-    }catch(e){ console.warn('تعذّر حفظ نسخة بسجل النسخ السابقة (مش عائق - الحفظ الأساسي اتحفظ تمام):', e); }
+    }catch(e){ console.warn('تعذّر حفظ نسخة بسجل النسخ السابقة (مش عائق - الحفظ الأساسي اتحفظ تمام):', e); } })();
 
     // 🆕 2026-09-30 (طلب حمدي: "لازم عند الحفظ ينحفظ عرض السعر وينحفظ بمجلد اسمو دمج داخل مجلد عرض
     // السعر نفسه") - لو صار دمج عرض سعر تاني جوا هاد العرض بنفس الجلسة (شوف mergeInAnotherQuotation)،
@@ -7585,7 +7589,7 @@ async function saveToGoogleDriveInner(){
       const worker = html2pdf().from(pageEl).set({
         margin: 0,
         filename: refSafe + '.pdf',
-        image: { type:'jpeg', quality:0.98 },
+        image: { type:'jpeg', quality:0.92 }, // ⚡ 0.98→0.92: نفس الوضوح تقريبًا، الملف أصغر بكتير وبينرفع أسرع
         html2canvas: { scale:2, useCORS:true, foreignObjectRendering:true, scrollX:0, scrollY:0 },
         jsPDF: { unit:'mm', format:'a4', orientation:'portrait' },
         pagebreak: { mode: ['css','legacy'] }
@@ -7705,6 +7709,7 @@ async function saveToGoogleDriveInner(){
       // (طلب حمدي: "بدي التوقيع بالضبط فوق صندوق Client Signature الأصلي")، بدل ما يضيف صفحة شهادة
       // منفصلة بس بآخر الملف. فشل هالخطوة مش عائق أبدًا - العرض نفسه بيضل محفوظ تمام، وبس لو صار
       // فشل هون، سيرفر الواتساب رح يرجع تلقائيًا للطريقة القديمة (صفحة شهادة ملحقة) وقت التوقيع.
+      await __mzDataUpP; // ملف البيانات لازم يكون انرفع قبل ما نحدّثه بمكان صندوق التوقيع
       try{
         if(signBoxRectForPdf && quotationFullDataForSignBox && quotationDataJsonFileId){
           const mmPerPxBox = 210 / pdfTargetWidthPx;
@@ -7742,6 +7747,8 @@ async function saveToGoogleDriveInner(){
       }
     }
     const pdfUp = await uploadOrUpdateFileInDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
+    const __mzHtmlUp = await __mzHtmlUpP; // نسخة HTML: إذا فشلت، الحفظ بيفشل متل قبل
+    await __mzDataUpP; await __mzHistP;
     // رابط الـPDF على درايف - السيرفر بيحطو بالرسالة إذا واتساب رفض المرفق، حتى الـPDF يوصل للمجموعة دايمًا
     const pdfLink = pdfUp && pdfUp.id ? (pdfUp.webViewLink || ('https://drive.google.com/file/d/' + pdfUp.id + '/view')) : '';
     window.__mzLastSavedSig = __sigAtStart; // 📤 آخر حفظ كامل ناجح (مع الـPDF)
@@ -22938,7 +22945,63 @@ function build3DHandrailSVG(it){
   </svg>`;
 }
 
+/* 🧊 2026-11-15 (طلب حمدي): زر "عرض ثري دي" فوق كان يرسم الهاندريل مستقيم حتى لو إلو مسقط.
+   هلق: هاندريل إلو مسقط ← رسمة ثري دي (منظور من قدّام-يمين ومن فوق شوي) بتمشي مع زوايا المسقط،
+   الألواح والفلقة ونوع التركيب، وتحتها المسقط نفسه - هيك بيبيّن كلّو. SVG (بينطبع وما بيحتاج WebGL). */
+function build3DHandrailPlanSVG(it){
+  const g = hrPlanGeometry(it);
+  if(!g.sides.length || !(g.total > 0)) return '';
+  const H = Math.max(200, it.hrGlassHeight || 1200), mount = it.hrMount || 'standoff';
+  const base = mount === 'spigot' ? 100 : (mount === 'hidden' ? 30 : -120);
+  // الزاوية: منجرّب كذا اتجاه ومناخد يلي بيبيّن كل الأضلاع أوضح شي (ولا ضلع بيطلع "من طرفه")، مع ميل لقدّام-يمين
+  const el = 32 * Math.PI/180, ce = Math.cos(el), se = Math.sin(el);
+  let bestAz = -30, bestScore = -1;
+  for(let deg = -75; deg <= 75; deg += 5){
+    const r = deg*Math.PI/180, c = Math.cos(r), sn = Math.sin(r);
+    const score = Math.min.apply(null, g.sides.map(d => Math.hypot(d.dx*c - d.dy*sn, (d.dx*sn + d.dy*c)*se))) - Math.abs(deg + 30)/900;
+    if(score > bestScore){ bestScore = score; bestAz = deg; }
+  }
+  const az = bestAz * Math.PI/180, ca = Math.cos(az), sa = Math.sin(az);
+  const P = (x, y, z) => { const xr = x*ca - y*sa, yr = x*sa + y*ca; return [xr, -(z*ce + yr*se), yr]; };
+  const inSign = g.turnSum > 0.5 ? 1 : (g.turnSum < -0.5 ? -1 : 1);
+  const polys = []; const pts = [];
+  const add = (corners, fill, stroke, sw, layer, extra) => { const pr = corners.map(c => P(c[0], c[1], c[2])); pr.forEach(q => pts.push(q)); polys.push({ pr, fill, stroke, sw, layer, depth: pr.reduce((a, q) => a + q[2], 0)/pr.length, extra }); };
+  g.sides.forEach(d => {
+    const lx = -d.dy*inSign, ly = d.dx*inSign; // جهة الداخل (يسار الاتجاه × إشارة الدوران)
+    // الفلقة على الأرض
+    const w = 330, o0 = -20;
+    add([[d.x0 + lx*o0, d.y0 + ly*o0, 0], [d.x1 + lx*o0, d.y1 + ly*o0, 0], [d.x1 + lx*w, d.y1 + ly*w, 0], [d.x0 + lx*w, d.y0 + ly*w, 0]], '#efe9df', '#c9bfb0', 1, 0);
+    if(mount === 'hidden') add([[d.x0, d.y0, 0], [d.x1, d.y1, 0], [d.x1, d.y1, 60], [d.x0, d.y0, 60]], '#9aa3ab', '#6b7680', 1, 1);
+    for(let k = 0; k < d.n; k++){
+      const s0 = k*(d.pw + HANDRAIL_GAP_MM), s1 = s0 + d.pw;
+      const ax = d.x0 + d.dx*s0, ay = d.y0 + d.dy*s0, bx = d.x0 + d.dx*s1, by = d.y0 + d.dy*s1;
+      add([[ax, ay, base], [bx, by, base], [bx, by, base + H], [ax, ay, base + H]], 'rgba(150,205,232,0.42)', '#4f7488', 1.2, 2, { ax, ay, bx, by });
+      if(mount === 'spigot') [[s0 + 120], [s1 - 120]].forEach(([sp]) => { const x = d.x0 + d.dx*sp, y = d.y0 + d.dy*sp; add([[x - 25, y, 0], [x + 25, y, 0], [x + 25, y, base + 220], [x - 25, y, base + 220]], '#b8bec4', '#7d868e', 1, 3); });
+    }
+  });
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  pts.forEach(q => { minX = Math.min(minX, q[0]); maxX = Math.max(maxX, q[0]); minY = Math.min(minY, q[1]); maxY = Math.max(maxY, q[1]); });
+  const spanX = Math.max(1, maxX - minX), spanY = Math.max(1, maxY - minY);
+  const W = 560, k = Math.min((W - 40)/spanX, 380/spanY), Hh = spanY*k + 70;
+  const tx = (q) => ((q[0] - minX)*k + 20).toFixed(1) + ',' + ((q[1] - minY)*k + 20).toFixed(1);
+  // الأرض أول، وبعدين من البعيد للقريب
+  polys.sort((a, b) => (a.layer === 0) !== (b.layer === 0) ? (a.layer === 0 ? -1 : 1) : (b.depth - a.depth) || (a.layer - b.layer));
+  let out = '';
+  polys.forEach(p => {
+    out += '<polygon points="' + p.pr.map(tx).join(' ') + '" fill="' + p.fill + '" stroke="' + p.stroke + '" stroke-width="' + p.sw + '" stroke-linejoin="round"/>';
+    if(p.layer === 2){ const q = p.pr; const a = q[3], b = q[2], c = q[1], d0 = q[0]; const m = (u, v, t) => [u[0] + (v[0] - u[0])*t, u[1] + (v[1] - u[1])*t];
+      out += '<polygon points="' + [m(a, b, .18), m(a, b, .3), m(d0, c, .12), m(d0, c, .02)].map(z => ((z[0] - minX)*k + 20).toFixed(1) + ',' + ((z[1] - minY)*k + 20).toFixed(1)).join(' ') + '" fill="rgba(255,255,255,0.45)"/>'; }
+  });
+  // أرقام الأضلاع على الأرض
+  g.sides.forEach(d => { const q = P((d.x0 + d.x1)/2, (d.y0 + d.y1)/2, 0); out += '<text x="' + ((q[0] - minX)*k + 20).toFixed(1) + '" y="' + ((q[1] - minY)*k + 34).toFixed(1) + '" font-size="12" font-weight="700" fill="#12324a" text-anchor="middle" font-family="Tajawal, Cairo, Arial, sans-serif">' + Math.round(d.len) + '</text>'; });
+  out += '<text x="' + (W/2) + '" y="' + (Hh - 8) + '" font-size="12" fill="#455a64" text-anchor="middle" font-family="Tajawal, Cairo, Arial, sans-serif">' + g.sides.length + ' ضلع · ' + g.panels + ' لوح · ' + Math.round(g.total) + ' مم · ارتفاع الزجاج ' + Math.round(H) + ' مم</text>';
+  return '<svg class="hr3d-plan-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + Hh.toFixed(0) + '" style="width:100%;max-width:' + W + 'px;height:auto;display:block;margin:0 auto;">' + out + '</svg>';
+}
 function build3DRenderSVG(it){
+  if(isHandrail(it) && hrHasPlan(it)){
+    const s3 = build3DHandrailPlanSVG(it);
+    if(s3) return s3 + '<div style="margin-top:10px;border-top:1px dashed #cfd8dc;padding-top:8px;"><div style="font-size:12px;color:#455a64;margin-bottom:4px;font-family:var(--wd-font-ui);">📐 المسقط</div>' + buildHandrailPlanSVG(it, { maxW: 520, maxH: 260 }) + '</div>';
+  }
   if(isHandrail(it)) return build3DHandrailSVG(it);
   if(isMirror(it)) return build3DMirrorSVG(it);
   if(isShowerDoor(it)) return build3DShowerDoorSVG(it);
