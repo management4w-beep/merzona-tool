@@ -152,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-15.2';
+  var CURRENT_VERSION = '2026-11-16.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -4405,12 +4405,32 @@ function setMainPageStyle(){
   }
   styleTag.textContent = `@page{ size: 210mm 297mm; margin: 12mm; }`;
 }
+/* 🏷️ 2026-11-16 - طلب حمدي: "اسم السكتش عند الحفظ عم يطلع ميرزونا لازم يكون مكتوب Sketch ويكتب الرفرنس" و"نفس
+   الشي للثري دي 3D Sketch". اسم ملف الـPDF وقت "حفظ كـPDF" بياخده المتصفح من عنوان الصفحة - والأداة بتشتغل جوا لوحة
+   التحكم (عنوانها Merzona)، فكان يطلع Merzona. هلق قبل الطباعة منحط العنوان الصح بالصفحة وبلوحة التحكم، ومنرجّعه بعدها. */
+function mzPrintRef(){ return ((document.getElementById('m-ref') || {}).value || '').trim().replace(/[\\/:*?"<>|]+/g, '_'); }
+function mzQuotePrintTitle(){
+  const ref = mzPrintRef(), client = ((document.getElementById('m-client') || {}).value || '').trim().replace(/[\\/:*?"<>|]+/g, '_');
+  return (ref || 'Merzona-Quotation') + (client ? ' - ' + client : '');
+}
+function mzSetPrintTitle(title){
+  const docs = [document];
+  try{ let w = window; while(w.parent && w.parent !== w){ w = w.parent; if(w.document) docs.push(w.document); } }catch(e){}
+  const saved = docs.map(d => [d, d.title]);
+  docs.forEach(d => { try{ d.title = title; }catch(e){} });
+  let done = false;
+  const restore = () => { if(done) return; done = true; window.removeEventListener('afterprint', restore); saved.forEach(([d, t]) => { try{ d.title = t; }catch(e){} }); };
+  window.addEventListener('afterprint', restore);
+  setTimeout(restore, 120000); // احتياط إذا المتصفح ما بعت afterprint
+}
+window.mzSetPrintTitle = mzSetPrintTitle;
 function doPrint(){
   validateBeforePrint(()=>{
     autosizeTextareasForPrint();
     syncPage2Header();
     applyElevationPrintGrouping();
     setMainPageStyle();
+    mzSetPrintTitle(mzQuotePrintTitle());
     window.print();
   });
 }
@@ -5183,7 +5203,11 @@ function buildBakedHtmlSnapshot(){
   });
   document.body.setAttribute('data-prefilled', '1');
 
-  let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  // ⚡ 2026-11-16: عناصر مؤقتة (طبقة قفل الحفظ / إشارة الرفع لدرايف) ما بتنحفظ بالنسخة
+  const __mzTransient = Array.from(document.querySelectorAll('[data-mz-transient]')).map(el => { const ph = document.createComment('mzt'); el.parentNode.replaceChild(ph, el); return [el, ph]; });
+  let html;
+  try{ html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML; }
+  finally{ __mzTransient.forEach(([el, ph]) => { try{ ph.parentNode.replaceChild(el, ph); }catch(e){} }); }
   html = html.split('url(fonts/').join('url(https://management4w-beep.github.io/merzona-tool/fonts/'); // 🔧 2026-11-10: النسخة المحفوظة بتنفتح من برّا الموقع، فخط Tajawal لازم برابط كامل
   // 🛠️ 2026-10-04.9: دوال بديلة (مش نص) حتى الرموز الخاصة بأسماء البنود ما تتفسّر، وتهريب علامة "<" حتى وسم إغلاق السكربت ما يكسر الملف.
   const __safeBakeJson = v => JSON.stringify(v).replace(/</g, '\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
@@ -6403,6 +6427,8 @@ async function __findOrCreateDriveFolderRaw(name, parentId, token){
   return createData.id;
 }
 
+// ⏱️ 2026-11-16: مهلة الرفع على قد حجم الملف - كانت 50 ثانية ثابتة، وملف PDF 2.2 ميغا على نت بطيء (~15 كيلو/ثانية) بياخد أكتر
+function mzUploadTimeoutMs(blob){ const n = (blob && blob.size) || 0; return Math.min(600000, 50000 + Math.ceil(n / 12)); }
 async function uploadFileToDriveFolder(filename, mimeType, blob, parentId, token){
   const metadata = { name: filename, parents: [parentId] };
   const form = new FormData();
@@ -6412,7 +6438,7 @@ async function uploadFileToDriveFolder(filename, mimeType, blob, parentId, token
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token },
     body: form
-  }, 50000);
+  }, mzUploadTimeoutMs(blob));
   if(!res.ok) throw new Error('جوجل درايف رفض رفع الملف (' + res.status + ').');
   const out = await res.json();
   if(!out || !out.id) throw new Error('جوجل درايف ما أكّد رفع الملف (ما رجّع رقم الملف).');
@@ -6462,13 +6488,15 @@ async function __mzCheckDriveConflict(fileId, token){
 }
 window.__mzCheckDriveConflict = __mzCheckDriveConflict;
 window.__mzDriveSeenTime = __mzDriveSeenTime;
-async function updateDriveFileContent(fileId, blob, token){
-  await __mzCheckDriveConflict(fileId, token);
+async function updateDriveFileContent(fileId, blob, token, opts){
+  // ⚡ 2026-11-16: بإعادة المحاولة ما منفحص "انعدّل من جهاز تاني" - المحاولة الأولى يمكن وصلت لجوجل وضاع الرد بس،
+  // فالتغيير يلي رح نشوفه هو تغييرنا نحنا (فحص التعارض الحقيقي بين الأجهزة صار عالسيرفر قبل أي كتابة)
+  if(!(opts && opts.skipConflictCheck)) await __mzCheckDriveConflict(fileId, token);
   const res = await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,webViewLink,modifiedTime`, {
     method: 'PATCH',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': blob.type || 'application/octet-stream' },
     body: blob
-  }, 50000);
+  }, mzUploadTimeoutMs(blob));
   if(!res.ok) throw new Error('جوجل درايف رفض تحديث الملف (' + res.status + ').');
   const out = await res.json();
   if(!out || !out.id) throw new Error('جوجل درايف ما أكّد تحديث الملف (ما رجّع رقم الملف).');
@@ -6504,10 +6532,10 @@ async function __saveJsonToDriveFolderRaw(filename, obj, parentId, token){
 // "دوّر عليه، وإذا موجود حدّثه (PATCH) وإلا أنشئه" - نفس فكرة saveJsonToDriveFolder فوق بالضبط، بس
 // عامة لأي نوع ملف (HTML/JSON/PDF) - ومنستخدمها هلق بدل uploadFileToDriveFolder المباشرة بكل أماكن
 // حفظ عرض السعر النهائي.
-async function uploadOrUpdateFileInDriveFolder(filename, mimeType, blob, parentId, token){
+async function uploadOrUpdateFileInDriveFolder(filename, mimeType, blob, parentId, token, opts){
   const existingId = await findFileInFolder(filename, parentId, token);
   if(existingId){
-    return await updateDriveFileContent(existingId, blob, token);
+    return await updateDriveFileContent(existingId, blob, token, opts);
   }
   return await uploadFileToDriveFolder(filename, mimeType, blob, parentId, token);
 }
@@ -7036,19 +7064,128 @@ let driveSaveInProgress = false;
 // موازية. هيك مستحيل يصير حفظتين حقيقيتين بنفس الوقت مهما كانت الكبسات/الأزرار، وحتى "إلغاء" بقا آمن
 // (بيوقف بس انتظار الواجهة لنتيجة الحفظ، مش الحفظ نفسه - وهاد الآن مقبول لأنو ما رح يصير حفظة موازية
 // ثانية أبدًا).
-let __mzSaveInnerInFlight = null;
-function runSaveToGoogleDriveInnerShared(){
-  if(__mzSaveInnerInFlight) return __mzSaveInnerInFlight;
-  const p = saveToGoogleDriveInner();
-  __mzSaveInnerInFlight = p;
-  const clearIt = () => { if(__mzSaveInnerInFlight === p) __mzSaveInnerInFlight = null; };
+let __mzSaveInnerInFlight = null, __mzSaveInnerInFlightSig = null, __mzSavesRunning = 0;
+// ⚡ 2026-11-16: نفس النسخة (ما تغيّر شي) = نفس الحفظة الشغالة. إذا انعدّل شي بعد الحفظ = حفظة جديدة
+// (رفعها لدرايف بيستنى يلي قبلها تخلص - شوف __mzDriveChain).
+function runSaveToGoogleDriveInnerShared(opts){
+  const sig = mzQuoteSig();
+  if(__mzSaveInnerInFlight && __mzSaveInnerInFlightSig === sig) return __mzSaveInnerInFlight;
+  const p = saveToGoogleDriveInner(opts);
+  __mzSaveInnerInFlight = p; __mzSaveInnerInFlightSig = sig; __mzSavesRunning++;
+  const clearIt = () => { __mzSavesRunning--; if(__mzSaveInnerInFlight === p){ __mzSaveInnerInFlight = null; __mzSaveInnerInFlightSig = null; } };
   p.then(clearIt, clearIt);
   return p;
+}
+window.__mzIsDriveSaveInFlight = function(){ return __mzSavesRunning > 0 || driveSaveInProgress; };
+
+// 🔒 طبقة قفل خفيفة وقت قراءة الصفحة وتجهيز الـPDF (ثواني) - حتى ما يتغيّر شي بالنص
+let __mzSaveLockOn = false;
+function mzSaveLock(on, msg){
+  try{
+    let el = document.getElementById('mzSaveLock');
+    if(!on){ __mzSaveLockOn = false; if(el) el.remove(); return; }
+    __mzSaveLockOn = true;
+    if(!el){
+      el = document.createElement('div'); el.id = 'mzSaveLock'; el.setAttribute('data-mz-transient', '1'); el.setAttribute('data-no-i18n', '1');
+      el.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(255,255,255,.35);cursor:progress;';
+      el.innerHTML = '<div id="mzSaveLockBox" style="position:fixed;top:18vh;left:16px;background:#fff;border:1px solid #d9dcdd;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:14px 20px;font:600 15px Tajawal,Tahoma,sans-serif;color:#1b2b34;direction:rtl;max-width:86vw;text-align:center;"><span id="mzSaveLockMsg"></span></div>';
+      ['click','mousedown','touchstart','pointerdown','wheel'].forEach(t => el.addEventListener(t, e => { e.preventDefault(); e.stopPropagation(); }, { passive: false }));
+      document.body.appendChild(el);
+    }
+    const m = document.getElementById('mzSaveLockMsg'); if(m) m.textContent = msg || '⏳ عم يحفظ...';
+    mzSaveLockPlace();
+    try{ if(document.activeElement && document.activeElement !== document.body) document.activeElement.blur(); }catch(e){}
+  }catch(e){}
+}
+// 📱 الصندوق دايمًا بنص الجزء يلي شايفه الموظف (وقت تجهيز الـPDF الصفحة بتتوسّع عالموبايل)
+function mzSaveLockPlace(){
+  try{
+    const box = document.getElementById('mzSaveLockBox'); if(!box) return;
+    const vv = window.visualViewport; const vw = vv ? vv.width : window.innerWidth, ox = vv ? vv.offsetLeft : 0, oy = vv ? vv.offsetTop : 0, vh = vv ? vv.height : window.innerHeight;
+    const bw = box.offsetWidth || 260;
+    box.style.left = Math.max(8, ox + (vw - bw) / 2) + 'px';
+    box.style.top = Math.max(8, oy + vh * 0.18) + 'px';
+  }catch(e){}
+}
+try{ if(window.visualViewport){ window.visualViewport.addEventListener('resize', ()=>{ if(__mzSaveLockOn) mzSaveLockPlace(); }); window.visualViewport.addEventListener('scroll', ()=>{ if(__mzSaveLockOn) mzSaveLockPlace(); }); } }catch(e){}
+window.addEventListener('resize', ()=>{ if(__mzSaveLockOn) mzSaveLockPlace(); });
+document.addEventListener('keydown', function(e){ if(__mzSaveLockOn){ e.preventDefault(); e.stopPropagation(); } }, true);
+window.mzSaveLock = mzSaveLock;
+
+// ☁️ إشارة صغيرة تحت: الرفع لدرايف شغال / خلص / فشل (مع زر أعد المحاولة)
+let __mzDriveFailedCtx = null;
+function mzDriveStatus(state, text, retry){
+  try{
+    let el = document.getElementById('mzDriveStatus');
+    if(!el){
+      el = document.createElement('div'); el.id = 'mzDriveStatus'; el.setAttribute('data-mz-transient', '1'); el.setAttribute('data-no-i18n', '1');
+      el.style.cssText = 'position:fixed;left:12px;bottom:44px;z-index:2147482000;border-radius:999px;padding:8px 14px;font:600 13px Tajawal,Tahoma,sans-serif;direction:rtl;box-shadow:0 4px 16px rgba(0,0,0,.18);display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:calc(100vw - 24px);';
+      document.body.appendChild(el);
+    }
+    clearTimeout(el.__t);
+    el.dataset.state = state;
+    const col = state === 'fail' ? ['#fdecec', '#a02622', '#e8b4b2'] : state === 'done' ? ['#e9f6ee', '#1d6b3a', '#b9dfc7'] : ['#fff7e6', '#7a5200', '#f0d9a8'];
+    el.style.background = col[0]; el.style.color = col[1]; el.style.border = '1px solid ' + col[2];
+    el.textContent = text;
+    if(retry){
+      const b = document.createElement('button'); b.type = 'button'; b.id = 'mzDriveRetryBtn'; b.textContent = retry.label || '🔁 أعد المحاولة';
+      b.style.cssText = 'border:0;border-radius:999px;padding:5px 12px;background:#a02622;color:#fff;font:600 12.5px Tajawal,Tahoma,sans-serif;cursor:pointer;';
+      b.onclick = retry.fn; el.appendChild(b);
+      if(retry.later){ const x = document.createElement('button'); x.type = 'button'; x.textContent = 'لاحقًا'; x.style.cssText = 'border:0;background:none;color:inherit;font:600 12.5px Tajawal,Tahoma,sans-serif;cursor:pointer;text-decoration:underline;'; x.onclick = () => el.remove(); el.appendChild(x); }
+    }
+    if(state === 'done') el.__t = setTimeout(() => { try{ el.remove(); }catch(e){} }, 5000);
+  }catch(e){}
+}
+window.mzDriveStatus = mzDriveStatus;
+// قبل ما تتسكّر الصفحة والرفع لدرايف لسا شغال أو فاشل → المتصفح بيسأل
+window.addEventListener('beforeunload', function(e){ if(__mzSavesRunning > 0 || __mzDriveFailedCtx){ e.preventDefault(); e.returnValue = ''; return ''; } });
+
+// بعد ما يخلص الحفظ كامل (درايف + PDF): نفس يلي كان يصير قبل
+function mzAfterFullSave(result, background){
+  try{
+    if(background){
+      if(__mzSavesRunning > 0) mzDriveStatus('busy', '⏳ عم يرفع آخر نسخة لجوجل درايف...');
+      else if(!__mzDriveFailedCtx) mzDriveStatus('done', '✅ خلص الرفع لجوجل درايف');
+    }
+  }catch(e){}
+  try{ if(result && result.refRaw) warnIfSavedRefExistsUnderOtherBranch(result.refRaw, result.branch || 'uae').catch(()=>{}); }catch(e){}
+  try{ cleanupDraftAfterFinalSave(result && result.refRaw).catch(()=>{}); }catch(e){}
+  sendQuotationToWhatsApp(result && result.pdfBlob, result && result.refSafe, result && result.pdfLink, result && result.wa).catch(e=>{
+    console.warn('[WhatsApp] تعذّر إرسال إشعار المجموعة (الحفظ لجوجل درايف نجح رغم هيك):', e);
+    try{ console.error('[WhatsApp] 🔬 تفاصيل كاملة عن الخطأ - name:', e && e.name, '| message:', e && e.message, '| cause:', e && e.cause, '| stack:', e && e.stack); }catch(e2){}
+    alert('⚠️ تم الحفظ لجوجل درايف بنجاح، لكن تعذّر إرسال إشعار واتساب لمجموعة Tasks:\n' + (e && e.message ? e.message : e) + (e && e.cause ? ('\nالسبب التفصيلي: ' + e.cause) : ''));
+  });
+}
+function mzDriveRetryNow(ctx){
+  mzDriveStatus('busy', '⏳ عم يعيد الرفع لجوجل درايف (' + ctx.refRaw + ')...');
+  const run = __mzDriveChain.catch(()=>{}).then(()=> mzDriveUploadPhase(ctx));
+  __mzDriveChain = run.catch(()=>{});
+  __mzSavesRunning++;
+  return run.then(r => { __mzSavesRunning--; if(__mzDriveFailedCtx === ctx) __mzDriveFailedCtx = null; mzAfterFullSave(r, true); return r; },
+                  e => { __mzSavesRunning--; try{ e.mzRetryCtx = ctx; }catch(_){} mzDriveFailed(e); });
+}
+function mzDriveFailed(err){
+  const ctx = err && err.mzRetryCtx;
+  console.error('[Drive Save] الرفع بالخلفية فشل:', err);
+  if(!ctx){
+    // الـPDF ما انعمل بعد ما انحفظ عالسيرفر → العرض محفوظ عالسيرفر، ومنطلب حفظ تاني (بيعيد الـPDF والرفع)
+    const ref = (err && err.mzAfterFast && err.mzAfterFast.ref) || '';
+    const again = () => {
+      const cur = ((document.getElementById('m-ref') || {}).value || '').trim();
+      if(ref && cur !== ref){ const pend = mzDrivePendingGet(); if(pend && pend.ref === ref){ mzResumePendingDrive(pend); return; } alert('افتح العرض ' + ref + ' واكبس "☁️ حفظ" مرة تانية.'); return; }
+      saveToGoogleDrive({ target: document.getElementById('driveSaveBtn') });
+    };
+    mzDriveStatus('fail', '⚠️ ' + (ref ? 'العرض ' + ref + ' محفوظ عالسيرفر، بس ' : '') + 'رفعه لجوجل درايف ما كمل', { fn: again });
+    alert('⚠️ ' + (ref ? 'العرض "' + ref + '" انحفظ عالسيرفر ✅ بس ' : '') + 'رفعه لجوجل درايف ما كمل:\n' + ((err && err.message) || err) + '\n\nاكبس "🔁 أعد المحاولة" تحت.');
+    return;
+  }
+  __mzDriveFailedCtx = ctx;
+  mzDriveStatus('fail', '⚠️ العرض ' + ctx.refRaw + ' محفوظ عالسيرفر، بس رفعه لجوجل درايف ما كمل', { fn: () => mzDriveRetryNow(ctx) });
+  alert('⚠️ العرض "' + ctx.refRaw + '" انحفظ عالسيرفر ✅ بس رفعه لجوجل درايف ما كمل:\n' + ((err && err.message) || err) + '\n\nاكبس "🔁 أعد المحاولة" تحت لما يرجع النت.');
 }
 // معلّق على window (مش مجرد متغيّر let عادي) عمدًا - بوابة الدخول (revalidate جوا الـ<script> الأول
 // بأعلى الملف) محتاجة تتحقق من هاد الحال قبل ما تعمل location.reload() قسري، وهي بكتلة <script>
 // منفصلة تمامًا؛ الوصول عبر window مضمون بغض النظر عن ترتيب/حدود كتل الـ<script>.
-window.__mzIsDriveSaveInFlight = function(){ return !!__mzSaveInnerInFlight || driveSaveInProgress; };
 function cancelGoogleDriveSave(){
   // المستخدم ضغط إلغاء (بإعادة الضغط عالزر نفسه وهو شغال) - نرجّعه يشتغل فورًا، وأي نتيجة متأخرة توصل من جوجل بعدين منتجاهلها
   driveSaveCancelled = true;
@@ -7118,44 +7255,40 @@ async function saveToGoogleDrive(evt){
   window.addEventListener('focus', onFocusReturn, { once:true });
   try{
     if(btn){ btn.disabled = false; btn.textContent = '⏳ جاري الحفظ... (اكبس للإلغاء)'; }
-    const result = await Promise.race([
-      runSaveToGoogleDriveInnerShared(),
+    // ⚡ 2026-11-16: منستنى بس لحد ما ينحفظ عالسيرفر (onFast) - الباقي بيكمّل بالخلفية.
+    // إذا السيرفر مش متاح، onFast ما بيصير ومنستنى الحفظ كامل متل قبل بالضبط.
+    let __fastRes; const __fastP = new Promise(r => { __fastRes = r; });
+    const __sameRunning = __mzSaveInnerInFlight && __mzSaveInnerInFlightSig === mzQuoteSig();
+    const __p = runSaveToGoogleDriveInnerShared({ onFast: (info) => __fastRes({ fast: info }) });
+    if(__sameRunning){ // نفس العرض بدون أي تعديل وحفظه لسا شغال بالخلفية
+      window.removeEventListener('focus', onFocusReturn); resetBtn();
+      showMerzonaToast('✅ العرض محفوظ - الرفع لجوجل درايف لسا شغال بالخلفية', true);
+      return;
+    }
+    const __doneP = __p.then(r => ({ done: r })); __doneP.catch(()=>{}); // الخطأ بعد "انحفظ" بيتعالج تحت (mzDriveFailed)
+    const first = await Promise.race([
+      __fastP,
+      __doneP,
       new Promise((_, reject) => setTimeout(()=> reject(new Error('تجاوزت العملية الوقت المسموح (150 ثانية) - تأكد من اتصالك بالإنترنت وجرّب تاني.')), 150000))
     ]);
     window.removeEventListener('focus', onFocusReturn);
+    if(first && first.fast){
+      if(!driveSaveCancelled) resetBtn();
+      console.log('[Drive Save] انحفظ عالسيرفر - الرفع لدرايف بالخلفية -', new Date().toLocaleTimeString());
+      mzMarkClean();
+      try{ localStorage.setItem('merzona_last_quotation_saved_at', String(Date.now())); }catch(e){}
+      const __ref = first.fast.ref;
+      mzDriveStatus('busy', '✅ انحفظ العرض ' + __ref + ' - ⏳ عم يرفعه لجوجل درايف بالخلفية...');
+      __p.then(r => { if(__mzDriveFailedCtx && __mzDriveFailedCtx.refRaw === r.refRaw) __mzDriveFailedCtx = null; mzAfterFullSave(r, true); }, e => mzDriveFailed(e));
+      return;
+    }
+    const result = first.done;
     const __wasCancelled = driveSaveCancelled;
     if(!__wasCancelled) resetBtn(); // نرجّع الزر لطبيعته فورًا قبل ما نعرض رسالة النجاح، حتى ما يضل الزر معلّق وراء نافذة الـ alert
     console.log('[Drive Save] نجح -', new Date().toLocaleTimeString());
     mzMarkClean();
-    // 🔧 2026-08-25: منسجّل طابع زمني بالـlocalStorage فور نجاح الحفظ - لوحة التحكم (Dashboard.html)
-    // عم تسمع لهالإشارة (حدث "storage") وبتعمل مطابقة فورية مع جوجل درايف فور ما توصلها، سواء كانت
-    // أداة عرض السعر شغالة جوا إطار الداشبورد نفسها أو بتبويب منفصل لحاله - هيك أي حفظة جديدة بتنعكس
-    // بالداشبورد فورًا بدل ما تستنى دورة مزامنة تلقائية لاحقة.
     try{ localStorage.setItem('merzona_last_quotation_saved_at', String(Date.now())); }catch(e){}
-    // 🛠️ إصلاح 2026-09-28 - شوف تعليق warnIfSavedRefExistsUnderOtherBranch فوق: فحص خلفي صامت بعد كل
-    // حفظة ناجحة، يحذّر لو نفس الرقم المرجعي موجود بالغلط جوا مجلدات الفرع التاني كمان.
-    (function(){
-      const refNow = (document.getElementById('m-ref') && document.getElementById('m-ref').value || '').trim();
-      const branchNow = document.getElementById('m-branch') ? document.getElementById('m-branch').value : 'uae';
-      if(refNow) warnIfSavedRefExistsUnderOtherBranch(refNow, branchNow).catch(()=>{});
-    })();
-    // 🆕 2026-09-24: خلص الحفظ النهائي بنجاح - لو هاد العرض كان محفوظ كـ"مسودة" قبل هيك، منرحّلها
-    // (best-effort، ما بتوقف أو تأخر ظهور رسالة النجاح) حتى ما تضل ظاهرة بسجل المسودات بالداشبورد.
-    cleanupDraftAfterFinalSave(document.getElementById('m-ref') && document.getElementById('m-ref').value).catch(()=>{});
-    // إرسال إشعار واتساب لمجموعة Tasks - بالخلفية وبدون ما ينتظره المستخدم، وبدون ما يأثر على نجاح الحفظ.
-    // منبعت نفس ملف الـ PDF يلي تخزّن بجوجل درايف عشان ينرفق مباشرة مع الرسالة.
-    // 🔧 2026-08-24: قبل هيك كان الفشل هون بيسجّل بس بالـ console (يعني مخفي تمامًا عن المستخدم) - فكانت
-    // رسائل واتساب ممكن تفشل بصمت من غير ما حدا يعرف أبدًا. هلق منوري تنبيه واضح (بعد رسالة نجاح الحفظ)
-    // لو صار فشل، حتى تعرفي فورًا وتقدري تتأكدي من السيرفر أو تبعتي الرسالة يدويًا لو لزم.
-    sendQuotationToWhatsApp(result && result.pdfBlob, result && result.refSafe, result && result.pdfLink).catch(e=>{
-      console.warn('[WhatsApp] تعذّر إرسال إشعار المجموعة (الحفظ لجوجل درايف نجح رغم هيك):', e);
-      // 🔍 لوغ تشخيصي مؤقت (نسخة .17) - عم نطبع كل تفاصيل الخطأ يلي فيك، بالذات e.cause يلي كروم
-      // بيحطها أحيانًا وفيها السبب الحقيقي وراء "Failed to fetch" (net::ERR_... مثلًا).
-      try{
-        console.error('[WhatsApp] 🔬 تفاصيل كاملة عن الخطأ - name:', e && e.name, '| message:', e && e.message, '| cause:', e && e.cause, '| stack:', e && e.stack);
-      }catch(e2){}
-      alert('⚠️ تم الحفظ لجوجل درايف بنجاح، لكن تعذّر إرسال إشعار واتساب لمجموعة Tasks:\n' + (e && e.message ? e.message : e) + (e && e.cause ? ('\nالسبب التفصيلي: ' + (e.cause.message || JSON.stringify(e.cause))) : '') + '\n\nممكن تحتاجي تبعتي العرض يدويًا، أو تتأكدي إنه سيرفر الواتساب شغال.');
-    });
+    mzAfterFullSave(result, false);
     if(!__wasCancelled) alert('تم الحفظ لجوجل درايف بنجاح ✅\n' + ((result && result.summary) || ''));
     else showMerzonaToast('☁️ تم الحفظ لجوجل درايف بنجاح ✅ ' + ((result && result.summary) || ''), true);
   }catch(err){
@@ -7167,8 +7300,6 @@ async function saveToGoogleDrive(evt){
   }
 }
 
-// تحويل Blob (ملف PDF هون) لنص base64 حتى نقدر نبعته جوا جسم طلب JSON عادي - مقسّم لأجزاء صغيرة
-// حتى ما تنكسر مع ملفات كبيرة نسبيًا (String.fromCharCode.apply عندها حد أقصى لعدد الوسائط).
 async function blobToBase64(blob){
   const buf = await blob.arrayBuffer();
   const bytes = new Uint8Array(buf);
@@ -7200,17 +7331,7 @@ async function checkWhatsAppServerHealth(){
 // ملف الـ PDF يلي اتحفظ بجوجل درايف (إذا انمرر). تجميع البنود المتكررة وحذف المقاسات من
 // الرسالة بيصير على السيرفر (server.js) مش هون - هون بس منجمع ونبعت البيانات الخام.
 // لا تكسر عملية الحفظ لجوجل درايف أبدًا حتى لو فشلت - بترجع فقط بصمت وتسجّل تحذير بالـ console.
-async function sendQuotationToWhatsApp(pdfBlob, refSafe, pdfLink){
-  // 🔍 لوغ تشخيصي مؤقت (نسخة .15) - حتى نتأكد إنو الفنكشن فعليًا بلّشت تشتغل
-  try{ console.log('[WhatsApp] ▶️ الفنكشن بلّشت (sendQuotationToWhatsApp) - WHATSAPP_NOTIFY_URL:', WHATSAPP_NOTIFY_URL || '(فاضي)'); }catch(e){}
-  if(!WHATSAPP_NOTIFY_URL){ try{ console.warn('[WhatsApp] ⛔ توقفت - WHATSAPP_NOTIFY_URL فاضي/غير معرّف'); }catch(e){} return; }
-  // 🆕 2026-09-26: منفحص حالة جلسة الواتساب *قبل* ما نضيّع وقت بتجهيز الـPDF كـbase64 وإرسال طلب
-  // تقيل - لو الجلسة مقطوعة (whatsappReady=false) منطلع رسالة واضحة فورية بدل "Failed to fetch"
-  // غامضة بعد فترة انتظار.
-  const health = await checkWhatsAppServerHealth();
-  if(health && health.whatsappReady === false){
-    throw new Error('سيرفر الواتساب شغال، بس جلسة واتساب المرتبطة فيه مسجّلة خروج حاليًا (whatsappReady=false) - لازم تفتحي رابط /qr تبع السيرفر وتمسحي رمز QR من جديد بنفس رقم واتساب الإشعارات، وبعدين الإرسال التلقائي بيرجع يشتغل تلقائيًا.');
-  }
+function mzCaptureWaNotifySnapshot(){
   const ref = (document.getElementById('m-ref').value || '').trim();
   const clientName = (document.getElementById('m-client').value || '').trim();
   const location = (document.getElementById('m-location').value || '').trim();
@@ -7228,10 +7349,27 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe, pdfLink){
       lineTotal: (tr.querySelector('.line-total')?.value || '').trim()
     });
   });
-  try{ console.log('[WhatsApp] 🧮 عدد البنود يلي انلقطت:', items.length); }catch(e){}
-  if(!items.length){ try{ console.warn('[WhatsApp] ⛔ توقفت - ما في ولا بند فيه اسم (items.length = 0)'); }catch(e){} return; } // ما في بنود فعلية بعد - ما في داعي نبعت رسالة فاضية
 
   const grandTotal = (document.getElementById('sum-grand')?.textContent || '').trim();
+  let currency = ''; try{ currency = getCurrentCurrencyConfig().code; }catch(e){}
+  return { ref, client: clientName, location, mobile, items, grandTotal, currency };
+}
+async function sendQuotationToWhatsApp(pdfBlob, refSafe, pdfLink, snap){
+  // 🔍 لوغ تشخيصي مؤقت (نسخة .15) - حتى نتأكد إنو الفنكشن فعليًا بلّشت تشتغل
+  try{ console.log('[WhatsApp] ▶️ الفنكشن بلّشت (sendQuotationToWhatsApp) - WHATSAPP_NOTIFY_URL:', WHATSAPP_NOTIFY_URL || '(فاضي)'); }catch(e){}
+  if(!WHATSAPP_NOTIFY_URL){ try{ console.warn('[WhatsApp] ⛔ توقفت - WHATSAPP_NOTIFY_URL فاضي/غير معرّف'); }catch(e){} return; }
+  // 🆕 2026-09-26: منفحص حالة جلسة الواتساب *قبل* ما نضيّع وقت بتجهيز الـPDF كـbase64 وإرسال طلب
+  // تقيل - لو الجلسة مقطوعة (whatsappReady=false) منطلع رسالة واضحة فورية بدل "Failed to fetch"
+  // غامضة بعد فترة انتظار.
+  const health = await checkWhatsAppServerHealth();
+  if(health && health.whatsappReady === false){
+    throw new Error('سيرفر الواتساب شغال، بس جلسة واتساب المرتبطة فيه مسجّلة خروج حاليًا (whatsappReady=false) - لازم تفتحي رابط /qr تبع السيرفر وتمسحي رمز QR من جديد بنفس رقم واتساب الإشعارات، وبعدين الإرسال التلقائي بيرجع يشتغل تلقائيًا.');
+  }
+  // ⚡ 2026-11-16: المعلومات بتنقرا لحظة الحفظ (snap) - لأنو الرسالة صارت تنبعت بعد ما يخلص الرفع بالخلفية،
+  // ويمكن يكون الموظف عدّل أو فتح عرض تاني بهالوقت.
+  const S = snap || mzCaptureWaNotifySnapshot();
+  const ref = S.ref, clientName = S.client, location = S.location, mobile = S.mobile, items = S.items, grandTotal = S.grandTotal;
+  if(!items.length){ try{ console.warn('[WhatsApp] ⛔ توقفت - ما في ولا بند فيه اسم (items.length = 0)'); }catch(e){} return; } // ما في بنود فعلية بعد - ما في داعي نبعت رسالة فاضية
 
   let pdfBase64 = null;
   if(pdfBlob){
@@ -7244,7 +7382,7 @@ async function sendQuotationToWhatsApp(pdfBlob, refSafe, pdfLink){
   // (مثلاً صاحب الأداة عن طريق رابط #owner=) - وقتها السيرفر بيتجاهل السطر بالكامل من رسالة الواتساب.
   let createdByName = '';
   try{ createdByName = localStorage.getItem('merzona-username') || ''; }catch(e){}
-  const bodyStr = JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal, pdfBase64, pdfFilename: (refSafe || ref || 'quotation') + '.pdf', pdfLink: pdfLink || '', createdBy: createdByName, currency: (function(){ try{ return getCurrentCurrencyConfig().code; }catch(e){ return ''; } })() });
+  const bodyStr = JSON.stringify({ ref, client: clientName, location, mobile, items, grandTotal, pdfBase64, pdfFilename: (refSafe || ref || 'quotation') + '.pdf', pdfLink: pdfLink || '', createdBy: createdByName, currency: S.currency });
   // 🔍 لوغ تشخيصي مؤقت (نسخة .15) - حتى نعرف بالضبط حجم البيانات يلي عم تنبعت وقت مشكلة "Failed to fetch"
   try{
     console.log('[WhatsApp] 📏 حجم ملف الـ PDF الأصلي:', pdfBlob ? (pdfBlob.size/1024).toFixed(0)+' KB' : 'لا يوجد PDF');
@@ -7360,93 +7498,154 @@ async function mzQuoteServerReserve(refRaw, refSafe, data){
   console.warn('[عروض عالسيرفر] ما انحفظ عالسيرفر (منكمل على درايف):', r.status, r.j);
   return null;
 }
-async function saveToGoogleDriveInner(){
+/* ⚡ 2026-11-16 - طلب حمدي: "بتمنى يكون الحفظ ياخد ثانيتين كحد اقصى".
+   الوقت كان رايح على ~10 طلبات لجوجل وحدة ورا التانية + رفع ملفات كبيرة (نسخة HTML ~2.4 ميغا + PDF ~2.2 ميغا).
+   هلق الحفظ على 3 مراحل:
+   1) فورًا (بلا أي انتظار): منقرا كل شي من الصفحة دفعة وحدة (البيانات + نسخة HTML + معلومات رسالة الواتساب)
+      ومنقفل الشاشة (طبقة شفافة) حتى ما يتغيّر شي بالنص.
+   2) منبعت البيانات للسيرفر (~33 كيلو - ثانية تقريبًا) ← "✅ انحفظ". العرض صار محفوظ عالسيرفر.
+      إذا السيرفر مش متاح ← بنكمل متل قبل وما منقول "انحفظ" إلا بعد ما يخلص درايف.
+   3) منجهّز الـPDF (الشاشة لسا مقفولة - ثواني) ← منفتح الشاشة ← الرفع لدرايف بيكمّل بالخلفية:
+      - كل رفعة إلها 3 محاولات، والرفعات بتمشي بنفس الوقت.
+      - حفظتين ورا بعض: رفع التانية بيستنى الأولى تخلص (ما في ملفات مكررة).
+      - إذا فشل: إشارة حمرا مع زر "أعد المحاولة" + علامة محفوظة بالمتصفح حتى لو تسكّرت الصفحة.
+   الفنكشن لسا بترجع بعد ما يخلص كل شي (متل قبل) - يلي بدو يعرف إيمتى انحفظ عالسيرفر بيبعت opts.onFast. */
+let __mzDriveChain = Promise.resolve();
+const MZ_DRIVE_PENDING_KEY = 'merzona-drive-pending';
+async function mzDriveRetry(fn, label){
+  const waits = window.__mzDriveRetryWaits || [2000, 6000];
+  let last;
+  for(let i = 0; i <= waits.length; i++){
+    try{ return await fn(i); }
+    catch(e){
+      last = e;
+      if(e && e.mzConflict) throw e; // الموظف لغى بنفسه
+      if(/\((401|403)\)/.test(String(e && e.message || ''))) throw e; // صلاحيات - إعادة المحاولة ما بتفيد
+      if(i < waits.length){ console.warn('[Drive] ' + (label || '') + ' فشلت - محاولة ' + (i + 2) + ' بعد ' + waits[i] + 'ms:', e && e.message); await new Promise(r => setTimeout(r, waits[i])); }
+    }
+  }
+  throw last;
+}
+function mzDrivePendingSet(v){ try{ if(v) localStorage.setItem(MZ_DRIVE_PENDING_KEY, JSON.stringify(v)); else localStorage.removeItem(MZ_DRIVE_PENDING_KEY); }catch(e){} }
+function mzDrivePendingGet(){ try{ return JSON.parse(localStorage.getItem(MZ_DRIVE_PENDING_KEY) || 'null'); }catch(e){ return null; } }
+
+let __mzFrontChain = Promise.resolve();
+async function saveToGoogleDriveInner(opts){
+  opts = opts || {};
+  // حفظتين بنفس اللحظة: التانية بتستنى الأولى تخلص قراءة الصفحة والـPDF (ما في PDF-ين على نفس الصفحة بنفس الوقت)
+  const __prevFront = __mzFrontChain; let __frontDone; __mzFrontChain = new Promise(r => { __frontDone = r; });
+  try{ await __prevFront; }catch(e){}
+  try{ return await mzSaveInnerAfterFront(opts, __frontDone); } finally { __frontDone(); }
+}
+async function mzSaveInnerAfterFront(opts, __frontDone){
   const __sigAtStart = mzQuoteSig();
-    if(typeof renderClientSignBox === 'function') renderClientSignBox(); // نضمن إنو صندوق QR/رابط التوقيع محدّث قبل التقاط PDF
-    const token = await getGoogleAccessToken();
-    const refRaw = (document.getElementById('m-ref').value || 'Merzona-Quotation').trim();
-    const refSafe = refRaw.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-\u0600-\u06FF]+/g,'_') || 'Merzona-Quotation';
-    const year = getYearFromReference(refRaw);
-    // \uD83C\uDD95 2026-09-22: \u0645\u062C\u0644\u062F \u0627\u0644\u062C\u0630\u0631 (\u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062A \u0623\u0648 \u062F\u0645\u0634\u0642-\u0633\u0648\u0631\u064A\u0627) \u0628\u064A\u062A\u062D\u062F\u062F \u0645\u0646 \u062D\u0631\u0641 \u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0645\u0631\u062C\u0639\u064A \u0646\u0641\u0633\u0647 (M \u0623\u0648 S) -
-    // \u0646\u0641\u0633 \u0627\u0644\u0645\u0635\u062F\u0631 \u0627\u0644\u0648\u062D\u064A\u062F \u0644\u0644\u062D\u0642\u064A\u0642\u0629 \u064A\u0644\u064A \u0627\u0644\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0645\u0646\u0633\u062F\u0644\u0629 #m-branch \u0628\u062A\u0639\u062A\u0645\u062F \u0639\u0644\u064A\u0647 (\u0634\u0648\u0641 BRANCH_CONFIG \u0641\u0648\u0642).
-    // \u0647\u064A\u0643 \u0645\u0633\u062A\u062D\u064A\u0644 \u0639\u0631\u0636 \u0633\u0639\u0631 \u0628\u062D\u0631\u0641 S \u064A\u0646\u062D\u0641\u0638 \u0628\u0627\u0644\u063A\u0644\u0637 \u062C\u0648\u0627 \u0645\u062C\u0644\u062F\u0627\u062A \u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062A \u0623\u0648 \u0627\u0644\u0639\u0643\u0633.
-    const rootFolderIdForSave = getDriveRootFolderIdForBranch(getBranchFromRef(refRaw));
+  if(typeof renderClientSignBox === 'function') renderClientSignBox(); // نضمن إنو صندوق QR/رابط التوقيع محدّث قبل التقاط PDF
+  // 📸 كل شي بينقرا من الصفحة هون - دفعة وحدة وقبل أي انتظار
+  const refRaw = (document.getElementById('m-ref').value || 'Merzona-Quotation').trim();
+  const refSafe = refRaw.replace(/\s+/g,'').replace(/[^a-zA-Z0-9-؀-ۿ]+/g,'_') || 'Merzona-Quotation';
+  const year = getYearFromReference(refRaw);
+  // 🆕 2026-09-22: مجلد الجذر (الإمارات أو دمشق-سوريا) بيتحدد من حرف الفرع بالرقم المرجعي
+  const rootFolderIdForSave = getDriveRootFolderIdForBranch(getBranchFromRef(refRaw));
+  const __mzSrvData = captureFullQuotationData(); __mzSrvData.draftId = null;
+  const htmlContent = buildBakedHtmlSnapshot(); // نسخة HTML الكاملة من الأداة (نفس نظامك الحالي بالضبط)
+  const __mzWaSnap = mzCaptureWaNotifySnapshot();
+  const __mzBranchNow = document.getElementById('m-branch') ? document.getElementById('m-branch').value : 'uae';
+  const __mzMergedRefs = (window.__mzMergedFromRefs || []).slice();
+  let token, __mzSrv = null, pdf;
+  mzSaveLock(true, '⏳ عم يحفظ...');
+  try{
+    token = await getGoogleAccessToken();
     // 🗂️ السيرفر أول: فحص التعارض قبل أي كتابة على درايف
-    const __mzSrvData = captureFullQuotationData(); __mzSrvData.draftId = null;
-    const __mzSrv = await mzQuoteServerReserve(refRaw, refSafe, __mzSrvData);
-
-    const yearFolderId = await findOrCreateDriveFolder(year, rootFolderIdForSave, token);
-    const refFolderId = await findOrCreateDriveFolder(refSafe, yearFolderId, token);
-    if(window.__mzOwnedRefSafe !== refSafe && !__mzSrv){ // السيرفر سأل وجاوبنا (أو ما في تعارض) → ما في داعي نسأل مرة تانية
-      const exId = await findFileInFolder(refSafe + '-data.json', refFolderId, token);
-      if(exId){
-        let exInfo = ''; try{ const ex = await downloadDriveJsonFile(exId, token); exInfo = ' (الزبون: ' + ((ex.fields && ex.fields['m-client']) || '؟') + ')'; }catch(e){}
-        if(!confirm('⚠️ الرقم المرجعي "' + refRaw + '" محفوظ مسبقًا بجوجل درايف' + exInfo + ' - الحفظ رح يستبدله. تكمل؟')) throw new Error('تم إلغاء الحفظ حتى ما ينستبدل عرض سعر موجود بنفس الرقم - غيّر الرقم المرجعي.');
-      }
+    __mzSrv = await mzQuoteServerReserve(refRaw, refSafe, __mzSrvData);
+    if(__mzSrv){
+      window.__mzOwnedRefSafe = refSafe;
+      window.__quotationSavedAtBaseline = __mzSrvData.quotationSavedAt; // الحفظ الجاي من نفس الصفحة بيبني على هالنسخة
+      mzDrivePendingSet({ ref: refRaw, savedAt: __mzSrvData.quotationSavedAt, at: Date.now() }); // بينشال لما يخلص الرفع لدرايف
+      if(opts.onFast){ try{ opts.onFast({ ref: refRaw, refSafe }); }catch(e){ console.warn(e); } }
+      mzSaveLock(true, '✅ انحفظ - لحظة عم يجهّز ملف الـPDF...');
+    } else {
+      mzSaveLock(true, '⏳ عم يجهّز ملف الـPDF...');
     }
-    window.__mzOwnedRefSafe = refSafe;
-    // نسخة HTML الكاملة من الأداة (نفس نظامك الحالي بالضبط)
-    const htmlContent = buildBakedHtmlSnapshot();
-    const htmlBlob = new Blob([htmlContent], {type:'text/html'});
-    // ⚡ 2026-11-15 (طلب حمدي: "حفظ عرض السعر لجوجل درايف متعب جدا واحيانا عم ياخد دقيقة كاملة"):
-    // الرفعات المستقلة (نسخة HTML الكبيرة ~2 ميغا، ملف البيانات، سجل النسخ) صارت تمشي *بنفس الوقت* مع تجهيز
-    // الـPDF بدل ما نستنى كل وحدة تخلص قبل التانية. منستنى كل شي يخلص قبل ما نقول "انحفظ" - نفس الضمانات.
-    const __mzHtmlUpP = uploadOrUpdateFileInDriveFolder(refSafe + '.html', 'text/html', htmlBlob, refFolderId, token);
-    __mzHtmlUpP.catch(()=>{});
+    try{ pdf = await mzRenderQuotationPdf(refSafe); }
+    catch(e){ if(__mzSrv){ const er = new Error('ما قدر يجهّز ملف الـPDF: ' + ((e && e.message) || e)); er.mzAfterFast = { ref: refRaw }; throw er; } throw e; }
+  } finally { mzSaveLock(false); __frontDone(); }
 
-    // نسخة بيانات خفيفة (JSON بس، بدون كود) - هاي يلي بتخلي "افتح بآخر نسخة" من لوحة التحكم يشتغل بسرعة ودقة
-    // مباشرة من غير ما يحتاج يحلّل نسخة HTML كاملة، ومع أي تصليح مستقبلي عالأداة هيك بيطبّق تلقائيًا.
-    // 🔧 2026-08-27: محتفظين بمرجع لنفس كائن البيانات (quotationFullDataForSignBox) ومعرّف الملف
-    // (quotationDataJsonFileId) يلي هلق اتحفظ - حتى نقدر لاحقًا (بعد ما نحسب موقع صندوق توقيع الزبون
-    // أثناء تجهيز الـPDF تحت) نضيفه لنفس الكائن ونرفعه فوق نفس الملف (PATCH) بدل ما ننشئ ملف تاني.
-    let quotationFullDataForSignBox = null;
-    let quotationDataJsonFileId = null;
-    const __mzDataUpP = (async()=>{ try{
-      const fullData = captureFullQuotationData();
-      fullData.draftId = null;
-      fullData.quotationSavedAt = __mzSrvData.quotationSavedAt; // نفس وقت الحفظ يلي بالسيرفر (هيك أي جهاز بيفتحه من درايف بيطابق السيرفر)
-      quotationFullDataForSignBox = fullData;
-      const dataBlob = new Blob([JSON.stringify(fullData)], {type:'application/json'});
-      const dataUploadResult = await uploadOrUpdateFileInDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token);
-      quotationDataJsonFileId = dataUploadResult && dataUploadResult.id;
-      mzReportQuoteTotal(refRaw, fullData.grandTotal);
-    }catch(e){ console.warn('تعذّر حفظ ملف بيانات JSON الإضافي (مش عائق - نسخة HTML اتحفظت تمام):', e); } })();
+  const fullData = JSON.parse(JSON.stringify(__mzSrvData)); // نفس البيانات يلي انبعتت للسيرفر بالضبط (نفس وقت الحفظ)
+  if(pdf.signBoxRect) fullData.signBoxRect = pdf.signBoxRect;
+  const c = { refRaw, refSafe, year, root: rootFolderIdForSave, token, srv: __mzSrv, sig: __sigAtStart, fullData,
+    htmlBlob: new Blob([htmlContent], {type:'text/html'}), pdfBlob: pdf.pdfBlob, merged: __mzMergedRefs,
+    wa: __mzWaSnap, branch: __mzBranchNow, savedAt: __mzSrvData.quotationSavedAt, histDone: false, dupChecked: false, attempts: 0 };
+  const run = __mzDriveChain.catch(()=>{}).then(()=> mzDriveUploadPhase(c));
+  __mzDriveChain = run.catch(()=>{});
+  try{ return await run; }
+  catch(e){ try{ e.mzRetryCtx = c; }catch(_){} throw e; }
+}
 
-    // 🆕 2026-09-30 (طلب حمدي صراحة: "ميزة الهيتوري HISTORY يللي طلبتها منك انك تبنيها لحتى اعرف شو
-    // التغييرات يللي صارت بعرض السعر لاقدر ارجعلها او اختار يللي بدي ياه") - كل ما ينحفظ عرض السعر
-    // فعليًا لجوجل درايف (نفس هالفنكشن)، منحفظ *نسخة إضافية* موقّتة (snapshot) داخل مجلد فرعي اسمه
-    // "سجل النسخ" جوا مجلد عرض السعر نفسه (refFolderId) - هاي النسخ ما بتتمسح ولا تتحدّث فوق بعضها،
-    // كل حفظة إلها ملفها الخاص (اسمه فيه الطابع الزمني)، فبتضل موجودة زي "تاريخ" كامل لكل التعديلات
-    // يلي صارت عبر الزمن، حتى لو حمدي سكّر المتصفح وفتحه بعد أيام - عكس زر "↩️ تراجع" العادي (فوق)
-    // يلي بس بيشتغل بنفس جلسة المتصفح المفتوحة وبيضيع لما تنسكر الصفحة. لوحة "🕘 سجل النسخ السابقة"
-    // (شوف openVersionHistoryPanel تحت) هي يلي بتعرض هالنسخ وبتخلي حمدي يرجع/يستعرض أي وحدة فيهم.
-    // best-effort بحت - لو فشلت هاي الخطوة لأي سبب (مثلاً مشكلة شبكة مؤقتة)، ما بتوقف باقي الحفظ الأساسي.
-    const __mzHistP = (async()=>{ try{
-      const historyFolderId = await findOrCreateDriveFolder('سجل النسخ', refFolderId, token);
-      const histSnapshot = quotationFullDataForSignBox || captureFullQuotationData();
-      const histBlob = new Blob([JSON.stringify(histSnapshot)], {type:'application/json'});
-      await uploadOrUpdateFileInDriveFolder(refSafe + '-نسخة-' + Date.now() + '.json', 'application/json', histBlob, historyFolderId, token);
-    }catch(e){ console.warn('تعذّر حفظ نسخة بسجل النسخ السابقة (مش عائق - الحفظ الأساسي اتحفظ تمام):', e); } })();
-
-    // 🆕 2026-09-30 (طلب حمدي: "لازم عند الحفظ ينحفظ عرض السعر وينحفظ بمجلد اسمو دمج داخل مجلد عرض
-    // السعر نفسه") - لو صار دمج عرض سعر تاني جوا هاد العرض بنفس الجلسة (شوف mergeInAnotherQuotation)،
-    // منحفظ نسخة إضافية (HTML + JSON) داخل مجلد فرعي اسمه "دمج" جوا مجلد عرض السعر نفسه (refFolderId) -
-    // بتوثّق حالة العرض المدموج بشكل منفصل وواضح، بدون ما تأثر عالحفظ العادي (لو فشلت هاي الخطوة
-    // لأي سبب، ما بتوقف باقي الحفظ - best-effort بس). اسم الملف بيحمل رقم العرض التاني المدموج، حتى
-    // لو دمجتي أكتر من عرض بنفس الجلسة يضل كل وحدة إلها نسخة موثقة منفصلة بدل ما تنكتب فوق بعض.
-    if(window.__mzMergedFromRefs && window.__mzMergedFromRefs.length){
-      try{
-        const mergeFolderId = await findOrCreateDriveFolder('دمج', refFolderId, token);
-        for(const otherRefRaw of window.__mzMergedFromRefs){
-          const otherRefSafe = (otherRefRaw||'').replace(/\s+/g,'').replace(/[^a-zA-Z0-9-؀-ۿ]+/g,'_') || 'عرض-تاني';
-          const mergeHtmlBlob = new Blob([htmlContent], {type:'text/html'});
-          const mergeDataBlob = new Blob([JSON.stringify(quotationFullDataForSignBox || captureFullQuotationData())], {type:'application/json'});
-          await uploadOrUpdateFileInDriveFolder(refSafe + '-مدموج-مع-' + otherRefSafe + '.html', 'text/html', mergeHtmlBlob, mergeFolderId, token);
-          await uploadOrUpdateFileInDriveFolder(refSafe + '-مدموج-مع-' + otherRefSafe + '-data.json', 'application/json', mergeDataBlob, mergeFolderId, token);
-        }
-      }catch(e){ console.warn('تعذّر حفظ نسخة مجلد "دمج" (مش عائق - الحفظ الأساسي اتحفظ تمام):', e); }
+// ☁️ الرفع لدرايف (المرحلة 3) - بيشتغل من ملفات جاهزة بالذاكرة، فبينفع يتعاد بأي وقت حتى لو الصفحة تغيّرت
+async function mzDriveUploadPhase(c){
+  c.attempts++;
+  if(c.attempts > 1){ try{ c.token = await getGoogleAccessToken(); }catch(e){} }
+  const token = c.token, refSafe = c.refSafe, refRaw = c.refRaw, R = mzDriveRetry;
+  const yearFolderId = await R(()=> findOrCreateDriveFolder(c.year, c.root, token), 'مجلد السنة');
+  const refFolderId = await R(()=> findOrCreateDriveFolder(refSafe, yearFolderId, token), 'مجلد العرض');
+  if(!c.srv && !c.dupChecked && window.__mzOwnedRefSafe !== refSafe){ // السيرفر مش متاح → منسأل من درايف متل قبل
+    const exId = await findFileInFolder(refSafe + '-data.json', refFolderId, token);
+    if(exId){
+      let exInfo = ''; try{ const ex = await downloadDriveJsonFile(exId, token); exInfo = ' (الزبون: ' + ((ex.fields && ex.fields['m-client']) || '؟') + ')'; }catch(e){}
+      if(!confirm('⚠️ الرقم المرجعي "' + refRaw + '" محفوظ مسبقًا بجوجل درايف' + exInfo + ' - الحفظ رح يستبدله. تكمل؟')){ const er = new Error('تم إلغاء الحفظ حتى ما ينستبدل عرض سعر تاني بنفس الرقم المرجعي.'); er.mzConflict = true; throw er; }
     }
+  }
+  c.dupChecked = true;
+  const curRef = ((document.getElementById('m-ref') || {}).value || '').trim();
+  if(!c.srv && curRef === refRaw) window.__mzOwnedRefSafe = refSafe;
+  const dataBlob = new Blob([JSON.stringify(c.fullData)], {type:'application/json'});
+  const htmlP = R((i)=> uploadOrUpdateFileInDriveFolder(refSafe + '.html', 'text/html', c.htmlBlob, refFolderId, token, { skipConflictCheck: i > 0 || c.attempts > 1 }), 'نسخة HTML');
+  const dataP = R((i)=> uploadOrUpdateFileInDriveFolder(refSafe + '-data.json', 'application/json', dataBlob, refFolderId, token, { skipConflictCheck: i > 0 || c.attempts > 1 }), 'ملف البيانات');
+  const pdfP = R((i)=> uploadOrUpdateFileInDriveFolder(refSafe + '.pdf', 'application/pdf', c.pdfBlob, refFolderId, token, { skipConflictCheck: i > 0 || c.attempts > 1 }), 'ملف الـPDF');
+  // 🕘 سجل النسخ (مرة وحدة بس حتى لو تعادت المحاولة) - best-effort متل قبل
+  const histP = c.histDone ? Promise.resolve() : (async()=>{ try{
+    const historyFolderId = await R(()=> findOrCreateDriveFolder('سجل النسخ', refFolderId, token), 'مجلد سجل النسخ');
+    const histBlob = new Blob([JSON.stringify(c.fullData)], {type:'application/json'});
+    await R((i)=> uploadOrUpdateFileInDriveFolder(refSafe + '-نسخة-' + c.savedAt + '.json', 'application/json', histBlob, historyFolderId, token, { skipConflictCheck: true }), 'سجل النسخ');
+    c.histDone = true;
+  }catch(e){ console.warn('تعذّر حفظ نسخة بسجل النسخ السابقة (مش عائق - الحفظ الأساسي اتحفظ تمام):', e); } })();
+  // 🔀 "دمج": نسخة بمجلد فرعي لكل عرض اندمج بهالعرض - best-effort متل قبل
+  const mergeP = (!c.merged.length) ? Promise.resolve() : (async()=>{ try{
+    const mergeFolderId = await R(()=> findOrCreateDriveFolder('دمج', refFolderId, token), 'مجلد الدمج');
+    for(const otherRefRaw of c.merged){
+      const otherRefSafe = (otherRefRaw||'').replace(/\s+/g,'').replace(/[^a-zA-Z0-9-؀-ۿ]+/g,'_') || 'عرض-تاني';
+      await uploadOrUpdateFileInDriveFolder(refSafe + '-مدموج-مع-' + otherRefSafe + '.html', 'text/html', c.htmlBlob, mergeFolderId, token);
+      await uploadOrUpdateFileInDriveFolder(refSafe + '-مدموج-مع-' + otherRefSafe + '-data.json', 'application/json', dataBlob, mergeFolderId, token);
+    }
+  }catch(e){ console.warn('تعذّر حفظ نسخة مجلد "دمج" (مش عائق - الحفظ الأساسي اتحفظ تمام):', e); } })();
+  const settled = await Promise.allSettled([htmlP, dataP, pdfP]);
+  await histP; await mergeP;
+  const bad = settled.find(x => x.status === 'rejected');
+  if(bad) throw bad.reason;
+  const __mzHtmlUp = settled[0].value, dataUp = settled[1].value, pdfUp = settled[2].value;
+  try{ mzReportQuoteTotal(refRaw, c.fullData.grandTotal); }catch(e){}
+  // رابط الـPDF على درايف - السيرفر بيحطو بالرسالة إذا واتساب رفض المرفق
+  const pdfLink = pdfUp && pdfUp.id ? (pdfUp.webViewLink || ('https://drive.google.com/file/d/' + pdfUp.id + '/view')) : '';
+  const stillHere = (((document.getElementById('m-ref') || {}).value || '').trim() === refRaw);
+  if(stillHere){
+    window.__mzLastSavedSig = c.sig; // 📤 آخر حفظ كامل ناجح (مع الـPDF)
+    if(!c.srv) window.__quotationSavedAtBaseline = c.savedAt;
+  }
+  if(c.srv){
+    // 🗂️ مكان الملفات على درايف + البيانات النهائية (فيها مكان صندوق التوقيع)
+    mzQuoteServer('POST', '/finalize', { ref: refRaw, rev: c.srv.rev, data: c.fullData,
+      meta: { refFolderId, htmlFileId: __mzHtmlUp && __mzHtmlUp.id, dataFileId: (dataUp && dataUp.id) || undefined } }, 60000)
+      .then((r)=>{ if(r.status !== 200) console.warn('[عروض عالسيرفر] finalize:', r.status, r.j); })
+      .catch((e)=>console.warn('[عروض عالسيرفر] finalize:', e));
+    const pend = mzDrivePendingGet();
+    if(pend && pend.ref === refRaw && Number(pend.savedAt) <= Number(c.savedAt)) mzDrivePendingSet(null);
+  }
+  return { summary: 'مجلد: ' + c.year + ' / ' + refSafe, pdfBlob: c.pdfBlob, refSafe, pdfLink, refRaw, wa: c.wa, branch: c.branch };
+}
 
+// 🧾 تجهيز الـPDF من الصفحة (نفس الكود القديم بالحرف - بس صار بفنكشن لحاله ومنرجّع منه الملف ومكان صندوق التوقيع)
+async function mzRenderQuotationPdf(refSafe){
+    let signBoxRectMm = null;
     // نسخة PDF من صفحة عرض السعر - نفعّل شكل الطباعة النضيف ونستنى تحميل الخطوط قبل الالتقاط
     const wasMobileMode = document.body.classList.contains('mode-mobile');
     document.body.classList.remove('mode-mobile'); // نفرض شكل سطح المكتب وقت الالتقاط بس، حتى لو كنت عالموبايل، عشان الصفحة تلتقط بعرضها الكامل مش عرض شاشة الموبايل الضيق
@@ -7709,28 +7908,21 @@ async function saveToGoogleDriveInner(){
       // (طلب حمدي: "بدي التوقيع بالضبط فوق صندوق Client Signature الأصلي")، بدل ما يضيف صفحة شهادة
       // منفصلة بس بآخر الملف. فشل هالخطوة مش عائق أبدًا - العرض نفسه بيضل محفوظ تمام، وبس لو صار
       // فشل هون، سيرفر الواتساب رح يرجع تلقائيًا للطريقة القديمة (صفحة شهادة ملحقة) وقت التوقيع.
-      await __mzDataUpP; // ملف البيانات لازم يكون انرفع قبل ما نحدّثه بمكان صندوق التوقيع
+      // 🖊️ مكان صندوق توقيع الزبون (بالمم) - هلق بينحسب هون ومنحطه بملف البيانات قبل ما ينرفع (بدل PATCH تاني بعد الرفع)
       try{
-        if(signBoxRectForPdf && quotationFullDataForSignBox && quotationDataJsonFileId){
+        if(signBoxRectForPdf){
           const mmPerPxBox = 210 / pdfTargetWidthPx;
           const pdfObjForBox = worker.prop && worker.prop.pdf;
           const totalPagesForBox = (pdfObjForBox && typeof pdfObjForBox.getNumberOfPages === 'function') ? pdfObjForBox.getNumberOfPages() : 1;
-          quotationFullDataForSignBox.signBoxRect = {
+          signBoxRectMm = {
             pageIndex: Math.min(signBoxRectForPdf.pageIndex, totalPagesForBox - 1), // 0-index - نفس ترقيم pdf-lib بالسيرفر
             xMm: signBoxRectForPdf.leftPx * mmPerPxBox,
             yMm: signBoxRectForPdf.topPx * mmPerPxBox,
             wMm: signBoxRectForPdf.widthPx * mmPerPxBox,
             hMm: signBoxRectForPdf.heightPx * mmPerPxBox
           };
-          const updatedDataBlob = new Blob([JSON.stringify(quotationFullDataForSignBox)], {type:'application/json'});
-          await fetchWithTimeout(`https://www.googleapis.com/upload/drive/v3/files/${quotationDataJsonFileId}?uploadType=media`, {
-            method: 'PATCH',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: updatedDataBlob
-          }, 30000);
-          console.log('[PDF Debug] ✅ تم حفظ موقع صندوق توقيع الزبون (مم) بملف بيانات العرض:', quotationFullDataForSignBox.signBoxRect);
         }
-      }catch(e){ console.warn('[PDF Debug] تعذّر حفظ موقع صندوق توقيع الزبون بملف البيانات (مش عائق - العرض اتحفظ تمام، بس التوقيع الإلكتروني لاحقًا رح يرجع للطريقة الاحتياطية - صفحة شهادة ملحقة):', e); }
+      }catch(e){ console.warn('[PDF Debug] تعذّر حساب موقع صندوق توقيع الزبون (مش عائق - التوقيع بيرجع للطريقة القديمة):', e); signBoxRectMm = null; }
 
       pdfBlob = await worker.outputPdf('blob');
       try{ window.__mzLastPdf = { ref: refSafe, blob: pdfBlob, at: Date.now() }; }catch(e){} // 📤 لزر "أرسل للزبون"
@@ -7746,22 +7938,9 @@ async function saveToGoogleDriveInner(){
         viewportMetaEl.setAttribute('content', originalViewportContent); // نرجّع عرض الـ viewport الأصلي فورًا حتى ما تتأثر تجربة المستخدم بعد الحفظ
       }
     }
-    const pdfUp = await uploadOrUpdateFileInDriveFolder(refSafe + '.pdf', 'application/pdf', pdfBlob, refFolderId, token);
-    const __mzHtmlUp = await __mzHtmlUpP; // نسخة HTML: إذا فشلت، الحفظ بيفشل متل قبل
-    await __mzDataUpP; await __mzHistP;
-    // رابط الـPDF على درايف - السيرفر بيحطو بالرسالة إذا واتساب رفض المرفق، حتى الـPDF يوصل للمجموعة دايمًا
-    const pdfLink = pdfUp && pdfUp.id ? (pdfUp.webViewLink || ('https://drive.google.com/file/d/' + pdfUp.id + '/view')) : '';
-    window.__mzLastSavedSig = __sigAtStart; // 📤 آخر حفظ كامل ناجح (مع الـPDF)
-    window.__quotationSavedAtBaseline = __mzSrvData.quotationSavedAt; // الحفظ الجاي من نفس الصفحة بيبني على هالنسخة
-    if(__mzSrv){
-      // 🗂️ مكان الملفات على درايف + البيانات النهائية (فيها مكان صندوق التوقيع) - بدون رقم نسخة جديد
-      mzQuoteServer('POST', '/finalize', { ref: refRaw, rev: __mzSrv.rev, data: quotationFullDataForSignBox || undefined,
-        meta: { refFolderId, htmlFileId: __mzHtmlUp && __mzHtmlUp.id, dataFileId: quotationDataJsonFileId || undefined } }, 60000)
-        .then((r)=>{ if(r.status !== 200) console.warn('[عروض عالسيرفر] finalize:', r.status, r.j); })
-        .catch((e)=>console.warn('[عروض عالسيرفر] finalize:', e));
-    }
-    return { summary: 'مجلد: ' + year + ' / ' + refSafe, pdfBlob, refSafe, pdfLink };
+    return { pdfBlob, signBoxRect: signBoxRectMm };
 }
+
 
 populateItemsDatalist();
 populateAlumColorOptions();
@@ -7775,6 +7954,46 @@ populateAlumColorOptions();
 // الملف - باختصار: قبل هالتعديل كان ممكن نمسح قيمة localStorage (مرة واحدة بس تستخدم) وبعدين
 // يصير reload بسبب فحص النسخة، فتضيع القيمة قبل ما تتطبق، وتفضل صفحة عرض السعر القديمة (الفاضية
 // أو يلي كانت موجودة أصلًا بالصفحة) ظاهرة - وهاد بالضبط يلي كان حمدي شايفه كـ"فتحتلي عرض السعر".
+// 🆕 عرض انفتح من درايف بس عالسيرفر في نسخة أحدث (يعني آخر حفظ ما خلص رفعه لدرايف) → منعرض النسخة الأحدث
+async function mzOfferNewerFromServer(pq){
+  try{
+    if(!pq || pq.draftId) return;
+    const ref = String((pq.fields && pq.fields['m-ref']) || '').trim(); if(!ref) return;
+    const sigBefore = mzQuoteSig();
+    const r = await mzQuoteServer('GET', '/item?ref=' + encodeURIComponent(ref), null, 15000);
+    if(r.status !== 200 || !r.j || !r.j.data || !r.j.data.fields) return;
+    const srvAt = Number(r.j.data.quotationSavedAt) || 0, loc = Number(pq.quotationSavedAt) || 0;
+    if(!(srvAt > loc)) return;
+    if(((document.getElementById('m-ref') || {}).value || '').trim() !== ref || mzQuoteSig() !== sigBefore) return; // انفتح عرض تاني أو بلّش يعدّل
+    if(!confirm('🆕 في نسخة أحدث من العرض ' + ref + ' محفوظة عالسيرفر (آخر حفظ: ' + (r.j.savedBy || '') + ' - ' + mzFmtWhen(r.j.savedAt) + ').\nالنسخة يلي انفتحت من جوجل درايف أقدم، لأن رفع آخر حفظ لدرايف ما كمل وقتها.\n\nبدك تفتح النسخة الأحدث؟')) return;
+    applyFullQuotationData(r.j.data);
+    showMerzonaToast('✅ انفتحت النسخة الأحدث - اكبس "☁️ حفظ" حتى تنرفع لجوجل درايف', true);
+  }catch(e){ console.warn('[نسخة أحدث عالسيرفر]', e); }
+}
+// 🆕 الصفحة تسكّرت قبل ما يخلص الرفع لدرايف → أول ما تنفتح الأداة منذكّر وبنكمّل بكبسة
+function mzCheckDrivePendingOnBoot(){
+  try{
+    const pend = mzDrivePendingGet(); if(!pend || !pend.ref) return;
+    if(__mzSavesRunning > 0 || __mzDriveFailedCtx) return;
+    if(Date.now() - (Number(pend.at) || 0) > 45 * 86400000){ mzDrivePendingSet(null); return; }
+    mzDriveStatus('fail', '⚠️ آخر حفظ للعرض ' + pend.ref + ' ما خلص رفعه لجوجل درايف (العرض محفوظ عالسيرفر)', { label: '📂 افتحه وكمّل الرفع', fn: () => mzResumePendingDrive(pend), later: true });
+  }catch(e){}
+}
+async function mzResumePendingDrive(pend){
+  try{
+    const curRef = ((document.getElementById('m-ref') || {}).value || '').trim();
+    const hasOther = curRef && curRef !== pend.ref && !!(window.__mzIsDirty && window.__mzIsDirty()); // في شغل ما انحفظ على عرض تاني
+    if(hasOther && !confirm('رح ينفتح العرض ' + pend.ref + ' مكان العرض المفتوح هلق (' + curRef + ') - أي تعديل ما انحفظ عليه رح يضيع. تكمل؟')) return;
+    mzDriveStatus('busy', '⏳ عم يجيب العرض ' + pend.ref + ' من السيرفر...');
+    const r = await mzQuoteServer('GET', '/item?ref=' + encodeURIComponent(pend.ref), null, 30000);
+    if(r.status !== 200 || !r.j || !r.j.data || !r.j.data.fields){
+      mzDriveStatus('fail', '⚠️ ما قدرت جيب العرض ' + pend.ref + ' من السيرفر (' + r.status + ') - جرّب بعد شوي', { fn: () => mzResumePendingDrive(pend), later: true }); return;
+    }
+    applyFullQuotationData(r.j.data);
+    await new Promise(res => setTimeout(res, 900));
+    await saveToGoogleDrive();
+  }catch(e){ mzDriveStatus('fail', '⚠️ ' + ((e && e.message) || e), { fn: () => mzResumePendingDrive(pend), later: true }); }
+}
 function runPendingLoadLogicWhenSafe(attemptsLeft){
   if(!window.__merzonaVersionCheckSettled__ && attemptsLeft > 0){
     setTimeout(()=> runPendingLoadLogicWhenSafe(attemptsLeft-1), 50);
@@ -7818,7 +8037,7 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
   if(pendingQuotationLoad){
     // منأجّل التطبيق لتيك (tick) بعده - حتى نضمن إنو كود قسم "تصميم النوافذ والأبواب" (بآخر الملف)
     // خلص تحمّل وعرّف الجسور يلي محتاجينها (__applyDesignItemsImport__) قبل ما نستخدمها.
-    setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); setTimeout(()=>{ offerNewerSavedDesign(); }, 600); }, 0);
+    setTimeout(()=>{ applyFullQuotationData(pendingQuotationLoad); setTimeout(()=>{ offerNewerSavedDesign(); }, 600); setTimeout(()=>{ mzOfferNewerFromServer(pendingQuotationLoad); }, 1500); }, 0);
     // 📤 2026-11-10: عرض محفوظ فتحته من الداشبورد بدون تعديل → "أرسل للزبون" بيبعت فورًا بدون إعادة حفظ.
     // بس للعروض المحفوظة بعد تصليح خطوط الـPDF (10/11 الساعة 4 العصر) - الأقدم منها بينحفظ مرة لحتى يطلع الـPDF نظيف.
     try{
@@ -7920,6 +8139,7 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
 // سقف أقصى للاستنى: 200 محاولة × 50ms = 10 ثواني (أكتر شوي من VERSION_CHECK_TIMEOUT_MS=8000 فوق)
 // حتى نغطي أسوأ حالة (فحص النسخة بياخد المهلة الكاملة قبل ما يتأكد إنو ما في تحديث/فشل الفحص).
 runPendingLoadLogicWhenSafe(200);
+setTimeout(()=>{ try{ mzCheckDrivePendingOnBoot(); }catch(e){} }, 4000);
 
 try{
   const savedMode = localStorage.getItem('merzona-layout-mode');
@@ -21070,7 +21290,7 @@ function preparePrint(){
   document.body.classList.add('wd-printing');
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      setTimeout(()=>{ window.print(); }, 250);
+      setTimeout(()=>{ mzSetPrintTitle('Sketch' + (mzPrintRef() ? ' - ' + mzPrintRef() : '')); window.print(); }, 250);
     });
   });
 }
@@ -21099,7 +21319,7 @@ function printMfgSizes(){
   document.body.classList.add('wd-printing');
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      setTimeout(()=>{ window.print(); }, 250);
+      setTimeout(()=>{ mzSetPrintTitle('Sketch (Manufacturing Sizes)' + (mzPrintRef() ? ' - ' + mzPrintRef() : '')); window.print(); }, 250);
     });
   });
 }
@@ -21121,7 +21341,7 @@ function printQuotationAndSketch(){
     document.body.classList.add('combined-printing');
     requestAnimationFrame(()=>{
       requestAnimationFrame(()=>{
-        setTimeout(()=>{ window.print(); }, 250);
+        setTimeout(()=>{ mzSetPrintTitle(mzQuotePrintTitle()); window.print(); }, 250);
       });
     });
   });
@@ -23268,7 +23488,7 @@ function close3DPreview(){
 
 function print3DPreview(){
   document.body.classList.add('three-d-printing');
-  setTimeout(()=>{ window.print(); }, 200);
+  setTimeout(()=>{ mzSetPrintTitle('3D Sketch' + (mzPrintRef() ? ' - ' + mzPrintRef() : '')); window.print(); }, 200);
 }
 window.addEventListener('afterprint', ()=> document.body.classList.remove('three-d-printing'));
 
