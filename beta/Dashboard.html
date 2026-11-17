@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-17.2';
+  var CURRENT_VERSION = '2026-11-17.3';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1333,27 +1333,10 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <div class="table-wrap">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <thead>
-          <tr style="text-align:right;border-bottom:1px solid var(--border,#333);">
+          <!-- 🛠️ 2026-11-17: العناوين بتنبنى من MERZONA_PERMISSION_COLUMNS (كانت مكتوبة يدوي وناقصها "محاسبة"،
+               فمربّع المحاسبة كان يطلع تحت "أدمن" وكل الأعمدة بعدو مزاحة) -->
+          <tr id="usersTableHead" style="text-align:right;border-bottom:1px solid var(--border,#333);">
             <th style="padding:8px 6px;">المستخدم</th>
-            <th style="padding:8px 6px;">اللوحة الرئيسية</th>
-            <th style="padding:8px 6px;font-size:11.5px;">↳ أرقام سريعة</th>
-            <th style="padding:8px 6px;font-size:11.5px;">↳ الدفعات المتوقعة</th>
-            <th style="padding:8px 6px;font-size:11.5px;">↳ الرسم البياني</th>
-            <th style="padding:8px 6px;">عرض أسعار</th>
-            <th style="padding:8px 6px;">سجل ومتابعة العروض</th>
-            <th style="padding:8px 6px;">مشتريات</th>
-            <th style="padding:8px 6px;">عقود</th>
-            <th style="padding:8px 6px;">رواتب</th>
-            <th style="padding:8px 6px;">العملاء</th>
-            <th style="padding:8px 6px;">كتالوجات</th>
-            <th style="padding:8px 6px;">مشاريع</th>
-            <th style="padding:8px 6px;">نسخة احتياطية</th>
-            <th style="padding:8px 6px;">ملفات</th>
-            <th style="padding:8px 6px;">مزامنة</th>
-            <th style="padding:8px 6px;">إدارة مستخدمين</th>
-            <th style="padding:8px 6px;">أدمن</th>
-            <th style="padding:8px 6px;">اللغة</th>
-            <th style="padding:8px 6px;">إجراءات</th>
           </tr>
         </thead>
         <tbody id="usersTableBody"></tbody>
@@ -3832,6 +3815,7 @@ const MERZONA_PERMISSION_COLUMNS = [
   { key: 'dashChart', label: '↳ الرسم البياني' },
   { key: 'quotation', label: 'عرض أسعار' },
   { key: 'quotationsLog', label: 'سجل ومتابعة العروض' },
+  { key: 'accounting', label: 'محاسبة' },
   { key: 'procurement', label: 'مشتريات' },
   { key: 'contracts', label: 'عقود' },
   { key: 'payroll', label: 'رواتب' },
@@ -3842,7 +3826,6 @@ const MERZONA_PERMISSION_COLUMNS = [
   { key: 'files', label: 'ملفات' },
   { key: 'teamSync', label: 'مزامنة' },
   { key: 'manageUsers', label: 'إدارة مستخدمين' },
-  { key: 'accounting', label: 'محاسبة' },
 ];
 
 function merzonaServerUrl(){ return window.MERZONA_ACCESS_SERVER_URL || ''; }
@@ -3894,7 +3877,14 @@ function loadUsersTable(){
     .catch(function(){ statusEl.textContent = 'تعذر الاتصال بالسيرفر'; });
 }
 
+function renderUsersHead(){
+  var h = document.getElementById('usersTableHead'); if(!h) return;
+  h.innerHTML = '<th style="padding:8px 6px;">المستخدم</th>' +
+    MERZONA_PERMISSION_COLUMNS.map(function(col){ var sub = col.label.indexOf('↳') === 0; return '<th style="padding:8px 6px;' + (sub ? 'font-size:11.5px;' : '') + (col.key === 'accounting' ? 'background:rgba(15,136,205,.08);' : '') + '">' + escapeHtml(col.label) + '</th>'; }).join('') +
+    '<th style="padding:8px 6px;">أدمن</th><th style="padding:8px 6px;">اللغة</th><th style="padding:8px 6px;">إجراءات</th>';
+}
 function renderUsersRows(users){
+  renderUsersHead();
   var tbody = document.getElementById('usersTableBody');
   tbody.innerHTML = users.map(function(u){
     var key = u.key || u.username || '';
