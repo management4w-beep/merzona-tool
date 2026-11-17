@@ -2248,6 +2248,38 @@ async def t_acct_syp_invoice(p, b, port):
         proc.kill()
 
 
+async def t_owner_stale_session(p, b, port):
+    """👑 جهاز المالك عليه تسجيل دخول قديم بحساب موظف: لازم يضل يشوف "المستخدمين" و"المحاسبة" (ما ينسحبوا بالفحص الدوري)"""
+    print('• 👑 جهاز المالك + جلسة موظف قديمة')
+    for owner in (True, False):
+        ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+        await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','DEVX'); localStorage.setItem('merzona-access-status','approved'); localStorage.setItem('merzona-session-token','OLDSESSION'); }catch(e){}")
+        staff = {'dashboard': True, 'quotation': True, 'contracts': True, 'payroll': True, 'accounting': False, 'manageUsers': False}
+        async def srv(route, _r=None, owner=owner):
+            u = route.request.url
+            if '/users/status' in u: body = {'isOwnerDevice': True, 'hasAccount': True} if owner else {'hasAccount': True, 'username': 'sami'}
+            elif '/users/me' in u: body = {'username': 'sami', 'permissions': staff, 'lang': 'ar'}
+            elif '/access/status' in u: body = {'status': 'approved', 'isOwner': owner}
+            else: body = {}
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+        await ctx.route(SRV + '/**', srv)
+        await ctx.route('https://merzona-server-production.up.railway.app/**', srv)
+        await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3500)
+        vis = lambda: pg.evaluate("['usersTabBtn','accountingTabBtn','payrollTabBtn'].map(id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; })")
+        v0 = await vis()
+        await pg.evaluate("window.__mzRevalidatePermissionsNow && window.__mzRevalidatePermissionsNow()"); await pg.wait_for_timeout(800)
+        await pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))"); await pg.wait_for_timeout(800)
+        v1 = await vis()
+        if owner:
+            check(v0 == [True, True, True] and v1 == [True, True, True], 'جهاز المالك: "المستخدمين" و"المحاسبة" بيضلوا ظاهرين بعد الفحص الدوري ' + str((v0, v1)))
+        else:
+            check(v1 == [False, False, True], 'جهاز موظف: الفحص الدوري لسا بيطبّق صلاحياته متل قبل ' + str((v0, v1)))
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -2255,7 +2287,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
