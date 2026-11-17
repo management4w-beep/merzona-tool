@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-17.1';
+  var CURRENT_VERSION = '2026-11-17.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -3418,9 +3418,12 @@ function showClientsView(){
 /* 🎯 2026-11-16 - حالة عروض الأسعار (طلب حمدي - المبيعات): انبعت / شافه الزبون / وقّع / رفض + نسبة التحويل.
    المصدر: السيرفر (/quote-status) + العقود (أي عرض صار عقد = وقّع، حتى لو انعمل عقد يدوي).
    التتبع بلّش 2026-11-16 - العروض الأقدم ما إلها معلومة "انبعت/شاف" (منكتب "قبل التتبع"). */
-const MZ_QS_URL = 'https://merzona-server-production.up.railway.app/quote-status';
-const MZ_QS_START = '2026-11-16';
-let __mzQS = {}, __mzQSLoadedAt = 0, __mzQSPeriod = 'month';
+// 🛠️ 2026-11-17 (باغ حقيقي): كانت const/let - والجدول بيترسم وقت تحميل الصفحة (من النسخة المحفوظة) قبل ما
+// يوصل التنفيذ لهون، فكان يطلع خطأ "Cannot access before initialization" ويوقّف باقي كود الصفحة (اختفوا
+// تبويبي المستخدمين والمحاسبة). هلق var (بتنعرّف من أول الصفحة) + الرسم محمي بـtry.
+var MZ_QS_URL = 'https://merzona-server-production.up.railway.app/quote-status';
+var MZ_QS_START = '2026-11-16';
+var __mzQS = {}, __mzQSLoadedAt = 0, __mzQSPeriod = 'month';
 function mzQsHeaders(){ const h = { 'Content-Type': 'application/json' }; try{ h['x-device'] = localStorage.getItem('merzona-device-token') || ''; const s = localStorage.getItem('merzona-session-token'); if(s) h['x-session'] = s; }catch(e){} return h; }
 async function mzQsLoad(force){
   if(!force && Date.now() - __mzQSLoadedAt < 60000) return;
@@ -3434,7 +3437,7 @@ async function mzQsLoad(force){
 function mzQsIso(d){ const dt = parseDate(d.date); if(!dt) return ''; return dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0'); }
 // الحالة النهائية لكل عرض
 function mzQsOf(d){
-  const s = __mzQS[d.ref] || {};
+  const s = (__mzQS || {})[d.ref] || {};
   const contracts = (typeof loadContracts === 'function') ? loadContracts() : {};
   if(s.signedAt || contracts[d.ref]) return { key: 'signed', s };
   if(s.rejectedAt) return { key: 'rejected', s };
@@ -3443,10 +3446,14 @@ function mzQsOf(d){
   const iso = mzQsIso(d);
   return { key: (iso && iso < MZ_QS_START) ? 'old' : 'notsent', s };
 }
-const MZ_QS_LABEL = { signed: '✅ وقّع', rejected: '❌ رفض', viewed: '👁️ شافه', sent: '📤 انبعت', notsent: '⚪ ما انبعت', old: '· قبل التتبع' };
-const MZ_QS_COLOR = { signed: ['#e9f6ee','#1d6b3a'], rejected: ['#fdecec','#a02622'], viewed: ['#eef4ff','#1d4ed8'], sent: ['#fff7e6','#7a5200'], notsent: ['#f1f3f5','#555'], old: ['transparent','#9aa0aa'] };
+var MZ_QS_LABEL = { signed: '✅ وقّع', rejected: '❌ رفض', viewed: '👁️ شافه', sent: '📤 انبعت', notsent: '⚪ ما انبعت', old: '· قبل التتبع' };
+var MZ_QS_COLOR = { signed: ['#e9f6ee','#1d6b3a'], rejected: ['#fdecec','#a02622'], viewed: ['#eef4ff','#1d4ed8'], sent: ['#fff7e6','#7a5200'], notsent: ['#f1f3f5','#555'], old: ['transparent','#9aa0aa'] };
 function mzQsWhen(t){ try{ return new Date(t).toLocaleString('ar-SY-u-nu-latn', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }catch(e){ return ''; } }
 function mzQsBadge(d){
+  try{ return mzQsBadgeInner(d); }catch(e){ return ''; }
+}
+function mzQsBadgeInner(d){
+  if(!MZ_QS_LABEL) return '';
   const st = mzQsOf(d), c = MZ_QS_COLOR[st.key], s = st.s;
   let tip = '';
   if(s.sentAt) tip += 'انبعت: ' + mzQsWhen(s.sentAt) + (s.sentBy ? ' (' + s.sentBy + ')' : '') + '\n';
@@ -3482,6 +3489,10 @@ function mzQsInPeriod(d){
   return true;
 }
 function mzQsRender(){
+  try{ mzQsRenderInner(); }catch(e){ console.warn('[حالة العروض] رسم:', e); }
+}
+function mzQsRenderInner(){
+  if(!MZ_QS_LABEL) return;
   const box = document.getElementById('mzQsPanel'); if(!box) return;
   const rows = DATA.filter(d => (activeBranch === 'all' || getEntryBranch(d) === activeBranch) && mzQsInPeriod(d));
   const n = { total: rows.length, tracked: 0, sent: 0, viewed: 0, signed: 0, rejected: 0, notsent: 0 };

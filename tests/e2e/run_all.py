@@ -2280,6 +2280,35 @@ async def t_owner_stale_session(p, b, port):
         await ctx.close()
 
 
+async def t_dash_seed_load(p, b, port):
+    """🛠️ الداشبورد بتنفتح ببيانات حقيقية محفوظة (قائمة العروض من نسخة سابقة): ولا خطأ وقت التحميل، وكل التبويبات بتطلع للمالك"""
+    print('• الداشبورد مع بيانات محفوظة وقت التحميل')
+    rows = [{'ref': 'M-Q-26%04d' % i, 'client': 'زبون %d' % i, 'phone': '0501234567', 'total': 1000 + i, 'date': '2026-11-%02d' % (1 + i % 15), 'year': '2026', 'url': ''} for i in range(1, 40)]
+    contracts = {'M-Q-260001': {'client': 'زبون 1', 'total': 1001, 'payments': [{'id': 'a', 'desc': 'دفعة', 'pct': 50, 'status': 'due', 'dueDate': '2026-11-01'}]}}
+    ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+    await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','OWNERDEV'); localStorage.setItem('merzona-access-status','approved'); localStorage.setItem('merzona_dash_seed_cache_v1', %s); localStorage.setItem('merzona_contracts', %s); }catch(e){}" % (json.dumps(json.dumps(rows, ensure_ascii=False)), json.dumps(json.dumps(contracts, ensure_ascii=False))))
+    async def srv(route, _r=None):
+        u = route.request.url
+        body = {'isOwnerDevice': True, 'hasAccount': True} if '/users/status' in u else ({'status': 'approved', 'isOwner': True} if '/access/status' in u else {})
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    await ctx.route('https://merzona-server-production.up.railway.app/**', srv)
+    await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3500)
+    check(not errs, 'ولا خطأ وقت تحميل الداشبورد مع بيانات محفوظة ' + str(errs[:2]))
+    vis = await pg.evaluate("['usersTabBtn','accountingTabBtn','contractsTabBtn','payrollTabBtn'].map(id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; })")
+    check(vis == [True, True, True, True], 'المالك بيشوف المستخدمين والمحاسبة والعقود والرواتب ' + str(vis))
+    for fn in ['showQuotationsView', 'showContractsView', 'showPayrollView', 'showClientsView', 'showCatalogsView']:
+        e0 = len(errs)
+        try: await pg.evaluate("typeof %s === 'function' && %s()" % (fn, fn)); await pg.wait_for_timeout(300)
+        except Exception as e: errs.append(str(e)[:150])
+        check(len(errs) == e0, 'فتح ' + fn + ' بلا أخطاء ' + str(errs[e0:e0+1]))
+    rowsN = await pg.evaluate("document.querySelectorAll('#tableBody tr .mz-qs-badge').length")
+    check(rowsN >= 39, 'إشارة حالة العرض ظاهرة بكل صفوف السجل (%d)' % rowsN)
+    await ctx.close()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -2287,7 +2316,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
