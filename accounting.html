@@ -82,7 +82,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-16.1';
+  var CURRENT_VERSION = '2026-11-17.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'accounting';
   var VERSION_URL = 'version.json';
@@ -593,6 +593,15 @@ function pn(v){
 }
 // سعر الصرف بالشكل الطبيعي: 1 USD = 3.6725 AED (دفتر الإمارات) أو 1 USD = 13000 SYP (دفتر سوريا)
 // داخليًا fx = كم وحدة من عملة المستند = 1 من عملة الدفتر
+// 💱 سعر الدولار بالليرة بالسوق (نفس مصدر الشريط فوق: السيرفر بيجيبه مرة باليوم) - منخزّنه 6 ساعات
+function mzMarketUsdSyp(){
+  try{ var c = JSON.parse(lsGet('mz-fx-usd-syp-v1') || 'null'); if(c && c.sell > 0 && c.__t && Date.now() - c.__t < 6 * 3600000) return Promise.resolve(c); }catch(e){}
+  return fetch(SERVER + '/fx/usd-syp', { cache: 'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
+    if(j && j.sell > 0){ try{ var x = { buy: j.buy, sell: j.sell, at: j.at, __t: Date.now() }; lsSet('mz-fx-usd-syp-v1', JSON.stringify(x)); }catch(e){} return j; }
+    try{ var c2 = JSON.parse(lsGet('mz-fx-usd-syp-v1') || 'null'); if(c2 && c2.sell > 0) return c2; }catch(e){}
+    return null;
+  }).catch(function(){ try{ var c3 = JSON.parse(lsGet('mz-fx-usd-syp-v1') || 'null'); return c3 && c3.sell > 0 ? c3 : null; }catch(e){ return null; } });
+}
 function fxNatural(fx, cur){ fx = Number(fx); if(!(fx > 0)) return ''; var v = cur === 'USD' && base() !== 'USD' ? 1 / fx : fx; return String(Number(v.toPrecision(10))); }
 function fxFromNatural(v, cur){ var n = pn(v); if(n === '') return ''; if(typeof n !== 'number' || !(n > 0)) return v; return cur === 'USD' && base() !== 'USD' ? Number((1 / n).toPrecision(12)) : n; }
 function fxLabel(cur){ return cur === 'USD' && base() !== 'USD' ? '1 USD = كم ' + base() : '1 ' + base() + ' = كم ' + cur; }
@@ -1261,7 +1270,19 @@ function openDoc(d){
     h_.innerHTML = (fxPlausible(cur, nat) ? '' : '<span class="dng">⚠️ السعر غريب - تأكد منو. </span>') + (tot ? 'يعني ' + money(tot, cur) + ' = ' + money(C.r2(tot / fx), base()) : '');
   }
   var fXi = q('#fX'); if(fXi) fXi.oninput = fxHint;
-  var fC = q('#fC'); if(fC) fC.onchange = function(){ q('#fxWrap').classList.toggle('hide', fC.value === base()); q('#fxCur').textContent = fxLabel(fC.value); d.applies = []; drawApplies(); totals(); fxHint(); };
+  // 💱 2026-11-17 - المحاسب ما كان يقدر يعمل فواتير سوريا بالليرة: سعر الصرف إجباري وكان لازم يكتبه بإيده.
+  // هلق أول ما يختار الليرة (والخانة فاضية) منعبّي سعر السوق تبع اليوم لحاله (نفس سعر الشريط فوق) - وبيقدر يعدّله.
+  function fxAutoFill(){
+    var cur = q('#fC') && q('#fC').value, inp = q('#fX');
+    if(!inp || !cur || cur === base() || String(inp.value).trim() !== '' || (cur !== 'SYP' && base() !== 'SYP')) return;
+    mzMarketUsdSyp().then(function(r){
+      if(!r || !(r.sell > 0) || String(inp.value).trim() !== '' || !q('#fC') || q('#fC').value !== cur) return;
+      inp.value = String(r.sell); fxHint();
+      var h_ = q('#fxHint'); if(h_) h_.innerHTML = '<span style="color:#1d6b3a;"><span>✓ سعر السوق اليوم</span>' + (r.at ? ' (' + esc(String(r.at).slice(0, 10)) + ')' : '') + ' - <span>عدّله إذا لازم</span>.</span> ' + h_.innerHTML;
+    });
+  }
+  var fC = q('#fC'); if(fC) fC.onchange = function(){ q('#fxWrap').classList.toggle('hide', fC.value === base()); q('#fxCur').textContent = fxLabel(fC.value); d.applies = []; drawApplies(); totals(); fxHint(); fxAutoFill(); };
+  fxAutoFill();
   // طرف جديد
   var pa = q('#fPadd'); if(pa) pa.onclick = function(){ editParty({ kind: def.party }, function(p){ var s = q('#fP'); s.innerHTML = partySelect(def.party, p.id); s.value = p.id; drawApplies(); }); };
   var fP = q('#fP'); if(fP) fP.onchange = function(){ d.applies = []; drawApplies(); };

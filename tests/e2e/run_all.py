@@ -2198,6 +2198,56 @@ async def t_acct_statement_wa(p, b, port):
         proc.kill()
 
 
+async def t_acct_syp_invoice(p, b, port):
+    """💱 فاتورة سوريا بالليرة: سعر الصرف بيتعبّى لحاله من سعر السوق، والفاتورة بتنحفظ (بالإنكليزي متل المحاسب)"""
+    print('• 💱 فاتورة سوريا بالليرة (سعر الصرف التلقائي)')
+    import subprocess
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_acct.js'), sdir], stdout=subprocess.PIPE, text=True)
+    aport = int(proc.stdout.readline().split()[1])
+    try:
+        for fx_ok in (False, True):
+            ctx = await b.new_context(viewport={"width": 1300, "height": 900})
+            await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','OWNERDEV'); localStorage.setItem('merzona-acct-book','syria'); localStorage.removeItem('mz-fx-usd-syp-v1'); }catch(e){}")
+            async def fwd(route, _req=None, fx_ok=fx_ok):
+                u = route.request.url
+                if '/access/status' in u: return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'status': 'approved', 'isOwner': True}))
+                if '/fx/usd-syp' in u:
+                    return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'buy': 11400, 'sell': 11500, 'at': '2026-11-17T08:00:00Z'})) if fx_ok else await route.fulfill(status=503, body='{}')
+                if '/acct/' in u:
+                    resp = await route.fetch(url=u.replace(SRV, f'http://127.0.0.1:{aport}'))
+                    return await route.fulfill(response=resp)
+                await route.fulfill(status=200, content_type='application/json', body='{}')
+            await ctx.route(SRV + '/**', fwd)
+            pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+            await pg.goto(f'http://127.0.0.1:{port}/accounting.html?lang=en'); await pg.wait_for_timeout(2500)
+            nm = 'زبون ليرة ' + ('1' if fx_ok else '2')
+            await pg.evaluate("(nm) => fetch('" + SRV + "/acct/syria/op', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-device': 'OWNERDEV' }, body: JSON.stringify({ op: 'saveParty', data: { name: nm, kind: 'customer' }, baseRev: __acctT.S().book.rev }) })", nm)
+            await pg.reload(); await pg.wait_for_timeout(2500)
+            await pg.click("button[data-tab='sales']"); await pg.wait_for_timeout(400)
+            await pg.click("button[data-new='invoice']"); await pg.wait_for_timeout(600)
+            await pg.evaluate("""() => { const sel = document.getElementById('fP'); sel.selectedIndex = sel.options.length - 1; sel.dispatchEvent(new Event('change', {bubbles:true}));
+              const tr = document.querySelector('.lines tbody tr'); const ins = tr.querySelectorAll('input'); ins[0].value = 'بند'; ins[0].dispatchEvent(new Event('input', {bubbles:true}));
+              tr.querySelectorAll('input.num').forEach(i => { i.value = '1000000'; i.dispatchEvent(new Event('input', {bubbles:true})); });
+              const fc = document.getElementById('fC'); fc.value = 'SYP'; fc.dispatchEvent(new Event('change', {bubbles:true})); }""")
+            await pg.wait_for_timeout(800)
+            fxv = await pg.evaluate("document.getElementById('fX').value")
+            if fx_ok:
+                hint = await pg.evaluate("document.getElementById('fxHint').innerText")
+                check(fxv == '11500' and "Today's market rate" in hint and 'edit it if needed' in hint, 'اختار الليرة ← سعر الصرف تعبّى لحاله 11500 (سعر السوق) ' + repr(fxv) + ' ' + hint[:70])
+                await pg.locator("button:has-text('Save')").last.click(); await pg.wait_for_timeout(1500)
+                docs = await pg.evaluate("Object.values(__acctT.S().book.docs).filter(d => d.type === 'invoice' && d.currency === 'SYP').map(d => [d.no, d.fx])")
+                check(len(docs) == 1 and docs[0][0].startswith('S-INV-'), 'فاتورة سوريا بالليرة انحفظت ' + str(docs))
+            else:
+                check(fxv == '', 'السيرفر ما عطى سعر ← الخانة بتضل فاضية (ما منحط رقم غلط) ' + repr(fxv))
+                await pg.fill('#fX', '12000'); await pg.wait_for_timeout(500)
+                check(await pg.evaluate("document.getElementById('fX').value") == '12000', 'والمحاسب بيكتب السعر بإيده عادي')
+            check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+            await ctx.close()
+    finally:
+        proc.kill()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -2205,7 +2255,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
