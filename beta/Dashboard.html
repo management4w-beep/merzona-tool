@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-16.3';
+  var CURRENT_VERSION = '2026-11-17.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -358,6 +358,7 @@
     apiUsers('/users/status?deviceToken=' + encodeURIComponent(deviceToken)).then(function(r){
       if(r && r.isOwnerDevice){
         // جهاز المالك المعتمد أصلاً (دخل قبل هيك عن طريق #owner=) - فوري وبدون أي حساب.
+        window.__mzOwnerDevice = true;
         if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(null, true);
         reveal();
       } else if(r && r.hasAccount){
@@ -512,6 +513,7 @@
         clearOwnerHash();
         if(r.status === 'approved'){
           try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          window.__mzOwnerDevice = true;
           if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(null, true);
           reveal();
         } else {
@@ -532,10 +534,15 @@
       // كمان بتسكر/تبدّل أي قسم مفتوح فقد صلاحيته - شوف تعليقها هناك).
       var lastAppliedPermsJSON = null;
       function revalidatePermissions(){
+        // 🛠️ 2026-11-17 (باغ حقيقي - حمدي ما عاد لقى "المستخدمين" و"المحاسبة" على جهازه): جهاز المالك اللي عليه
+        // كمان تسجيل دخول قديم بحساب موظف (توكن جلسة محفوظ) - هالفحص الدوري كان يطبّق صلاحيات حساب الموظف فوق
+        // صلاحيات المالك كل 5 دقايق/كل ما يرجع عالصفحة، فيختفوا التبويبات. جهاز المالك صلاحياته دايمًا كاملة.
+        if(window.__mzOwnerDevice) return;
         var token = getSessionToken();
         if(!token) return; // جهاز المالك (بدون حساب يوزرنيم/باسوورد) - صلاحياته دايمًا كاملة، ما في داعي نتحقق
         apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
           if(!me || !me.permissions) return; // جلسة غير صالحة - مسارات تانية بتتكفل فيها لو صارت
+          if(window.__mzOwnerDevice) return; // (الرد وصل بعد ما عرفنا إنو جهاز المالك)
           var json = JSON.stringify(me.permissions);
           if(json !== lastAppliedPermsJSON){
             lastAppliedPermsJSON = json;
