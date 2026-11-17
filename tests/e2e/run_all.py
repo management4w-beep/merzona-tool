@@ -2065,8 +2065,219 @@ async def t_proc_products(p, b, port):
     await pg.click("button[data-tab='settings']"); await pg.wait_for_timeout(500)
     st = await pg.evaluate("[document.querySelector(\"#productsMaterials .product-card[data-product='g:handrail'] input[data-mat='hinges']\").checked, document.querySelector(\"#productsMaterials .product-card[data-product='g:handrail'] input[data-mat='glass']\").checked]")
     check(st == [False, True], 'بعد إعادة فتح الصفحة الإعدادات باقية ' + str(st))
+    # 💲 تكلفة الزجاج (28$ للمتر المربع - بتتغيّر من الإعدادات)
+    await keys("T.setRules({}); return 1;")
+    c0 = await keys("const rows = T.boq(" + HR + "); const g = rows.find(r => r.key === 'glass'); return [g.qty, T.cost(g), T.rules().costs.glassPerM2, T.cost(rows.find(r => r.key === 'alu'))];")
+    check(c0 == [2, 56, 28, None], 'الزجاج: 2 م² × 28$ = 56$ (والألمنيوم لسا بلا سعر) ' + str(c0))
+    await keys("T.setRules({ wasteGlassPct: 10, costs: { glassPerM2: 30 } }); return 1;")
+    c1 = await keys("const g = T.boq(" + HR + ").find(r => r.key === 'glass'); return [g.qty, T.cost(g)];")
+    check(c1 == [2.2, 66], 'مع هدر 10% وسعر 30$: 2.2 م² × 30 = 66$ ' + str(c1))
+    bad = await keys("return [T.normalize({ costs: { glassPerM2: -5 } }).costs.glassPerM2, T.normalize({ costs: { glassPerM2: 'abc' } }).costs.glassPerM2, T.normalize({}).costs.glassPerM2];")
+    check(bad == [0, 28, 28], 'قيم غلط ما بتخرّب: سالب=0، نص=28، قديم بلا سعر=28 ' + str(bad))
+    await keys("T.setRules({}); T.addItem(" + HR + "); T.addItem(" + FD + "); return 1;")
+    await pg.click("button[data-tab='boq']"); await pg.wait_for_timeout(500)
+    tot = await pg.evaluate("(document.getElementById('boqCostTotal')||{}).textContent || ''")
+    if os.environ.get('MZ_SHOT2'): await pg.screenshot(path=os.environ['MZ_SHOT2'], full_page=True)
+    check('280 $' in tot and '10 م²' in tot, 'جدول المشتريات: مجموع التكلفة (شباك المثال 4 + هاندريل 2 + فولدينغ 4 = 10 م² × 28 = 280$) ' + tot[:90])
+    await pg.click("button[data-tab='settings']"); await pg.wait_for_timeout(400)
+    inp = pg.locator("label.rule-field:has-text('تكلفة متر مربع الزجاج') input")
+    check(await inp.input_value() == '28', 'خانة "تكلفة متر مربع الزجاج" بالإعدادات = 28')
+    await inp.fill('35'); await inp.dispatch_event('change'); await pg.wait_for_timeout(300)
+    saved = await pg.evaluate("JSON.parse(localStorage.getItem('merzona-proc-rules-v1')).rules.costs.glassPerM2")
+    await pg.click("button[data-tab='boq']"); await pg.wait_for_timeout(400)
+    tot = await pg.evaluate("document.getElementById('boqCostTotal').textContent")
+    check(saved == 35 and '350 $' in tot, 'غيّرت السعر لـ35$ ← انحفظ والتكلفة صارت 350$ ' + tot[:60])
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
+
+
+async def t_collections(p, b, port):
+    """💰 المرحلة ٣: تذكير الدفعات + كشف حساب العقد بالواتساب + سعر الصرف يوم الاستلام + كشف المحاسبة"""
+    print('• 💰 التحصيل: تذكير الدفعات وكشف الحساب')
+    import datetime as _dt
+    today = _dt.date.today().isoformat(); past = '2026-11-01'; future = '2027-03-01'
+    contracts = {
+        'M-Q-260601': {'client': 'زبون إمارات', 'total': 10000, 'payments': [
+            {'id': 'a', 'desc': 'الدفعة الأولى', 'pct': 30, 'status': 'received', 'receivedAt': '2026-10-20'},
+            {'id': 'b', 'desc': 'الدفعة التانية', 'pct': 40, 'status': 'due', 'dueDate': past},
+            {'id': 'c', 'desc': 'الدفعة الأخيرة', 'pct': 30, 'status': 'due', 'dueDate': future}]},
+        'S-Q-260602': {'client': 'زبون سوريا', 'total': 5000, 'payments': [
+            {'id': 'd', 'desc': 'دفعة مقدمة', 'pct': 50, 'status': 'due', 'dueDate': today},
+            {'id': 'e', 'desc': 'عند التسليم', 'pct': 50, 'status': 'notdue'}]}
+    }
+    ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+    await ctx.add_init_script("""if(!sessionStorage.getItem('c3')){ sessionStorage.setItem('c3','1'); localStorage.setItem('merzona-device-token','OWNERDEV');
+      localStorage.setItem('merzona_contracts', %s); localStorage.setItem('mz-fx-usd-syp-v1', JSON.stringify({ buy: 11400, sell: 11500, at: '2026-11-16' })); }""" % json.dumps(json.dumps(contracts, ensure_ascii=False)))
+    async def srv(route):
+        u = route.request.url
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else ({'isOwnerDevice': True} if '/users/status' in u else {})
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', srv)
+    await ctx.route('https://merzona-server-production.up.railway.app/**', srv)
+    await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    dialogs = []; pg.on('dialog', lambda d: (dialogs.append(d.message), asyncio.ensure_future(d.accept())))
+    await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3500)
+    await pg.evaluate("""() => { DATA.push({ ref: 'M-Q-260601', client: 'زبون إمارات', phone: '0501234567', total: 10000, date: '2026-10-01', year: '2026', url: '' });
+      DATA.push({ ref: 'S-Q-260602', client: 'زبون سوريا', phone: '0944123456', total: 5000, date: '2026-10-05', year: '2026', url: '' });
+      window.__opened = []; window.open = function(u){ window.__opened.push(u || ''); return { document: { open(){}, write(h){ window.__printed = h; }, close(){} } }; };
+      payRange = 'all'; renderExpectedPayments(); }""")
+    tot = await pg.evaluate("document.getElementById('expectedPaymentsTotal').textContent")
+    check('7,000' in tot and 'د.إ' in tot and '2,500' in tot and 'USD' in tot, 'الدفعات المتوقعة: كل عملة لحالها (7,000 د.إ · 2,500 USD) بدل ما ينجمعوا ' + tot)
+    late = await pg.evaluate("Array.from(document.querySelectorAll('#expectedPaymentsBody tr')).map(tr => tr.textContent.indexOf('⚠️') >= 0)")
+    check(late.count(True) == 1, 'الدفعة المتأخرة معلّمة ⚠️ ' + str(late))
+    await pg.evaluate("Array.from(document.querySelectorAll('#expectedPaymentsBody tr')).find(tr => tr.textContent.indexOf('الدفعة التانية') >= 0).querySelector('[data-remind-i]').click()")
+    u = await pg.evaluate("window.__opened[window.__opened.length - 1]")
+    import urllib.parse as _up
+    txt = _up.unquote(u.split('?text=')[-1]) if '?text=' in u else ''
+    check(u.startswith('https://wa.me/971501234567?text=') and 'الدفعة التانية' in txt and '4,000' in txt and 'كانت مستحقة' in txt and 'المتبقي من العقد: 7,000' in txt, 'زر "💬 ذكّر": محادثة الزبون ورسالة فيها الدفعة والمبلغ والتاريخ والمتبقي ' + txt[:120].replace('\\n', ' | '))
+    await pg.evaluate("Array.from(document.querySelectorAll('#expectedPaymentsBody tr')).find(tr => tr.textContent.indexOf('دفعة مقدمة') >= 0).querySelector('[data-remind-i]').click()")
+    u2 = await pg.evaluate("window.__opened[window.__opened.length - 1]")
+    t2 = _up.unquote(u2.split('?text=')[-1])
+    check(u2.startswith('https://wa.me/963944123456?text=') and '2,500 USD' in t2 and 'المستحقة بتاريخ' in t2, 'تذكير زبون سوريا: رقم سوري وبالدولار ' + u2[:40])
+    # كشف الحساب
+    st = await pg.evaluate("mzStatementText('M-Q-260601')")
+    check('قيمة العقد: 10,000 د.إ' in st and 'المستلم: 3,000' in st and 'المتبقي: 7,000' in st and '✅ الدفعة الأولى' in st and '⚠️ الدفعة التانية' in st and '⏳ الدفعة الأخيرة' in st, 'نص كشف الحساب صح (مستلم/متأخر/مستحق)')
+    await pg.evaluate("showContractsView()"); await pg.wait_for_timeout(800)
+    await pg.click("#contractsListBody [data-stmt-ref='M-Q-260601']"); await pg.wait_for_timeout(400)
+    mt = await pg.evaluate("(document.getElementById('mzStmtModal')||{}).innerText || ''")
+    check('كشف حساب - M-Q-260601' in mt and '10,000' in mt and 'مستلمة' in mt, 'زر "📄 كشف" بالعقود بيفتح كشف الحساب')
+    await pg.click("#mzStmtModal button:has-text('ابعت للزبون')"); await pg.wait_for_timeout(200)
+    u3 = await pg.evaluate("window.__opened[window.__opened.length - 1]")
+    check(u3.startswith('https://wa.me/971501234567?text=') and 'كشف حساب' in _up.unquote(u3), 'الكشف بينبعت للزبون بالواتساب')
+    await pg.click("#mzStmtModal button:has-text('طباعة')"); await pg.wait_for_timeout(200)
+    ph = await pg.evaluate("window.__printed || ''")
+    check('كشف حساب' in ph and 'M-Q-260601' in ph and 'window.print' in ph, 'نسخة طباعة/PDF للكشف')
+    # سعر الصرف يوم الاستلام (عقد بالدولار)
+    r = await pg.evaluate("""() => { currentContractRef = 'S-Q-260602'; tempPayments = JSON.parse(JSON.stringify(loadContracts()['S-Q-260602'].payments)); renderPaymentRows();
+      document.querySelector('#paymentRowsBody [data-toggle="1"]').click(); const p = tempPayments[1]; const a = [p.status, p.receivedAt, p.fxSyp];
+      document.querySelector('#paymentRowsBody [data-toggle="1"]').click(); const q = tempPayments[1]; return a.concat([q.status, q.receivedAt || null, q.fxSyp || null]); }""")
+    check(r[:3] == ['received', today, 11500], 'علّمت دفعة دولار "مستلمة": انحفظ تاريخ اليوم وسعر الصرف 11,500 ' + str(r))
+    check(r[3:] == ['due', None, None], 'ورجّعتها "مستحقة": انشال التاريخ والسعر')
+    r2 = await pg.evaluate("""() => { currentContractRef = 'M-Q-260601'; tempPayments = [{ id: 'z', desc: 'x', pct: 10, status: 'notdue' }]; renderPaymentRows();
+      document.querySelector('#paymentRowsBody [data-toggle="0"]').click(); return [tempPayments[0].status, !!tempPayments[0].receivedAt, tempPayments[0].fxSyp || null]; }""")
+    check(r2 == ['received', True, None], 'عقد بالدرهم: تاريخ الاستلام بس، بلا سعر صرف ' + str(r2))
+    check(not errs and not dialogs, 'بلا أخطاء ولا رسائل ' + str((errs[:2], dialogs[:1])))
+    await ctx.close()
+
+
+async def t_acct_statement_wa(p, b, port):
+    """💬 كشف حساب المحاسبة بالواتساب للزبون"""
+    print('• كشف حساب المحاسبة بالواتساب')
+    import subprocess, urllib.parse as _up
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_acct.js'), sdir], stdout=subprocess.PIPE, text=True)
+    aport = int(proc.stdout.readline().split()[1])
+    try:
+        ctx = await b.new_context(viewport={"width": 1300, "height": 900})
+        await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','OWNERDEV'); localStorage.setItem('merzona-acct-book','syria'); }catch(e){}")
+        async def fwd(route):
+            u = route.request.url
+            if '/access/status' in u: return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'status': 'approved', 'isOwner': True}))
+            if '/acct/' in u:
+                resp = await route.fetch(url=u.replace(SRV, f'http://127.0.0.1:{aport}'))
+                return await route.fulfill(response=resp)
+            await route.fulfill(status=200, content_type='application/json', body='{}')
+        await ctx.route(SRV + '/**', fwd)
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+        dialogs = []; pg.on('dialog', lambda d: (dialogs.append(d.message), asyncio.ensure_future(d.accept())))
+        await pg.goto(f'http://127.0.0.1:{port}/accounting.html'); await pg.wait_for_timeout(2500)
+        await pg.evaluate("""() => { const B = __acctT.S().book; B.parties.pz1 = { id: 'pz1', name: 'أبو سامر', kind: 'customer', phone: '0944555666' }; B.parties.pz2 = { id: 'pz2', name: 'بلا رقم', kind: 'customer' };
+          window.__opened = []; window.open = function(u){ window.__opened.push(u); return null; }; __acctT.statement('pz1'); }""")
+        await pg.wait_for_timeout(300)
+        await pg.click("button:has-text('💬 واتساب')"); await pg.wait_for_timeout(200)
+        u = await pg.evaluate("window.__opened[0] || ''")
+        t = _up.unquote(u.split('?text=')[-1]) if '?text=' in u else ''
+        check(u.startswith('https://wa.me/963944555666?text=') and 'كشف حساب' in t and 'أبو سامر' in t, 'زر "💬 واتساب" بكشف الحساب بيفتح محادثة الزبون والكشف جاهز ' + u[:40])
+        await pg.evaluate("document.querySelectorAll('.modal, .mdl, [class*=modal]').forEach(function(m){ m.remove(); }); __acctT.statement('pz2')"); await pg.wait_for_timeout(300)
+        await pg.click("button:has-text('ما في رقم')"); await pg.wait_for_timeout(300)
+        check(any('ما في رقم' in m for m in dialogs) and len(await pg.evaluate("window.__opened")) == 1, 'طرف بلا رقم: رسالة واضحة وما بيفتح شي')
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
+    finally:
+        proc.kill()
+
+
+async def t_acct_syp_invoice(p, b, port):
+    """💱 فاتورة سوريا بالليرة: سعر الصرف بيتعبّى لحاله من سعر السوق، والفاتورة بتنحفظ (بالإنكليزي متل المحاسب)"""
+    print('• 💱 فاتورة سوريا بالليرة (سعر الصرف التلقائي)')
+    import subprocess
+    sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e', 'fake_acct.js'), sdir], stdout=subprocess.PIPE, text=True)
+    aport = int(proc.stdout.readline().split()[1])
+    try:
+        for fx_ok in (False, True):
+            ctx = await b.new_context(viewport={"width": 1300, "height": 900})
+            await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','OWNERDEV'); localStorage.setItem('merzona-acct-book','syria'); localStorage.removeItem('mz-fx-usd-syp-v1'); }catch(e){}")
+            async def fwd(route, _req=None, fx_ok=fx_ok):
+                u = route.request.url
+                if '/access/status' in u: return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'status': 'approved', 'isOwner': True}))
+                if '/fx/usd-syp' in u:
+                    return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'buy': 11400, 'sell': 11500, 'at': '2026-11-17T08:00:00Z'})) if fx_ok else await route.fulfill(status=503, body='{}')
+                if '/acct/' in u:
+                    resp = await route.fetch(url=u.replace(SRV, f'http://127.0.0.1:{aport}'))
+                    return await route.fulfill(response=resp)
+                await route.fulfill(status=200, content_type='application/json', body='{}')
+            await ctx.route(SRV + '/**', fwd)
+            pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+            await pg.goto(f'http://127.0.0.1:{port}/accounting.html?lang=en'); await pg.wait_for_timeout(2500)
+            nm = 'زبون ليرة ' + ('1' if fx_ok else '2')
+            await pg.evaluate("(nm) => fetch('" + SRV + "/acct/syria/op', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-device': 'OWNERDEV' }, body: JSON.stringify({ op: 'saveParty', data: { name: nm, kind: 'customer' }, baseRev: __acctT.S().book.rev }) })", nm)
+            await pg.reload(); await pg.wait_for_timeout(2500)
+            await pg.click("button[data-tab='sales']"); await pg.wait_for_timeout(400)
+            await pg.click("button[data-new='invoice']"); await pg.wait_for_timeout(600)
+            await pg.evaluate("""() => { const sel = document.getElementById('fP'); sel.selectedIndex = sel.options.length - 1; sel.dispatchEvent(new Event('change', {bubbles:true}));
+              const tr = document.querySelector('.lines tbody tr'); const ins = tr.querySelectorAll('input'); ins[0].value = 'بند'; ins[0].dispatchEvent(new Event('input', {bubbles:true}));
+              tr.querySelectorAll('input.num').forEach(i => { i.value = '1000000'; i.dispatchEvent(new Event('input', {bubbles:true})); });
+              const fc = document.getElementById('fC'); fc.value = 'SYP'; fc.dispatchEvent(new Event('change', {bubbles:true})); }""")
+            await pg.wait_for_timeout(800)
+            fxv = await pg.evaluate("document.getElementById('fX').value")
+            if fx_ok:
+                hint = await pg.evaluate("document.getElementById('fxHint').innerText")
+                check(fxv == '11500' and "Today's market rate" in hint and 'edit it if needed' in hint, 'اختار الليرة ← سعر الصرف تعبّى لحاله 11500 (سعر السوق) ' + repr(fxv) + ' ' + hint[:70])
+                await pg.locator("button:has-text('Save')").last.click(); await pg.wait_for_timeout(1500)
+                docs = await pg.evaluate("Object.values(__acctT.S().book.docs).filter(d => d.type === 'invoice' && d.currency === 'SYP').map(d => [d.no, d.fx])")
+                check(len(docs) == 1 and docs[0][0].startswith('S-INV-'), 'فاتورة سوريا بالليرة انحفظت ' + str(docs))
+            else:
+                check(fxv == '', 'السيرفر ما عطى سعر ← الخانة بتضل فاضية (ما منحط رقم غلط) ' + repr(fxv))
+                await pg.fill('#fX', '12000'); await pg.wait_for_timeout(500)
+                check(await pg.evaluate("document.getElementById('fX').value") == '12000', 'والمحاسب بيكتب السعر بإيده عادي')
+            check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+            await ctx.close()
+    finally:
+        proc.kill()
+
+
+async def t_owner_stale_session(p, b, port):
+    """👑 جهاز المالك عليه تسجيل دخول قديم بحساب موظف: لازم يضل يشوف "المستخدمين" و"المحاسبة" (ما ينسحبوا بالفحص الدوري)"""
+    print('• 👑 جهاز المالك + جلسة موظف قديمة')
+    for owner in (True, False):
+        ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+        await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','DEVX'); localStorage.setItem('merzona-access-status','approved'); localStorage.setItem('merzona-session-token','OLDSESSION'); }catch(e){}")
+        staff = {'dashboard': True, 'quotation': True, 'contracts': True, 'payroll': True, 'accounting': False, 'manageUsers': False}
+        async def srv(route, _r=None, owner=owner):
+            u = route.request.url
+            if '/users/status' in u: body = {'isOwnerDevice': True, 'hasAccount': True} if owner else {'hasAccount': True, 'username': 'sami'}
+            elif '/users/me' in u: body = {'username': 'sami', 'permissions': staff, 'lang': 'ar'}
+            elif '/access/status' in u: body = {'status': 'approved', 'isOwner': owner}
+            else: body = {}
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+        await ctx.route(SRV + '/**', srv)
+        await ctx.route('https://merzona-server-production.up.railway.app/**', srv)
+        await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3500)
+        vis = lambda: pg.evaluate("['usersTabBtn','accountingTabBtn','payrollTabBtn'].map(id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; })")
+        v0 = await vis()
+        await pg.evaluate("window.__mzRevalidatePermissionsNow && window.__mzRevalidatePermissionsNow()"); await pg.wait_for_timeout(800)
+        await pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))"); await pg.wait_for_timeout(800)
+        v1 = await vis()
+        if owner:
+            check(v0 == [True, True, True] and v1 == [True, True, True], 'جهاز المالك: "المستخدمين" و"المحاسبة" بيضلوا ظاهرين بعد الفحص الدوري ' + str((v0, v1)))
+        else:
+            check(v1 == [False, False, True], 'جهاز موظف: الفحص الدوري لسا بيطبّق صلاحياته متل قبل ' + str((v0, v1)))
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
 
 
 async def main():
@@ -2076,7 +2287,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()

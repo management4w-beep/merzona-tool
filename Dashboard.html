@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-16.2';
+  var CURRENT_VERSION = '2026-11-17.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -358,6 +358,7 @@
     apiUsers('/users/status?deviceToken=' + encodeURIComponent(deviceToken)).then(function(r){
       if(r && r.isOwnerDevice){
         // جهاز المالك المعتمد أصلاً (دخل قبل هيك عن طريق #owner=) - فوري وبدون أي حساب.
+        window.__mzOwnerDevice = true;
         if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(null, true);
         reveal();
       } else if(r && r.hasAccount){
@@ -512,6 +513,7 @@
         clearOwnerHash();
         if(r.status === 'approved'){
           try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          window.__mzOwnerDevice = true;
           if(window.applyMerzonaPermissions) window.applyMerzonaPermissions(null, true);
           reveal();
         } else {
@@ -532,10 +534,15 @@
       // كمان بتسكر/تبدّل أي قسم مفتوح فقد صلاحيته - شوف تعليقها هناك).
       var lastAppliedPermsJSON = null;
       function revalidatePermissions(){
+        // 🛠️ 2026-11-17 (باغ حقيقي - حمدي ما عاد لقى "المستخدمين" و"المحاسبة" على جهازه): جهاز المالك اللي عليه
+        // كمان تسجيل دخول قديم بحساب موظف (توكن جلسة محفوظ) - هالفحص الدوري كان يطبّق صلاحيات حساب الموظف فوق
+        // صلاحيات المالك كل 5 دقايق/كل ما يرجع عالصفحة، فيختفوا التبويبات. جهاز المالك صلاحياته دايمًا كاملة.
+        if(window.__mzOwnerDevice) return;
         var token = getSessionToken();
         if(!token) return; // جهاز المالك (بدون حساب يوزرنيم/باسوورد) - صلاحياته دايمًا كاملة، ما في داعي نتحقق
         apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
           if(!me || !me.permissions) return; // جلسة غير صالحة - مسارات تانية بتتكفل فيها لو صارت
+          if(window.__mzOwnerDevice) return; // (الرد وصل بعد ما عرفنا إنو جهاز المالك)
           var json = JSON.stringify(me.permissions);
           if(json !== lastAppliedPermsJSON){
             lastAppliedPermsJSON = json;
@@ -8266,6 +8273,12 @@ function renderPaymentRows(){
       const next = cur==='due' ? 'notdue' : (cur==='notdue' ? 'received' : 'due');
       tempPayments[i].status = next;
       delete tempPayments[i].received;
+      // 💰 2026-11-16: تاريخ الاستلام + سعر صرف الدولار بالليرة ذاك اليوم (لعقود الدولار)
+      if(next === 'received'){
+        tempPayments[i].receivedAt = todayISO();
+        const fx = (ctCurrencyOf(currentContractRef) === 'usd') ? mzFxToday() : null;
+        if(fx) tempPayments[i].fxSyp = fx.sell; else delete tempPayments[i].fxSyp;
+      } else { delete tempPayments[i].receivedAt; delete tempPayments[i].fxSyp; }
       touchPayRow(tempPayments[i]);
       renderPaymentRows();
     });
@@ -8448,7 +8461,7 @@ function renderContractsList(){
       '<td>'+bar+'</td>'+
       '<td>'+nextCell+'</td>'+
       '<td class="num">'+daysCell+'</td>'+
-      '<td style="white-space:nowrap;"><button type="button" class="export-btn" data-settlement-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة إنجاز وتسليم جاهزة للتعبئة والطباعة">🧾 إنشاء مخالصة للمشروع</button>'+
+      '<td style="white-space:nowrap;"><button type="button" class="export-btn" data-stmt-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="كشف حساب للزبون (طباعة/PDF أو واتساب)">📄 كشف</button><button type="button" class="export-btn" data-settlement-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة إنجاز وتسليم جاهزة للتعبئة والطباعة">🧾 إنشاء مخالصة للمشروع</button>'+
       // شهادة SEWA (هيئة كهرباء ومياه الشارقة) بس لفرع الإمارات - ما إلها معنى لعقود سوريا
       (r.branch === 'syria' ? '' : '<button type="button" class="export-btn" data-sewa-ref="'+escapeHtml(ref)+'" style="font-size:11px;padding:5px 9px;margin-inline-end:6px;" title="افتح شهادة SEWA (هيئة كهرباء ومياه الشارقة) جاهزة للتعبئة والطباعة">⚡ شهادة SEWA</button>')+
       '<span data-del-contract="'+escapeHtml(ref)+'" title="حذف هالعقد نهائيًا" style="cursor:pointer;color:var(--danger);font-size:15px;">🗑</span></td>'+
@@ -8924,6 +8937,105 @@ async function saveSewaToDrive(){
   } finally { btn.disabled = false; btn.textContent = originalLabel; }
 }
 
+/* 💰 2026-11-16 - المرحلة ٣ (المحاسبة والتحصيل) - طلب حمدي: تذكير الدفعات + كشف حساب للزبون بالواتساب + سعر الصرف يوم الدفعة.
+   - "💬 ذكّر" جنب كل دفعة مستحقة: بيفتح محادثة الزبون بالواتساب ورسالة تذكير لطيفة جاهزة (إنت بتكبس إرسال).
+   - "📄 كشف" لكل عقد: كشف حساب (قيمة العقد، الدفعات، المستلم، المتبقي) - طباعة/PDF أو واتساب للزبون.
+   - لما تعلّم دفعة "مستلمة": بينحفظ تاريخ الاستلام، وإذا العقد بالدولار بينحفظ سعر صرف الدولار بالليرة ذاك اليوم. */
+function mzCoName(){ try{ const c = MzCompany.get(); return c.nameAr || c.nameEn || 'ميرزونا'; }catch(e){ return 'ميرزونا'; } }
+function mzRefPhone(ref){
+  const c = loadContracts()[ref] || {};
+  const d = DATA.find(x => stripRefSpaces(x.ref) === stripRefSpaces(ref));
+  const ph = String(c.phone || (d && d.phone) || '').trim();
+  return ph === '—' ? '' : ph;
+}
+function mzFxToday(){ try{ const j = JSON.parse(localStorage.getItem('mz-fx-usd-syp-v1') || 'null'); const r = j && (j.rate || j); return (r && Number(r.sell) > 0) ? { sell: Number(r.sell), at: r.at || '' } : null; }catch(e){ return null; } }
+function mzStatement(ref){
+  const c = loadContracts()[ref] || {};
+  const sum = ctSummarize(ref, c), cur = currencyLabel(sum.cur);
+  const tables = getPaymentTables(c), rows = [];
+  tables.forEach(t => (t.payments || []).forEach(p => {
+    rows.push({ table: tables.length > 1 ? (t.name || '') : '', desc: p.desc || 'دفعة', pct: Number(p.pct) || 0, amt: Math.round((Number(t.total) || 0) * (Number(p.pct) || 0) / 100),
+      status: getPayStatus(p), due: p.dueDate || '', receivedAt: p.receivedAt || '', fxSyp: p.fxSyp || null });
+  }));
+  return { ref, sum, cur, rows, client: sum.client || '' };
+}
+function mzStatementText(ref){
+  const s = mzStatement(ref), t = todayISO();
+  const L = ['📄 *كشف حساب - ' + mzCoName() + '*', 'العقد: ' + ref, 'الزبون: ' + s.client, '',
+    'قيمة العقد: ' + fmt(s.sum.total) + ' ' + s.cur, 'المستلم: ' + fmt(s.sum.received) + ' ' + s.cur, '*المتبقي: ' + fmt(s.sum.remaining) + ' ' + s.cur + '*', '', 'الدفعات:'];
+  s.rows.forEach(r => {
+    const head = (r.table ? r.table + ' - ' : '') + r.desc + ' (' + r.pct + '%): ' + fmt(r.amt) + ' ' + s.cur;
+    if(r.status === 'received') L.push('✅ ' + head + (r.receivedAt ? ' - مستلمة ' + fmtDueDate(r.receivedAt) : ' - مستلمة'));
+    else if(r.status === 'due') L.push((r.due && r.due < t ? '⚠️ ' : '⏳ ') + head + (r.due ? (r.due < t ? ' - كانت مستحقة ' : ' - مستحقة ') + fmtDueDate(r.due) : ' - مستحقة'));
+    else L.push('▫️ ' + head + ' - لاحقاً');
+  });
+  L.push('', 'شكراً لثقتكم 🌹 - ' + mzCoName());
+  return L.join('\n');
+}
+function mzWaUrl(phone, text){ const w = toWaLink(phone); return w ? w + '?text=' + encodeURIComponent(text) : ''; }
+function mzRemindText(p){
+  const cur = currencyLabel(ctCurrencyOf(p.ref)), late = p.dueDate && p.dueDate < todayISO();
+  const sum = ctSummarize(p.ref, loadContracts()[p.ref] || {});
+  return 'مرحباً ' + (p.client || '') + ' 🌹\n' +
+    'تذكير لطيف بخصوص ' + (p.desc || 'الدفعة') + ' من عقد ' + p.ref + ' بقيمة ' + fmt(p.aed) + ' ' + cur +
+    (p.dueDate ? (late ? '، يلي كانت مستحقة بتاريخ ' : '، المستحقة بتاريخ ') + fmtDueDate(p.dueDate) : '') + '.\n' +
+    'المتبقي من العقد: ' + fmt(sum.remaining) + ' ' + cur + '.\n' +
+    'إذا كنتوا دافعين، تجاهلوا هالرسالة ومنعتذر 🙏\nشكراً لكم - ' + mzCoName();
+}
+function mzOpenRemind(p){
+  const ph = mzRefPhone(p.ref);
+  const url = mzWaUrl(ph, mzRemindText(p));
+  if(!url){ alert('ما في رقم موبايل للزبون بهالعقد (' + p.ref + ').\nضيف الرقم بعرض السعر، أو انسخ الرسالة وابعتها يدوياً:\n\n' + mzRemindText(p)); return; }
+  window.open(url, '_blank', 'noopener');
+}
+function mzStatementModal(ref){
+  const s = mzStatement(ref), t = todayISO();
+  const old = document.getElementById('mzStmtModal'); if(old) old.remove();
+  const wrap = document.createElement('div'); wrap.id = 'mzStmtModal';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px;direction:rtl;';
+  const rowsHtml = s.rows.map(r => {
+    const st = r.status === 'received' ? '<span style="color:var(--ok);">✓ مستلمة' + (r.receivedAt ? ' ' + fmtDueDate(r.receivedAt) : '') + '</span>' + (r.fxSyp ? '<div style="font-size:10.5px;color:var(--muted);">سعر الصرف: ' + fmt(r.fxSyp) + ' ل.س</div>' : '')
+      : r.status === 'due' ? '<span style="color:' + (r.due && r.due < t ? 'var(--danger)' : '#7a5200') + ';">' + (r.due && r.due < t ? '⚠️ متأخرة' : '⏳ مستحقة') + (r.due ? ' ' + fmtDueDate(r.due) : '') + '</span>'
+      : '<span style="color:var(--muted);">لاحقاً</span>';
+    return '<tr><td>' + escapeHtml((r.table ? r.table + ' - ' : '') + r.desc) + '</td><td class="num">' + r.pct + '%</td><td class="num">' + fmt(r.amt) + '</td><td>' + st + '</td></tr>';
+  }).join('');
+  const body = '<div style="font-weight:800;font-size:17px;margin-bottom:4px;">📄 كشف حساب - ' + escapeHtml(ref) + '</div>' +
+    '<div style="color:var(--muted);font-size:13px;margin-bottom:10px;">' + escapeHtml(s.client) + '</div>' +
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13.5px;margin-bottom:10px;"><span>قيمة العقد: <b>' + fmt(s.sum.total) + ' ' + s.cur + '</b></span><span style="color:var(--ok);">المستلم: <b>' + fmt(s.sum.received) + '</b></span><span>المتبقي: <b>' + fmt(s.sum.remaining) + ' ' + s.cur + '</b></span></div>' +
+    '<div class="table-wrap" style="max-height:45vh;overflow:auto;"><table><thead><tr><th>الدفعة</th><th>النسبة</th><th>المبلغ (' + s.cur + ')</th><th>الحالة</th></tr></thead><tbody>' + (rowsHtml || '<tr><td colspan="4" style="text-align:center;color:var(--muted);">ما في دفعات مسجّلة</td></tr>') + '</tbody></table></div>';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:14px;max-width:620px;width:100%;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.25);';
+  box.innerHTML = body;
+  const bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;';
+  const b = (label, bg, fn) => { const x = document.createElement('button'); x.type = 'button'; x.textContent = label; x.className = 'export-btn'; if(bg) x.style.background = bg; if(bg) x.style.color = '#fff'; x.onclick = fn; bar.appendChild(x); return x; };
+  const ph = mzRefPhone(ref);
+  b('💬 ابعت للزبون عالواتساب' + (ph ? '' : ' (ما في رقم)'), '#1f9d55', () => { const u = mzWaUrl(ph, mzStatementText(ref)); if(!u){ alert('ما في رقم موبايل للزبون بهالعقد - انسخ الكشف وابعته يدوياً.'); return; } window.open(u, '_blank', 'noopener'); });
+  b('🖨 طباعة / PDF', '', () => mzStatementPrint(ref));
+  b('📋 انسخ', '', async () => { try{ await navigator.clipboard.writeText(mzStatementText(ref)); alert('✅ انتسخ الكشف'); }catch(e){ prompt('انسخ من هون:', mzStatementText(ref)); } });
+  b('إغلاق', '', () => wrap.remove());
+  box.appendChild(bar); wrap.appendChild(box);
+  wrap.addEventListener('click', (e) => { if(e.target === wrap) wrap.remove(); });
+  document.body.appendChild(wrap);
+}
+function mzStatementPrint(ref){
+  const s = mzStatement(ref), t = todayISO();
+  const rows = s.rows.map(r => '<tr><td>' + escapeHtml((r.table ? r.table + ' - ' : '') + r.desc) + '</td><td>' + r.pct + '%</td><td>' + fmt(r.amt) + '</td><td>' +
+    (r.status === 'received' ? 'مستلمة' + (r.receivedAt ? ' ' + fmtDueDate(r.receivedAt) : '') + (r.fxSyp ? ' (سعر الصرف ' + fmt(r.fxSyp) + ' ل.س)' : '') : r.status === 'due' ? ((r.due && r.due < t) ? 'متأخرة - ' : 'مستحقة ') + (r.due ? fmtDueDate(r.due) : '') : 'لاحقاً') + '</td></tr>').join('');
+  const html = '<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>Statement - ' + escapeHtml(ref) + '</title><style>body{font-family:Tajawal,Tahoma,sans-serif;margin:28px;color:#1b2b34}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}th,td{border:1px solid #d9dcdd;padding:7px 8px;text-align:right}th{background:#f3f5f7}.k{display:flex;gap:24px;margin-top:12px;font-size:14px}.m{color:#666;font-size:12.5px}</style></head><body>' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><h1>كشف حساب</h1><div class="m">' + escapeHtml(mzCoName()) + '</div></div><div class="m">التاريخ: ' + fmtDueDate(t) + '</div></div>' +
+    '<div class="k"><div>العقد: <b>' + escapeHtml(ref) + '</b></div><div>الزبون: <b>' + escapeHtml(s.client) + '</b></div></div>' +
+    '<div class="k"><div>قيمة العقد: <b>' + fmt(s.sum.total) + ' ' + s.cur + '</b></div><div>المستلم: <b>' + fmt(s.sum.received) + ' ' + s.cur + '</b></div><div>المتبقي: <b>' + fmt(s.sum.remaining) + ' ' + s.cur + '</b></div></div>' +
+    '<table><thead><tr><th>الدفعة</th><th>النسبة</th><th>المبلغ (' + s.cur + ')</th><th>الحالة</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<p class="m" style="margin-top:22px;">شكراً لثقتكم - ' + escapeHtml(mzCoName()) + '</p><script>setTimeout(function(){ window.print(); }, 300);<\/script></body></html>';
+  const w = window.open('', '_blank');
+  if(!w){ alert('المتصفح منع فتح نافذة الطباعة - اسمحله بالنوافذ المنبثقة.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+document.addEventListener('click', function(e){
+  const s = e.target.closest && e.target.closest('[data-stmt-ref]'); if(s){ e.preventDefault(); e.stopPropagation(); mzStatementModal(s.dataset.stmtRef); return; }
+  const r = e.target.closest && e.target.closest('[data-remind-i]'); if(r){ e.preventDefault(); e.stopPropagation(); const p = (window.__mzExpectedRows || [])[+r.dataset.remindI]; if(p) mzOpenRemind(p); }
+}, true);
+
 /* ---------- Expected payments panel (main dashboard) ---------- */
 let payRange = 'all';
 let payPickedDay = null;
@@ -8968,20 +9080,28 @@ function filterPaymentsByRange(list){
 function renderExpectedPayments(){
   const all = getAllPendingPayments();
   const filtered = filterPaymentsByRange(all).sort((a,b)=> (a.dueDate||'').localeCompare(b.dueDate||''));
-  const sum = filtered.reduce((s,p)=>s+p.aed,0);
-  document.getElementById('expectedPaymentsTotal').innerHTML = fmt(sum) + ' <small style="font-size:14px;color:var(--muted);font-family:\'Inter\',sans-serif;">د.إ</small>';
+  // 🛠️ 2026-11-16: المجموع كان يجمع الدرهم مع الدولار ويكتب "د.إ" - هلق كل عملة لحالها
+  const byCur = {};
+  filtered.forEach(p => { const c = ctCurrencyOf(p.ref); byCur[c] = (byCur[c] || 0) + p.aed; });
+  const curKeys = Object.keys(byCur);
+  document.getElementById('expectedPaymentsTotal').innerHTML = (curKeys.length ? curKeys : ['aed']).map(c => fmt(byCur[c] || 0) + ' <small style="font-size:14px;color:var(--muted);font-family:\'Inter\',sans-serif;">' + currencyLabel(c) + '</small>').join(' <span style="color:var(--muted);">·</span> ');
+  window.__mzExpectedRows = filtered;
+  const today = todayISO();
   const tbody = document.getElementById('expectedPaymentsBody');
   if(filtered.length===0){
     tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">مافي دفعات مستحقة بهالفترة</td></tr>';
     return;
   }
-  tbody.innerHTML = filtered.map(p=>
-    '<tr><td><span class="ref-badge">'+escapeHtml(p.ref)+'</span></td>'+
+  tbody.innerHTML = filtered.map((p, i)=>{
+    const late = p.dueDate && p.dueDate < today;
+    return '<tr' + (late ? ' style="background:rgba(192,57,43,.05);"' : '') + '><td><span class="ref-badge">'+escapeHtml(p.ref)+'</span></td>'+
     '<td>'+escapeHtml(p.client)+'</td>'+
     '<td>'+escapeHtml(p.desc)+'</td>'+
-    '<td style="font-size:12px;color:var(--muted);">'+fmtDueDate(p.dueDate)+'</td>'+
-    '<td class="num">'+fmt(p.aed)+'</td></tr>'
-  ).join('');
+    '<td style="font-size:12px;' + (late ? 'color:var(--danger);font-weight:700;' : 'color:var(--muted);') + '">'+(late ? '⚠️ ' : '')+fmtDueDate(p.dueDate)+'</td>'+
+    '<td class="num">'+fmt(p.aed)+' <small style="color:var(--muted);font-size:10.5px;">'+currencyLabel(ctCurrencyOf(p.ref))+'</small> '+
+    '<button type="button" class="export-btn" data-remind-i="'+i+'" title="ابعت للزبون تذكير لطيف بالواتساب بهالدفعة" style="font-size:11px;padding:3px 8px;margin-inline-start:6px;background:#1f9d55;color:#fff;">💬 ذكّر</button>'+
+    ' <button type="button" class="export-btn" data-stmt-ref="'+escapeHtml(p.ref)+'" title="كشف حساب العقد" style="font-size:11px;padding:3px 8px;">📄</button></td></tr>';
+  }).join('');
 }
 
 document.querySelectorAll('.year-chip[data-payrange]').forEach(chip=>{

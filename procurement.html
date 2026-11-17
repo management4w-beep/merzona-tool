@@ -157,7 +157,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-16.1';
+  var CURRENT_VERSION = '2026-11-16.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'procurement';
   var VERSION_URL = 'version.json';
@@ -664,6 +664,8 @@
   .extra-row input[type=number]{width:90px;}
   .extra-row select{font-family:inherit;font-size:13px;padding:5px 6px;border:1px solid #9aa5b5;border-radius:6px;}
   .extra-row .chk{font-size:12.5px;font-weight:600;gap:3px;}
+  .cost-total{margin:10px 0 18px;padding:10px 12px;border-radius:8px;background:#eef7f1;border:1px solid #b9dfc7;font-size:14px;}
+  .cost-cell{white-space:nowrap;font-variant-numeric:tabular-nums;}
   .product-card{border:1px solid var(--border);border-radius:8px;background:#fff;margin:6px 0;padding:6px 10px;}
   .product-card summary{cursor:pointer;font-weight:700;font-size:14px;padding:4px 0;}
   .product-mats{display:flex;flex-wrap:wrap;gap:6px 14px;margin:8px 0;}
@@ -1273,7 +1275,9 @@ if (typeof module !== 'undefined') {
       curtain: { stayArmsPerOpenable: 3, handlesPerOpenable: 1 },
       sliding: { rollersPerLeaf: 2, handlesPerLeaf: 1 },
       hinged: { hingesPerLeaf: 3, locksPerLeaf: 1, handlesPerLeaf: 1 },
-      labels: {}, extras: [], exclude: {}
+      labels: {}, extras: [], exclude: {},
+      // 💲 2026-11-16 - طلب حمدي: "ضيف بتكاليف المشتريات الزجاج، وتكلفة المتر المربع 28 دولار - حط إعدادات لتغييرها"
+      costs: { glassPerM2: 28 }
     };
   }
   function normalizeRules(o) {
@@ -1282,6 +1286,8 @@ if (typeof module !== 'undefined') {
     r.barLength = ruleNum(o.barLength, d.barLength, 1, 20);
     r.wasteLinearPct = ruleNum(o.wasteLinearPct, 0, 0, 100);
     r.wasteGlassPct = ruleNum(o.wasteGlassPct, 0, 0, 100);
+    var oc = (o.costs && typeof o.costs === 'object') ? o.costs : {};
+    r.costs.glassPerM2 = ruleNum(oc.glassPerM2, d.costs.glassPerM2, 0, 100000);
     ['curtain', 'sliding', 'hinged'].forEach(function (g) {
       var src = (o[g] && typeof o[g] === 'object') ? o[g] : {};
       Object.keys(d[g]).forEach(function (k) { r[g][k] = ruleNum(src[k], d[g][k], 0, 50); });
@@ -2108,7 +2114,8 @@ if (typeof module !== 'undefined') {
     rules: function () { return RULES; }, setRules: function (o) { RULES = normalizeRules(o); },
     boq: function (item) { return computeItemBOQ(item); }, projectExtras: function () { return computeProjectExtras(); },
     generic: function (label, summary) { var g = newGenericItem(label); g.summary = summary; return g; },
-    productKeyOf: productKeyOf, normalize: normalizeRules
+    productKeyOf: productKeyOf, normalize: normalizeRules, cost: function (row) { return rowCostUSD(row); },
+    addItem: function (it) { state.items.push(it); renderApp(); }
   };
   function computeProjectExtras() {
     var rows = [];
@@ -2124,6 +2131,12 @@ if (typeof module !== 'undefined') {
     });
     return rows;
   }
+  // 💲 تكلفة صف من جدول المشتريات بالدولار (هلق الزجاج بس - باقي المواد بتنضاف أسعارها لاحقاً)
+  function rowCostUSD(row) {
+    if (row && row.key === 'glass' && row.unit === 'م²') return round2((Number(row.qty) || 0) * RULES.costs.glassPerM2);
+    return null;
+  }
+  function fmtUSD(n) { return (Number(n) || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' $'; }
   function collectBoqEntries() {
     var out = [];
     state.items.forEach(function (item) {
@@ -2150,7 +2163,7 @@ if (typeof module !== 'undefined') {
     var table = el('table', { class: 'boq-table' });
     var thead = el('thead', {}, [el('tr', {}, [
       el('th', { text: 'المرجع' }), el('th', { text: 'البند' }), el('th', { text: 'النوع' }), el('th', { text: 'المادة' }),
-      el('th', { text: 'الكمية' }), el('th', { text: 'الوحدة' }), el('th', { text: 'عدد القضبان' })
+      el('th', { text: 'الكمية' }), el('th', { text: 'الوحدة' }), el('th', { text: 'عدد القضبان' }), el('th', { text: 'التكلفة ($)' })
     ])]);
     table.appendChild(thead);
     var tbody = el('tbody');
@@ -2177,24 +2190,35 @@ if (typeof module !== 'undefined') {
       tr.appendChild(el('td', { text: row.unit }));
       var bars = row.unit === 'متر طولي' ? Math.ceil(+(row.qty / state.barLength).toFixed(6)) : '';
       tr.appendChild(el('td', { text: String(bars) }));
+      var c = rowCostUSD(row);
+      tr.appendChild(el('td', { class: 'cost-cell', text: c == null ? '—' : fmtUSD(c) }));
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
     box.appendChild(table);
+
+    // 💲 مجموع التكاليف المحسوبة
+    var glassM2 = 0, costTotal = 0;
+    entries.forEach(function (d) { var c = rowCostUSD(d.row); if (c != null) { costTotal += c; glassM2 += Number(d.row.qty) || 0; } });
+    box.appendChild(el('div', { class: 'cost-total', id: 'boqCostTotal' }, [
+      el('b', { text: '💲 تكلفة المشتريات المحسوبة: ' + fmtUSD(round2(costTotal)) }),
+      el('span', { class: 'hint', text: '  —  الزجاج: ' + round2(glassM2) + ' م² × ' + fmtUSD(RULES.costs.glassPerM2) + '. باقي المواد بتنحسب تكلفتها لما تنضاف أسعارها (تبويب الإعدادات ← التكاليف).' })
+    ]));
 
     // Summary grouped by material
     var groups = {};
     var order = [];
     entries.forEach(function (d) {
       var key = d.row.material + '|' + d.row.unit;
-      if (!groups[key]) { groups[key] = { material: d.row.material, unit: d.row.unit, qty: 0 }; order.push(key); }
+      if (!groups[key]) { groups[key] = { material: d.row.material, unit: d.row.unit, qty: 0, cost: null }; order.push(key); }
       groups[key].qty += d.row.qty;
+      var rc = rowCostUSD(d.row); if (rc != null) groups[key].cost = (groups[key].cost || 0) + rc;
     });
 
     box.appendChild(el('h3', { text: 'ملخص إجمالي المواد (كل البنود)' }));
     var sumTable = el('table', { class: 'boq-table' });
     sumTable.appendChild(el('thead', {}, [el('tr', {}, [
-      el('th', { text: 'المادة' }), el('th', { text: 'الكمية الإجمالية' }), el('th', { text: 'الوحدة' }), el('th', { text: 'عدد القضبان المقترح' })
+      el('th', { text: 'المادة' }), el('th', { text: 'الكمية الإجمالية' }), el('th', { text: 'الوحدة' }), el('th', { text: 'عدد القضبان المقترح' }), el('th', { text: 'التكلفة ($)' })
     ])]));
     var sumBody = el('tbody');
     order.forEach(function (key) {
@@ -2205,6 +2229,7 @@ if (typeof module !== 'undefined') {
       tr.appendChild(el('td', { text: g.unit }));
       var bars = g.unit === 'متر طولي' ? Math.ceil(+(g.qty / state.barLength).toFixed(6)) : '';
       tr.appendChild(el('td', { text: String(bars) }));
+      tr.appendChild(el('td', { class: 'cost-cell', text: g.cost == null ? '—' : fmtUSD(round2(g.cost)) }));
       sumBody.appendChild(tr);
     });
     sumTable.appendChild(sumBody);
@@ -2213,27 +2238,29 @@ if (typeof module !== 'undefined') {
 
   // ---------------- Excel export ----------------
   function exportToExcel() {
-    var summaryRows = [['المادة', 'الكمية الإجمالية', 'الوحدة', 'عدد القضبان المقترح (طول القضيب ' + state.barLength + ' م)']];
-    var detailRows = [['المرجع', 'اسم البند', 'نوع البند', 'المادة', 'الكمية', 'الوحدة', 'عدد القضبان']];
+    var summaryRows = [['المادة', 'الكمية الإجمالية', 'الوحدة', 'عدد القضبان المقترح (طول القضيب ' + state.barLength + ' م)', 'التكلفة ($)']];
+    var detailRows = [['المرجع', 'اسم البند', 'نوع البند', 'المادة', 'الكمية', 'الوحدة', 'عدد القضبان', 'التكلفة ($)']];
 
     var groups = {}, order = [];
     collectBoqEntries().forEach(function (d) {
       var row = d.row;
       var bars = row.unit === 'متر طولي' ? Math.ceil(+(row.qty / state.barLength).toFixed(6)) : '';
-      detailRows.push([d.ref, d.name, d.type, row.material, row.qty, row.unit, bars]);
+      var rc = rowCostUSD(row);
+      detailRows.push([d.ref, d.name, d.type, row.material, row.qty, row.unit, bars, rc == null ? '' : rc]);
       var key = row.material + '|' + row.unit;
-      if (!groups[key]) { groups[key] = { material: row.material, unit: row.unit, qty: 0 }; order.push(key); }
+      if (!groups[key]) { groups[key] = { material: row.material, unit: row.unit, qty: 0, cost: null }; order.push(key); }
       groups[key].qty += row.qty;
+      if (rc != null) groups[key].cost = (groups[key].cost || 0) + rc;
     });
     order.forEach(function (key) {
       var g = groups[key];
       var bars = g.unit === 'متر طولي' ? Math.ceil(+(g.qty / state.barLength).toFixed(6)) : '';
-      summaryRows.push([g.material, round2(g.qty), g.unit, bars]);
+      summaryRows.push([g.material, round2(g.qty), g.unit, bars, g.cost == null ? '' : round2(g.cost)]);
     });
 
     var sheets = [
-      { name: 'ملخص الطلبية', rows: summaryRows, colWidths: [32, 18, 14, 34] },
-      { name: 'تفصيل حسب البند', rows: detailRows, colWidths: [16, 24, 18, 30, 12, 12, 12] }
+      { name: 'ملخص الطلبية', rows: summaryRows, colWidths: [32, 18, 14, 34, 14] },
+      { name: 'تفصيل حسب البند', rows: detailRows, colWidths: [16, 24, 18, 30, 12, 12, 12, 14] }
     ];
     var blob = window.XlsxWriter.makeXlsxBlob(sheets);
     var url = URL.createObjectURL(blob);
@@ -2313,6 +2340,10 @@ if (typeof module !== 'undefined') {
       prSec.appendChild(card);
     });
     box.appendChild(prSec);
+
+    section('💲 التكاليف', 'أسعار الشراء يلي بتنحسب فيها تكلفة المشتريات (بالدولار). الزجاج بينحسب على مساحة الزجاج بعد الهدر.', [
+      numRow('تكلفة متر مربع الزجاج', function () { return RULES.costs.glassPerM2; }, function (v) { RULES.costs.glassPerM2 = v; }, { step: 0.5, min: 0, max: 100000, unit: '$ / م²' })
+    ]);
 
     section('عام', 'طول القضيب يلي منقسم عليه الأمتار الطولية لنحسب عدد القضبان. الهدر بيتضاف على الأمتار الطولية وعلى الزجاج بكل الجداول (0 = بدون هدر).', [
       numRow('طول القضيب القياسي', function () { return RULES.barLength; }, function (v) { RULES.barLength = v; }, { step: 0.1, min: 1, max: 20, unit: 'متر' }),

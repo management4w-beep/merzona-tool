@@ -22,6 +22,8 @@
     'النوع': 'Type', 'نوع': 'Type', 'الرقم': 'No.', 'رقم': 'No.', 'الاسم': 'Name', 'اسم': 'Name', 'كود': 'Code', 'العنوان': 'Address', 'الهاتف': 'Phone',
     'الإيميل': 'Email', 'القيمة': 'Value', 'السطر': 'Line', 'سطر': 'line', 'بسطر': 'on line', 'السجل': 'Log', 'العملية': 'Action', 'المستخدم': 'User',
     'أنشأه': 'Created by', 'عدّله': 'Edited by', 'ألغاه': 'Voided by', 'تغيّر': 'Changed', 'دور': 'Role', 'ميرزونا': 'Merzona',
+    // ---- 💱 سعر الصرف التلقائي (2026-11-17) ----
+    '✓ سعر السوق اليوم': "✓ Today's market rate", 'عدّله إذا لازم': 'edit it if needed',
     // ---- الدفاتر والفروع ----
     'الدفتر': 'Book', 'فرع سوريا': 'Syria branch', 'فرع الإمارات': 'UAE branch', 'بهالدفتر': 'in this book', 'بدّل الدفتر فوق أول': 'Switch the book at the top first',
     'هالملف لدفتر': 'This file is for book', 'فيه بيانات منقولة من': 'contains data imported from', 'حدّثنا الدفتر': 'We refreshed the book',
