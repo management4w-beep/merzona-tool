@@ -2309,6 +2309,26 @@ async def t_dash_seed_load(p, b, port):
     await ctx.close()
 
 
+async def t_users_columns(p, b, port):
+    """👥 جدول المستخدمين: كل مربّع تحت عنوانه الصح (كان عنوان "محاسبة" ناقص فكل الأعمدة مزاحة)"""
+    print('• جدول المستخدمين: العناوين مطابقة للمربعات')
+    ctx = await new_ctx(p, b)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(2500)
+    r = await pg.evaluate("""() => { renderUsersRows([{ username: 'accountant', permissions: { dashboard: true, accounting: true }, isAdmin: false, lang: 'en' }]);
+      const heads = Array.from(document.querySelectorAll('#usersTableHead th')).map(th => th.textContent.trim());
+      const tds = Array.from(document.querySelectorAll('#usersTableBody tr:first-child td'));
+      const iAcc = tds.findIndex(td => td.querySelector('input[data-perm="accounting"]'));
+      const iAdm = tds.findIndex(td => td.querySelector('.mz-users-isadmin'));
+      const iLang = tds.findIndex(td => td.querySelector('.mz-users-lang'));
+      return { n: [heads.length, tds.length], acc: heads[iAcc], adm: heads[iAdm], lang: heads[iLang], checked: tds[iAcc].querySelector('input').checked }; }""")
+    check(r['n'][0] == r['n'][1], 'عدد العناوين = عدد الخانات ' + str(r['n']))
+    check(r['acc'] == 'محاسبة' and r['checked'], 'مربّع المحاسبة تحت عنوان "محاسبة" ومعلّم ' + str(r))
+    check(r['adm'] == 'أدمن' and r['lang'] == 'اللغة', '"أدمن" و"اللغة" بمكانهن الصح')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def main():
     tmp = prepare(); httpd = serve(tmp); port = httpd.server_address[1]
     print('فحص:', SRC)
@@ -2316,7 +2336,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
