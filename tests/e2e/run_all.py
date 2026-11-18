@@ -143,6 +143,28 @@ async def t_view_version(p, b, port):
     await ctx.close()
 
 
+async def t_shower_wall(p, b, port):
+    """🧱 الشاور: المقاسات يلي بتنكتب = الفتحة؛ مقاس القص = −5 مم عند كل جدار (يمين ويسار)"""
+    print('• 🧱 الشاور: خصم 5 مم عند الجدار')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[1350, 2200, 'Full Shower With Glass Door'], [800, 2200, 'Glass Door']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1500)
+    ids = await pg.evaluate("WD.__t.items().map(function(i){return i.id})")
+    line = lambda i: pg.evaluate("(document.querySelector('#card-%d .sh-cut-line')||{}).textContent || ''" % i)
+    t0 = await line(ids[0]); t1 = await line(ids[1])
+    check('ثابت 545' in t0 and 'باب 795' in t0, 'شاور كامل (ثابت 550 + باب 800): قص الثابت 545 والباب 795 ' + repr(t0))
+    check('باب 790' in t1, 'باب لحالو بين جدارين (800): قص 790 ' + repr(t1))
+    await pg.evaluate(f"WD.__t.sel({ids[1]})"); await pg.click('#shWallBtns [data-wall="right"]'); await pg.wait_for_timeout(300)
+    t1 = await line(ids[1]); act = await pg.evaluate("Array.from(document.querySelectorAll('#shWallBtns [data-wall]')).map(function(b){return b.dataset.wall + ':' + b.classList.contains('active')}).join()")
+    check('باب 795' in t1 and act == 'left:true,right:false', 'جهة مش جدار ← ما في خصم منها ' + repr((t1, act)))
+    tot = await pg.evaluate(ITEMS)
+    check(tot[0]['w'] == 800 and tot[0]['L'] + tot[0]['R'] == 550, 'المقاسات المحفوظة ما تغيّرت (الفتحة)')
+    for k in range(2): await reopen(pg)
+    t1 = await line(ids[1]); check('باب 795' in t1, 'إعدادات الجدار محفوظة بعد حفظ/فتح ' + repr(t1))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_types_and_roundtrip(p, b, port):
     print('• أنواع البنود + حفظ وإعادة فتح')
     ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -2531,7 +2553,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
