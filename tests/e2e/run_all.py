@@ -228,6 +228,58 @@ async def t_camera_quad(p, b, port):
     await ctx.close()
 
 
+async def t_real3d(p, b, port):
+    """✨ ثري دي واقعي: كل شباك/باب بينعرض صورة WebGL واقعية + عارض تفاعلي (لون/زجاج) - وإذا ما في WebGL بتضل الرسمة"""
+    print('• ✨ ثري دي واقعي')
+    fx = os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'three')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await ctx.route('**/three.min.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'three.min.js'), 'rb').read()))
+    await ctx.route('**/OrbitControls.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'OrbitControls.js'), 'rb').read()))
+    await open_tool(pg, port, [[3000, 2400, "Aluminum's Sliding Doors"], [1200, 1400, 'Hinged Window'], [1000, 2200, 'Aluminum Casting Gate for Persons'], [1305, 2200, 'Glass Partitions for Showers'], [4000, 1100, 'Handrail (Hidden Glass)']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    check(await pg.evaluate("!!(window.THREE && THREE.WebGLRenderer)"), 'three.js محمّل')
+    await pg.evaluate("""(function(){ var its = WD.__t.items(); var w = its[1];
+      w.layout = {id:'q1',kind:'split',direction:'row',children:[{frac:50,node:{id:'q2',kind:'leaf',type:'tri_right'}},{frac:50,node:{id:'q3',kind:'leaf',type:'plain'}}]};
+      its[0].layout = {id:'s1',kind:'split',direction:'row',children:[{frac:50,node:{id:'s2',kind:'leaf',type:'slide_right'}},{frac:50,node:{id:'s3',kind:'leaf',type:'slide_left'}}]};
+      its[2].layout = {id:'d1',kind:'leaf',type:'tri_left'}; })()""")
+    await pg.evaluate("open3DPreview()")
+    for k in range(40):
+        n = await pg.evaluate("document.querySelectorAll('#threeDGrid img.threeD-real').length")
+        if n >= 4: break
+        await pg.wait_for_timeout(300)
+    info = await pg.evaluate("""Array.from(document.querySelectorAll('#threeDGrid .threeD-card')).map(function(c){ var i = c.querySelector('img.threeD-real'); return i ? (i.naturalWidth + 'x' + i.naturalHeight) : (c.querySelector('svg') ? 'svg' : '-'); })""")
+    check(info[:4] == ['900x680'] * 4, 'السحاب والشباك والباب والفاصل: صورة واقعية ' + str(info))
+    check(info[4] == 'svg', 'الهاندريل: بتضل الرسمة ' + str(info))
+    # الصورة مش فاضية: فيها تباين (الحيط + الألمنيوم الغامق)
+    var = await pg.evaluate("""new Promise(function(res){ var im = document.querySelector('#threeDGrid img.threeD-real'); var c = document.createElement('canvas'); c.width = 90; c.height = 68; var x = c.getContext('2d'); x.drawImage(im, 0, 0, 90, 68); var d = x.getImageData(0,0,90,68).data, mn = 255, mx = 0; for(var i=0;i<d.length;i+=4){ var v = (d[i]+d[i+1]+d[i+2])/3; if(v<mn) mn=v; if(v>mx) mx=v; } res([mn, mx]); })""")
+    check(var[1] - var[0] > 120, 'الصورة مرسومة فعلاً (مش فاضية) ' + str(var))
+    if os.environ.get('MZ_SHOT'):
+        await pg.screenshot(path=os.environ['MZ_SHOT'] + '/r3d_cards.png', full_page=False)
+        for i, nm in enumerate(['slide', 'win', 'door']):
+            u = await pg.evaluate("document.querySelectorAll('#threeDGrid img.threeD-real')[%d].src" % i)
+            import base64; open(os.environ['MZ_SHOT'] + '/r3d_%s.png' % nm, 'wb').write(base64.b64decode(u.split(',')[1]))
+    # زر الرسمة بيرجّع الرسمة
+    await pg.click('#threeDGrid .threeD-card >> nth=0 >> [data-r3d="sketch"]'); await pg.wait_for_timeout(200)
+    check(await pg.evaluate("(function(){ var c = document.querySelectorAll('#threeDGrid .threeD-card')[0]; return c.querySelector('.threeD-sketch svg') && c.querySelector('img.threeD-real').style.display == 'none'; })()"), 'زر ✏️ الرسمة بيبدّل للرسمة')
+    # العارض التفاعلي + لون
+    await pg.click('#threeDGrid .threeD-card >> nth=1 >> [data-r3d="view"]'); await pg.wait_for_timeout(800)
+    check(await pg.evaluate("!!document.querySelector('#mzR3dOverlay canvas')"), 'العارض التفاعلي انفتح')
+    await pg.click('#mzR3dBar button[data-k="color"][data-v="white"]'); await pg.wait_for_timeout(500)
+    await pg.click('#mzR3dBar button[data-k="glass"][data-v="tinted"]'); await pg.wait_for_timeout(500)
+    if os.environ.get('MZ_SHOT'): await pg.screenshot(path=os.environ['MZ_SHOT'] + '/r3d_viewer.png')
+    # سحب للتدوير بلا أخطاء
+    await pg.mouse.move(700, 400); await pg.mouse.down(); await pg.mouse.move(560, 360, steps=8); await pg.mouse.up(); await pg.wait_for_timeout(300)
+    await pg.click('#mzR3dClose'); await pg.wait_for_timeout(200)
+    check(await pg.evaluate("!document.getElementById('mzR3dOverlay')"), 'العارض تسكّر')
+    await pg.evaluate("close3DPreview()")
+    for k in range(2): await reopen(pg)
+    c = await pg.evaluate("(function(){ var w = WD.__t.items()[1]; return [w.r3dColor, w.r3dGlass, w.width, w.height]; })()")
+    check(c == ['white', 'tinted', 1200, 1400], 'اللون والزجاج انحفظوا مع البند والمقاس ما تغيّر ' + str(c))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_types_and_roundtrip(p, b, port):
     print('• أنواع البنود + حفظ وإعادة فتح')
     ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -2616,7 +2668,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
