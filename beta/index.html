@@ -1,6 +1,20 @@
 <!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8">
+<script id="mz-view-mode">
+/* 👁️ 2026-11-18 (حمدي: "لازم يكون عندي صلاحية فوت شوف تاريخ التغييرات، اختار كل تاريخ وشوف عرض السعر كيف كان، بس
+   دايمًا آخر ابديت هوي الأساس"): صفحة "نسخة قديمة للعرض بس" (#mzview=1) - بتنفتح بتاب جديد من سجل النسخ.
+   هون، قبل أي كود تاني: ممنوع أي كتابة (لا بالمتصفح ولا عالسيرفر ولا درايف) - هيك النسخة القديمة مستحيل تكتب فوق الأساس. */
+(function(){
+  if(!/[#&]mzview=1/.test(location.hash || '')) return;
+  window.__mzViewMode = true;
+  try{ window.__mzViewPayload = JSON.parse(localStorage.getItem('mz-view-payload') || 'null'); }catch(e){ window.__mzViewPayload = null; }
+  try{ var noop = function(){}; Storage.prototype.setItem = noop; Storage.prototype.removeItem = noop; Storage.prototype.clear = noop; }catch(e){}
+  try{ var of = window.fetch; window.fetch = function(input, init){ var m = String((init && init.method) || (input && input.method) || 'GET').toUpperCase(); if(m !== 'GET' && m !== 'HEAD') return Promise.reject(new Error('👁️ نسخة للعرض بس - ما في حفظ')); return of.apply(this, arguments); }; }catch(e){}
+  try{ var xo = XMLHttpRequest.prototype.open; XMLHttpRequest.prototype.open = function(m){ if(String(m).toUpperCase() !== 'GET' && String(m).toUpperCase() !== 'HEAD') throw new Error('view-only'); return xo.apply(this, arguments); }; }catch(e){}
+  try{ var io = indexedDB.open.bind(indexedDB); indexedDB.open = function(){ throw new Error('view-only'); }; }catch(e){}
+})();
+</script>
 <script src="company.js?v=2026-11-13.1"></script><!-- 🏢 إعدادات الشركة (اسم، لوغو، عنوان، بنك...) -->
 <!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
 <style id="mz-gate-style">body{display:none!important;}</style>
@@ -152,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-18.1';
+  var CURRENT_VERSION = '2026-11-18.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -6672,10 +6686,14 @@ async function refreshVersionHistoryPanel(refRaw){
           <span style="font-size:11.5px;color:var(--aux1);">${escapeHtmlForHistory(r.diffLine)}</span>
         </div>
         <div class="controls" style="gap:6px;">
+          <button class="export-btn view-version-btn" data-file-id="${escapeHtmlForHistory(r.fileId)}" data-when="${escapeHtmlForHistory(r.when)}" title="بيفتح هالنسخة بتاب جديد للعرض بس - ما بتغيّر شي بالعرض الحالي">👁️ شوف</button>
           <button class="export-btn restore-version-btn" data-file-id="${escapeHtmlForHistory(r.fileId)}">↩️ استرجع هالنسخة</button>
         </div>
       </div>`;
     }).join('');
+    rowsEl.querySelectorAll('.view-version-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> viewVersionFromHistory(btn.dataset.fileId, btn.dataset.when, token));
+    });
     rowsEl.querySelectorAll('.restore-version-btn').forEach(btn=>{
       btn.addEventListener('click', ()=> restoreVersionFromHistory(btn.dataset.fileId, token));
     });
@@ -6684,6 +6702,21 @@ async function refreshVersionHistoryPanel(refRaw){
     rowsEl.innerHTML = '<p style="color:var(--danger);font-size:12.5px;">صار خطأ وإحنا عم نجيب سجل النسخ: ' + escapeHtmlForHistory((e && e.message) || e) + '</p>';
   }
 }
+
+// 👁️ شوف نسخة قديمة بتاب جديد (للعرض بس) - العرض المفتوح هون ما بيتغيّر
+async function viewVersionFromHistory(fileId, when, token){
+  const w = window.open('about:blank', '_blank'); // (لازم ينفتح فورًا مع الكبسة، وإلا المتصفح بيمنعو)
+  try{
+    if(w) try{ w.document.write('<p style="font:16px Tajawal,Tahoma,sans-serif;direction:rtl;padding:24px;">⏳ عم يجيب النسخة...</p>'); }catch(e){}
+    const data = await downloadDriveJsonFile(fileId, token);
+    const ref = ((document.getElementById('m-ref') || {}).value || '').trim();
+    try{ localStorage.setItem('mz-view-payload', JSON.stringify({ data: data, when: when || '', ref: ref, at: Date.now() })); }
+    catch(e){ if(w) w.close(); alert('⚠️ النسخة كبيرة كتير لتنفتح للعرض بهالمتصفح.'); return; }
+    const url = location.pathname + '?mzv=' + Date.now() + '#mzview=1'; // (query جديد = تحميل صفحة جديدة، مش بس تغيير #)
+    if(w) w.location.href = url; else window.open(url, '_blank');
+  }catch(e){ if(w) try{ w.close(); }catch(_){} alert('ما قدرنا نجيب هالنسخة: ' + ((e && e.message) || e)); }
+}
+window.viewVersionFromHistory = viewVersionFromHistory;
 
 async function restoreVersionFromHistory(fileId, token){
   if(!confirm('رح نستبدل محتوى الصفحة الحالي (أي تعديل غير محفوظ حاليًا رح يضيع) بهاي النسخة القديمة. لو غيّرتي رأيك بعدين، فيك تدوسي "↩️ تراجع" بأعلى الصفحة للرجوع للحالة الحالية (بس بنفس هالجلسة/الصفحة المفتوحة). متأكدة بدك تكملي؟')) return;
@@ -6915,6 +6948,7 @@ async function fetchLatestSavedDesignForRef(refRaw){
 }
 // بتنفّذ بعد فتح عرض سعر قائم (مش بعد تراجع/استرجاع). بترجع true لو حمّلت تصميم أحدث.
 async function offerNewerSavedDesign(){
+  if(window.__mzViewMode) return false;
   try{
     const refEl = document.getElementById('m-ref');
     const ref = refEl ? (refEl.value || '').trim() : '';
@@ -6933,19 +6967,16 @@ async function offerNewerSavedDesign(){
     // عرض السعر (لو انحفظ بعد التصميم فهو أحدث منه)، أو وقت خبز ملف HTML المحفوظ.
     const baseline = Math.max(currentDesignSavedAt || 0, window.__quotationSavedAtBaseline || 0, Number(DESIGN_BAKED_AT_DEFAULT) || 0);
     if((env.savedAt||0) <= baseline) return false; // التصميم المفتوح هو نفسه أو أحدث
-    const declinedKey = 'merzona-design-offer-declined::' + normalizeRefForCompare(ref);
-    let declined = null; try{ declined = localStorage.getItem(declinedKey); }catch(e){}
-    if(declined && Number(declined) === env.savedAt) return false;
+    // 🛠️ 2026-11-18 (حمدي: "صار يقللي في تصميم محفوظ من قبل بدك تفتحو - مزعجة، لازم يعطيني آخر تحديث فورًا"):
+    // ما في سؤال: آخر تصميم محفوظ بينفتح لحالو. النسخ القديمة بتنشاف من "🕘 سجل النسخ" (👁️ شوف).
     const when = new Date(env.savedAt || Date.now()).toLocaleString('ar');
-    const ok = confirm('📌 لقينا تصميمًا أحدث محفوظًا لعرض السعر هاد (' + ref + ')\n\n' +
-      '• التصميم المحفوظ: ' + (env.designItems||[]).length + ' بند - بتاريخ ' + when + '\n' +
-      '• التصميم المفتوح حاليًا: ' + (exported.items||[]).length + ' بند\n\n' +
-      'هل تريد تحميل التصميم المحفوظ الأحدث؟\n(إذا ضغطت "إلغاء" بيبقى التصميم المفتوح حاليًا كما هو، وما رح نسألك عن نفس النسخة مرة ثانية)');
-    if(!ok){ try{ localStorage.setItem(declinedKey, String(env.savedAt)); }catch(e){} return false; }
+    const ok = true;
+    if(!ok) return false;
     currentDesignId = env.designId || currentDesignId;
     currentDesignName = env.name || null;
     currentDesignSavedAt = env.savedAt || 0;
     if(window.__applyDesignItemsImport__) window.__applyDesignItemsImport__(env.designItems, env.designNextId);
+    try{ showMerzonaToast('✅ انفتح آخر تحديث للتصميم (' + when + ') - النسخ القديمة بـ"🕘 سجل النسخ"', true); }catch(e){}
     return true;
   }catch(e){ console.warn('[تصميم أحدث] فشل الفحص:', e); return false; }
 }
@@ -7969,6 +8000,7 @@ populateAlumColorOptions();
 // أو يلي كانت موجودة أصلًا بالصفحة) ظاهرة - وهاد بالضبط يلي كان حمدي شايفه كـ"فتحتلي عرض السعر".
 // 🆕 عرض انفتح من درايف بس عالسيرفر في نسخة أحدث (يعني آخر حفظ ما خلص رفعه لدرايف) → منعرض النسخة الأحدث
 async function mzOfferNewerFromServer(pq){
+  if(window.__mzViewMode) return;
   try{
     if(!pq || pq.draftId) return;
     const ref = String((pq.fields && pq.fields['m-ref']) || '').trim(); if(!ref) return;
@@ -7978,13 +8010,35 @@ async function mzOfferNewerFromServer(pq){
     const srvAt = Number(r.j.data.quotationSavedAt) || 0, loc = Number(pq.quotationSavedAt) || 0;
     if(!(srvAt > loc)) return;
     if(((document.getElementById('m-ref') || {}).value || '').trim() !== ref || mzQuoteSig() !== sigBefore) return; // انفتح عرض تاني أو بلّش يعدّل
-    if(!confirm('🆕 في نسخة أحدث من العرض ' + ref + ' محفوظة عالسيرفر (آخر حفظ: ' + (r.j.savedBy || '') + ' - ' + mzFmtWhen(r.j.savedAt) + ').\nالنسخة يلي انفتحت من جوجل درايف أقدم، لأن رفع آخر حفظ لدرايف ما كمل وقتها.\n\nبدك تفتح النسخة الأحدث؟')) return;
+    // 🛠️ 2026-11-18 (حمدي: "ما يسألني، يعطيني آخر تحديث فورًا"): الأحدث بينفتح لحالو - القديم بسجل النسخ
     applyFullQuotationData(r.j.data);
-    showMerzonaToast('✅ انفتحت النسخة الأحدث - اكبس "☁️ حفظ" حتى تنرفع لجوجل درايف', true);
+    showMerzonaToast('✅ انفتح آخر تحديث للعرض (' + (r.j.savedBy || '') + ' - ' + mzFmtWhen(r.j.savedAt) + ') - اكبس "☁️ حفظ" حتى ينرفع لجوجل درايف كمان', true);
   }catch(e){ console.warn('[نسخة أحدث عالسيرفر]', e); }
 }
+// 👁️ 2026-11-18: صفحة "نسخة قديمة للعرض بس" (#mzview=1 - شوف mz-view-mode بأول الملف): منفتح النسخة، منقفل الحفظ والإرسال، ومنوضّح
+(function(){
+  if(!window.__mzViewMode) return;
+  const block = (what) => function(){ alert('👁️ هاي نسخة قديمة للعرض بس - ما بتنحفظ ولا بتنبعت.\nآخر تحديث هو الأساس: سكّر هالتاب وارجع للعرض.' + (what ? '\n(' + what + ')' : '')); return Promise.resolve(false); };
+  ['saveToGoogleDrive', 'saveDraftToDrive', 'saveDesignToDrive', 'saveFilledCopy', 'shareQuotationToClient', 'openSignLink', 'cameraShareSketch'].forEach((f) => { try{ window[f] = block(); }catch(e){} });
+  async function show(){
+    for(let k = 0; k < 120 && !window.__merzonaVersionCheckSettled__; k++) await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => setTimeout(r, 800));
+    const p = window.__mzViewPayload;
+    const bar = document.createElement('div'); bar.id = 'mzViewBar'; bar.setAttribute('data-no-i18n', '1'); bar.setAttribute('data-mz-transient', '1');
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483600;background:#7a5200;color:#fff;font:700 14px Tajawal,Tahoma,sans-serif;direction:rtl;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 3px 12px rgba(0,0,0,.25);';
+    if(!p || !p.data){ bar.textContent = '⚠️ ما لقيت النسخة يلي بدك تشوفها - سكّر هالتاب وجرّب من جديد من "🕘 سجل النسخ".'; document.body.appendChild(bar); return; }
+    try{ applyFullQuotationData(p.data); }catch(e){ console.warn('[عرض نسخة قديمة]', e); }
+    bar.innerHTML = '<span></span><button type="button" style="border:0;border-radius:999px;padding:6px 14px;background:#fff;color:#7a5200;font:700 13px Tajawal,Tahoma,sans-serif;cursor:pointer;">✖ سكّر</button>';
+    bar.firstChild.textContent = '👁️ نسخة قديمة' + (p.ref ? ' من ' + p.ref : '') + (p.when ? ' - بتاريخ ' + p.when : '') + ' · للعرض بس (ما بتنحفظ). آخر تحديث هو الأساس.';
+    bar.lastChild.onclick = () => { window.close(); };
+    document.body.appendChild(bar); document.body.style.paddingTop = '48px';
+    try{ document.title = '👁️ ' + (p.ref || '') + ' - ' + (p.when || ''); }catch(e){}
+  }
+  if(document.readyState === 'complete') show(); else window.addEventListener('load', show);
+})();
 // 🆕 الصفحة تسكّرت قبل ما يخلص الرفع لدرايف → أول ما تنفتح الأداة منذكّر وبنكمّل بكبسة
 function mzCheckDrivePendingOnBoot(){
+  if(window.__mzViewMode) return;
   try{
     const pend = mzDrivePendingGet(); if(!pend || !pend.ref) return;
     if(__mzSavesRunning > 0 || __mzDriveFailedCtx) return;
@@ -8476,6 +8530,11 @@ window.wdApplyBack = function(results){
           <div class="row2" id="shDoorRow" style="margin-top:10px;">
             <div><label>عرض الباب (مم)</label><input type="text" inputmode="decimal" id="shDoor" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);shOnInput('door')" onblur="evalMeasureField(this);shOnInput('door')"></div>
             <div><label>الزجاج الثابت</label><div id="shFixedOut" style="padding:9px 4px;font-weight:700;font-size:15px;"></div></div>
+          </div>
+          <label style="margin-top:10px;display:block;">جدار (خصم 5 مم من القص)</label>
+          <div class="shape-toggle" id="shWallBtns">
+            <button type="button" data-wall="left" onclick="shToggleWall('left')">🧱 جدار يسار</button>
+            <button type="button" data-wall="right" onclick="shToggleWall('right')">🧱 جدار يمين</button>
           </div>
           <label style="margin-top:10px;display:block;">سماكة الزجاج</label>
           <div class="shape-toggle" id="shGlassBtns">
@@ -9386,6 +9445,20 @@ function shSetGlass(mm){ const it = getSelected(); if(!it || !isShowerDoor(it)) 
 window.shSetGlass = shSetGlass;
 function showerPanelsW(it){ return (it.showerLeftPanel ? (it.showerLeftWidth || 0) : 0) + (it.showerRightPanel ? (it.showerRightWidth || 0) : 0); }
 function showerTotalW(it){ return (it.width || 0) + showerPanelsW(it); }
+/* 🧱 2026-11-18 (طلب حمدي: "بالشاورات المقاسات يلي بعطيك ياها بدون تخصيمات - عالسكتش أي شي جمب الجدار فيه خصم 5 ملم
+   يمين و5 ملم يسار"): مقاس القص = المقاس - 5 مم لكل جهة لازقة بالجدار. القطعة يلي عاليسار (الثابت، أو الباب إذا ما في ثابت)
+   بتنخصم من جهة الجدار اليسار، وكذلك اليمين. الجدار بكل جهة مفعّل افتراضيًا (ممكن تطفيه إذا الجهة مش جدار). */
+const SH_WALL_GAP = 5;
+function showerWallSide(it, side){ const k = side === 'left' ? 'showerWallL' : 'showerWallR'; return it[k] !== false; }
+function showerCut(it){
+  const hasL = !!(it.showerLeftPanel && it.showerLeftWidth > 0), hasR = !!(it.showerRightPanel && it.showerRightWidth > 0);
+  const gL = showerWallSide(it, 'left') ? SH_WALL_GAP : 0, gR = showerWallSide(it, 'right') ? SH_WALL_GAP : 0;
+  const c = { left: hasL ? (it.showerLeftWidth || 0) - gL : 0, right: hasR ? (it.showerRightWidth || 0) - gR : 0, door: (it.width || 0) - (hasL ? 0 : gL) - (hasR ? 0 : gR), gL, gR };
+  c.any = !!(gL || gR);
+  return c;
+}
+function shToggleWall(side){ const it = getSelected(); if(!it || !isShowerDoor(it)) return; pushHistory(); const k = side === 'left' ? 'showerWallL' : 'showerWallR'; it[k] = !showerWallSide(it, side); shRefreshPanel(it); renderGallery(); }
+window.shToggleWall = shToggleWall;
 function showerSetDoorFromTotal(it, total){ shApply(it, total, it.width, shMode(it)); }
 function shMode(it){ const L = !!(it.showerLeftPanel && it.showerLeftWidth > 0), R = !!(it.showerRightPanel && it.showerRightWidth > 0); return L && R ? 'both' : (L ? 'left' : (R ? 'right' : 'none')); }
 const r1 = v => Math.round(v * 10) / 10;
@@ -9415,6 +9488,7 @@ function shRefreshPanel(it){
   document.getElementById('shDoorRow').style.display = m === 'none' ? 'none' : 'grid';
   const L = it.showerLeftPanel ? it.showerLeftWidth : 0, R = it.showerRightPanel ? it.showerRightWidth : 0;
   const gmm = showerGlassMm(it); document.querySelectorAll('#shGlassBtns [data-g]').forEach(b=> b.classList.toggle('active', +b.dataset.g === gmm));
+  document.querySelectorAll('#shWallBtns [data-wall]').forEach(b=> b.classList.toggle('active', showerWallSide(it, b.dataset.wall)));
   document.getElementById('shFixedOut').textContent = m === 'both' ? (Math.round(L) + ' + ' + Math.round(R) + ' مم') : (Math.round(L + R) + ' مم');
   const w = document.getElementById('inWidth'), h = document.getElementById('inHeight'); if(w) w.value = it.width; if(h) h.value = it.height;
 }
@@ -9819,7 +9893,7 @@ try{
   // نفسه ولا بمفتاحه الجديد) - ممكن يكون عنده تصميم ضايع بالمفتاح العالمي القديم (قبل هالإصلاح) من
   // جلسة سابقة. منعرضه كخيار استرجاع واضح (مش فرض تلقائي) مرة وحدة بس بكل جلسة متصفح، حتى ما نزعج
   // حمدي بنفس السؤال كل مرة يفتح فيها عرض سعر فاضي عمدًا (عرض سعر جديد فعلًا بدون أي تصميم).
-  if(!items.length){
+  if(!items.length && !window.__mzViewMode){
     const legacyRaw = localStorage.getItem('merzona-design-items');
     const recoveryOfferedKey = 'merzona-design-legacy-recovery-offered';
     if(legacyRaw && !sessionStorage.getItem(recoveryOfferedKey)){
@@ -9950,6 +10024,22 @@ window.__refreshDesignerAfterItemRemoval__ = function(removedId){
 // لاحق بالمعرّف المكرر ممكن يطبّق غلط عالعنصر القديم بدل الجديد (أو حتى يمسح الاتنين سوا لو حصل حذف).
 // هلق: كل ما نستورد بيانات خام (نفس نمط nextId بالضبط)، منمشي على كل الغرف ومناطق السقف ومنحسب أعلى
 // رقم موجود فعليًا بكل نوع معرّف، ومنرفع العداد المطابق ليصير أكبر منه لو لزم.
+// 🚪 2026-11-18 (حمدي: "السيستم يعتبرو باب، ولما اكبس عالباب بيعطيني لوفر وفتح شباك - باب سحاب مستحيل يفتح من فوق"):
+// بند اسمو سحّاب (Sliding / سحاب) أو فيه درفات سحب، وكان محفوظ كباب/شباك عادي ← باب سحّاب / شباك سحّاب. وأي فتحة
+// ما بتصير بالسحّاب (لوفر، فتح لفوق/لجنب) بترجع ثابت.
+function mzNormalizeSlidingShape(it){
+  if(!it || (it.shapeType !== 'door' && it.shapeType !== 'window') || !it.layout) return false;
+  const types = []; (function w(n){ if(!n) return; if(n.kind === 'leaf') types.push(n.type); else (n.children || []).forEach(ch => w(ch && ch.node)); })(it.layout);
+  const hasSlide = types.some(t => t === 'slide_left' || t === 'slide_right');
+  const name = String(it.label || '').toLowerCase();
+  const slidingName = /sliding|سحاب|سحّاب|lif[te]\s*(&|and)\s*slide/.test(name) && !/folding|فولدينغ|فولدينج/.test(name);
+  if(!hasSlide && !slidingName) return false;
+  it.shapeType = it.shapeType === 'door' ? 'slidingDoor' : 'slidingWindow';
+  if(it.frameThickness == null) it.frameThickness = DEFAULT_FRAME_THICKNESS;
+  if(it.leafThickness == null) it.leafThickness = DEFAULT_LEAF_THICKNESS;
+  (function w(n){ if(!n) return; if(n.kind === 'leaf'){ if(!/^(plain|slide_left|slide_right|frosted)$/.test(n.type || 'plain')) n.type = 'plain'; } else (n.children || []).forEach(ch => w(ch && ch.node)); })(it.layout);
+  return true;
+}
 function resyncSubItemIdCounters(itemsArr){
   let maxRs = 0, maxRg = 0, maxS = 0;
   function numFromId(id, prefix){
@@ -9964,6 +10054,22 @@ function resyncSubItemIdCounters(itemsArr){
     });
     (it.hrSegments||[]).forEach(function(seg){ maxS = Math.max(maxS, numFromId(seg.id, 's')); });
   });
+  // 🛠️ 2026-11-18 (بلاغ حمدي، عرض 260223: "عم اكبس عالدرفة اليمين بس يللي عم يتغير الدرفة اقصى اليسار"):
+  // عدّاد معرّفات الدرفات (nextNodeId) كان يرجع يبلّش من 1 بعد ما تنفتح الصفحة من جديد، فأي تقسيم جديد كان ياخد
+  // نفس معرّف درفة موجودة - والكبسة عالدرفة الجديدة كانت تغيّر الدرفة الأولى يلي إلها نفس المعرّف.
+  // (1) العدّاد بيكمّل بعد أعلى معرّف موجود. (2) التصاميم يلي انخربت من قبل: المعرّف المكرّر بياخد معرّف جديد.
+  try{
+    let maxN = 0;
+    const walkMax = (node) => { if(!node) return; maxN = Math.max(maxN, numFromId(node.id, 'n')); if(node.kind === 'split') (node.children || []).forEach(ch => walkMax(ch && ch.node)); };
+    (itemsArr || []).forEach(it => { walkMax(it.layout); walkMax(it.archLayout); });
+    if(maxN + 1 > nextNodeId) nextNodeId = maxN + 1;
+    (itemsArr || []).forEach(it => {
+      const seen = new Set();
+      const fix = (node) => { if(!node) return; if(!node.id || seen.has(node.id)) node.id = 'n' + (nextNodeId++); seen.add(node.id); if(node.kind === 'split') (node.children || []).forEach(ch => fix(ch && ch.node)); };
+      fix(it.layout); fix(it.archLayout);
+      mzNormalizeSlidingShape(it);
+    });
+  }catch(e){ console.warn('[المصمم] تصليح المعرّفات:', e); }
   if(maxRs + 1 > roomSideIdCounter) roomSideIdCounter = maxRs + 1;
   if(maxRg + 1 > roomSegIdCounter) roomSegIdCounter = maxRg + 1;
   if(maxS + 1 > hrSegIdCounter) hrSegIdCounter = maxS + 1;
@@ -20291,7 +20397,7 @@ function buildItemSVG(it){
   const leftSidePx = hasLeft ? it.showerLeftWidth*scale : 0;
   const rightSidePx = hasRight ? it.showerRightWidth*scale : 0;
   const mullionGap = 3;
-  const padTop = 58 + archHpx, padBottom = (isDoorLike(it) ? 26 : 14) + ((hasLeft||hasRight) ? 30 : 0);
+  const padTop = 58 + archHpx, padBottom = (isDoorLike(it) ? 26 : 14) + ((hasLeft||hasRight) ? 30 : 0) + (isShowerDoor(it) ? 24 : 0);
   const padSideBase = 62;
   const leftPad = padSideBase + (hasLeft ? leftSidePx+mullionGap : 0);
   const rightPad = padSideBase + (hasRight ? rightSidePx+mullionGap : 0);
@@ -20368,6 +20474,17 @@ function buildItemSVG(it){
     `;
   }
 
+  // 🧱 الشاور: سطر مقاسات القص (خصم 5 مم عند الجدار) تحت الرسمة
+  if(isShowerDoor(it)){
+    const cut = showerCut(it);
+    if(cut.any){
+      const parts = []; if(hasLeft) parts.push('ثابت ' + Math.round(cut.left)); parts.push('باب ' + Math.round(cut.door)); if(hasRight) parts.push('ثابت ' + Math.round(cut.right));
+      const x0c = hasLeft ? -leftSidePx - mullionGap : 0, x1c = drawW + (hasRight ? rightSidePx + mullionGap : 0);
+      dim += `<text class="sh-cut-line" x="${(x0c + x1c) / 2}" y="${drawH + ((hasLeft || hasRight) ? 64 : 42)}" fill="var(--wd-cyan, #6fd3ff)" font-size="13" font-weight="700" text-anchor="middle">✂️ قص: ${parts.join(' · ')} (−${SH_WALL_GAP} عند الجدار)</text>`;
+      if(cut.gL) dim += `<rect x="${x0c - 8}" y="0" width="5" height="${drawH}" fill="var(--wd-ink-dim, #8aa)" opacity="0.6"/>`;
+      if(cut.gR) dim += `<rect x="${x1c + 3}" y="0" width="5" height="${drawH}" fill="var(--wd-ink-dim, #8aa)" opacity="0.6"/>`;
+    }
+  }
   // زجاج ثابت جانبي (باب الشاور) - لوح/ألواح ثابتة بجانب الباب، بمفصل بسيط (سيليكون) بينهم - ممكن يمين ويسار مع بعض بنفس الوقت
   let sidePanelSvg = '';
   const buildSidePanel = (sidePx, x0, dividerX, width, editSide)=> `<rect x="${x0}" y="0" width="${sidePx}" height="${drawH}" fill="var(--wd-glass, rgba(120,180,220,0.16))" stroke="var(--wd-ink)" stroke-width="${frameWidth}"/>
@@ -21047,7 +21164,7 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
   const totalRealW = (it.width||0) + leftW + rightW;
   const H = it.height;
   if(!totalRealW || !H) return '';
-  const estPadSide = 100, estPadTop = 90, estPadBottom = 78;
+  const estPadSide = 100, estPadTop = 90, estPadBottom = 94;
   const targetW = Math.max(50, availW - estPadSide*2);
   const targetH = Math.max(50, availH - estPadTop - estPadBottom);
   const scale = Math.min(targetW/totalRealW, targetH/H);
@@ -21085,7 +21202,7 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
     if(hasRight) frostSvg += `<g transform="translate(${rightX},0)">${partFor(rightPx)}</g>`;
   }
 
-  const padTop = 90, padSide = 70, padBottom = 78;
+  const padTop = 90, padSide = 70, padBottom = 94;
   const totalW = totalDrawW + padSide*2, totalH = drawH + padTop + padBottom;
 
   let dim = `
@@ -21101,11 +21218,15 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
   // 🆕 2026-11-08 (طلب حمدي: "مقاس الباب وسماكة الزجاج مو مذكورة عند الطباعة"): تحت الرسمة: مقاس الباب ومقاس كل
   // زجاج ثابت (بخطوط قياس)، وتحتهم سطر سماكة الزجاج ونوعه.
   const subDim = (x, w, txt)=> `<line x1="${x}" y1="${drawH+14}" x2="${x+w}" y2="${drawH+14}" stroke="#A15C1E" stroke-width="1"/><line x1="${x}" y1="${drawH+10}" x2="${x}" y2="${drawH+18}" stroke="#A15C1E" stroke-width="1"/><line x1="${x+w}" y1="${drawH+10}" x2="${x+w}" y2="${drawH+18}" stroke="#A15C1E" stroke-width="1"/><text x="${x+w/2}" y="${drawH+32}" fill="#A15C1E" font-size="13" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700">${txt}</text>`;
-  if(hasLeft) dim += subDim(0, leftPx, 'ثابت ' + Math.round(leftW));
-  dim += subDim(doorX, drawW, 'باب ' + Math.round(it.width));
-  if(hasRight) dim += subDim(rightX, rightPx, 'ثابت ' + Math.round(rightW));
+  const cut = showerCut(it);
+  if(hasLeft) dim += subDim(0, leftPx, 'ثابت ' + Math.round(cut.left));
+  dim += subDim(doorX, drawW, 'باب ' + Math.round(cut.door));
+  if(hasRight) dim += subDim(rightX, rightPx, 'ثابت ' + Math.round(cut.right));
   const gmm = showerGlassMm(it);
   dim += `<text x="${totalDrawW/2}" y="${drawH+58}" fill="#000" font-size="13" text-anchor="middle" font-weight="700">زجاج سكوريت ${it.frostedOverlay ? 'مضبب' : 'شفاف'} ${gmm} مم</text>`;
+  if(cut.any) dim += `<text x="${totalDrawW/2}" y="${drawH+76}" fill="#A15C1E" font-size="11.5" text-anchor="middle" font-weight="700">✂️ مقاسات الزجاج تحت = مقاس القص (خصم ${SH_WALL_GAP} مم عند ${cut.gL && cut.gR ? 'كل جدار' : (cut.gL ? 'جدار اليسار' : 'جدار اليمين')}) · ${Math.round(totalRealW)} = الفتحة</text>`;
+  if(cut.gL) dim += `<rect x="-9" y="0" width="5" height="${drawH}" fill="#999" opacity="0.55"/>`;
+  if(cut.gR) dim += `<rect x="${totalDrawW + 4}" y="0" width="5" height="${drawH}" fill="#999" opacity="0.55"/>`;
 
   return `<svg viewBox="${-padSide} ${-padTop} ${totalW} ${totalH}" width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg">
     ${dim}
@@ -21795,7 +21916,7 @@ function mzFixMisguessedHandrail(it, rd){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial'];
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
@@ -21819,6 +21940,7 @@ function buildItemFromSavedDesign(design, uid, label){
   };
   if(design.extra){ SAVED_EXTRA_KEYS.forEach(k=>{ if(design.extra[k] !== undefined) _it[k] = JSON.parse(JSON.stringify(design.extra[k])); }); }
   if(design.shapeType === 'mirror'){ Object.assign(_it, design.mirror || {}); mirrorEnsure(_it); }
+  try{ mzNormalizeSlidingShape(_it); }catch(e){}
   return _it;
 }
 
