@@ -2025,6 +2025,69 @@ async def t_quote_status(p, b, port):
     await ctx.close()
 
 
+async def t_tickets(p, b, port):
+    """🎫 طلبات عروض الأسعار المفتوحة (تيكيتات): شارة، شريط بالرئيسية، لوحة، فتح/تسكير/إرجاع، وبلا صلاحية ما بيبيّن شي"""
+    print('• 🎫 طلبات عروض الأسعار المفتوحة')
+    import time as _t
+    nowms = int(_t.time() * 1000)
+    items = [
+        {'id': 1, 'at': nowms - 2 * 86400000, 'status': 'open', 'client': 'جلازورا', 'summary': 'Vetromax', 'details': '7×2.8\n3.5×2.8', 'by': 'حمدي', 'source': 'whatsapp', 'draftId': 'abc', 'notes': [{'at': nowms, 'by': 'سامي', 'text': 'بدو أسود'}]},
+        {'id': 2, 'at': nowms - 3600000, 'status': 'open', 'client': '', 'summary': 'اتصل بأبو سمير', 'details': 'اتصل بأبو سمير', 'by': 'حمدي', 'source': 'whatsapp', 'notes': []},
+        {'id': 3, 'at': nowms - 5 * 86400000, 'status': 'closed', 'closedAt': nowms - 86400000, 'closedBy': 'تلقائي', 'quoteRef': 'M-Q-260400', 'client': 'فيلا', 'summary': 'x', 'details': 'x', 'notes': []},
+    ]
+    for allowed in (True, False):
+        ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+        await ctx.add_init_script("try{ localStorage.setItem('merzona-device-token','OWNERDEV'); }catch(e){}")
+        posts = []
+        async def srv(route):
+            u = route.request.url; m = route.request.method
+            if '/tickets' in u:
+                if not allowed: return await route.fulfill(status=403, content_type='application/json', body='{"error":"no-permission"}')
+                if m == 'GET': return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'items': items}))
+                bd = json.loads(route.request.post_data or '{}'); posts.append((u.split('/tickets')[1], bd))
+                if u.endswith('/tickets'):
+                    t = {'id': 4, 'at': nowms, 'status': 'open', 'client': bd.get('client'), 'summary': bd.get('summary'), 'details': bd.get('details'), 'by': 'المالك', 'source': 'dashboard', 'notes': []}; items.insert(0, t)
+                    return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'ok': True, 'ticket': t}))
+                tid = int(u.split('/tickets/')[1].split('/')[0]); t = next(x for x in items if x['id'] == tid)
+                if u.endswith('/close'): t['status'] = 'closed'; t['closedAt'] = nowms; t['closeNote'] = bd.get('note')
+                if u.endswith('/reopen'): t['status'] = 'open'
+                return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'ok': True, 'ticket': t}))
+            body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else ({'isOwnerDevice': True} if '/users/status' in u else ({'items': {}} if u.endswith('/quote-status') else {}))
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+        await ctx.route(SRV + '/**', srv)
+        await ctx.route('https://merzona-server-production.up.railway.app/**', srv)
+        await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+        pg.on('dialog', lambda d: asyncio.ensure_future(d.accept('انلغى') if d.type == 'prompt' else d.accept()))
+        await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(3500)
+        dot = await pg.evaluate("(document.querySelector('#quotationsTabBtn .mz-tk-dot')||{}).textContent || ''")
+        banner = await pg.evaluate("document.getElementById('mzTkHomeBanner').innerText")
+        if not allowed:
+            check(dot == '' and banner.strip() == '' and await pg.evaluate("document.getElementById('mzTkPanel').style.display") == 'none', 'بلا صلاحية: ولا شارة ولا شريط ولا لوحة')
+            check(not errs, 'بلا أخطاء (بلا صلاحية) ' + str(errs[:2]))
+            await ctx.close(); continue
+        check(dot == '2' and 'في 2 طلبات' in banner, 'شارة 2 عتبويب عروض الأسعار + شريط بالصفحة الرئيسية ' + repr(dot) + ' ' + banner)
+        await pg.click('#mzTkHomeGo'); await pg.wait_for_timeout(1200)
+        txt = await pg.evaluate("document.getElementById('mzTkList').innerText")
+        vis = await pg.evaluate("document.getElementById('quotationsView').style.display !== 'none' && document.getElementById('mzTkPanel').style.display !== 'none'")
+        check(vis and '#1 جلازورا' in txt and 'متأخر' in txt and 'بدو أسود' in txt and 'في مسودة' in txt and '#2' in txt and 'فيلا' not in txt, 'الشريط بيفتح اللوحة، والمفتوحين بيبيّنوا مع "متأخر" والملاحظات ' + txt[:200])
+        if os.environ.get('MZ_SHOT'): await pg.evaluate("document.getElementById('mzTkPanel').scrollIntoView()"); await pg.screenshot(path=os.environ['MZ_SHOT'])
+        await pg.click("#mzTkList [data-tk='2'] .mz-tk-act"); await pg.wait_for_timeout(1200)
+        check(posts and posts[-1] == ('/2/close', {'note': 'انلغى'}) and await pg.evaluate("(document.querySelector('#quotationsTabBtn .mz-tk-dot')||{}).textContent") == '1', '"✓ خلص" بيسكّر مع ملاحظة والشارة بتنزل لـ1 ' + str(posts[-1:]))
+        await pg.click('#mzTkShowClosed'); await pg.wait_for_timeout(300)
+        ctxt = await pg.evaluate("document.getElementById('mzTkList').innerText")
+        check('فيلا' in ctxt and 'M-Q-260400' in ctxt and 'تلقائي' in ctxt, 'المسكّرة بتبيّن مع رقم العرض يلي سكّرها ' + ctxt[:150])
+        await pg.click("#mzTkList [data-tk='2'] .mz-tk-act"); await pg.wait_for_timeout(1200)
+        check(posts[-1][0] == '/2/reopen', 'رجّعه مفتوح')
+        await pg.click('#mzTkShowClosed'); await pg.click('#mzTkNewBtn')
+        await pg.fill('#mzTkClient', 'فيلا المزة'); await pg.fill('#mzTkDetails', 'درابزين 12 متر\nلون أسود')
+        await pg.click('#mzTkSave'); await pg.wait_for_timeout(1200)
+        txt = await pg.evaluate("document.getElementById('mzTkList').innerText")
+        check(posts[-1] == ('', {'client': 'فيلا المزة', 'details': 'درابزين 12 متر\nلون أسود', 'summary': 'درابزين 12 متر'}) and '#4 فيلا المزة' in txt and await pg.evaluate("document.getElementById('mzTkNew').style.display") == 'none', '➕ طلب جديد بينفتح ويبيّن فورًا')
+        check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+        await ctx.close()
+
+
 async def t_proc_products(p, b, port):
     """📦 إعدادات المشتريات: المواد حسب المنتج (شيل مادة مو لازمة + مواد خاصة بمنتج)"""
     print('• 📦 إعدادات المشتريات: المواد حسب المنتج')
@@ -2336,7 +2399,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
