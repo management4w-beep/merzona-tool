@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-17.3';
+  var CURRENT_VERSION = '2026-11-18.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1256,6 +1256,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
   </div>
 
   <div id="dashboardView" style="">
+  <div id="mzTkHomeBanner" style="display:none;"></div>
 
   <div class="kpis" id="dashKpisSection">
     <div class="kpi">
@@ -1345,6 +1346,23 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
   </div>
 
   <div id="quotationsView" style="display:none;">
+
+    <!-- 🎫 2026-11-18: طلبات عروض الأسعار المفتوحة (تيكيتات) - بتنفتح من الواتس اب أو من هون -->
+    <div class="panel" id="mzTkPanel" style="display:none;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;">
+        <p class="panel-title" style="margin:0;">🎫 طلبات عروض أسعار مفتوحة <span id="mzTkCount"></span></p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <span class="year-chip" id="mzTkShowClosed">المسكّرة</span>
+          <span class="year-chip" id="mzTkNewBtn" style="background:#1b2b34;color:#fff;">➕ طلب جديد</span>
+        </div>
+      </div>
+      <div id="mzTkNew" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap;">
+        <input id="mzTkClient" placeholder="اسم الزبون" style="flex:1;min-width:160px;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit;">
+        <textarea id="mzTkDetails" placeholder="شو المطلوب؟ (بنود، مقاسات، ملاحظات)" rows="2" style="flex:3;min-width:220px;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit;"></textarea>
+        <button type="button" id="mzTkSave" style="border:0;border-radius:8px;padding:8px 16px;background:#1d6b3a;color:#fff;font:inherit;font-weight:700;cursor:pointer;">افتح الطلب</button>
+      </div>
+      <div id="mzTkList" style="margin-top:8px;"></div>
+    </div>
 
     <div class="panel" id="mzQsPanel">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;">
@@ -3520,7 +3538,77 @@ function showQuotationsView(){
   render();
   renderQuotationsTracking();
   mzQsRender(); mzQsLoad();
+  try{ mzTkRender(); mzTkLoad(true); }catch(e){}
 }
+/* 🎫 2026-11-18 - طلبات عروض الأسعار المفتوحة (طلب حمدي): "لما ابعت طلب عالسيستم ينفتح تيكيت، وأي حدا بيدخل
+   يشوف إنو في طلب، والسيستم بيعمل فولو اب لحتى ينعمل العرض وينسكّر".
+   المصدر: السيرفر (/tickets). بينسكّر لحاله لما ينحفظ عرض سعر لنفس الزبون. (var + try: نفس حماية حالة العروض) */
+var MZ_TK_URL = MZ_QS_URL.replace(/\/quote-status$/, '/tickets');
+var __mzTk = [], __mzTkLoaded = false, __mzTkShowClosed = false, __mzTkAt = 0;
+async function mzTkLoad(force){
+  if(!force && Date.now() - __mzTkAt < 60000) return;
+  try{
+    const r = await dashFetchWithTimeout(MZ_TK_URL, { headers: mzQsHeaders(), cache: 'no-store' }, 20000);
+    if(!r.ok) return; // ما عنده صلاحية = ما منبيّن شي
+    const j = await r.json(); __mzTk = (j && j.items) || []; __mzTkLoaded = true; __mzTkAt = Date.now();
+    mzTkRender();
+  }catch(e){ console.warn('[الطلبات]', e); }
+}
+function mzTkAgo(t){ const h = Math.floor((Date.now() - t) / 3600e3); return h < 1 ? 'من شوي' : h < 24 ? 'من ' + h + ' ساعة' : 'من ' + Math.floor(h / 24) + ' يوم'; }
+function mzTkRender(){ try{ mzTkRenderInner(); }catch(e){ console.warn('[الطلبات] رسم:', e); } }
+function mzTkRenderInner(){
+  const open = __mzTk.filter(t => t.status === 'open');
+  // شارة عالتبويب + شريط بالصفحة الرئيسية
+  const tab = document.getElementById('quotationsTabBtn');
+  if(tab){ let b = tab.querySelector('.mz-tk-dot'); if(open.length){ if(!b){ b = document.createElement('span'); b.className = 'mz-tk-dot'; b.style.cssText = 'display:inline-block;min-width:18px;margin-inline-start:6px;padding:0 6px;border-radius:999px;background:#c0392b;color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;'; tab.appendChild(b); } b.textContent = open.length; b.title = open.length + ' طلبات عروض أسعار مفتوحة'; } else if(b) b.remove(); }
+  const hb = document.getElementById('mzTkHomeBanner');
+  if(hb){ hb.style.display = open.length ? '' : 'none'; hb.innerHTML = open.length ? '<div id="mzTkHomeGo" style="cursor:pointer;margin:0 0 12px;padding:10px 14px;border-radius:12px;background:#fff7e6;border:1px solid #f0d9a8;color:#7a5200;font-weight:700;">🎫 في ' + open.length + (open.length === 1 ? ' طلب عرض سعر مفتوح' : ' طلبات عروض أسعار مفتوحة') + ' - اكبس لتشوفهن</div>' : ''; }
+  const box = document.getElementById('mzTkPanel'); if(!box) return;
+  box.style.display = __mzTkLoaded ? '' : 'none';
+  document.getElementById('mzTkCount').textContent = open.length ? '(' + open.length + ')' : '';
+  document.getElementById('mzTkShowClosed').classList.toggle('active', __mzTkShowClosed);
+  const list = __mzTkShowClosed ? __mzTk.filter(t => t.status === 'closed').slice(0, 30) : open;
+  const L = document.getElementById('mzTkList');
+  if(!list.length){ L.innerHTML = '<p style="color:#888;font-size:13px;margin:6px 0;">' + (__mzTkShowClosed ? 'ما في طلبات مسكّرة.' : '✅ ما في ولا طلب مفتوح.') + '</p>'; return; }
+  L.innerHTML = list.map(t => {
+    const old = t.status === 'open' && Date.now() - t.at > 24 * 3600e3;
+    const notes = (t.notes || []).slice(-3).map(n => '<div style="font-size:12px;color:#666;">💬 ' + escapeHtml(n.text) + (n.by ? ' - ' + escapeHtml(n.by) : '') + '</div>').join('');
+    const act = t.status === 'open'
+      ? '<button class="mz-tk-act" data-id="' + t.id + '" data-a="close" style="border:0;border-radius:999px;padding:4px 12px;background:#1d6b3a;color:#fff;font:inherit;font-size:12px;cursor:pointer;">✓ خلص</button>'
+      : '<button class="mz-tk-act" data-id="' + t.id + '" data-a="reopen" style="border:0;background:none;color:#666;font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;">رجّعه مفتوح</button>';
+    return '<div data-tk="' + t.id + '" style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);">' +
+      '<div style="flex:1;min-width:200px;"><div style="font-weight:700;">#' + t.id + ' ' + escapeHtml(t.client || 'بلا اسم زبون') + (old ? ' <span style="color:#c0392b;font-size:12px;">⏰ متأخر</span>' : '') + '</div>' +
+      '<div style="font-size:13px;white-space:pre-wrap;unicode-bidi:plaintext;">' + escapeHtml(t.details || t.summary || '') + '</div>' + notes +
+      '<div style="font-size:12px;color:#888;margin-top:2px;">' + mzTkAgo(t.at) + (t.by ? ' · ' + escapeHtml(t.by) : '') + (t.source === 'whatsapp' ? ' · واتس اب' : '') + (t.draftId ? ' · في مسودة' : '') +
+      (t.status === 'closed' ? ' · انسكّر ' + mzTkAgo(t.closedAt) + (t.quoteRef ? ' (عرض ' + escapeHtml(t.quoteRef) + ')' : '') + (t.closedBy ? ' - ' + escapeHtml(t.closedBy) : '') : '') + '</div></div>' + act + '</div>';
+  }).join('');
+}
+async function mzTkPost(path, body){
+  const r = await dashFetchWithTimeout(MZ_TK_URL + path, { method: 'POST', headers: mzQsHeaders(), body: JSON.stringify(body || {}) }, 20000);
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok){ alert(r.status === 403 ? 'ما عندك صلاحية عروض الأسعار.' : 'ما انحفظ: ' + ((j && j.error) || r.status)); return null; }
+  return j;
+}
+document.addEventListener('click', async function(e){
+  try{
+    const go = e.target.closest && e.target.closest('#mzTkHomeGo'); if(go){ showQuotationsView(); try{ document.getElementById('mzTkPanel').scrollIntoView({ behavior: 'smooth' }); }catch(_){} return; }
+    if(e.target.id === 'mzTkNewBtn'){ const f = document.getElementById('mzTkNew'); f.style.display = f.style.display === 'none' ? 'flex' : 'none'; return; }
+    if(e.target.id === 'mzTkShowClosed'){ __mzTkShowClosed = !__mzTkShowClosed; mzTkRender(); return; }
+    if(e.target.id === 'mzTkSave'){
+      const client = document.getElementById('mzTkClient').value.trim(), details = document.getElementById('mzTkDetails').value.trim();
+      if(!client && !details){ alert('اكتب اسم الزبون أو شو المطلوب.'); return; }
+      const j = await mzTkPost('', { client, details, summary: details.split('\n')[0].slice(0, 120) });
+      if(j){ document.getElementById('mzTkClient').value = ''; document.getElementById('mzTkDetails').value = ''; document.getElementById('mzTkNew').style.display = 'none'; await mzTkLoad(true); }
+      return;
+    }
+    const a = e.target.closest && e.target.closest('.mz-tk-act'); if(!a) return;
+    if(a.dataset.a === 'close'){ const note = prompt('تسكير الطلب #' + a.dataset.id + ' - ملاحظة (اختياري، مثلاً رقم العرض أو "انلغى"):', ''); if(note === null) return; if(await mzTkPost('/' + a.dataset.id + '/close', { note })) await mzTkLoad(true); }
+    else if(a.dataset.a === 'reopen'){ if(await mzTkPost('/' + a.dataset.id + '/reopen', {})) await mzTkLoad(true); }
+  }catch(err){ alert('ما انحفظ - تأكد من النت: ' + (err.message || err)); }
+});
+// بيتحمّل مع فتح الصفحة (لتبيّن الشارة والشريط لأي حدا بيدخل) وكل دقيقتين
+setTimeout(() => { try{ mzTkLoad(true); }catch(e){} }, 1500);
+setInterval(() => { try{ if(!document.hidden) mzTkLoad(true); }catch(e){} }, 120000);
 function showDashboardView(){
   hideAllViews();
   document.getElementById('dashboardView').style.display = '';
