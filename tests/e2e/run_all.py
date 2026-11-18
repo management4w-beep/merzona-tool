@@ -37,7 +37,7 @@ def prepare():
     ip = os.path.join(tmp, 'index.html'); s = open(ip, encoding='utf8').read()
     a = "window.WD = window.WD || {};\n"
     assert a in s, 'designer anchor missing'
-    s = s.replace(a, a + "WD.__t = { items: function(){ return items; }, selId: function(){ return selectedId; }, sel: function(id){ selectItem(id); } };\n", 1)
+    s = s.replace(a, a + "WD.__t = { items: function(){ return items; }, selId: function(){ return selectedId; }, sel: function(id){ selectItem(id); }, cam: function(){ return { frame: camFrame, item: camItem, n: camOpenings.length }; }, sketch: function(){ return camBuildFacadeSketch('pencil', null); } };\n", 1)
     open(ip, 'w', encoding='utf8').write(s)
     return tmp
 
@@ -161,6 +161,69 @@ async def t_shower_wall(p, b, port):
     check(tot[0]['w'] == 800 and tot[0]['L'] + tot[0]['R'] == 550, 'المقاسات المحفوظة ما تغيّرت (الفتحة)')
     for k in range(2): await reopen(pg)
     t1 = await line(ids[1]); check('باب 795' in t1, 'إعدادات الجدار محفوظة بعد حفظ/فتح ' + repr(t1))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
+async def t_camera_quad(p, b, port):
+    """📷 الكاميرا: كل زاوية من الإطار الأزرق بتتحرك لحالها (تصوير من اليمين/اليسار) والرسمة بتلحق الزوايا"""
+    print('• 📷 الكاميرا: زوايا حرة للإطار (منظور)')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); dl = []
+    pg.on('dialog', lambda d: (dl.append(d.message), asyncio.ensure_future(d.accept())))
+    await open_tool(pg, port, [[1200, 1400, 'Hinged Window']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1000)
+    await pg.evaluate("""navigator.mediaDevices.getUserMedia = async function(){ var c = document.createElement('canvas'); c.width = 640; c.height = 480; var x = c.getContext('2d'); x.fillStyle = '#777'; x.fillRect(0,0,640,480); x.fillStyle = '#ddd'; x.fillRect(200,120,240,240); return c.captureStream(5); }""")
+    await pg.evaluate("openCameraOverlay()"); await pg.wait_for_timeout(900)
+    F = "(function(){ var f = WD.__t.cam().frame; return { q: f.q || null, x0: f.x0, y0: f.y0, x1: f.x1, y1: f.y1 }; })()"
+    async def drag(corner, dx, dy):
+        bb = await pg.locator('.cam-handle[data-corner="%s"] .cam-dot' % corner).bounding_box()
+        cx, cy = bb['x'] + bb['width'] / 2, bb['y'] + bb['height'] / 2
+        await pg.mouse.move(cx, cy); await pg.mouse.down()
+        for k in range(1, 6): await pg.mouse.move(cx + dx * k / 5, cy + dy * k / 5)
+        await pg.mouse.up(); await pg.wait_for_timeout(150)
+    f0 = await pg.evaluate(F)
+    await drag('tr', 0, 90)
+    f1 = await pg.evaluate(F); q = f1['q']
+    vw, vh = 1400, 900
+    check(q and abs(q[1][1] - (0.25 + 90 / vh)) < 0.01 and abs(q[1][0] - 0.75) < 0.005, 'الزاوية فوق-يمين نزلت لحالها ' + str(q))
+    check(q and q[0] == [0.25, 0.25] and abs(q[2][0] - 0.75) < 1e-6 and abs(q[2][1] - 0.75) < 1e-6 and q[3] == [0.25, 0.75], 'باقي الزوايا ما تحركت ' + str(q))
+    pts = await pg.evaluate("document.getElementById('camFrameInner').getAttribute('points')")
+    check(len(pts.split()) == 4, 'الإطار مرسوم شكل رباعي ' + pts)
+    check(await pg.evaluate("getComputedStyle(document.getElementById('camSquareBtn')).display != 'none'"), 'زر رجّعو زوايا قائمة ظاهر')
+    await drag('bl', -60, 40)
+    q2 = (await pg.evaluate(F))['q']
+    check(abs(q2[3][0] - (0.25 - 60 / vw)) < 0.01 and abs(q2[3][1] - (0.75 + 40 / vh)) < 0.01, 'الزاوية تحت-يسار طلعت لبرّا لحالها ' + str(q2))
+    # شكل متقاطع ما بينقبل: سحب فوق-يسار لورا فوق-يمين
+    await drag('tl', 900, 0)
+    q3 = (await pg.evaluate(F))['q']
+    check(q3[0][0] < q3[1][0], 'ما بيقبل شكل متقاطع/مقلوب ' + str(q3))
+    # بعد التثبيت: وضع التكبير مستطيل للتقسيم، و"شوفو عالفتحة" بيلوي الرسمة عالزوايا
+    await pg.evaluate("cameraConfirmFrame()"); await pg.wait_for_timeout(400)
+    check(await pg.evaluate("document.querySelectorAll('#camPerspLayer .cam-persp').length") == 0 and await pg.evaluate("document.querySelectorAll('#cameraOverlaySvg .cam-split-btn').length") > 0, 'وضع التقسيم: مستطيل مستقيم مع أزرار التقسيم')
+    await pg.evaluate("cameraToggleZoom()"); await pg.wait_for_timeout(400)
+    m = await pg.evaluate("""(function(){ var s = document.querySelector('#camPerspLayer .cam-persp[data-cam-active]'); if(!s) return null;
+      var M = new DOMMatrix(getComputedStyle(s).transform), w = +s.getAttribute('width'), h = +s.getAttribute('height');
+      var vb = document.getElementById('cameraOverlaySvg').viewBox.baseVal;
+      function ap(x, y){ var p = M.transformPoint(new DOMPoint(x, y, 0, 1)); return [p.x / p.w / vb.width, p.y / p.w / vb.height]; }
+      return { c: [ap(0,0), ap(w,0), ap(w,h), ap(0,h)], q: WD.__t.cam().frame.q }; })()""")
+    if os.environ.get('MZ_SHOT'): await pg.screenshot(path=os.environ['MZ_SHOT'] + '/cam_persp.png')
+    ok = m and all(abs(m['c'][i][j] - m['q'][i][j]) < 0.003 for i in range(4) for j in range(2))
+    check(ok, 'زوايا الرسمة = زوايا الإطار الأربعة بالضبط ' + str(m))
+    # النقر على القسم بالرسمة الملوية بيدوّر شكله
+    t0 = await pg.evaluate("JSON.stringify(WD.__t.cam().item.layout)")
+    qq = m['q']; cx = sum(x[0] for x in qq) / 4 * vw; cy = sum(x[1] for x in qq) / 4 * vh
+    await pg.mouse.click(cx, cy); await pg.wait_for_timeout(300)
+    t1 = await pg.evaluate("JSON.stringify(WD.__t.cam().item.layout)")
+    check(t0 != t1, 'النقر عالقسم بالرسمة الملوية بيغيّر شكله')
+    sk = await pg.evaluate("WD.__t.sketch().then(function(c){ window.__sk = c.toDataURL('image/png'); return { w: c.width, h: c.height }; }, function(e){ return 'ERR ' + e.message; })")
+    if os.environ.get('MZ_SHOT'):
+        import base64; open(os.environ['MZ_SHOT'] + '/cam_sketch.png', 'wb').write(base64.b64decode((await pg.evaluate('window.__sk')).split(',')[1]))
+    check(isinstance(sk, dict) and sk['w'] > 100, 'سكتش الواجهة اشتغل مع الفتحة الملوية ' + str(sk))
+    await pg.evaluate("cameraBackToFraming()"); await pg.wait_for_timeout(200)
+    await pg.evaluate("cameraSquareFrame()"); await pg.wait_for_timeout(200)
+    f4 = await pg.evaluate(F)
+    check(f4['q'] is None and abs(f4['x1'] - f1['x1']) < 0.02, 'رجّعو زوايا قائمة: صار مستطيل ' + str(f4))
+    await pg.evaluate("closeCameraOverlay()")
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
@@ -2553,7 +2616,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
