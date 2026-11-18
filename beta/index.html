@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-18.5';
+  var CURRENT_VERSION = '2026-11-18.6';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -1658,6 +1658,7 @@
     display:flex; flex-direction:column; align-items:center;
   }
   .threeD-card .threeD-title{ font-weight:700; font-size:13px; color:#1a1a2e; margin-bottom:10px; font-family:var(--wd-font-ui); }
+  .threeD-card .threeD-body{ width:100%; display:flex; flex-direction:column; align-items:center; }
   .threeD-controls{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
   .threeD-ctrl-label{ display:flex; align-items:center; gap:8px; color:#fff; font-size:12px; font-family:var(--wd-font-ui); background:rgba(255,255,255,0.12); padding:6px 12px; border-radius:20px; }
   .threeD-bg-btns{ display:flex; gap:6px; }
@@ -1812,6 +1813,7 @@
     body.three-d-printing .threeD-topbar{ display:none !important; }
     body.three-d-printing .threeD-grid{ grid-template-columns:1fr 1fr !important; }
     body.three-d-printing .threeD-card{ box-shadow:none !important; page-break-inside:avoid; border:1px solid #ddd; }
+    body.three-d-printing .threeD-real-tools{ display:none !important; }
   }
 
   .print-letterhead{
@@ -23810,14 +23812,65 @@ function open3DPreview(){
       const cls = classifyItem(it);
       const card = document.createElement('div');
       card.className = 'threeD-card';
-      card.innerHTML = `<div class="threeD-title">${it.label} — ${cls.ar}</div>${threeDSizeCaption(it)}${build3DRenderSVG(it)}`;
+      card.dataset.itemId = it.id;
+      card.innerHTML = `<div class="threeD-title">${it.label} — ${cls.ar}</div>${threeDSizeCaption(it)}<div class="threeD-body">${build3DRenderSVG(it)}</div>`;
       grid.appendChild(card);
     });
   }
   document.getElementById('threeDOverlay').style.display = 'block';
+  mzR3dEnhanceCards(visibleItems);
+}
+/* ✨ 2026-11-18 (حمدي: "الثري دي ماعم يطلع مرندر واقعي... منقدر نوصل فيه بالتطوير لدرجة يصير حقيقي؟"):
+   كل بطاقة شباك/باب بتنعرض صورة واقعية (WebGL - real3d.js) بدل الرسمة، مع زر "🔍 دوّر وشوف" (عارض تفاعلي + لون الألمنيوم
+   ونوع الزجاج + تنزيل صورة). إذا الجهاز ما بيدعم أو صار أي خطأ ← بتضل الرسمة القديمة متل ما هي. */
+const MZ_R3D_HELPERS = { isDoorLike, isSlidingType, isShowerDoor, isHandrail, isMirror, isRoom, isPergola, isGableRoof, DEFAULT_FRAME_THICKNESS, DEFAULT_LEAF_THICKNESS };
+let mzR3dPromise = null;
+function mzR3dLoad(){
+  if(window.MzReal3D) return Promise.resolve(window.MzReal3D);
+  if(mzR3dPromise) return mzR3dPromise;
+  mzR3dPromise = new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = new URL('real3d.js?v=' + encodeURIComponent((typeof CURRENT_VERSION !== 'undefined' && CURRENT_VERSION) || '1'), document.baseURI).href;
+    s.onload = ()=> window.MzReal3D ? res(window.MzReal3D) : rej(new Error('real3d'));
+    s.onerror = ()=> { mzR3dPromise = null; rej(new Error('real3d')); };
+    document.head.appendChild(s);
+  });
+  return mzR3dPromise;
+}
+let mzR3dSeq = 0;
+async function mzR3dEnhanceCards(list){
+  const seq = ++mzR3dSeq;
+  if(!window.THREE || typeof THREE.WebGLRenderer !== 'function') return;
+  let R; try{ R = await mzR3dLoad(); }catch(e){ return; }
+  if(!R.supported()) return;
+  for(const it of list){
+    if(seq !== mzR3dSeq || document.getElementById('threeDOverlay').style.display !== 'block') return;
+    if(!R.isOpeningSupported(it, MZ_R3D_HELPERS)) continue;
+    const card = document.querySelector(`#threeDGrid .threeD-card[data-item-id="${it.id}"]`);
+    const body = card && card.querySelector('.threeD-body'); if(!body) continue;
+    await new Promise(r=> setTimeout(r, 0)); // ما منعلّق الشاشة - بطاقة ورا بطاقة
+    let url = null; try{ url = R.renderImage(it, MZ_R3D_HELPERS); }catch(e){ url = null; console.warn('real3d', e); }
+    if(!url) continue;
+    const svgHtml = body.innerHTML;
+    body.innerHTML = `<img class="threeD-real" src="${url}" alt="" style="width:100%;height:auto;display:block;border-radius:8px;">
+      <div class="threeD-real-tools no-print" style="display:flex;gap:6px;justify-content:center;margin-top:6px;flex-wrap:wrap;">
+        <button type="button" class="small" data-r3d="view">🔍 دوّر وشوف (ألوان وزجاج)</button>
+        <button type="button" class="small" data-r3d="sketch">✏️ الرسمة</button></div>`;
+    body.querySelector('[data-r3d="view"]').onclick = ()=>{ R.openViewer(it, MZ_R3D_HELPERS, ()=>{ try{ saveDesignItemsToStorage(); }catch(e){} }); };
+    body.querySelector('[data-r3d="sketch"]').onclick = (ev)=>{
+      const b = ev.currentTarget, img = body.querySelector('.threeD-real');
+      let sk = body.querySelector('.threeD-sketch');
+      if(!sk){ sk = document.createElement('div'); sk.className = 'threeD-sketch'; sk.innerHTML = svgHtml; sk.style.display = 'none'; body.insertBefore(sk, img.nextSibling); }
+      const showSk = sk.style.display === 'none';
+      sk.style.display = showSk ? '' : 'none'; img.style.display = showSk ? 'none' : 'block';
+      b.textContent = showSk ? '✨ الواقعي' : '✏️ الرسمة';
+    };
+  }
 }
 function close3DPreview(){
   document.getElementById('threeDOverlay').style.display = 'none';
+  mzR3dSeq++;
+  try{ if(window.MzReal3D) window.MzReal3D.closeViewer(); }catch(e){}
 }
 
 function print3DPreview(){
