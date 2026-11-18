@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-18.4';
+  var CURRENT_VERSION = '2026-11-18.5';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -9390,6 +9390,7 @@ window.wdApplyBack = function(results){
   </div>
   <div class="camera-bottombar" id="cameraPhase1Controls">
     <button class="camera-wide-btn" onclick="cameraConfirmFrame()">✅ تثبيت الإطار وبدء التصميم</button>
+    <button class="camera-btn-small" id="camSquareBtn" onclick="cameraSquareFrame()" style="display:none;">⬜ رجّعو زوايا قائمة</button>
     <!-- 🆕 2026-11-03: واجهة فيلا كاملة - ثبّت الصورة وارسم كذا فتحة -->
     <button class="camera-btn-small" id="camFreezeBtn" onclick="cameraToggleFreeze()">📸 ثبّت صورة الواجهة</button>
     <button class="camera-btn-small" onclick="cameraPickPhoto()">🖼️ صورة من الجهاز</button>
@@ -22386,22 +22387,129 @@ function camSvgSize(){
   svg.setAttribute('preserveAspectRatio', 'none');
   return { svg, W, H };
 }
+// 🆕 2026-11-18 (حمدي: "المربع الازرق مافيني حرك فيه الزاوية لانه احيانا بكون عم صور من الاتجاه اليمين او اليسار
+//   فبالتالي ما بكون عندي زوايا قائمة"): كل زاوية بتتحرك لحالها (شكل رباعي حر - منظور).
+//   frame.q = [[x,y] فوق-يسار, فوق-يمين, تحت-يمين, تحت-يسار] (نسب 0..1)، و x0..y1 بيضلوا المستطيل المحيط (للتوافق).
+//   الرسمة بتنرسم مستطيل عادي وبعدين بتنلوى (homography) لتطابق الزوايا الأربعة - التقسيمات والمقاسات ما بتتأثر.
+function camQuadOf(fr){
+  if(fr && Array.isArray(fr.q) && fr.q.length === 4) return fr.q.map(p=>[p[0], p[1]]);
+  const x0 = Math.min(fr.x0, fr.x1), x1 = Math.max(fr.x0, fr.x1), y0 = Math.min(fr.y0, fr.y1), y1 = Math.max(fr.y0, fr.y1);
+  return [[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+}
+function camFrameFromQuad(q){
+  const xs = q.map(p=>p[0]), ys = q.map(p=>p[1]);
+  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys), q: q.map(p=>[p[0], p[1]]) };
+}
+function camIsPersp(fr){
+  if(!fr || !Array.isArray(fr.q) || fr.q.length !== 4) return false;
+  const r = camQuadOf({ x0:fr.x0, y0:fr.y0, x1:fr.x1, y1:fr.y1 });
+  return fr.q.some((p, i)=> Math.abs(p[0]-r[i][0]) > 0.002 || Math.abs(p[1]-r[i][1]) > 0.002);
+}
+// شكل محدّب (ما في زاوية داخلة لجوا ولا خطوط متقاطعة) - غير هيك الرسمة بتنقلب
+function camQuadConvex(q){
+  let sign = 0;
+  for(let i=0;i<4;i++){
+    const a = q[i], b = q[(i+1)%4], c = q[(i+2)%4];
+    const cr = (b[0]-a[0])*(c[1]-b[1]) - (b[1]-a[1])*(c[0]-b[0]);
+    if(Math.abs(cr) < 1e-9) return false;
+    const sg = cr > 0 ? 1 : -1;
+    if(sign && sg !== sign) return false;
+    sign = sg;
+  }
+  return true;
+}
+// homography: بياخد المستطيل (rx,ry,rw,rh) لأربع نقاط qp (بالبكسل) - [a,b,c,d,e,f,g,h] بحيث
+// X = (a*x+b*y+c)/(g*x+h*y+1) , Y = (d*x+e*y+f)/(g*x+h*y+1)
+function camHomography(rx, ry, rw, rh, qp){
+  const [x0,y0] = qp[0], [x1,y1] = qp[1], [x2,y2] = qp[2], [x3,y3] = qp[3];
+  const sx = x0-x1+x2-x3, sy = y0-y1+y2-y3;
+  let a,b,c,d,e,f,g,h;
+  if(Math.abs(sx) < 1e-9 && Math.abs(sy) < 1e-9){
+    a = x1-x0; b = x3-x0; c = x0; d = y1-y0; e = y3-y0; f = y0; g = 0; h = 0;
+  } else {
+    const dx1 = x1-x2, dx2 = x3-x2, dy1 = y1-y2, dy2 = y3-y2;
+    const den = dx1*dy2 - dx2*dy1;
+    g = (sx*dy2 - dx2*sy) / den; h = (dx1*sy - sx*dy1) / den;
+    a = x1-x0+g*x1; b = x3-x0+h*x3; c = x0; d = y1-y0+g*y1; e = y3-y0+h*y3; f = y0;
+  }
+  // من مربع الوحدة لمستطيل (rx,ry,rw,rh): u=(x-rx)/rw , v=(y-ry)/rh
+  a /= rw; d /= rw; g /= rw; b /= rh; e /= rh; h /= rh;
+  c -= a*rx + b*ry; f -= d*rx + e*ry; const k = 1 - g*rx - h*ry;
+  return [a/k, b/k, c/k, d/k, e/k, f/k, g/k, h/k];
+}
+function camHomApply(M, x, y){
+  const w = M[6]*x + M[7]*y + 1;
+  return [(M[0]*x + M[1]*y + M[2]) / w, (M[3]*x + M[4]*y + M[5]) / w];
+}
+function camHomCss(M){
+  const n = v => (Math.abs(v) < 1e-12 ? 0 : v).toPrecision(10);
+  return `matrix3d(${n(M[0])},${n(M[3])},0,${n(M[6])},${n(M[1])},${n(M[4])},0,${n(M[7])},0,0,1,0,${n(M[2])},${n(M[5])},0,1)`;
+}
 function camFramePx(W, H){
   const x0 = Math.min(camFrame.x0, camFrame.x1)*W, x1 = Math.max(camFrame.x0, camFrame.x1)*W;
   const y0 = Math.min(camFrame.y0, camFrame.y1)*H, y1 = Math.max(camFrame.y0, camFrame.y1)*H;
-  return { x0, y0, x1, y1, w: x1-x0, h: y1-y0 };
+  const q = camQuadOf(camFrame).map(p=>[p[0]*W, p[1]*H]);
+  const len = (a, b)=> Math.hypot(b[0]-a[0], b[1]-a[1]);
+  const persp = camIsPersp(camFrame);
+  // dw/dh = عرض/ارتفاع الفتحة الحقيقي بالصورة (معدل الضلعين المتقابلين) - للنسبة والمقاسات المقترحة
+  const dw = persp ? (len(q[0], q[1]) + len(q[3], q[2])) / 2 : x1-x0;
+  const dh = persp ? (len(q[0], q[3]) + len(q[1], q[2])) / 2 : y1-y0;
+  return { x0, y0, x1, y1, w: x1-x0, h: y1-y0, q, dw, dh, persp };
+}
+// طبقة فوق شاشة الكاميرا للفتحات المنحرفة: كل فتحة SVG لحالها ملوية بـ CSS matrix3d (النقرات عالأقسام بتضل شغالة)
+function camPerspLayer(){
+  let L = document.getElementById('camPerspLayer');
+  if(!L){
+    const svg = document.getElementById('cameraOverlaySvg');
+    L = document.createElement('div'); L.id = 'camPerspLayer';
+    L.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;';
+    svg.parentNode.insertBefore(L, svg.nextSibling);
+  }
+  return L;
+}
+function camPerspSvgTag(f, inner, extra){
+  const M = camHomography(0, 0, f.dw, f.dh, f.q);
+  return `<svg class="cam-persp" ${extra||''} xmlns="http://www.w3.org/2000/svg" width="${f.dw}" height="${f.dh}" viewBox="0 0 ${f.dw} ${f.dh}"
+    style="position:absolute;left:0;top:0;overflow:visible;transform-origin:0 0;transform:${camHomCss(M)};pointer-events:none;">
+    <g style="pointer-events:auto">${inner}</g></svg>`;
+}
+// بيلوي صورة (img بحجم sw×sh) على canvas: المستطيل (rx,ry,rw,rh) بالصورة بيروح عالنقاط qp - شبكة مثلثات صغيرة (canvas ما فيه منظور)
+function camWarpImage(ctx, img, sw, sh, rx, ry, rw, rh, qp, N){
+  N = N || 24;
+  const M = camHomography(rx, ry, rw, rh, qp);
+  const pts = [];
+  for(let j=0;j<=N;j++){ pts.push([]); for(let i=0;i<=N;i++){ const x = sw*i/N, y = sh*j/N; pts[j].push({ sx:x, sy:y, d: camHomApply(M, x, y) }); } }
+  const tri = (p0, p1, p2)=>{
+    const [X0,Y0] = p0.d, [X1,Y1] = p1.d, [X2,Y2] = p2.d;
+    const cx = (X0+X1+X2)/3, cy = (Y0+Y1+Y2)/3, grow = (P)=>{ const dx = P[0]-cx, dy = P[1]-cy, l = Math.hypot(dx,dy)||1; return [P[0]+dx/l*2.5, P[1]+dy/l*2.5]; };
+    const g0 = grow(p0.d), g1 = grow(p1.d), g2 = grow(p2.d);
+    const den = (p1.sx-p0.sx)*(p2.sy-p0.sy) - (p2.sx-p0.sx)*(p1.sy-p0.sy);
+    if(Math.abs(den) < 1e-9) return;
+    const a = ((X1-X0)*(p2.sy-p0.sy) - (X2-X0)*(p1.sy-p0.sy)) / den;
+    const c = ((X2-X0)*(p1.sx-p0.sx) - (X1-X0)*(p2.sx-p0.sx)) / den;
+    const b = ((Y1-Y0)*(p2.sy-p0.sy) - (Y2-Y0)*(p1.sy-p0.sy)) / den;
+    const d = ((Y2-Y0)*(p1.sx-p0.sx) - (Y1-Y0)*(p2.sx-p0.sx)) / den;
+    const e = X0 - a*p0.sx - c*p0.sy, f = Y0 - b*p0.sx - d*p0.sy;
+    ctx.save(); ctx.beginPath(); ctx.moveTo(g0[0], g0[1]); ctx.lineTo(g1[0], g1[1]); ctx.lineTo(g2[0], g2[1]); ctx.closePath(); ctx.clip();
+    ctx.setTransform(a, b, c, d, e, f); ctx.drawImage(img, 0, 0, sw, sh); ctx.restore();
+  };
+  for(let j=0;j<N;j++) for(let i=0;i<N;i++){
+    const A = pts[j][i], B = pts[j][i+1], C = pts[j+1][i+1], D = pts[j+1][i];
+    tri(A, B, C); tri(A, C, D);
+  }
 }
 
 function renderCameraFrame(){
   const { svg, W, H } = camSvgSize();
   svg.innerHTML = `${camOthersSvg(W, H, false)}
-    <rect id="camFrameFill" fill="rgba(0,220,255,0.22)" style="cursor:move;touch-action:none;"/>
-    <rect id="camFrameOuter" fill="none" stroke="#000" stroke-width="7" pointer-events="none"/>
-    <rect id="camFrameInner" fill="none" stroke="#00E5FF" stroke-width="3.5" pointer-events="none"/>
+    <polygon id="camFrameFill" fill="rgba(0,220,255,0.22)" style="cursor:move;touch-action:none;"/>
+    <polygon id="camFrameOuter" fill="none" stroke="#000" stroke-width="7" stroke-linejoin="round" pointer-events="none"/>
+    <polygon id="camFrameInner" fill="none" stroke="#00E5FF" stroke-width="3.5" stroke-linejoin="round" pointer-events="none"/>
     ${['tl','tr','bl','br'].map(c=>`<g class="cam-handle" data-corner="${c}" style="touch-action:none;cursor:pointer;">
       <circle class="cam-hit" r="40" fill="transparent"/>
       <circle class="cam-dot" r="17" fill="#00E5FF" stroke="#000" stroke-width="3.5"/></g>`).join('')}`;
   camUpdateFrameGeometry();
+  camPerspLayer().innerHTML = camOthersPersp(W, H, false);
   svg.querySelectorAll('.cam-handle').forEach(h=> h.addEventListener('pointerdown', camHandleDragStart, { passive:false }));
   svg.querySelector('#camFrameFill').addEventListener('pointerdown', camHandleDragStart, { passive:false });
   camUpdateCountUI();
@@ -22410,11 +22518,14 @@ function camUpdateFrameGeometry(){
   const svg = document.getElementById('cameraOverlaySvg');
   const vb = svg.viewBox.baseVal; const W = vb.width || 1000, H = vb.height || 1000;
   const f = camFramePx(W, H);
+  const ptsAttr = f.q.map(p=> p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
   ['camFrameFill','camFrameOuter','camFrameInner'].forEach(id=>{
     const r = document.getElementById(id); if(!r) return;
-    r.setAttribute('x', f.x0); r.setAttribute('y', f.y0); r.setAttribute('width', f.w); r.setAttribute('height', f.h);
+    r.setAttribute('points', ptsAttr);
   });
-  const pos = { tl:[camFrame.x0,camFrame.y0], tr:[camFrame.x1,camFrame.y0], bl:[camFrame.x0,camFrame.y1], br:[camFrame.x1,camFrame.y1] };
+  const Q = camQuadOf(camFrame);
+  const pos = { tl:Q[0], tr:Q[1], br:Q[2], bl:Q[3] };
+  { const rb = document.getElementById('camSquareBtn'); if(rb) rb.style.display = camIsPersp(camFrame) ? '' : 'none'; }
   svg.querySelectorAll('.cam-handle').forEach(g=>{
     const p = pos[g.dataset.corner];
     g.querySelectorAll('circle').forEach(c=>{ c.setAttribute('cx', p[0]*W); c.setAttribute('cy', p[1]*H); });
@@ -22428,13 +22539,13 @@ let camDragRaf = 0, camDragPending = null;
 let camZoomed = false;
 function camCanvasRect(W, H){
   const f = camFramePx(W, H);
-  if(!camZoomed || f.w < 1 || f.h < 1) return f;
+  if(!camZoomed || f.dw < 1 || f.dh < 1) return f;
   let top = 64, bottom = H - 16;
   try{ const tb = document.querySelector('#cameraOverlay .camera-topbar').getBoundingClientRect(); if(tb.height) top = tb.bottom + 14; }catch(e){}
   try{ const bb = document.getElementById('cameraPhase2Controls').getBoundingClientRect(); if(bb.height) bottom = bb.top - 14; }catch(e){}
   const availW = W * 0.94, availH = Math.max(120, bottom - top);
-  const s = Math.min(availW / f.w, availH / f.h);
-  const w = f.w * s, h = f.h * s;
+  const s = Math.min(availW / f.dw, availH / f.dh);
+  const w = f.dw * s, h = f.dh * s;
   const x0 = (W - w) / 2, y0 = top + (availH - h) / 2;
   return { x0, y0, x1: x0 + w, y1: y0 + h, w, h };
 }
@@ -22477,7 +22588,7 @@ function camHandleDragStart(e){
   const corner = e.currentTarget.dataset.corner || 'move';
   const p = svgPointFromEvent(svg, e);
   const vb = svg.viewBox.baseVal;
-  camHandleDrag = { corner, svg, pointerId: e.pointerId, startX: p.x/vb.width, startY: p.y/vb.height, startFrame: Object.assign({}, camFrame) };
+  camHandleDrag = { corner, svg, pointerId: e.pointerId, startX: p.x/vb.width, startY: p.y/vb.height, startFrame: Object.assign({}, camFrame, { q: camQuadOf(camFrame) }) };
   try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
 }
 function camApplyDrag(){
@@ -22491,16 +22602,20 @@ function camApplyDrag(){
   // منحرّك بمقدار حركة الإصبع (مش منقفّز الزاوية لتحت الإصبع) - هيك ما في أي نطّة لو مسكت جنب الزاوية مش عليها بالظبط
   let ddx = p.x/vb.width - camHandleDrag.startX, ddy = p.y/vb.height - camHandleDrag.startY;
   const clamp01 = v => Math.max(0, Math.min(1, v));
+  const sq = camQuadOf(sf);
   if(c === 'move'){
     let dx = ddx, dy = ddy;
     dx = Math.max(-Math.min(sf.x0,sf.x1), Math.min(1-Math.max(sf.x0,sf.x1), dx));
     dy = Math.max(-Math.min(sf.y0,sf.y1), Math.min(1-Math.max(sf.y0,sf.y1), dy));
-    camFrame = { x0: sf.x0+dx, y0: sf.y0+dy, x1: sf.x1+dx, y1: sf.y1+dy };
+    camFrame = camFrameFromQuad(sq.map(p=>[p[0]+dx, p[1]+dy]));
   } else {
-    if(c==='tl'){ camFrame.x0 = clamp01(sf.x0+ddx); camFrame.y0 = clamp01(sf.y0+ddy); }
-    if(c==='tr'){ camFrame.x1 = clamp01(sf.x1+ddx); camFrame.y0 = clamp01(sf.y0+ddy); }
-    if(c==='bl'){ camFrame.x0 = clamp01(sf.x0+ddx); camFrame.y1 = clamp01(sf.y1+ddy); }
-    if(c==='br'){ camFrame.x1 = clamp01(sf.x1+ddx); camFrame.y1 = clamp01(sf.y1+ddy); }
+    // 🆕 2026-11-18: كل زاوية لحالها (مش لازم زوايا قائمة) - إذا صار الشكل مقلوب/متقاطع منوقّف عند آخر شكل صحيح
+    const idx = { tl:0, tr:1, br:2, bl:3 }[c];
+    if(idx !== undefined){
+      const nq = sq.map(p=>[p[0], p[1]]);
+      nq[idx] = [clamp01(sq[idx][0]+ddx), clamp01(sq[idx][1]+ddy)];
+      if(camQuadConvex(nq)) camFrame = camFrameFromQuad(nq);
+    }
   }
   camUpdateFrameGeometry();
 }
@@ -22581,17 +22696,30 @@ function camBadge(x, y, text, active, sc){
 function camOthersSvg(W, H, clickable){
   return camOpenings.map((o, i)=>{
     const sf = camFrame; camFrame = o.frame; const f = camFramePx(W, H); camFrame = sf;
+    if(f.persp) return camBadge(f.q[0][0], f.q[0][1], camOpeningTag(o.item), false); // الرسمة نفسها بطبقة المنظور
     const { html } = camBuildOpeningSvg(o.item, f, { interactive:false, opacity:0.75 });
     const hit = clickable ? `<rect x="${f.x0}" y="${f.y0}" width="${f.w}" height="${f.h}" fill="transparent" style="cursor:pointer;" onclick="cameraActivateOpening(${i})"/>` : '';
     return `<g opacity="0.8">${html}</g>${camBadge(f.x0, f.y0, camOpeningTag(o.item), false)}${hit}`;
   }).join('');
 }
 
+function camOthersPersp(W, H, clickable){
+  return camOpenings.map((o, i)=>{
+    const sf = camFrame; camFrame = o.frame; const f = camFramePx(W, H); camFrame = sf;
+    if(!f.persp) return '';
+    const { html } = camBuildOpeningSvg(o.item, { x0:0, y0:0, x1:f.dw, y1:f.dh, w:f.dw, h:f.dh }, { interactive:false, opacity:0.75 });
+    const hit = clickable ? `<rect x="0" y="0" width="${f.dw}" height="${f.dh}" fill="transparent" style="cursor:pointer;" onclick="cameraActivateOpening(${i})"/>` : `<rect x="0" y="0" width="0" height="0"/>`;
+    return camPerspSvgTag(f, `<g opacity="0.8" ${clickable ? '' : 'pointer-events="none"'}>${html}</g>${clickable ? hit : ''}`, `data-cam-other="${i}"`);
+  }).join('');
+}
 function renderCameraDesign(){
   if(!camItem) return;
   if(camPhase === 1){ renderCameraFrame(); return; }
   const { svg, W, H } = camSvgSize();
-  const f = camCanvasRect(W, H);
+  const fr = camCanvasRect(W, H);
+  // 🆕 2026-11-18: فتحة منحرفة (منظور) بوضع "شوفو عالفتحة": منرسمها مستطيل وبتنلوى عالزوايا الأربعة
+  const persp = !camZoomed && fr.persp;
+  const f = persp ? { x0:0, y0:0, x1:fr.dw, y1:fr.dh, w:fr.dw, h:fr.dh } : fr;
   const opacity = (document.getElementById('cameraOpacityRange').value || 70) / 100;
   const { html, out } = camBuildOpeningSvg(camItem, f, { interactive:true, opacity: camZoomed ? Math.max(opacity, 0.85) : opacity });
 
@@ -22616,9 +22744,18 @@ function renderCameraDesign(){
   // وضع التكبير: خلفية معتّمة والفتحة الفعالة لحالها بنص الشاشة. بالوضع العادي: كل الفتحات فوق الصورة
   const zoomBg = camZoomed ? `<rect x="0" y="0" width="${W}" height="${H}" fill="rgba(6,12,22,0.72)" pointer-events="none"/>` : '';
   const others = camZoomed ? '' : camOthersSvg(W, H, true);
-  const badge = (camOpenings.length || camItem.camNo > 1) ? camBadge(f.x0, f.y0, camOpeningTag(camItem), true) : '';
-  svg.innerHTML = `${others}${zoomBg}${html}${badge}
-    ${camHideTools ? '' : out.mergeMarkers.join('') + out.dragHandles.join('')}${camSplitBtns}`;
+  const bx = persp ? fr.q[0][0] : f.x0, by = persp ? fr.q[0][1] : f.y0;
+  const badge = (camOpenings.length || camItem.camNo > 1) ? camBadge(bx, by, camOpeningTag(camItem), true) : '';
+  const tools = (camHideTools ? '' : out.mergeMarkers.join('') + out.dragHandles.join('')) + camSplitBtns;
+  if(persp){
+    // أزرار التقسيم والسحب بس بوضع التكبير (المستطيل المستقيم) - هون الرسمة للعرض فوق الصورة + تدوير الأقسام بالنقر
+    svg.innerHTML = `${others}${badge}`;
+    camPerspLayer().innerHTML = camOthersPersp(W, H, true) + camPerspSvgTag(fr, html, 'data-cam-active="1"');
+  } else {
+    svg.innerHTML = `${others}${zoomBg}${html}${badge}
+    ${tools}`;
+    camPerspLayer().innerHTML = camZoomed ? '' : camOthersPersp(W, H, true);
+  }
   svg.querySelectorAll('.drag-split').forEach(r=>{
     r.addEventListener('pointerdown', (e)=> onDragStart(e, r), { passive:false });
   });
@@ -22789,18 +22926,33 @@ async function camBuildFacadeSketch(mode, sizes){
   const list = camAllOpenings();
   const sc = Math.max(1, k * 0.8);
   let body = '';
+  const perspJobs = [];
   list.forEach(o=>{
     const sf = camFrame; camFrame = o.frame; const f0 = camFramePx(Wcss, Hcss); camFrame = sf;
     const f = { x0:f0.x0*k, y0:f0.y0*k, x1:f0.x1*k, y1:f0.y1*k, w:f0.w*k, h:f0.h*k };
+    if(f0.persp){
+      // 🆕 2026-11-18: فتحة منحرفة - منرسمها مستطيل (مع هامش للعتبة والإطار) وبعدين منلويها عالزوايا الأربعة
+      const dw = f0.dw*k, dh = f0.dh*k, P = Math.round(40*sc);
+      const ls = Math.max(0.6, Math.min(1.6, dw/260));
+      const inner = camBuildOpeningSvg(o.item, { x0:P, y0:P, x1:P+dw, y1:P+dh, w:dw, h:dh }, { sketch:true, interactive:false, opacity:0.92, lineScale: ls }).html;
+      perspJobs.push({ svg: inner, sw: Math.ceil(dw + 2*P), sh: Math.ceil(dh + 2*P), P, dw, dh, q: f0.q.map(p=>[p[0]*k, p[1]*k]) });
+    } else
     body += camBuildOpeningSvg(o.item, f, { sketch:true, interactive:false, opacity:0.92, lineScale: Math.max(0.6, Math.min(1.6, f.w/260)) }).html;
     const sz = sizes && sizes.get(o.item);
     const tag = camOpeningTag(o.item) + (sz ? `  ${sz.w}×${sz.h}` : '');
     const bw = (16 + tag.length*8.2)*sc, bh = 24*sc;
-    const by = Math.max(bh + 4*sc, f.y0 - 10*sc);
-    body += `<rect x="${f.x0}" y="${by - bh}" width="${bw}" height="${bh}" rx="${5*sc}" fill="#ffffff" stroke="#111418" stroke-width="${1.4*sc}"/>
-      <text x="${f.x0 + bw/2}" y="${by - bh/2 + 5*sc}" text-anchor="middle" font-size="${13.5*sc}" font-weight="700" fill="#111418" font-family="Arial, sans-serif" direction="ltr">${tag}</text>`;
+    const tx = f0.persp ? f0.q[0][0]*k : f.x0, ty = f0.persp ? f0.q[0][1]*k : f.y0;
+    const by = Math.max(bh + 4*sc, ty - 10*sc);
+    body += `<rect x="${tx}" y="${by - bh}" width="${bw}" height="${bh}" rx="${5*sc}" fill="#ffffff" stroke="#111418" stroke-width="${1.4*sc}"/>
+      <text x="${tx + bw/2}" y="${by - bh/2 + 5*sc}" text-anchor="middle" font-size="${13.5*sc}" font-weight="700" fill="#111418" font-family="Arial, sans-serif" direction="ltr">${tag}</text>`;
   });
   const ctx = base.getContext('2d');
+  for(const j of perspJobs){
+    try{
+      const img = await camLoadSvgImage(`<svg xmlns="http://www.w3.org/2000/svg" width="${j.sw}" height="${j.sh}" viewBox="0 0 ${j.sw} ${j.sh}">${j.svg}</svg>`);
+      camWarpImage(ctx, img, j.sw, j.sh, j.P, j.P, j.dw, j.dh, j.q);
+    }catch(e){}
+  }
   if(body){
     const img = await camLoadSvgImage(`<svg xmlns="http://www.w3.org/2000/svg" width="${CW}" height="${CH}" viewBox="0 0 ${CW} ${CH}">${body}</svg>`);
     ctx.drawImage(img, 0, 0);
@@ -22906,10 +23058,10 @@ function cameraSaveToDesigner(){
   for(const o of list){
     const sf = camFrame; camFrame = o.frame; const f = camFramePx(W0, H0); camFrame = sf;
     const tag = camOpeningTag(o.item) + ' - ' + (SHAPE_LABELS[o.item.shapeType] || 'شباك');
-    const defW = mmPerPx ? Math.round(f.w * mmPerPx / 10) * 10 : Math.round(o.item.width || 1200);
+    const defW = mmPerPx ? Math.round(f.dw * mmPerPx / 10) * 10 : Math.round(o.item.width || 1200);
     const W = askMM(`عرض ${tag}`, defW); if(W === null) return;
-    if(!mmPerPx && f.w > 0) mmPerPx = W / f.w;
-    const defH = Math.round((f.h > 0 && f.w > 0 ? W * f.h / f.w : (o.item.height || 1400)) / 10) * 10;
+    if(!mmPerPx && f.dw > 0) mmPerPx = W / f.dw;
+    const defH = Math.round((f.dh > 0 && f.dw > 0 ? W * f.dh / f.dw : (o.item.height || 1400)) / 10) * 10;
     const H = askMM(`ارتفاع ${tag}`, defH); if(H === null) return;
     sizes.set(o.item, { w:W, h:H });
   }
@@ -22994,7 +23146,7 @@ async function openCameraOverlay(){
   camOpenings = []; camCounter = 0; camItem = null; camZoomed = false; camPhotoFrozen = false;
   document.getElementById('cameraPhotoCanvas').style.display = 'none';
   { const sb = document.getElementById('camSketchBox'); if(sb) sb.style.display = 'none'; }
-  document.getElementById('cameraPhaseLabel').textContent = 'حرّك زوايا المربع لتطابق الفتحة';
+  document.getElementById('cameraPhaseLabel').textContent = 'حرّك كل زاوية لحالها لتطابق زوايا الفتحة بالصورة';
   document.getElementById('cameraPhase1Controls').style.display = 'flex';
   document.getElementById('cameraPhase2Controls').style.display = 'none';
   document.getElementById('cameraVideo').style.display = 'block';
@@ -23029,6 +23181,12 @@ function cameraConfirmFrame(){
   renderCameraDesign();
 }
 
+// 🆕 2026-11-18: رجّع الإطار مستطيل بزوايا قائمة (المستطيل المحيط بالزوايا الحالية)
+function cameraSquareFrame(){
+  camFrame = { x0:camFrame.x0, y0:camFrame.y0, x1:camFrame.x1, y1:camFrame.y1 };
+  if(camPhase === 1) camUpdateFrameGeometry(); else renderCameraDesign();
+}
+window.cameraSquareFrame = cameraSquareFrame;
 function cameraBackToFraming(){
   camZoomed = false;
   camPhase = 1;
@@ -23057,6 +23215,7 @@ function closeCameraOverlay(){
   if(cameraStream){ cameraStream.getTracks().forEach(t=>t.stop()); cameraStream = null; }
   items = items.filter(it => !it.isCameraTemp); camItem = null; camOpenings = [];
   camPhotoFrozen = false;
+  { const pl = document.getElementById('camPerspLayer'); if(pl) pl.innerHTML = ''; }
   { const pc = document.getElementById('cameraPhotoCanvas'); if(pc){ pc.style.display = 'none'; pc.width = 1; pc.height = 1; } }
   { const sb = document.getElementById('camSketchBox'); if(sb) sb.style.display = 'none'; }
   document.getElementById('cameraOverlay').style.display = 'none';
