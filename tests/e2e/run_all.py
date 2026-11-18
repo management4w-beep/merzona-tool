@@ -68,6 +68,44 @@ async def reopen(pg):
     await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(1000)
     await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1000)
 
+async def t_sliding_ids(p, b, port):
+    """🚪 عرض 260223: الكبسة عالدرفة اليمين كانت تغيّر اليسار (معرّفات مكررة)، والباب السحّاب كان يفتح لوفر/لفوق"""
+    print('• المصمم: درفات بمعرّفات مكررة + باب سحّاب محفوظ كباب')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[7000, 2800, 'Aluminum Door']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(800)
+    # متل البيانات المحفوظة بالعرض: باب اسمو سحّاب، 6 درفات، آخر درفة إلها نفس معرّف الأولى، وإحداهن لوفر
+    await pg.evaluate("""(function(){ var ex = window.__getDesignItemsForExport__(); var it = ex.items[0];
+      it.label = 'Vetromax Minimal Sliding System concealed'; it.shapeType = 'door';
+      var T = ['plain','slide_left','slide_left','slide_right','louver','plain'], ids = ['n2','n3','n4','n5','n6','n2'];
+      it.layout = { id:'n1', kind:'split', direction:'row', children: T.map(function(t,k){ return { frac: 100/6, node: { id: ids[k], kind:'leaf', type: t } }; }) };
+      window.__applyDesignItemsImport__(JSON.parse(JSON.stringify(ex.items)), 2); })()""")
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    st = await pg.evaluate("(function(){ var it = WD.__t.items()[0]; var ids = it.layout.children.map(function(c){return c.node.id}); return { t: it.shapeType, ids: ids, types: it.layout.children.map(function(c){return c.node.type}), cap: document.querySelector('#card-' + it.id + ' .card-classify').textContent }; })()")
+    check(st['t'] == 'slidingDoor' and 'Sliding Door' in st['cap'], 'باب سحّاب محفوظ كباب ← صار باب سحّاب (وبيكتب Sliding Door) ' + str(st))
+    check(len(set(st['ids'])) == 6 and st['ids'][0] == 'n2', 'المعرّف المكرّر صار جديد (الأولى بتضل متل ما هي) ' + str(st['ids']))
+    check('louver' not in st['types'] and st['types'][4] == 'plain', 'فتحة لوفر بباب سحّاب رجعت ثابت ' + str(st['types']))
+    # كبسة عالدرفة اليمين ← بتتغيّر هي بس
+    before = st['types']
+    cells = pg.locator('#card-' + str(await pg.evaluate("WD.__t.items()[0].id")) + ' rect.cell')
+    n = await cells.count()
+    seen = set()
+    for k in range(4):
+        await cells.nth(n - 1).click(force=True); await pg.wait_for_timeout(150)
+        tt = await pg.evaluate("WD.__t.items()[0].layout.children.map(function(c){return c.node.type})")
+        seen.add(tt[5]); check(tt[:5] == before[:5], 'الكبسة عاليمين ما بتغيّر غير اليمين (' + str(k + 1) + ') ' + str(tt))
+        cells = pg.locator('#card-' + str(await pg.evaluate("WD.__t.items()[0].id")) + ' rect.cell'); n = await cells.count()
+    check(seen <= {'plain', 'slide_left', 'slide_right', 'frosted'} and 'slide_left' in seen, 'خيارات الباب السحّاب: ثابت/سحب بس (بلا لوفر ولا فتح لفوق) ' + str(seen))
+    # تقسيم جديد بعد ما انفتحت الصفحة ما بياخد معرّف موجود
+    await pg.evaluate("(function(){ var it = WD.__t.items()[0]; splitLeaf(it.id, it.layout.children[5].node.id, 'col'); })()"); await pg.wait_for_timeout(300)
+    allIds = await pg.evaluate("(function(){ var out=[]; (function w(n){ out.push(n.id); if(n.kind==='split') n.children.forEach(function(c){ w(c.node); }); })(WD.__t.items()[0].layout); return out; })()")
+    check(len(allIds) == len(set(allIds)), 'التقسيم الجديد بمعرّفات جديدة ' + str(allIds))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_types_and_roundtrip(p, b, port):
     print('• أنواع البنود + حفظ وإعادة فتح')
     ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -2456,7 +2494,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()

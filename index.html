@@ -152,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-18.1';
+  var CURRENT_VERSION = '2026-11-18.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -9950,6 +9950,22 @@ window.__refreshDesignerAfterItemRemoval__ = function(removedId){
 // لاحق بالمعرّف المكرر ممكن يطبّق غلط عالعنصر القديم بدل الجديد (أو حتى يمسح الاتنين سوا لو حصل حذف).
 // هلق: كل ما نستورد بيانات خام (نفس نمط nextId بالضبط)، منمشي على كل الغرف ومناطق السقف ومنحسب أعلى
 // رقم موجود فعليًا بكل نوع معرّف، ومنرفع العداد المطابق ليصير أكبر منه لو لزم.
+// 🚪 2026-11-18 (حمدي: "السيستم يعتبرو باب، ولما اكبس عالباب بيعطيني لوفر وفتح شباك - باب سحاب مستحيل يفتح من فوق"):
+// بند اسمو سحّاب (Sliding / سحاب) أو فيه درفات سحب، وكان محفوظ كباب/شباك عادي ← باب سحّاب / شباك سحّاب. وأي فتحة
+// ما بتصير بالسحّاب (لوفر، فتح لفوق/لجنب) بترجع ثابت.
+function mzNormalizeSlidingShape(it){
+  if(!it || (it.shapeType !== 'door' && it.shapeType !== 'window') || !it.layout) return false;
+  const types = []; (function w(n){ if(!n) return; if(n.kind === 'leaf') types.push(n.type); else (n.children || []).forEach(ch => w(ch && ch.node)); })(it.layout);
+  const hasSlide = types.some(t => t === 'slide_left' || t === 'slide_right');
+  const name = String(it.label || '').toLowerCase();
+  const slidingName = /sliding|سحاب|سحّاب|lif[te]\s*(&|and)\s*slide/.test(name) && !/folding|فولدينغ|فولدينج/.test(name);
+  if(!hasSlide && !slidingName) return false;
+  it.shapeType = it.shapeType === 'door' ? 'slidingDoor' : 'slidingWindow';
+  if(it.frameThickness == null) it.frameThickness = DEFAULT_FRAME_THICKNESS;
+  if(it.leafThickness == null) it.leafThickness = DEFAULT_LEAF_THICKNESS;
+  (function w(n){ if(!n) return; if(n.kind === 'leaf'){ if(!/^(plain|slide_left|slide_right|frosted)$/.test(n.type || 'plain')) n.type = 'plain'; } else (n.children || []).forEach(ch => w(ch && ch.node)); })(it.layout);
+  return true;
+}
 function resyncSubItemIdCounters(itemsArr){
   let maxRs = 0, maxRg = 0, maxS = 0;
   function numFromId(id, prefix){
@@ -9964,6 +9980,22 @@ function resyncSubItemIdCounters(itemsArr){
     });
     (it.hrSegments||[]).forEach(function(seg){ maxS = Math.max(maxS, numFromId(seg.id, 's')); });
   });
+  // 🛠️ 2026-11-18 (بلاغ حمدي، عرض 260223: "عم اكبس عالدرفة اليمين بس يللي عم يتغير الدرفة اقصى اليسار"):
+  // عدّاد معرّفات الدرفات (nextNodeId) كان يرجع يبلّش من 1 بعد ما تنفتح الصفحة من جديد، فأي تقسيم جديد كان ياخد
+  // نفس معرّف درفة موجودة - والكبسة عالدرفة الجديدة كانت تغيّر الدرفة الأولى يلي إلها نفس المعرّف.
+  // (1) العدّاد بيكمّل بعد أعلى معرّف موجود. (2) التصاميم يلي انخربت من قبل: المعرّف المكرّر بياخد معرّف جديد.
+  try{
+    let maxN = 0;
+    const walkMax = (node) => { if(!node) return; maxN = Math.max(maxN, numFromId(node.id, 'n')); if(node.kind === 'split') (node.children || []).forEach(ch => walkMax(ch && ch.node)); };
+    (itemsArr || []).forEach(it => { walkMax(it.layout); walkMax(it.archLayout); });
+    if(maxN + 1 > nextNodeId) nextNodeId = maxN + 1;
+    (itemsArr || []).forEach(it => {
+      const seen = new Set();
+      const fix = (node) => { if(!node) return; if(!node.id || seen.has(node.id)) node.id = 'n' + (nextNodeId++); seen.add(node.id); if(node.kind === 'split') (node.children || []).forEach(ch => fix(ch && ch.node)); };
+      fix(it.layout); fix(it.archLayout);
+      mzNormalizeSlidingShape(it);
+    });
+  }catch(e){ console.warn('[المصمم] تصليح المعرّفات:', e); }
   if(maxRs + 1 > roomSideIdCounter) roomSideIdCounter = maxRs + 1;
   if(maxRg + 1 > roomSegIdCounter) roomSegIdCounter = maxRg + 1;
   if(maxS + 1 > hrSegIdCounter) hrSegIdCounter = maxS + 1;
@@ -21819,6 +21851,7 @@ function buildItemFromSavedDesign(design, uid, label){
   };
   if(design.extra){ SAVED_EXTRA_KEYS.forEach(k=>{ if(design.extra[k] !== undefined) _it[k] = JSON.parse(JSON.stringify(design.extra[k])); }); }
   if(design.shapeType === 'mirror'){ Object.assign(_it, design.mirror || {}); mirrorEnsure(_it); }
+  try{ mzNormalizeSlidingShape(_it); }catch(e){}
   return _it;
 }
 
