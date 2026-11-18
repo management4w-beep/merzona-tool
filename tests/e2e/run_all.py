@@ -1083,7 +1083,14 @@ async def t_wa_pdf(p, b, port):
     if txt:
         check('DRAFT' in txt, 'علامة مسودة/DRAFT بالملف')
         check('12000' in txt and '2000' in txt and 'S-Q-DRAFT' in txt, 'القياسات والرقم (مسودة) بالملف')
+        check('-- Select' not in txt and 'Project name' not in txt and 'e.g. DXB' not in txt, 'خانات الإدخال بتنطبع كنص (بلا قوائم اختيار ولا نصوص مساعدة)')
     shutil.copy(out, '/tmp/claude-0/wa-draft-sample.pdf') if os.path.isdir('/tmp/claude-0') else None
+    # 📚 بنود السيستم (من السيرفر) بتوصل للمسودة: بند مش بالقائمة الأساسية بيطلع بمواصفاتو
+    cat = os.path.join(tempfile.mkdtemp(prefix='mz-cat-'), 'cat.json'); out2 = out.replace('draft.pdf', 'draft2.pdf')
+    json.dump({'items': [{'en': 'Vetromax', 'ar': 'فيترومكس', 'specEn': 'Vetromax Sliding System XQZ', 'specAr': 'نظام فيترومكس', 'glassEn': '', 'glassAr': ''}], 'specAr': {}, 'draftItems': [{'name': 'Vetromax', 'w': 7000, 'h': 2800, 'qty': 1, 'price': 3600}]}, open(cat, 'w'))
+    r2 = subprocess.run(['node', os.path.join(ROOT, 'tests', 'e2e', 'render_pdf.js'), sdir, f'http://127.0.0.1:{port}/index.html', out2], capture_output=True, text=True, timeout=300, env=dict(os.environ, MZ_CATALOG_JSON=cat))
+    txt2 = subprocess.run(['pdftotext', '-layout', out2, '-'], capture_output=True, text=True).stdout if shutil.which('pdftotext') and os.path.exists(out2) else ''
+    check(r2.returncode == 0 and ('XQZ' in txt2 or not shutil.which('pdftotext')), 'بند محفوظ بالسيستم (Vetromax) بيطلع بالمسودة بمواصفاتو')
 
 async def t_price_sync(p, b, port):
     """💲 آخر سعر لكل بند بيتزامن مع السيرفر: بيجيب أسعار السيرفر، بيرفع القديم، وبيبعت كل سعر جديد."""
@@ -2088,6 +2095,56 @@ async def t_tickets(p, b, port):
         await ctx.close()
 
 
+async def t_items_sync(p, b, port):
+    """📚 بنود السيستم بتنرفع للسيرفر وبتنجاب منه (هيك مساعد الواتس اب ومسودة الـPDF بيعرفوها)"""
+    print('• 📚 مزامنة بنود السيستم مع السيرفر')
+    server = {'items': [], 'specAr': {}, 'at': 0}; posts = []
+    async def srv(route):
+        u = route.request.url
+        if u.endswith('/quote-items'):
+            if route.request.method == 'POST':
+                bd = json.loads(route.request.post_data or '{}'); posts.append(bd)
+                server['items'] = bd['items']; server['specAr'] = bd.get('specAr') or {}; server['at'] += 1000
+                return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'ok': True, 'at': server['at']}))
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps(server))
+        body = {'status': 'approved', 'isOwner': True} if '/access/status' in u else {}
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    async def open_dev(init_js):
+        ctx = await b.new_context(viewport={"width": 1400, "height": 900})
+        await ctx.add_init_script("if(!sessionStorage.getItem('x')){sessionStorage.setItem('x','1');localStorage.setItem('merzona-device-token','dev1');localStorage.setItem('merzona-access-status','approved');" + init_js + "}")
+        await ctx.route(SRV + '/**', srv)
+        await ctx.route('https://merzona-server-production.up.railway.app/**', srv)
+        await ctx.route('https://www.googleapis.com/**', lambda r: r.fulfill(status=401, body='{}'))
+        pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+        await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(5500)
+        return ctx, pg, errs
+    # 1) جهاز حمدي: فيه بند Vetromax بس بهالمتصفح ← بينرفع
+    ctx, pg, errs = await open_dev("")
+    await pg.evaluate("ITEMS.push({en:'Vetromax', ar:'فيترومكس', specEn:'Vetromax sliding system', specAr:'نظام فيترومكس سحاب', glassEn:'', glassAr:''}); localStorage.setItem('merzona-items', JSON.stringify(ITEMS)); localStorage.removeItem('merzona-items__srv'); localStorage.removeItem('merzona-items__ts');")
+    await pg.evaluate("mzItemsSync()"); await pg.wait_for_timeout(800)
+    check(posts and any(x['en'] == 'Vetromax' for x in posts[-1]['items']), 'بنود الجهاز (مع Vetromax) انرفعت للسيرفر')
+    n_items = len(server['items'])
+    # تعديل بند ← بينرفع لحالو
+    await pg.evaluate("ITEMS.push({en:'Glazora Special', ar:'خاص', specEn:'', glassEn:'', glassAr:''}); saveItemsToStorage();"); await pg.wait_for_timeout(2800)
+    check(any(x['en'] == 'Glazora Special' for x in server['items']), 'إضافة بند بتنرفع بعد ثانيتين')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+    # 2) جهاز جديد (بلا بنود محفوظة): بياخد بنود السيستم وما بيرفع شي
+    np = len(posts)
+    ctx, pg, errs = await open_dev("")
+    has = await pg.evaluate("ITEMS.some(x => x.en === 'Vetromax') && ITEMS.some(x => x.en === 'Glazora Special') && JSON.parse(localStorage.getItem('merzona-items')||'[]').some(x => x.en === 'Vetromax')")
+    dl = await pg.evaluate("Array.from(document.querySelectorAll('#items-datalist option')).some(o => o.value === 'Vetromax')")
+    check(has and dl and len(posts) == np, 'جهاز جديد بياخد بنود السيستم (وبتبيّن بالقائمة) بلا ما يرفع شي')
+    check(not errs, 'بلا أخطاء (جهاز جديد) ' + str(errs[:2]))
+    await ctx.close()
+    # 3) جهاز قديم فيه بند لحالو + السيرفر فيه بنود تانية ← ولا بند بيضيع
+    ctx, pg, errs = await open_dev("localStorage.setItem('merzona-items', JSON.stringify([{en:'Old Device Item', ar:'بند قديم', specEn:'', glassEn:'', glassAr:''}]));")
+    await pg.wait_for_timeout(1500)
+    names = await pg.evaluate("ITEMS.map(x => x.en)")
+    check('Old Device Item' in names and 'Vetromax' in names and any(x['en'] == 'Old Device Item' for x in server['items']) and any(x['en'] == 'Vetromax' for x in server['items']), 'بنود الجهازين انضمّوا (ما في بند ضاع) ' + str(len(names)))
+    await ctx.close()
+
+
 async def t_proc_products(p, b, port):
     """📦 إعدادات المشتريات: المواد حسب المنتج (شيل مادة مو لازمة + مواد خاصة بمنتج)"""
     print('• 📦 إعدادات المشتريات: المواد حسب المنتج')
@@ -2399,7 +2456,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()

@@ -152,7 +152,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-16.3';
+  var CURRENT_VERSION = '2026-11-18.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -2370,7 +2370,8 @@ try{
 }
 
 function saveItemsToStorage(){
-  try{ localStorage.setItem('merzona-items', JSON.stringify(ITEMS)); }catch(e){}
+  try{ localStorage.setItem('merzona-items', JSON.stringify(ITEMS)); localStorage.setItem('merzona-items__ts', String(Date.now())); }catch(e){}
+  try{ if(window.mzItemsQueueUpload) window.mzItemsQueueUpload(); }catch(e){}
 }
 
 const DESIGN_ITEMS_DEFAULT = [];
@@ -2385,7 +2386,8 @@ let __mzAreaExtraApplied = false;
 const SYRIA_AREA_EXTRA_FRACTION = 1/3;
 
 function saveAlumSpecArToStorage(){
-  try{ localStorage.setItem('merzona-alum-spec-ar', JSON.stringify(ALUM_SPEC_AR)); }catch(e){}
+  try{ localStorage.setItem('merzona-alum-spec-ar', JSON.stringify(ALUM_SPEC_AR)); localStorage.setItem('merzona-items__ts', String(Date.now())); }catch(e){}
+  try{ if(window.mzItemsQueueUpload) window.mzItemsQueueUpload(); }catch(e){}
 }
 let supplyCount=0, specCount=0, qtyCount=0, payCount=0, noteCount=0;
 function mzEscText(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -11755,6 +11757,46 @@ async function mzPricesSync(){
   if(Object.keys(up).length){ Object.assign(__mzPriceQ, up); mzPricesFlush(); }
 }
 window.mzPricesQueue = mzPricesQueue;
+/* 📚 2026-11-18 - بلاغ حمدي: "المشكلة ماعم ياخد البنود المحفوظة بالسيستم". البنود (merzona-items) كانت بس
+   بهالمتصفح، فمساعد الواتس اب ومسودة الـPDF ما بيعرفوها. هلق بتنرفع للسيرفر وبتنجاب منه:
+   - وقت الفتح: بنود السيرفر + بنود هالجهاز (ما في بند بيضيع). بند موجود بالجهازين: الأحدث بيربح.
+   - كل تعديل بالبنود بينرفع (بعد ثانيتين). */
+let __mzItemsUpT = null, __mzItemsSyncing = false;
+function mzItemsQueueUpload(){ if(__mzItemsSyncing) return; clearTimeout(__mzItemsUpT); __mzItemsUpT = setTimeout(mzItemsUpload, 2000); }
+async function mzItemsUpload(){
+  try{ const r = await hpeSrv('POST', '/quote-items', { items: ITEMS, specAr: ALUM_SPEC_AR }); if(r.status === 200 && r.j && r.j.at){ try{ localStorage.setItem('merzona-items__srv', String(r.j.at)); }catch(e){} } }catch(e){}
+}
+async function mzItemsSync(){
+  let r; try{ r = await hpeSrv('GET', '/quote-items'); }catch(e){ return; }
+  if(!r || r.status !== 200 || !r.j || !Array.isArray(r.j.items)) return;
+  const srv = r.j.items, srvAt = Number(r.j.at) || 0;
+  let localTs = 0, lastSrv = 0; try{ localTs = Number(localStorage.getItem('merzona-items__ts')) || 0; lastSrv = Number(localStorage.getItem('merzona-items__srv')) || 0; }catch(e){}
+  const key = it => String(it && it.en || '').trim().toLowerCase();
+  // تعديلات هالجهاز لسا ما انرفعت (أو جهاز قديم ما عمرو رفع) ← بنودو بتنضاف/بتربح
+  let hasLocal = false; try{ hasLocal = localStorage.getItem('merzona-items') != null; }catch(e){}
+  const localNewer = hasLocal && (!lastSrv || localTs > lastSrv); // جهاز جديد (بلا بنود محفوظة) = بنود السيستم بتربح
+  const out = []; const seen = new Set();
+  const loc = new Map(ITEMS.map(it => [key(it), it]));
+  srv.forEach(it => { const k = key(it); if(!k || seen.has(k)) return; seen.add(k); out.push(localNewer && loc.has(k) ? loc.get(k) : it); });
+  ITEMS.forEach(it => { const k = key(it); if(!k || seen.has(k)) return; if(localNewer || !srv.length){ seen.add(k); out.push(it); } });
+  const spec = Object.assign({}, r.j.specAr || {}, localNewer ? ALUM_SPEC_AR : {});
+  Object.keys(ALUM_SPEC_AR || {}).forEach(k => { if(!(k in spec)) spec[k] = ALUM_SPEC_AR[k]; });
+  const changedLocal = JSON.stringify(out) !== JSON.stringify(ITEMS) || JSON.stringify(spec) !== JSON.stringify(ALUM_SPEC_AR);
+  const changedSrv = JSON.stringify(out) !== JSON.stringify(srv) || JSON.stringify(spec) !== JSON.stringify(r.j.specAr || {});
+  if(changedLocal){
+    __mzItemsSyncing = true;
+    try{
+      ITEMS = out; ALUM_SPEC_AR = spec;
+      try{ localStorage.setItem('merzona-items', JSON.stringify(ITEMS)); localStorage.setItem('merzona-alum-spec-ar', JSON.stringify(ALUM_SPEC_AR)); }catch(e){}
+      try{ populateItemsDatalist(); }catch(e){}
+      try{ const mp = document.getElementById('items-manager'); if(mp && mp.style.display !== 'none') renderItemsManager(); }catch(e){}
+    } finally { __mzItemsSyncing = false; }
+  }
+  if(changedSrv && (localNewer || !srv.length)) await mzItemsUpload();
+  else if(srvAt){ try{ localStorage.setItem('merzona-items__srv', String(srvAt)); localStorage.setItem('merzona-items__ts', String(srvAt)); }catch(e){} }
+}
+window.mzItemsQueueUpload = mzItemsQueueUpload; window.mzItemsSync = mzItemsSync;
+(function(){ const go = () => setTimeout(mzItemsSync, 3000); if(document.readyState === 'complete') go(); else window.addEventListener('load', go); })();
 (function(){ const go = () => setTimeout(mzPricesSync, 2500); if(document.readyState === 'complete') go(); else window.addEventListener('load', go); })();
 function mzWaDraftBanner(html, kind){
   let b = document.getElementById('mzWaDraftBanner');
