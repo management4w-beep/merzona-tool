@@ -1083,6 +1083,7 @@ async def t_wa_pdf(p, b, port):
     if txt:
         check('DRAFT' in txt, 'علامة مسودة/DRAFT بالملف')
         check('12000' in txt and '2000' in txt and 'S-Q-DRAFT' in txt, 'القياسات والرقم (مسودة) بالملف')
+        check('-- Select' not in txt and 'Project name' not in txt and 'e.g. DXB' not in txt, 'خانات الإدخال بتنطبع كنص (بلا قوائم اختيار ولا نصوص مساعدة)')
     shutil.copy(out, '/tmp/claude-0/wa-draft-sample.pdf') if os.path.isdir('/tmp/claude-0') else None
 
 async def t_price_sync(p, b, port):
