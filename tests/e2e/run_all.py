@@ -68,6 +68,103 @@ async def reopen(pg):
     await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(1000)
     await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1000)
 
+async def t_sliding_ids(p, b, port):
+    """🚪 عرض 260223: الكبسة عالدرفة اليمين كانت تغيّر اليسار (معرّفات مكررة)، والباب السحّاب كان يفتح لوفر/لفوق"""
+    print('• المصمم: درفات بمعرّفات مكررة + باب سحّاب محفوظ كباب')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[7000, 2800, 'Aluminum Door']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(800)
+    # متل البيانات المحفوظة بالعرض: باب اسمو سحّاب، 6 درفات، آخر درفة إلها نفس معرّف الأولى، وإحداهن لوفر
+    await pg.evaluate("""(function(){ var ex = window.__getDesignItemsForExport__(); var it = ex.items[0];
+      it.label = 'Vetromax Minimal Sliding System concealed'; it.shapeType = 'door';
+      var T = ['plain','slide_left','slide_left','slide_right','louver','plain'], ids = ['n2','n3','n4','n5','n6','n2'];
+      it.layout = { id:'n1', kind:'split', direction:'row', children: T.map(function(t,k){ return { frac: 100/6, node: { id: ids[k], kind:'leaf', type: t } }; }) };
+      window.__applyDesignItemsImport__(JSON.parse(JSON.stringify(ex.items)), 2); })()""")
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    st = await pg.evaluate("(function(){ var it = WD.__t.items()[0]; var ids = it.layout.children.map(function(c){return c.node.id}); return { t: it.shapeType, ids: ids, types: it.layout.children.map(function(c){return c.node.type}), cap: document.querySelector('#card-' + it.id + ' .card-classify').textContent }; })()")
+    check(st['t'] == 'slidingDoor' and 'Sliding Door' in st['cap'], 'باب سحّاب محفوظ كباب ← صار باب سحّاب (وبيكتب Sliding Door) ' + str(st))
+    check(len(set(st['ids'])) == 6 and st['ids'][0] == 'n2', 'المعرّف المكرّر صار جديد (الأولى بتضل متل ما هي) ' + str(st['ids']))
+    check('louver' not in st['types'] and st['types'][4] == 'plain', 'فتحة لوفر بباب سحّاب رجعت ثابت ' + str(st['types']))
+    # كبسة عالدرفة اليمين ← بتتغيّر هي بس
+    before = st['types']
+    cells = pg.locator('#card-' + str(await pg.evaluate("WD.__t.items()[0].id")) + ' rect.cell')
+    n = await cells.count()
+    seen = set()
+    for k in range(4):
+        await cells.nth(n - 1).click(force=True); await pg.wait_for_timeout(150)
+        tt = await pg.evaluate("WD.__t.items()[0].layout.children.map(function(c){return c.node.type})")
+        seen.add(tt[5]); check(tt[:5] == before[:5], 'الكبسة عاليمين ما بتغيّر غير اليمين (' + str(k + 1) + ') ' + str(tt))
+        cells = pg.locator('#card-' + str(await pg.evaluate("WD.__t.items()[0].id")) + ' rect.cell'); n = await cells.count()
+    check(seen <= {'plain', 'slide_left', 'slide_right', 'frosted'} and 'slide_left' in seen, 'خيارات الباب السحّاب: ثابت/سحب بس (بلا لوفر ولا فتح لفوق) ' + str(seen))
+    # تقسيم جديد بعد ما انفتحت الصفحة ما بياخد معرّف موجود
+    await pg.evaluate("(function(){ var it = WD.__t.items()[0]; splitLeaf(it.id, it.layout.children[5].node.id, 'col'); })()"); await pg.wait_for_timeout(300)
+    allIds = await pg.evaluate("(function(){ var out=[]; (function w(n){ out.push(n.id); if(n.kind==='split') n.children.forEach(function(c){ w(c.node); }); })(WD.__t.items()[0].layout); return out; })()")
+    check(len(allIds) == len(set(allIds)), 'التقسيم الجديد بمعرّفات جديدة ' + str(allIds))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
+async def t_view_version(p, b, port):
+    """👁️ سجل النسخ: "شوف" بيفتح نسخة قديمة بتاب جديد للعرض بس (ولا كتابة)، والعرض الأساسي ما بيتغيّر"""
+    print('• 👁️ عرض نسخة قديمة من سجل النسخ (للقراءة بس)')
+    ctx = await new_ctx(p, b); posts = []
+    ctx.on('request', lambda r: posts.append(r.url) if r.method not in ('GET', 'HEAD', 'OPTIONS') else None)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[2000, 1500, 'Hinged Window']])
+    await pg.fill('#m-client', 'الزبون الأساس'); await pg.fill('#m-ref', 'M-Q-260223')
+    old = await pg.evaluate("(function(){ var d = captureFullQuotationData(); d.fields['m-client'] = 'نسخة قديمة من الزبون'; return d; })()")
+    await pg.evaluate("window.downloadDriveJsonFile = async function(){ return %s; }" % json.dumps(old, ensure_ascii=False))
+    async with ctx.expect_page() as pinfo:
+        await pg.evaluate("viewVersionFromHistory('f1', '١/١١/٢٠٢٦ ١٠:٣٠', 'tok')")
+    vp = await pinfo.value; vdialogs = []; verrs = []
+    vp.on('dialog', lambda d: (vdialogs.append(d.message), asyncio.ensure_future(d.accept()))); vp.on('pageerror', lambda e: verrs.append(str(e)[:200]))
+    await vp.wait_for_load_state('load'); await vp.wait_for_timeout(4500)
+    bar = await vp.evaluate("(document.getElementById('mzViewBar')||{}).innerText || ''")
+    cl = await vp.evaluate("document.getElementById('m-client').value")
+    check('نسخة قديمة' in bar and 'للعرض بس' in bar and 'M-Q-260223' in bar and cl == 'نسخة قديمة من الزبون', 'التاب الجديد فيه النسخة القديمة + شريط "للعرض بس" ' + repr((bar[:80], cl)))
+    np = len(posts)
+    await vp.evaluate("localStorage.setItem('mz-probe', 'x'); try{ saveToGoogleDrive(); }catch(e){}")
+    await vp.wait_for_timeout(600)
+    r = await vp.evaluate("fetch('%s/quotes/save', {method:'POST', body:'{}'}).then(function(){return 'sent'}, function(e){return 'blocked'})" % SRV)
+    check(r == 'blocked' and len(posts) == np and any('للعرض بس' in m for m in vdialogs), 'بالنسخة القديمة: الحفظ والإرسال مقفولين ' + str((r, posts[np:], vdialogs[-1:])))
+    probe = await pg.evaluate("localStorage.getItem('mz-probe')")
+    base = await pg.evaluate("document.getElementById('m-client').value")
+    check(probe is None and base == 'الزبون الأساس', 'العرض الأساسي ما تغيّر وما انكتب شي بالمتصفح ' + repr((probe, base)))
+    # آخر تصميم محفوظ بينفتح لحالو - بلا سؤال
+    dl = []; pg.on('dialog', lambda d: dl.append(d.message))
+    got = await pg.evaluate("""(async function(){ var ex = window.__getDesignItemsForExport__(); var items = JSON.parse(JSON.stringify(ex.items)); items.forEach(function(i){ i.width = 2222; });
+      window.fetchLatestSavedDesignForRef = async function(){ return { schema:'merzona-design-v1', ref:'M-Q-260223', savedAt: Date.now() + 60000, designItems: items, designNextId: ex.nextId }; };
+      var r = await offerNewerSavedDesign(); return { r: r, w: window.__getDesignItemsForExport__().items.map(function(i){ return i.width; }) }; })()""")
+    await pg.wait_for_timeout(300)
+    check(got['r'] is True and got['w'] and all(w == 2222 for w in got['w']) and not [m for m in dl if 'تصميم' in m], 'آخر تصميم محفوظ بينفتح لحالو بلا ما يسأل ' + str((got, dl)))
+    check(not errs and not verrs, 'بلا أخطاء ' + str((errs[:2], verrs[:2])))
+    await ctx.close()
+
+
+async def t_shower_wall(p, b, port):
+    """🧱 الشاور: المقاسات يلي بتنكتب = الفتحة؛ مقاس القص = −5 مم عند كل جدار (يمين ويسار)"""
+    print('• 🧱 الشاور: خصم 5 مم عند الجدار')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[1350, 2200, 'Full Shower With Glass Door'], [800, 2200, 'Glass Door']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1500)
+    ids = await pg.evaluate("WD.__t.items().map(function(i){return i.id})")
+    line = lambda i: pg.evaluate("(document.querySelector('#card-%d .sh-cut-line')||{}).textContent || ''" % i)
+    t0 = await line(ids[0]); t1 = await line(ids[1])
+    check('ثابت 545' in t0 and 'باب 795' in t0, 'شاور كامل (ثابت 550 + باب 800): قص الثابت 545 والباب 795 ' + repr(t0))
+    check('باب 790' in t1, 'باب لحالو بين جدارين (800): قص 790 ' + repr(t1))
+    await pg.evaluate(f"WD.__t.sel({ids[1]})"); await pg.click('#shWallBtns [data-wall="right"]'); await pg.wait_for_timeout(300)
+    t1 = await line(ids[1]); act = await pg.evaluate("Array.from(document.querySelectorAll('#shWallBtns [data-wall]')).map(function(b){return b.dataset.wall + ':' + b.classList.contains('active')}).join()")
+    check('باب 795' in t1 and act == 'left:true,right:false', 'جهة مش جدار ← ما في خصم منها ' + repr((t1, act)))
+    tot = await pg.evaluate(ITEMS)
+    check(tot[0]['w'] == 800 and tot[0]['L'] + tot[0]['R'] == 550, 'المقاسات المحفوظة ما تغيّرت (الفتحة)')
+    for k in range(2): await reopen(pg)
+    t1 = await line(ids[1]); check('باب 795' in t1, 'إعدادات الجدار محفوظة بعد حفظ/فتح ' + repr(t1))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_types_and_roundtrip(p, b, port):
     print('• أنواع البنود + حفظ وإعادة فتح')
     ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -1690,7 +1787,7 @@ async def t_fast_save(p, b, port):
         dialogs = []; pg.on('dialog', lambda d: (dialogs.append(d.message), asyncio.ensure_future(d.accept())))
         await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(5000)
         cl = await pg.evaluate("document.getElementById('m-client').value")
-        check(any('نسخة أحدث' in m for m in dialogs) and cl == 'نسخة 5 بالسيرفر بس', 'فتح من درايف نسخة أقدم من السيرفر ← سأل وفتح الأحدث ' + str((cl, [m[:40] for m in dialogs])))
+        check(not [m for m in dialogs if 'نسخة أحدث' in m] and cl == 'نسخة 5 بالسيرفر بس', 'فتح من درايف نسخة أقدم من السيرفر ← فتح الأحدث لحالو بلا ما يسأل')
         # ونفس الشي بس النسخة مطابقة ← ما بيسأل
         await ctx.close()
         ctx = await _fast_ctx(p, b, LOCAL, {'delay': 0})
@@ -2456,7 +2553,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
