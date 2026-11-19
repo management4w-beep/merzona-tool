@@ -280,6 +280,52 @@ async def t_real3d(p, b, port):
     await ctx.close()
 
 
+async def t_real3d_pergola(p, b, port):
+    """⛱️ البيرغولا بالثري دي (صورة واقعية) + سقف ساندويتش بانل + تغيير السقف من العارض"""
+    print('• ⛱️ بيرغولا ثري دي + ساندويتش بانل')
+    fx = os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'three')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await ctx.route('**/three.min.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'three.min.js'), 'rb').read()))
+    await ctx.route('**/OrbitControls.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'OrbitControls.js'), 'rb').read()))
+    await open_tool(pg, port, [[8750, 4800, 'Aluminum Pergola'], [1200, 1400, 'Hinged Window']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    await pg.evaluate("WD.__t.sel(WD.__t.items()[0].id)"); await pg.wait_for_timeout(300)
+    await pg.evaluate("setShape('pergola')"); await pg.wait_for_timeout(300)
+    await pg.evaluate("pgField('width', 8750); pgField('height', 4800)"); await pg.wait_for_timeout(200)
+    t = await pg.evaluate("(function(){ var it = WD.__t.items()[0]; return [it.shapeType, it.width, it.height]; })()")
+    check(t == ['pergola', 8750, 4800], 'البند بيرغولا ' + str(t))
+    check(await pg.evaluate("!!document.querySelector('#inPgRoof option[value=sandwich]')"), 'خيار سقف ساندويتش بانل موجود بالمصمم')
+    await pg.select_option('#inPgRoof', 'sandwich'); await pg.wait_for_timeout(300)
+    check(await pg.evaluate("WD.__t.items()[0].pgRoof") == 'sandwich', 'السقف صار ساندويتش')
+    check(await pg.evaluate("/ساندويتش بانل/.test(buildPergolaSVG(WD.__t.items()[0], null)) && /مساحة السقف 42.00/.test(buildPergolaSVG(WD.__t.items()[0], null))"), 'الرسمة والمساحة (8.75×4.8=42 م²)')
+    await pg.evaluate("open3DPreview()")
+    for k in range(40):
+        n = await pg.evaluate("document.querySelectorAll('#threeDGrid img.threeD-real').length")
+        if n >= 2: break
+        await pg.wait_for_timeout(300)
+    info = await pg.evaluate("""Array.from(document.querySelectorAll('#threeDGrid .threeD-card')).map(function(c){ var i = c.querySelector('img.threeD-real'); return i ? 'img' : (c.querySelector('svg') ? 'svg' : '-'); })""")
+    check(info == ['img', 'img'], 'البيرغولا والشباك بالثري دي ' + str(info))
+    if os.environ.get('MZ_SHOT'):
+        import base64
+        u = await pg.evaluate("document.querySelectorAll('#threeDGrid img.threeD-real')[0].src"); open(os.environ['MZ_SHOT'] + '/pg_sandwich.png', 'wb').write(base64.b64decode(u.split(',')[1]))
+    check(await pg.evaluate("/ألوان ونوع السقف/.test(document.querySelectorAll('#threeDGrid .threeD-card')[0].textContent)"), 'زر العارض للبيرغولا')
+    await pg.click('#threeDGrid .threeD-card >> nth=0 >> [data-r3d="view"]'); await pg.wait_for_timeout(800)
+    check(await pg.evaluate("document.querySelectorAll('#mzR3dBar button[data-k=roof]').length") == 5, '5 أنواع سقف بالعارض')
+    for roof in ['louver', 'poly', 'glass', 'slats']:
+        await pg.click('#mzR3dBar button[data-k="roof"][data-v="%s"]' % roof); await pg.wait_for_timeout(400)
+        if os.environ.get('MZ_SHOT'): await pg.screenshot(path=os.environ['MZ_SHOT'] + '/pg_%s.png' % roof)
+    check(await pg.evaluate("WD.__t.items()[0].pgRoof") == 'slats' and await pg.evaluate("document.getElementById('inPgRoof').value") == 'slats', 'تغيير السقف من العارض بيتطبق عالتصميم')
+    await pg.click('#mzR3dBar button[data-k="roof"][data-v="sandwich"]'); await pg.wait_for_timeout(300)
+    await pg.mouse.move(700, 400); await pg.mouse.down(); await pg.mouse.move(400, 300, steps=8); await pg.mouse.up(); await pg.wait_for_timeout(300)
+    if os.environ.get('MZ_SHOT'): await pg.screenshot(path=os.environ['MZ_SHOT'] + '/pg_view.png')
+    await pg.click('#mzR3dClose'); await pg.evaluate("close3DPreview()")
+    for k in range(2): await reopen(pg)
+    check(await pg.evaluate("WD.__t.items()[0].pgRoof") == 'sandwich', 'السقف انحفظ بعد إعادة الفتح')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_types_and_roundtrip(p, b, port):
     print('• أنواع البنود + حفظ وإعادة فتح')
     ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -2668,7 +2714,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
