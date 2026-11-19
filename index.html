@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-19.4';
+  var CURRENT_VERSION = '2026-11-19.5';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -1617,6 +1617,7 @@
     border-color: var(--wd-cyan); color: var(--wd-cyan); background: var(--wd-cyan-dim);
   }
   .frost-toggle-btn:hover{ border-color: var(--wd-cyan); }
+  .frost-toggle-btn.mz-card-del{ color: var(--wd-danger, #e5484d); border-color: rgba(229,72,77,.5); }
   .item-card .card-canvas{
     background:
       linear-gradient(var(--wd-line-soft) 1px, transparent 1px) 0 0/20px 20px,
@@ -8447,6 +8448,7 @@ window.wdApplyBack = function(results){
         <button type="button" class="mz-ed-nav" onclick="mzEdStep(-1)" title="البند السابق">▶</button>
         <div class="mz-ed-name"><span id="mzEdName">—</span><small id="mzEdPos"></small></div>
         <button type="button" class="mz-ed-nav" onclick="mzEdStep(1)" title="البند الجاي">◀</button>
+        <button type="button" class="mz-ed-del" onclick="mzDeleteAsk(selectedId)" title="احذف البند المفتوح" style="border:1px solid var(--wd-danger,#e5484d);background:transparent;color:var(--wd-danger,#e5484d);border-radius:8px;padding:4px 8px;font-size:14px;cursor:pointer;">🗑️</button>
         <button type="button" class="mz-ed-close" onclick="mzEdClose()" title="سكّر لوحة التعديل">✕</button>
       </div>
 
@@ -10977,6 +10979,14 @@ function addItem(type){
   renderGallery();
 }
 
+// 🆕 2026-11-19 (حمدي: "ماعم اعرف وين زر الحذف"): عالموبايل شريط أسماء البنود (مع ×) مخفي - هلق في "🗑️ احذف" على كل بطاقة وبشريط التعديل
+function mzDeleteAsk(id){
+  const it = items.find(i => i.id === id); if(!it) return;
+  const linked = it.sourceRowUid && document.querySelector('#qty-rows tr[data-row-uid="' + it.sourceRowUid + '"]');
+  if(!linked && !confirm('بدك تحذف "' + it.label + '" من التصميم؟')) return; // المربوط بصف بيسأل سؤالو الخاص
+  deleteItem(id);
+}
+window.mzDeleteAsk = mzDeleteAsk;
 function deleteItem(id, evt){
   if(evt) evt.stopPropagation();
   // 🛠️ إصلاح 2026-09-30.14 (فحص شامل - بلاغ حمدي المباشر: "لما عم احذفها بالمصمم ماعم تنطبق على
@@ -21614,6 +21624,7 @@ function renderGallery(){
     head.onclick = () => { if(window.mzEdIsSheet && mzEdIsSheet()) mzEditItem(it.id); else selectItem(it.id); };
     head.innerHTML = `<span class="name">${it.label}${it.refCode ? ` <span style="opacity:0.6;font-weight:400;">(${it.refCode})</span>` : ''}</span>
       ${(isHandrail(it) || isMirror(it) || isPergola(it)) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
+      <button class="frost-toggle-btn mz-card-del" onclick="event.stopPropagation();mzDeleteAsk(${it.id})" title="احذف هالبند من التصميم">🗑️ احذف</button>
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();rotateRoomPlan(${it.id})" title="دوّر المسقط 90° (بس شكل العرض - ما بيغيّر أي مقاس أو زاوية حقيقية)">🔄 دوّر المسقط</button>` : ''}
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();openRoomFloorPreviewFullscreen(${it.id})" title="كبّر المسقط لكامل الشاشة - مفيد لما تكون الزوايا مزنّرة على بعض وصعب تشوفها/تضغط عليها بالحجم الصغير">🔍 كبّر لكامل الشاشة</button>` : ''}
       ${it.mzUncertainType ? '<span class="type-badge" style="color:#ffb020;border-color:#ffb020;" title="اسم البند ما بيدل على نوع معروف - اختار النوع الصح من (تغيير نوع البند)">⚠️ تأكد من النوع</span>' : ''}

@@ -423,6 +423,34 @@ async def t_design_new_item_confirm(p, b, port):
     await ctx.close()
 
 
+async def t_mobile_delete_item(p, b, port):
+    """🗑️ عالموبايل: زر حذف على كل بطاقة وبشريط التعديل (شريط الأسماء مع × مخفي عالموبايل)"""
+    print('• المصمم عالموبايل: زر الحذف')
+    ctx = await new_ctx(p, b, mobile=True); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    msgs = []; pg.on('dialog', lambda d: (msgs.append(d.message), asyncio.ensure_future(d.accept())))
+    await open_tool(pg, port, [[1200, 1400, 'Hinged Window']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    await pg.evaluate("addItem('room')"); await pg.wait_for_timeout(400)
+    n0 = await pg.evaluate("WD.__t.items().length")
+    rid = await pg.evaluate("WD.__t.items().filter(function(i){ return i.shapeType === 'room'; })[0].id")
+    btn = pg.locator('#card-%d .mz-card-del' % rid)
+    check(await btn.count() == 1 and await btn.is_visible(), 'زر 🗑️ احذف ظاهر على بطاقة المجلس عالموبايل')
+    await btn.click(); await pg.wait_for_timeout(400)
+    check(await pg.evaluate("WD.__t.items().length") == n0 - 1 and any('بدك تحذف' in m for m in msgs), 'انحذف بعد التأكيد')
+    # شريط التعديل
+    await pg.evaluate("addItem('pergola')"); await pg.wait_for_timeout(400)
+    check(await pg.locator('#mzEdBar .mz-ed-del').count() == 1, 'زر 🗑️ بشريط التعديل')
+    n1 = await pg.evaluate("WD.__t.items().length")
+    await pg.evaluate("mzDeleteAsk(WD.__t.selId())"); await pg.wait_for_timeout(300)
+    check(await pg.evaluate("WD.__t.items().length") == n1 - 1 and await pg.evaluate("WD.__t.items().every(function(i){ return i.shapeType !== 'pergola'; })"), 'حذف البند المفتوح')
+    # البند المربوط بصف: سؤال واحد بس (سؤال الصف)
+    m0 = len(msgs); wid = await pg.evaluate("WD.__t.items()[0].id")
+    await pg.locator('#card-%d .mz-card-del' % wid).click(); await pg.wait_for_timeout(400)
+    check(len(msgs) == m0 + 1 and 'مربوط بصف' in msgs[-1], 'المربوط بصف: سؤال واحد ' + str(msgs[m0:]))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_types_and_roundtrip(p, b, port):
     print('• أنواع البنود + حفظ وإعادة فتح')
     ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -2811,7 +2839,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_design_new_item_confirm, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
