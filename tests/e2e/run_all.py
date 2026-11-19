@@ -326,6 +326,71 @@ async def t_real3d_pergola(p, b, port):
     await ctx.close()
 
 
+async def t_pergola_posts(p, b, port):
+    """⛱️ تصميم أعمدة البيرغولا: مزدوج + قطع بالنص، الطرفين زاوية، تحكم بالقياسات، وكل عمود لحاله"""
+    print('• ⛱️ تصميم أعمدة البيرغولا')
+    fx = os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'three')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await ctx.route('**/three.min.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'three.min.js'), 'rb').read()))
+    await ctx.route('**/OrbitControls.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'OrbitControls.js'), 'rb').read()))
+    await open_tool(pg, port, [[8750, 4800, 'Aluminum Pergola']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    await pg.evaluate("WD.__t.sel(WD.__t.items()[0].id); setShape('pergola')"); await pg.wait_for_timeout(300)
+    await pg.evaluate("pgField('width', 8750); pgField('height', 4800); pgField('pgMount', 'wall'); pgField('pgPostsPerRow', 3); pgField('pgRoof', 'sandwich')"); await pg.wait_for_timeout(200)
+    L = "(function(){ var ly = pgPostLayout(WD.__t.items()[0]); return { posts: ly.posts.length, rungs: ly.rungs.length, ys: ly.ys.length, slots: ly.slots.map(function(x){ return x.style; }), p: ly.posts.map(function(q){ return [Math.round(q.x), Math.round(q.z)]; }) }; })()"
+    a = await pg.evaluate(L)
+    check(a['posts'] == 3 and a['rungs'] == 0 and a['slots'] == ['single'] * 3, 'عادي: 3 أعمدة ' + str(a))
+    check(await pg.evaluate("getComputedStyle(document.getElementById('pgDblBlock')).display") == 'none', 'خيارات المزدوج مخفية')
+    await pg.click('#pgPostStyleBtns [data-v="double"]'); await pg.wait_for_timeout(300)
+    a = await pg.evaluate(L)
+    check(a['slots'] == ['corner', 'double', 'corner'] and a['posts'] == 6 and a['rungs'] == 5, 'مزدوج: الطرفين زاوية والوسط عمودين ' + str(a))
+    # الوسط: عمودين حوالين 4375 بفراغ 300 (عمود 150) ← 4375 ± 225
+    check([4150, 75] in a['p'] and [4600, 75] in a['p'], 'عمود الوسط مزدوج بالمسافة الصح ' + str(a['p']))
+    # الزاوية اليسار: عمود قدام عند 400-75=325 وعمود عالجنب عند z=400-75=325
+    check([325, 75] in a['p'] and [75, 325] in a['p'] and [8425, 75] in a['p'] and [8675, 325] in a['p'], 'الزوايا: ضلع قدام وضلع جنب 400 ' + str(a['p']))
+    check(a['ys'] == 13, 'عدد القطع بالارتفاع (2700، فراغ 150، قطعة 40) ' + str(a['ys']))
+    check(await pg.evaluate("getComputedStyle(document.getElementById('pgDblBlock')).display") == 'block', 'خيارات المزدوج ظاهرة')
+    # تغيير القياسات
+    await pg.fill('#inPgDblGap', '500'); await pg.dispatch_event('#inPgDblGap', 'change')
+    await pg.fill('#inPgCornerF', '600'); await pg.dispatch_event('#inPgCornerF', 'change')
+    await pg.fill('#inPgInfillGap', '300'); await pg.dispatch_event('#inPgInfillGap', 'change')
+    await pg.select_option('#inPgInfill', '50x50'); await pg.wait_for_timeout(300)
+    a = await pg.evaluate(L)
+    check([4050, 75] in a['p'] and [4700, 75] in a['p'] and [525, 75] in a['p'] and a['ys'] == 6, 'القياسات بتتطبق ' + str(a))
+    # الحساب: قطع التصميم بالمشتريات
+    cut = await pg.evaluate("pgCalc(WD.__t.items()[0]).cut.filter(function(c){ return c.name === 'قطع تصميم الأعمدة'; }).map(function(c){ return [c.size, c.n, c.len]; })")
+    check(len(cut) >= 2 and all(c[0] == '50x50' for c in cut) and sum(c[1] for c in cut) == 5 * 6, 'قطع التصميم بالتيوبات ' + str(cut))
+    check(await pg.evaluate("pgCalc(WD.__t.items()[0]).cut[0].n") == 6, 'عدد الأعمدة بالتيوبات 6')
+    # عمود لحاله: الوسط عادي
+    check(await pg.evaluate("document.querySelectorAll('#pgPostCustomBox select').length") == 3 and await pg.evaluate("document.querySelectorAll('#pgPostCustomBox select')[0].querySelector('option[value=corner]') != null && document.querySelectorAll('#pgPostCustomBox select')[1].querySelector('option[value=corner]') == null"), 'اختيار لكل عمود (الزاوية بس للأطراف)')
+    await pg.select_option('#pgPostCustomBox select[data-pgpost="1"]', 'single'); await pg.wait_for_timeout(300)
+    a = await pg.evaluate(L)
+    check(a['slots'] == ['corner', 'single', 'corner'] and a['posts'] == 5, 'عمود الوسط صار عادي ' + str(a))
+    svg = await pg.evaluate("buildPergolaSVG(WD.__t.items()[0], null)")
+    check(svg.count('stroke-width') > 0 and 'ساندويتش' in svg, 'الرسمة')
+    if os.environ.get('MZ_SHOT'):
+        await pg.evaluate("(function(){ var d = document.createElement('div'); d.id='pgShot'; d.style.cssText='position:fixed;inset:0;background:#fff;z-index:99999;padding:10px'; d.innerHTML = buildPergolaSVG(WD.__t.items()[0], null).replace(/var\(--wd-ink[^)]*\)/g,'#223'); document.body.appendChild(d); })()")
+        await pg.screenshot(path=os.environ['MZ_SHOT'] + '/pgp_svg.png'); await pg.evaluate("document.getElementById('pgShot').remove()")
+    await pg.evaluate("open3DPreview()")
+    for k in range(40):
+        if await pg.evaluate("document.querySelectorAll('#threeDGrid img.threeD-real').length") >= 1: break
+        await pg.wait_for_timeout(300)
+    check(await pg.evaluate("document.querySelectorAll('#threeDGrid img.threeD-real').length") == 1, 'الثري دي مع تصميم الأعمدة')
+    if os.environ.get('MZ_SHOT'):
+        import base64
+        u = await pg.evaluate("document.querySelector('#threeDGrid img.threeD-real').src"); open(os.environ['MZ_SHOT'] + '/pgp_3d.png', 'wb').write(base64.b64decode(u.split(',')[1]))
+        await pg.click('#threeDGrid .threeD-card >> nth=0 >> [data-r3d="view"]'); await pg.wait_for_timeout(800)
+        await pg.mouse.move(700, 450); await pg.mouse.down(); await pg.mouse.move(860, 420, steps=6); await pg.mouse.up(); await pg.mouse.wheel(0, -900); await pg.wait_for_timeout(500)
+        await pg.screenshot(path=os.environ['MZ_SHOT'] + '/pgp_view.png'); await pg.click('#mzR3dClose')
+    await pg.evaluate("close3DPreview()")
+    for k in range(2): await reopen(pg)
+    a = await pg.evaluate(L)
+    check(a['slots'] == ['corner', 'single', 'corner'] and await pg.evaluate("WD.__t.items()[0].pgDblGap") == 500, 'انحفظ بعد إعادة الفتح ' + str(a))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_types_and_roundtrip(p, b, port):
     print('• أنواع البنود + حفظ وإعادة فتح')
     ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -2714,7 +2779,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
