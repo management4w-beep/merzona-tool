@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-19.6';
+  var CURRENT_VERSION = '2026-11-19.7';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -8799,7 +8799,7 @@ window.wdApplyBack = function(results){
           <p class="hint" id="hrMountHint" style="margin-top:5px;"></p>
           <div id="hrStandoffPairsBlock" style="display:none;margin-top:6px;">
             <label>عدد أزواج مسامير Stand Off لكل لوح (كل زوج = مسمارين، للألواح الكبيرة زيد العدد)</label>
-            <input type="number" id="inHrStandoffPairs" min="1" max="6" step="1" oninput="onHrStandoffPairsChange()" value="2">
+            <input type="number" data-stepper id="inHrStandoffPairs" min="1" max="6" step="1" oninput="onHrStandoffPairsChange()" value="2">
           </div>
 
           <div id="hrFlatInputs">
@@ -8815,7 +8815,7 @@ window.wdApplyBack = function(results){
               </div>
               <div>
                 <label>عدد الألواح</label>
-                <input type="number" id="inHrCount" min="1" step="1" oninput="onHandrailCountChange()" value="4">
+                <input type="number" data-stepper id="inHrCount" min="1" max="200" step="1" oninput="onHandrailCountChange()" value="4">
               </div>
             </div>
           </div>
@@ -9181,8 +9181,8 @@ window.wdApplyBack = function(results){
               <div><label>مقاس القطع الصغيرة</label><select id="inPgInfill" onchange="pgField('pgInfill',this.value)"><option>20x20</option><option>30x30</option><option>40x40</option><option>50x50</option><option>40x20</option><option>50x25</option><option>60x30</option><option>40x80</option><option>50x100</option><option>40x100</option><option>30x60</option></select></div>
             </div>
             <div class="row2" style="margin-top:8px;">
-              <div><label>الفراغ بين القطع (مم)</label><input type="text" inputmode="decimal" id="inPgInfillGap" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('pgInfillGap',this.value)"></div>
-              <div></div>
+              <div><label>عدد القطع الصغيرة بين كل عمودين</label><input type="number" data-stepper id="inPgInfillCount" min="0" max="60" step="1" value="0" onchange="pgField('pgInfillCount',this.value)"><div class="hint" id="pgInfillCountHint" style="font-size:11px;"></div></div>
+              <div id="pgInfillGapWrap"><label>الفراغ بين القطع (مم)</label><input type="text" inputmode="decimal" id="inPgInfillGap" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('pgInfillGap',this.value)"></div>
             </div>
             <div class="row2" style="margin-top:8px;">
               <div><label>ضلع الزاوية من قدام (مم)</label><input type="text" inputmode="decimal" id="inPgCornerF" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('pgCornerF',this.value)"></div>
@@ -10823,7 +10823,7 @@ function renderHandrailSegmentsUI(it){
     const row = `
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;padding:6px;background:#f4f5f7;border-radius:4px;">
       <span style="font-size:12px;font-weight:600;min-width:64px;">${seg.type==='flight'?'🪜 مائل':(hrHasPlan(it)?'📐 ضلع':(it.hrKind==='flat'?'▬ مستقيم':'▬ استراحة'))} ${idx+1}</span>
-      <input type="number" min="1" step="1" style="width:56px;" value="${seg.panelCount}" onchange="onHrSegField(${it.id},'${seg.id}','panelCount',this.value)" title="عدد الألواح">
+      <input type="number" data-stepper min="1" max="200" step="1" style="width:56px;" value="${seg.panelCount}" onchange="onHrSegField(${it.id},'${seg.id}','panelCount',this.value)" title="عدد الألواح">
       <input type="text" inputmode="decimal" min="1" style="width:84px;" value="${Math.round(seg.totalLength)}" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);onHrSegField(${it.id},'${seg.id}','totalLength',this.value)" title="الطول الإجمالي (مم) - تقدر تكتب مثلاً 4800+350">
       <button class="small danger" style="margin-right:auto;" onclick="removeHandrailSegment(${it.id},'${seg.id}')" ${segs.length<=1?'disabled':''}>×</button>
     </div>`;
@@ -11397,13 +11397,18 @@ function buildHandrailPlanSVG(it, o){
       const s0 = k*(d.pw + gapMm), s1 = s0 + d.pw;
       const p0 = P(d.x0 + d.dx*s0, d.y0 + d.dy*s0), p1 = P(d.x0 + d.dx*s1, d.y0 + d.dy*s1);
       out += '<line x1="' + p0[0].toFixed(1) + '" y1="' + p0[1].toFixed(1) + '" x2="' + p1[0].toFixed(1) + '" y2="' + p1[1].toFixed(1) + '" stroke="#2f86b5" stroke-width="' + (o.compact ? 5 : 6) + '" stroke-linecap="butt"/>';
+      // 🆕 2026-11-19 (حمدي: "بدي المسقط تبع الهاندريل يكون مكتوب عليه مقاس كل قطعة"): عرض كل لوح فوقه
+      { const plen = Math.hypot(p1[0]-p0[0], p1[1]-p0[1]), pfs = fs*0.68;
+        if(plen > pfs*2.6){ const pmx = (p0[0]+p1[0])/2 + lx*outS*(fs*0.62), pmy = (p0[1]+p1[1])/2 + ly*outS*(fs*0.62);
+          let pang = Math.atan2(p1[1]-p0[1], p1[0]-p0[0])*180/Math.PI; if(pang > 90) pang -= 180; if(pang < -90) pang += 180;
+          out += '<text class="hr-pw" transform="translate(' + pmx.toFixed(1) + ',' + pmy.toFixed(1) + ') rotate(' + pang.toFixed(1) + ')" font-size="' + pfs.toFixed(1) + '" fill="#1565c0" text-anchor="middle" dominant-baseline="middle">' + Math.round(d.pw) + '</text>'; } }
       if(k > 0){ const t = 7; out += '<line x1="' + (p0[0]-lx*t).toFixed(1) + '" y1="' + (p0[1]-ly*t).toFixed(1) + '" x2="' + (p0[0]+lx*t).toFixed(1) + '" y2="' + (p0[1]+ly*t).toFixed(1) + '" stroke="#1d3a4f" stroke-width="1.2"/>'; }
     }
     // الطول (برّا)
-    const mx = (ax+bx)/2 + lx*outS*(fs*1.5), my = (ay+by)/2 + ly*outS*(fs*1.5);
+    const mx = (ax+bx)/2 + lx*outS*(fs*1.75), my = (ay+by)/2 + ly*outS*(fs*1.75);
     let ang = Math.atan2(by-ay, bx-ax)*180/Math.PI; if(ang > 90) ang -= 180; if(ang < -90) ang += 180;
-    labels += '<g transform="translate(' + mx.toFixed(1) + ',' + my.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')"><text x="0" y="0" font-size="' + fs + '" font-weight="700" fill="#0d47a1" text-anchor="middle" dominant-baseline="middle">' + Math.round(d.len) + '</text>' +
-      '<text x="0" y="' + (fs*1.05) + '" font-size="' + (fs*0.78) + '" fill="#546e7a" text-anchor="middle" dominant-baseline="middle">' + d.n + (d.n === 1 ? ' لوح' : ' ألواح') + '</text></g>';
+    labels += '<g transform="translate(' + mx.toFixed(1) + ',' + my.toFixed(1) + ') rotate(' + ang.toFixed(1) + ')"><text x="0" y="0" font-size="' + fs + '" font-weight="700" fill="#0d47a1" text-anchor="middle" dominant-baseline="middle">' + Math.round(d.len) +
+      '<tspan font-size="' + (fs*0.72) + '" font-weight="400" fill="#546e7a"> (' + d.n + (d.n === 1 ? ' لوح' : ' ألواح') + ')</tspan></text></g>';
     // رقم الضلع (جوّا)
     const ix = (ax+bx)/2 - lx*outS*(fs*1.1), iy = (ay+by)/2 - ly*outS*(fs*1.1);
     labels += '<circle cx="' + ix.toFixed(1) + '" cy="' + iy.toFixed(1) + '" r="' + (fs*0.72) + '" fill="#fff" stroke="#90a4ae"/><text x="' + ix.toFixed(1) + '" y="' + (iy+0.5).toFixed(1) + '" font-size="' + (fs*0.8) + '" fill="#455a64" text-anchor="middle" dominant-baseline="middle">' + (d.i+1) + '</text>';
@@ -11440,11 +11445,32 @@ function hrEnsure3DOverlay(){
   ov.style.cssText = 'display:none;position:fixed;inset:0;z-index:100000;background:#1b2530;';
   ov.innerHTML = '<div style="display:flex;gap:10px;align-items:center;padding:8px 12px;color:#fff;font-family:Tajawal,Cairo,sans-serif;direction:rtl;flex-wrap:wrap;">' +
     '<b>🧊 الهاندريل ثري دي</b><span id="hr3DInfo" style="opacity:.8;font-size:12px;"></span><span style="opacity:.6;font-size:12px;">اسحب لتدوّر · قرّب بأصبعين أو بالعجلة</span><span style="flex:1"></span>' +
+    '<button type="button" id="hr3DLblBtn" onclick="hrToggle3DLabels()" style="background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;">🏷️ خبّي المقاسات</button>' +
     '<button type="button" onclick="closeHandrail3D()" style="background:#fff;color:#1b2530;border:0;border-radius:6px;padding:6px 14px;font-weight:700;cursor:pointer;">✕ سكّر</button></div>' +
     '<div id="hr3DCanvasWrap" style="width:100%;height:calc(100vh - 52px);touch-action:none;"></div>';
   document.body.appendChild(ov);
   return ov;
 }
+// لافتة نص بالثري دي (دايمًا مواجهة للكاميرا وواضحة من كل الجهات)
+function hrLabelSprite(text, fg, bg, scale){
+  const T = THREE, cv = document.createElement('canvas'), fsz = 44;
+  const ctx = cv.getContext('2d'); ctx.font = '700 ' + fsz + 'px Tajawal, Cairo, Arial, sans-serif';
+  const w = Math.ceil(ctx.measureText(text).width) + 28, h = fsz + 22;
+  cv.width = w; cv.height = h;
+  const c2 = cv.getContext('2d'); c2.font = '700 ' + fsz + 'px Tajawal, Cairo, Arial, sans-serif';
+  c2.fillStyle = bg; const r = 14; c2.beginPath(); c2.moveTo(r, 0); c2.arcTo(w, 0, w, h, r); c2.arcTo(w, h, 0, h, r); c2.arcTo(0, h, 0, 0, r); c2.arcTo(0, 0, w, 0, r); c2.fill();
+  c2.fillStyle = fg; c2.textAlign = 'center'; c2.textBaseline = 'middle'; c2.direction = /[\u0600-\u06FF]/.test(text) ? 'rtl' : 'ltr'; c2.fillText(text, w/2, h/2 + 2);
+  const tex = new T.CanvasTexture(cv); tex.minFilter = T.LinearFilter;
+  const sp = new T.Sprite(new T.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  const k = 0.0042 * (scale || 1); sp.scale.set(w*k, h*k, 1); sp.renderOrder = 10;
+  return sp;
+}
+function hrToggle3DLabels(){
+  if(!hr3D.scene) return; hr3D.labelsOff = !hr3D.labelsOff;
+  hr3D.scene.traverse(o => { if(o.userData && o.userData.hrLabel) o.visible = !hr3D.labelsOff; });
+  const b = document.getElementById('hr3DLblBtn'); if(b) b.textContent = hr3D.labelsOff ? '🏷️ أظهر المقاسات' : '🏷️ خبّي المقاسات';
+}
+window.hrToggle3DLabels = hrToggle3DLabels;
 // بيبني المشهد (بالمتر): X = شرق المسقط، Z = -شمال، Y = لفوق
 function hrBuild3DScene(it){
   const T = THREE, M = 0.001;
@@ -11469,7 +11495,7 @@ function hrBuild3DScene(it){
   const inSign = g.turnSum > 0.5 ? 1 : (g.turnSum < -0.5 ? -1 : 1);
   let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9, panels = 0;
   const glassBase = mount === 'spigot' ? 0.1 : (mount === 'hidden' ? 0.03 : -0.12);
-  g.sides.forEach(d => {
+  g.sides.forEach((d, si) => {
     const a = Math.atan2(d.dy, d.dx);
     const lenM = d.len * M, cx = (d.x0 + d.x1)/2 * M, cz = -(d.y0 + d.y1)/2 * M;
     // يسار الاتجاه بالمسقط (-dy, dx) → بالمشهد (x, z) = (-dy, -dx)
@@ -11491,6 +11517,8 @@ function hrBuild3DScene(it){
       mesh.position.set(px, glassBase + glassH/2, pz); mesh.rotation.y = a; scene.add(mesh);
       const edges = new T.LineSegments(new T.EdgesGeometry(geo), edgeMat);
       edges.position.copy(mesh.position); edges.rotation.y = a; scene.add(edges);
+      // 🆕 2026-11-19 (حمدي: "مكتوب عليه مقاس كل قطعة وخصوصا بالثري دي"): مقاس كل لوح (عرض × ارتفاع) عليه
+      try{ const lb = hrLabelSprite(Math.round(d.pw) + ' × ' + Math.round(glassH/M), '#0d47a1', 'rgba(255,255,255,0.9)', 0.62); lb.position.set(px, glassBase + glassH*0.55, pz); lb.userData.hrLabel = true; scene.add(lb); }catch(e){}
       panels++;
       [0.2, 0.8].forEach(f => {
         const along = s0 + d.pw*f, qx = (d.x0 + d.dx*along) * M, qz = -(d.y0 + d.dy*along) * M;
@@ -11506,6 +11534,9 @@ function hrBuild3DScene(it){
         }
       });
     }
+    // طول الضلع فوقه
+    try{ const sl = hrLabelSprite((g.sides.length > 1 ? 'ضلع ' + (si + 1) + ': ' : '') + Math.round(d.len) + ' مم · ' + d.n + (d.n === 1 ? ' لوح' : ' ألواح'), '#ffffff', 'rgba(15,136,205,0.92)', 0.9);
+      sl.position.set(cx, glassBase + glassH + 0.32, cz); sl.userData.hrLabel = true; scene.add(sl); }catch(e){}
     [[d.x0, d.y0], [d.x1, d.y1]].forEach(([x, y]) => { minX = Math.min(minX, x*M); maxX = Math.max(maxX, x*M); minZ = Math.min(minZ, -y*M); maxZ = Math.max(maxZ, -y*M); });
   });
   const spanX = maxX - minX, spanZ = maxZ - minZ, size = Math.max(spanX, spanZ, 1);
@@ -11534,7 +11565,8 @@ function openHandrail3D(){
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.target.set(b.center.x, b.glassH*0.45, b.center.z);
     controls.maxPolarAngle = Math.PI*0.495; controls.minDistance = 0.6; controls.maxDistance = r*4; controls.update();
-    Object.assign(hr3D, { renderer, scene: b.scene, camera, controls, stats: b.stats });
+    Object.assign(hr3D, { renderer, scene: b.scene, camera, controls, stats: b.stats, labelsOff: false });
+    { const lbb = document.getElementById('hr3DLblBtn'); if(lbb) lbb.textContent = '🏷️ خبّي المقاسات'; }
     const info = document.getElementById('hr3DInfo'); if(info) info.textContent = b.stats.sides + ' ضلع · ' + b.stats.panels + ' لوح · ' + b.stats.totalMm + ' مم';
     const loop = () => { hr3D.animId = requestAnimationFrame(loop); controls.update(); renderer.render(b.scene, camera); };
     loop();
@@ -11553,11 +11585,42 @@ function closeHandrail3D(){
   hr3D.renderer = hr3D.scene = hr3D.camera = hr3D.controls = null;
   const ov = document.getElementById('hr3DOverlay'); if(ov) ov.style.display = 'none';
 }
+// 🆕 2026-11-19 (حمدي: "ما بدي اكتب عدد القطع كتابة، بدي متل سهم برفع العدد منو او بنقص"): أزرار − / + لكل خانة عدد
+function mzStep(btn, dir){
+  const inp = btn && btn.parentNode && btn.parentNode.querySelector('input'); if(!inp) return;
+  const st = Number(inp.step) > 0 ? Number(inp.step) : 1, mn = inp.min !== '' ? Number(inp.min) : -Infinity, mx = inp.max !== '' ? Number(inp.max) : Infinity;
+  let v = parseFloat(inp.value); if(!Number.isFinite(v)) v = Number.isFinite(mn) ? mn : 0;
+  v = Math.min(mx, Math.max(mn, Math.round((v + dir*st) / st) * st));
+  if(String(v) === String(inp.value)) return;
+  inp.value = v;
+  inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+}
+window.mzStep = mzStep;
+function mzStepperize(root){
+  (root || document).querySelectorAll('input[type=number][data-stepper]').forEach(inp => {
+    if(inp.parentNode && inp.parentNode.classList && inp.parentNode.classList.contains('mz-step')) return;
+    const w = document.createElement('span'); w.className = 'mz-step';
+    inp.parentNode.insertBefore(w, inp);
+    const minus = document.createElement('button'); minus.type = 'button'; minus.className = 'mz-step-b'; minus.textContent = '−'; minus.setAttribute('aria-label', 'نقّص'); minus.onclick = function(e){ e.preventDefault(); e.stopPropagation(); mzStep(this, -1); };
+    const plus = document.createElement('button'); plus.type = 'button'; plus.className = 'mz-step-b'; plus.textContent = '+'; plus.setAttribute('aria-label', 'زيد'); plus.onclick = function(e){ e.preventDefault(); e.stopPropagation(); mzStep(this, 1); };
+    w.appendChild(minus); w.appendChild(inp); w.appendChild(plus);
+    inp.setAttribute('inputmode', 'numeric');
+  });
+}
+try{
+  mzStepperize(document);
+  new MutationObserver(muts => { for(const m of muts){ for(const n of m.addedNodes){ if(n.nodeType === 1 && (n.matches && n.matches('input[data-stepper]') || n.querySelector && n.querySelector('input[data-stepper]'))){ mzStepperize(n.parentNode || document); } } } }).observe(document.body, { childList: true, subtree: true });
+  const css = document.createElement('style');
+  css.textContent = '.mz-step{display:inline-flex;align-items:center;gap:4px;max-width:100%}.mz-step input{text-align:center;min-width:48px;width:60px!important;-moz-appearance:textfield}.mz-step input::-webkit-outer-spin-button,.mz-step input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}' +
+    '.mz-step-b{width:36px;height:36px;flex:0 0 36px;font-size:22px;line-height:1;font-weight:700;border-radius:8px;border:1px solid rgba(15,136,205,.45)!important;background:rgba(15,136,205,.10)!important;color:#0f88cd!important;cursor:pointer;padding:0;touch-action:manipulation;user-select:none}' +
+    '.mz-step-b:active{background:rgba(15,136,205,.28)!important}';
+  document.head.appendChild(css);
+}catch(e){}
 window.openHandrail3D = openHandrail3D;
 window.closeHandrail3D = closeHandrail3D;
 window.hrPlanGeometry = hrPlanGeometry;
 window.buildHandrailPlanSVG = buildHandrailPlanSVG;
-window.__getHr3DDebugState__ = function(){ return { open: !!hr3D.renderer, stats: hr3D.stats }; };
+window.__getHr3DDebugState__ = function(){ const lbl = []; if(hr3D.scene) hr3D.scene.traverse(o => { if(o.userData && o.userData.hrLabel) lbl.push(o.visible); }); return { open: !!hr3D.renderer, stats: hr3D.stats, labels: lbl.length, labelsVisible: lbl.filter(Boolean).length }; };
 
 /* =====================================================================================
    ✏️ محرر المسقط السلس (2026-11-13) - طلب حمدي: "فكرلي بطريقة كيف بدي ارسم بشكل سلس" → اختار:
@@ -11793,7 +11856,7 @@ function hpeRenderEdit(){
   if(!sd){ box.style.display = 'none'; box.innerHTML = ''; return; }
   box.style.display = 'flex';
   box.innerHTML = '<b>ضلع ' + (hpe.sel+1) + ':</b> الطول <input id="hpeEdLen" type="number" inputmode="decimal" value="' + hpeFmt(sd.len) + '" onchange="hpeEditSide(\'len\',this.value)"> ' + (hpe.unit === 'cm' ? 'سم' : 'مم') +
-    ' · ألواح <input id="hpeEdN" type="number" inputmode="numeric" min="1" max="200" style="width:56px" value="' + sd.n + '" onchange="hpeEditSide(\'n\',this.value)">' +
+    ' · ألواح <input id="hpeEdN" data-stepper type="number" inputmode="numeric" min="1" max="200" style="width:56px" value="' + sd.n + '" onchange="hpeEditSide(\'n\',this.value)">' +
     '<button type="button" onclick="hpeSplitSide()">✂ قسّمه لنصين</button><button type="button" class="del" onclick="hpeDeleteSide()">🗑 احذف</button><button type="button" onclick="hpe.sel=-1;hpeRender()">تم</button>' +
     '<span class="hint" style="width:100%">لتغيّر اتجاهه: كبّس سهم وخانة الطول فاضية.</span>';
 }
@@ -21749,6 +21812,8 @@ function pgEnsure(it){
   if(!(it.pgCornerS > 0)) it.pgCornerS = 400;
   if(!it.pgInfill) it.pgInfill = '40x40';
   if(!(it.pgInfillGap > 0)) it.pgInfillGap = 60;
+  // 🆕 2026-11-19 (حمدي: "بدي كون بقدر حدد عدد الاعمدة الصغيرة بين الاعمدة الواقفة"): 0 = تلقائي حسب الفراغ
+  it.pgInfillCount = Math.max(0, Math.min(60, Math.round(+it.pgInfillCount || 0)));
   if(!Array.isArray(it.pgPostCustom)) it.pgPostCustom = [];
   // 🆕 2026-11-19 (حمدي: "بدي بين العمودين يكون في أعمدة بالطول"): القطع عمودية (واقفة) افتراضيًا، والأفقية خيار
   if(!['v','h'].includes(it.pgInfillDir)) it.pgInfillDir = 'v';
@@ -21798,14 +21863,16 @@ function pgPostLayout(it){
     rungs.forEach((r) => { if(cur && Math.abs(cur[cur.length-1].x2 - r.x1) < 1 && Math.abs(cur[cur.length-1].z2 - r.z1) < 1) cur.push(r); else { cur = [r]; paths.push(cur); } });
     paths.forEach((pth) => {
       const lens = pth.map(r => Math.hypot(r.x2 - r.x1, r.z2 - r.z1)); const tot = lens.reduce((a, b) => a + b, 0);
-      const n = Math.max(0, Math.floor((tot - gap) / (iw + gap)));
+      const n = it.pgInfillCount > 0 ? it.pgInfillCount : Math.max(0, Math.floor((tot - gap) / (iw + gap)));
       for(let k = 1; k <= n; k++){
         let d = (k * tot) / (n + 1), j = 0; while(j < lens.length - 1 && d > lens[j]){ d -= lens[j]; j++; }
         const r = pth[j], f = lens[j] ? d / lens[j] : 0, along = Math.abs(r.x2 - r.x1) >= Math.abs(r.z2 - r.z1);
         fins.push({ x: r.x1 + (r.x2 - r.x1) * f, z: r.z1 + (r.z2 - r.z1) * f, w: along ? iw : ih, d: along ? ih : iw });
       }
     });
-  } else if(rungs.length){ for(let y = gap + ih/2; y + ih/2 <= H - bh - gap/2; y += ih + gap) ys.push(y); }
+  } else if(rungs.length){
+    if(it.pgInfillCount > 0){ const n = it.pgInfillCount, span = H - bh; for(let k = 1; k <= n; k++) ys.push((k * span) / (n + 1)); }
+    else for(let y = gap + ih/2; y + ih/2 <= H - bh - gap/2; y += ih + gap) ys.push(y); }
   const rungLens = vert ? [] : rungs.map(r => Math.round(Math.hypot(r.x2 - r.x1, r.z2 - r.z1))).filter(l => l > 0);
   return { L, D, H, pw, pd, iw, ih, per, posts, rungs: vert ? [] : rungs, paths: rungs, fins, finLen: Math.round(H - bh), ys, slots, postCount: posts.length, rungLens, bh, vert };
 }
@@ -21922,6 +21989,10 @@ function pgLoadControls(it){
   { const db = document.getElementById('pgDblBlock'); const ly0 = pgPostLayout(it); const anyDbl = ly0.slots.some(x => x.style !== 'single');
     if(db) db.style.display = (it.pgPostStyle === 'double' || anyDbl) ? 'block' : 'none';
     set('inPgDblGap', Math.round(it.pgDblGap)); set('inPgCornerF', Math.round(it.pgCornerF)); set('inPgCornerS', Math.round(it.pgCornerS)); set('inPgInfillGap', Math.round(it.pgInfillGap));
+    { const auto = !(it.pgInfillCount > 0); set('inPgInfillCount', auto ? 0 : it.pgInfillCount);
+      const per1 = ly0.vert ? (ly0.paths.length ? Math.round(ly0.fins.length / ly0.paths.length) : 0) : ly0.ys.length;
+      const hn = document.getElementById('pgInfillCountHint'); if(hn) hn.textContent = auto ? ('0 = تلقائي حسب الفراغ (هلق ' + per1 + ')') : 'عدد ثابت · رجّعه 0 ليصير تلقائي';
+      const gw = document.getElementById('pgInfillGapWrap'); if(gw) gw.style.opacity = auto ? '1' : '0.45'; }
     { const e = document.getElementById('inPgInfill'); if(e && ![...e.options].some(o => o.value === it.pgInfill)){ const o = document.createElement('option'); o.value = o.textContent = it.pgInfill; e.appendChild(o); } set('inPgInfill', it.pgInfill); }
     const box = document.getElementById('pgPostCustomBox');
     if(box){ const per = ly0.per; let h = '';
@@ -21943,6 +22014,7 @@ function pgField(key, val){
     it[key] = Math.min(5000, Math.max(20, v));
     pgLoadControls(it); renderGallery(); return;
   }
+  if(key === 'pgInfillCount'){ const v = Math.round(parseFloat(val)); it.pgInfillCount = Number.isFinite(v) ? Math.max(0, Math.min(60, v)) : 0; pgLoadControls(it); renderGallery(); return; }
   if(key === 'pgPostsPerRow') it.pgPostCustom = []; // عدد الأعمدة تغيّر ← التخصيص لكل عمود بيرجع تلقائي
   if(['width','height','pgHeight','pgSlatGap','pgPostsPerRow'].includes(key)){
     let v = parseFloat(String(val).replace(',', '.'));
@@ -22106,7 +22178,7 @@ function mzFixMisguessedHandrail(it, rd){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
