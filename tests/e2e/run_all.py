@@ -2774,9 +2774,12 @@ async def t_acct_syp_invoice(p, b, port):
             if fx_ok:
                 hint = await pg.evaluate("document.getElementById('fxHint').innerText")
                 check(fxv == '11500' and "Today's market rate" in hint and 'edit it if needed' in hint, 'اختار الليرة ← سعر الصرف تعبّى لحاله 11500 (سعر السوق) ' + repr(fxv) + ' ' + hint[:70])
+                ph = await pg.evaluate("document.getElementById('fNo').placeholder")
+                check('S-INV-' in ph, 'خانة رقم الفاتورة: فاضية = رقم تلقائي ' + ph)
+                await pg.fill('#fNo', 'SY-1050')
                 await pg.locator("button:has-text('Save')").last.click(); await pg.wait_for_timeout(1500)
                 docs = await pg.evaluate("Object.values(__acctT.S().book.docs).filter(d => d.type === 'invoice' && d.currency === 'SYP').map(d => [d.no, d.fx])")
-                check(len(docs) == 1 and docs[0][0].startswith('S-INV-'), 'فاتورة سوريا بالليرة انحفظت ' + str(docs))
+                check(len(docs) == 1 and docs[0][0] == 'SY-1050', 'فاتورة سوريا بالليرة انحفظت برقم يدوي ' + str(docs))
             else:
                 check(fxv == '', 'السيرفر ما عطى سعر ← الخانة بتضل فاضية (ما منحط رقم غلط) ' + repr(fxv))
                 await pg.fill('#fX', '12000'); await pg.wait_for_timeout(500)
