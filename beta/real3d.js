@@ -501,6 +501,8 @@ function buildPergolaScene(it, opts, H){
     const ly = H.pgPostLayout(it);
     ly.posts.forEach((q)=>{ bx(mm(q.w), Hh, mm(q.d), metal, mm(q.x), Hh/2, -mm(q.z)); bx(mm(q.w) + 0.08, 0.012, mm(q.d) + 0.08, metal, mm(q.x), 0.006, -mm(q.z)); });
     const iw = mm(ly.iw), ih = mm(ly.ih);
+    // قطع عمودية (واقفة) من الأرض لتحت الجسر
+    (ly.fins || []).forEach((q)=>{ const fh = mm(ly.finLen); bx(mm(q.w), fh, mm(q.d), metal, mm(q.x), fh/2, -mm(q.z)); });
     ly.rungs.forEach((r)=>{
       const dx = mm(r.x2 - r.x1), dz = mm(r.z2 - r.z1), len = Math.hypot(dx, dz); if(len < 0.005) return;
       const along = Math.abs(dx) >= Math.abs(dz);
