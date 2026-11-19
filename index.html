@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-19.2';
+  var CURRENT_VERSION = '2026-11-19.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -9132,9 +9132,14 @@ window.wdApplyBack = function(results){
             <button type="button" data-v="double" onclick="pgField('pgPostStyle','double')">مزدوج + قطع بالنص (الطرفين زاوية)</button>
           </div>
           <div id="pgDblBlock" style="display:none;">
+            <label style="margin-top:8px;display:block;">اتجاه القطع بين العمودين</label>
+            <div class="shape-toggle" id="pgInfillDirBtns">
+              <button type="button" data-v="v" onclick="pgField('pgInfillDir','v')">عمودية (واقفة)</button>
+              <button type="button" data-v="h" onclick="pgField('pgInfillDir','h')">أفقية (متل السلّم)</button>
+            </div>
             <div class="row2" style="margin-top:8px;">
               <div><label>المسافة بين العمودين (مم)</label><input type="text" inputmode="decimal" id="inPgDblGap" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('pgDblGap',this.value)"></div>
-              <div><label>مقاس القطع الصغيرة</label><select id="inPgInfill" onchange="pgField('pgInfill',this.value)"><option>20x20</option><option>30x30</option><option>40x40</option><option>50x50</option><option>40x20</option><option>50x25</option><option>60x30</option></select></div>
+              <div><label>مقاس القطع الصغيرة</label><select id="inPgInfill" onchange="pgField('pgInfill',this.value)"><option>20x20</option><option>30x30</option><option>40x40</option><option>50x50</option><option>40x20</option><option>50x25</option><option>60x30</option><option>40x80</option><option>50x100</option><option>40x100</option><option>30x60</option></select></div>
             </div>
             <div class="row2" style="margin-top:8px;">
               <div><label>الفراغ بين القطع (مم)</label><input type="text" inputmode="decimal" id="inPgInfillGap" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('pgInfillGap',this.value)"></div>
@@ -21693,8 +21698,10 @@ function pgEnsure(it){
   if(!(it.pgCornerF > 0)) it.pgCornerF = 400;
   if(!(it.pgCornerS > 0)) it.pgCornerS = 400;
   if(!it.pgInfill) it.pgInfill = '40x40';
-  if(!(it.pgInfillGap > 0)) it.pgInfillGap = 150;
+  if(!(it.pgInfillGap > 0)) it.pgInfillGap = 60;
   if(!Array.isArray(it.pgPostCustom)) it.pgPostCustom = [];
+  // 🆕 2026-11-19 (حمدي: "بدي بين العمودين يكون في أعمدة بالطول"): القطع عمودية (واقفة) افتراضيًا، والأفقية خيار
+  if(!['v','h'].includes(it.pgInfillDir)) it.pgInfillDir = 'v';
 }
 // مكان كل عمود وتصميمه (بالمم، المسقط: x عالطول من اليسار، z عالعمق من قدام). بيستعملها الحساب والرسمة والثري دي.
 // single = عمود واحد · double = عمودين جنب بعض وبيناتهم قطع صغيرة · corner = زاوية: عمود عالواجهة وعمود عالجنب وبيناتهم قطع على شكل L
@@ -21731,10 +21738,26 @@ function pgPostLayout(it){
       rungs.push({ x1: cx, z1: zc, x2: cx, z2: bz - sz * pd/2 });
     }
   });
-  const ys = []; const gap = Math.max(20, +it.pgInfillGap || 150);
-  if(rungs.length){ for(let y = gap + ih/2; y + ih/2 <= H - bh - gap/2; y += ih + gap) ys.push(y); }
-  const rungLens = rungs.map(r => Math.round(Math.hypot(r.x2 - r.x1, r.z2 - r.z1))).filter(l => l > 0);
-  return { L, D, H, pw, pd, iw, ih, per, posts, rungs, ys, slots, postCount: posts.length, rungLens, bh };
+  const ys = []; const gap = Math.max(20, +it.pgInfillGap || 60);
+  const vert = it.pgInfillDir !== 'h';
+  // عمودي: قطع واقفة من الأرض لتحت الجسر، موزّعة بالتساوي على المسافة بين العمودين (وعالزاوية على شكل L)
+  const fins = [];
+  if(vert){
+    // الزاوية = خطّين ورا بعض (مسار واحد) - منوزّع عليه كلو مشان ما تتكرر قطعة عالزاوية
+    const paths = []; let cur = null;
+    rungs.forEach((r) => { if(cur && Math.abs(cur[cur.length-1].x2 - r.x1) < 1 && Math.abs(cur[cur.length-1].z2 - r.z1) < 1) cur.push(r); else { cur = [r]; paths.push(cur); } });
+    paths.forEach((pth) => {
+      const lens = pth.map(r => Math.hypot(r.x2 - r.x1, r.z2 - r.z1)); const tot = lens.reduce((a, b) => a + b, 0);
+      const n = Math.max(0, Math.floor((tot - gap) / (iw + gap)));
+      for(let k = 1; k <= n; k++){
+        let d = (k * tot) / (n + 1), j = 0; while(j < lens.length - 1 && d > lens[j]){ d -= lens[j]; j++; }
+        const r = pth[j], f = lens[j] ? d / lens[j] : 0, along = Math.abs(r.x2 - r.x1) >= Math.abs(r.z2 - r.z1);
+        fins.push({ x: r.x1 + (r.x2 - r.x1) * f, z: r.z1 + (r.z2 - r.z1) * f, w: along ? iw : ih, d: along ? ih : iw });
+      }
+    });
+  } else if(rungs.length){ for(let y = gap + ih/2; y + ih/2 <= H - bh - gap/2; y += ih + gap) ys.push(y); }
+  const rungLens = vert ? [] : rungs.map(r => Math.round(Math.hypot(r.x2 - r.x1, r.z2 - r.z1))).filter(l => l > 0);
+  return { L, D, H, pw, pd, iw, ih, per, posts, rungs: vert ? [] : rungs, paths: rungs, fins, finLen: Math.round(H - bh), ys, slots, postCount: posts.length, rungLens, bh, vert };
 }
 function mzInitPergolaFromRow(it, rd){
   if(!isPergola(it) || !rd) return;
@@ -21767,6 +21790,7 @@ function pgCalc(it){
     { name: slatName, size: it.pgSlat, n: slats, len: Math.round(D) }
   ];
   // قطع تصميم الأعمدة (مجمّعة حسب الطول)
+  if(lay.fins.length) cut.push({ name:'قطع تصميم الأعمدة (عمودية)', size: it.pgInfill, n: lay.fins.length, len: lay.finLen });
   if(lay.ys.length && lay.rungLens.length){
     const byLen = {}; lay.rungLens.forEach(l => { byLen[l] = (byLen[l] || 0) + lay.ys.length; });
     Object.keys(byLen).sort((a, b) => b - a).forEach(l => cut.push({ name:'قطع تصميم الأعمدة', size: it.pgInfill, n: byLen[l], len: +l }));
@@ -21797,6 +21821,7 @@ function buildPergolaSVG(it, printCount){
   // 🆕 2026-11-19: الأعمدة حسب التصميم (عادي / مزدوج / زاوية) + القطع الصغيرة بيناتهم
   { const ly = c.lay, PX = (x) => x0 + x * s, PY = (z) => y0 + pd - z * s;
     ly.rungs.forEach(r => { g += `<line x1="${PX(r.x1).toFixed(1)}" y1="${PY(r.z1).toFixed(1)}" x2="${PX(r.x2).toFixed(1)}" y2="${PY(r.z2).toFixed(1)}" stroke="${cyan}" stroke-width="${Math.max(2, ly.iw * s).toFixed(1)}"/>`; });
+    ly.fins.forEach(q => { const w = Math.max(2, q.w * s), h = Math.max(2, q.d * s); g += `<rect x="${(PX(q.x) - w/2).toFixed(1)}" y="${(PY(q.z) - h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${cyan}"/>`; });
     ly.posts.forEach(q => { const w = Math.max(5, q.w * s), h = Math.max(5, q.d * s); g += `<rect x="${(PX(q.x) - w/2).toFixed(1)}" y="${(PY(q.z) - h/2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${amber}"/>`; }); }
   // dims
   g += `<line x1="${x0}" y1="${y0+pd+22}" x2="${x0+pl}" y2="${y0+pd+22}" stroke="${amber}"/><text x="${x0+pl/2}" y="${y0+pd+38}" fill="${amber}" font-size="14" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)">${Math.round(c.L)} mm</text>`;
@@ -21811,6 +21836,8 @@ function buildPergolaSVG(it, printCount){
   { const ly = c.lay; const op = it.pgMount === 'cantilever' ? 0.45 : 1;
     // القطع الصغيرة (بالواجهة: يلي ماشية بالطول) - على كل الارتفاعات
     ly.rungs.filter(r => Math.abs(r.x2 - r.x1) > 1).forEach(r => { const a = ex + Math.min(r.x1, r.x2) * s2, w = Math.abs(r.x2 - r.x1) * s2; ly.ys.forEach(y => { const hh = Math.max(1.5, ly.ih * s2); g += `<rect x="${a.toFixed(1)}" y="${(ey + eh - y * s2 - hh/2).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" fill="${cyan}" opacity="${op}"/>`; }); });
+    // القطع العمودية (من الأرض لتحت الجسر)
+    { const sf = {}; ly.fins.forEach(q => { const k = Math.round(q.x / 5); if(sf[k]) return; sf[k] = 1; const w = Math.max(1.5, q.w * s2), hh = ly.finLen * s2; g += `<rect x="${(ex + q.x * s2 - w/2).toFixed(1)}" y="${(ey + eh - hh).toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" fill="${cyan}" opacity="${op}"/>`; }); }
     // الأعمدة (المكررة بنفس المكان من ورا بتنرسم مرة وحدة)
     const seen = {}; ly.posts.forEach(q => { const k = Math.round(q.x); if(seen[k]) return; seen[k] = 1; const w = Math.max(3, q.w * s2); g += `<rect x="${(ex + q.x * s2 - w/2).toFixed(1)}" y="${ey}" width="${w.toFixed(1)}" height="${eh.toFixed(1)}" fill="${amber}" opacity="${op}"/>`; }); }
   g += `<line x1="${ex-12}" y1="${ey}" x2="${ex-12}" y2="${ey+eh}" stroke="${amber}"/><text x="${ex-20}" y="${ey+eh/2}" fill="${amber}" font-size="13" font-weight="700" text-anchor="middle" font-family="var(--wd-font-mono)" transform="rotate(-90 ${ex-20} ${ey+eh/2})">${Math.round(c.H)} mm</text>`;
@@ -21841,6 +21868,7 @@ function pgLoadControls(it){
   set('inPgRoof', it.pgRoof); set('inPgMat', it.pgMaterial);
   document.querySelectorAll('#pgMountBtns [data-v]').forEach(b => b.classList.toggle('active', b.dataset.v === it.pgMount));
   document.querySelectorAll('#pgPostStyleBtns [data-v]').forEach(b => b.classList.toggle('active', b.dataset.v === it.pgPostStyle));
+  document.querySelectorAll('#pgInfillDirBtns [data-v]').forEach(b => b.classList.toggle('active', b.dataset.v === it.pgInfillDir));
   { const db = document.getElementById('pgDblBlock'); const ly0 = pgPostLayout(it); const anyDbl = ly0.slots.some(x => x.style !== 'single');
     if(db) db.style.display = (it.pgPostStyle === 'double' || anyDbl) ? 'block' : 'none';
     set('inPgDblGap', Math.round(it.pgDblGap)); set('inPgCornerF', Math.round(it.pgCornerF)); set('inPgCornerS', Math.round(it.pgCornerS)); set('inPgInfillGap', Math.round(it.pgInfillGap));
@@ -21854,7 +21882,7 @@ function pgLoadControls(it){
       box.innerHTML = h; } }
   const c = pgCalc(it);
   const sum = document.getElementById('pgSummary');
-  if(sum) sum.textContent = c.posts + ' أعمدة · ' + c.slats + ' شريحة' + (c.lay.ys.length && c.lay.rungs.length ? ' · ' + (c.lay.rungs.length * c.lay.ys.length) + ' قطعة تصميم' : '') + ' · مجموع التيوبات ' + (c.aluMm/1000).toFixed(1) + ' م';
+  if(sum) sum.textContent = c.posts + ' أعمدة · ' + c.slats + ' شريحة' + (c.lay.fins.length ? ' · ' + c.lay.fins.length + ' قطعة عمودية' : (c.lay.ys.length && c.lay.rungs.length ? ' · ' + (c.lay.rungs.length * c.lay.ys.length) + ' قطعة تصميم' : '')) + ' · مجموع التيوبات ' + (c.aluMm/1000).toFixed(1) + ' م';
 }
 function pgField(key, val){
   const it = getSelected(); if(!it || !isPergola(it)) return;
@@ -22028,7 +22056,7 @@ function mzFixMisguessedHandrail(it, rd){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
