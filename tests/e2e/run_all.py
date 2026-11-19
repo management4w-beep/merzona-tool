@@ -338,35 +338,36 @@ async def t_pergola_posts(p, b, port):
     await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
     await pg.evaluate("WD.__t.sel(WD.__t.items()[0].id); setShape('pergola')"); await pg.wait_for_timeout(300)
     await pg.evaluate("pgField('width', 8750); pgField('height', 4800); pgField('pgMount', 'wall'); pgField('pgPostsPerRow', 3); pgField('pgRoof', 'sandwich')"); await pg.wait_for_timeout(200)
-    L = "(function(){ var ly = pgPostLayout(WD.__t.items()[0]); return { posts: ly.posts.length, rungs: ly.rungs.length, ys: ly.ys.length, slots: ly.slots.map(function(x){ return x.style; }), p: ly.posts.map(function(q){ return [Math.round(q.x), Math.round(q.z)]; }) }; })()"
+    L = "(function(){ var ly = pgPostLayout(WD.__t.items()[0]); return { posts: ly.posts.length, rungs: ly.rungs.length, fins: ly.fins.length, ys: ly.ys.length, slots: ly.slots.map(function(x){ return x.style; }), p: ly.posts.map(function(q){ return [Math.round(q.x), Math.round(q.z)]; }) }; })()"
     a = await pg.evaluate(L)
-    check(a['posts'] == 3 and a['rungs'] == 0 and a['slots'] == ['single'] * 3, 'عادي: 3 أعمدة ' + str(a))
+    check(a['posts'] == 3 and a['fins'] == 0 and a['slots'] == ['single'] * 3, 'عادي: 3 أعمدة ' + str(a))
     check(await pg.evaluate("getComputedStyle(document.getElementById('pgDblBlock')).display") == 'none', 'خيارات المزدوج مخفية')
     await pg.click('#pgPostStyleBtns [data-v="double"]'); await pg.wait_for_timeout(300)
     a = await pg.evaluate(L)
-    check(a['slots'] == ['corner', 'double', 'corner'] and a['posts'] == 6 and a['rungs'] == 5, 'مزدوج: الطرفين زاوية والوسط عمودين ' + str(a))
-    # الوسط: عمودين حوالين 4375 بفراغ 300 (عمود 150) ← 4375 ± 225
+    check(a['slots'] == ['corner', 'double', 'corner'] and a['posts'] == 6, 'مزدوج: الطرفين زاوية والوسط عمودين ' + str(a))
+    check(a['fins'] == 6 and a['rungs'] == 0 and a['ys'] == 0, 'افتراضي: قطع عمودية (2 بالوسط و2 بكل زاوية) ' + str(a))
     check([4150, 75] in a['p'] and [4600, 75] in a['p'], 'عمود الوسط مزدوج بالمسافة الصح ' + str(a['p']))
-    # الزاوية اليسار: عمود قدام عند 400-75=325 وعمود عالجنب عند z=400-75=325
     check([325, 75] in a['p'] and [75, 325] in a['p'] and [8425, 75] in a['p'] and [8675, 325] in a['p'], 'الزوايا: ضلع قدام وضلع جنب 400 ' + str(a['p']))
-    check(a['ys'] == 13, 'عدد القطع بالارتفاع (2700، فراغ 150، قطعة 40) ' + str(a['ys']))
+    check(await pg.evaluate("document.querySelector('#pgInfillDirBtns [data-v=v]').classList.contains('active')"), 'زر عمودية مفعّل')
+    # أفقية كخيار
+    await pg.click('#pgInfillDirBtns [data-v="h"]'); await pg.wait_for_timeout(200)
+    a = await pg.evaluate(L)
+    check(a['fins'] == 0 and a['rungs'] == 5 and a['ys'] > 0, 'أفقية متل السلّم كخيار ' + str(a))
+    await pg.click('#pgInfillDirBtns [data-v="v"]'); await pg.wait_for_timeout(200)
     check(await pg.evaluate("getComputedStyle(document.getElementById('pgDblBlock')).display") == 'block', 'خيارات المزدوج ظاهرة')
-    # تغيير القياسات
     await pg.fill('#inPgDblGap', '500'); await pg.dispatch_event('#inPgDblGap', 'change')
     await pg.fill('#inPgCornerF', '600'); await pg.dispatch_event('#inPgCornerF', 'change')
-    await pg.fill('#inPgInfillGap', '300'); await pg.dispatch_event('#inPgInfillGap', 'change')
-    await pg.select_option('#inPgInfill', '50x50'); await pg.wait_for_timeout(300)
+    await pg.fill('#inPgInfillGap', '80'); await pg.dispatch_event('#inPgInfillGap', 'change')
+    await pg.select_option('#inPgInfill', '50x100'); await pg.wait_for_timeout(300)
     a = await pg.evaluate(L)
-    check([4050, 75] in a['p'] and [4700, 75] in a['p'] and [525, 75] in a['p'] and a['ys'] == 6, 'القياسات بتتطبق ' + str(a))
-    # الحساب: قطع التصميم بالمشتريات
-    cut = await pg.evaluate("pgCalc(WD.__t.items()[0]).cut.filter(function(c){ return c.name === 'قطع تصميم الأعمدة'; }).map(function(c){ return [c.size, c.n, c.len]; })")
-    check(len(cut) >= 2 and all(c[0] == '50x50' for c in cut) and sum(c[1] for c in cut) == 5 * 6, 'قطع التصميم بالتيوبات ' + str(cut))
+    check([4050, 75] in a['p'] and [4700, 75] in a['p'] and [525, 75] in a['p'] and a['fins'] == 9, 'القياسات بتتطبق ' + str(a))
+    cut = await pg.evaluate("pgCalc(WD.__t.items()[0]).cut.filter(function(c){ return /قطع تصميم/.test(c.name); }).map(function(c){ return [c.size, c.n, c.len]; })")
+    check(cut == [['50x100', 9, 2550]], 'القطع العمودية بالتيوبات (طولها لتحت الجسر) ' + str(cut))
     check(await pg.evaluate("pgCalc(WD.__t.items()[0]).cut[0].n") == 6, 'عدد الأعمدة بالتيوبات 6')
-    # عمود لحاله: الوسط عادي
     check(await pg.evaluate("document.querySelectorAll('#pgPostCustomBox select').length") == 3 and await pg.evaluate("document.querySelectorAll('#pgPostCustomBox select')[0].querySelector('option[value=corner]') != null && document.querySelectorAll('#pgPostCustomBox select')[1].querySelector('option[value=corner]') == null"), 'اختيار لكل عمود (الزاوية بس للأطراف)')
     await pg.select_option('#pgPostCustomBox select[data-pgpost="1"]', 'single'); await pg.wait_for_timeout(300)
     a = await pg.evaluate(L)
-    check(a['slots'] == ['corner', 'single', 'corner'] and a['posts'] == 5, 'عمود الوسط صار عادي ' + str(a))
+    check(a['slots'] == ['corner', 'single', 'corner'] and a['posts'] == 5 and a['fins'] == 6, 'عمود الوسط صار عادي ' + str(a))
     svg = await pg.evaluate("buildPergolaSVG(WD.__t.items()[0], null)")
     check(svg.count('stroke-width') > 0 and 'ساندويتش' in svg, 'الرسمة')
     if os.environ.get('MZ_SHOT'):
