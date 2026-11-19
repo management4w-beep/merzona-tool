@@ -463,6 +463,102 @@ function buildScene(it, opts, H){
   return { scene, focus: new THREE.Vector3(W/2, y0 + Hh/2, -setback), W, H: Hh, mats: M };
 }
 
+/* ---------- ⛱️ البيرغولا (2026-11-19) ----------
+   حمدي: "عملت عرض سعر وتصميم وفيه بيرغولا بس ما ظهرت عالثري دي وما اعطاني خيار انو السقف يكون مغلق بساندويتش بانل".
+   كل شي من بيانات المصمم (pgCalc): الطول والعمق والارتفاع، عدد الأعمدة وأماكنها حسب طريقة التركيب (أعمدة قدام وورا / عالحيط / كابولي)،
+   مقاسات العمود والجسر والشريحة، المسافة بين الشرائح، ونوع السقف: شرائح مفتوحة · لوفر متحرك · بولي كاربونيت · زجاج · ساندويتش بانل (مسكّر). */
+const PG_ROOFS = { slats:'شرائح مفتوحة', louver:'لوفر متحرك', poly:'بولي كاربونيت', glass:'زجاج', sandwich:'ساندويتش بانل (مسكّر)' };
+function isPergolaSupported(it, H){ return !!(it && H.isPergola && H.isPergola(it) && typeof H.pgCalc === 'function' && it.width > 0 && it.height > 0); }
+function buildPergolaScene(it, opts, H){
+  const THREE = T();
+  const st = getState();
+  const M = makeMats(opts);
+  const c = H.pgCalc(it);
+  const mm = (v)=> v / 1000;
+  const L = mm(c.L), D = mm(c.D), Hh = mm(c.H);
+  const sz = (v, d)=>{ const m = String(v || '').match(/(\d{2,3})\s*[x×*]\s*(\d{2,3})/i); return m ? [mm(+m[1]), mm(+m[2])] : d; };
+  const post = sz(it.pgPost, [0.15, 0.15]), beam = sz(it.pgBeam, [0.15, 0.15]), slat = sz(it.pgSlat, [0.05, 0.05]);
+  const scene = new THREE.Scene();
+  scene.environment = opts.bg === 'studio' ? st.env : st.skyEnv;
+  scene.background = skyTex(opts.bg);
+  const grp = new THREE.Group(); scene.add(grp);
+  const metal = it.pgMaterial === 'steel' && !it.r3dColor ? new THREE.MeshStandardMaterial({ color:0x8f969b, roughness:0.45, metalness:0.75, envMap:M.alu.envMap, envMapIntensity:0.8 }) : M.alu;
+  const add = (geo, mat, x, y, z, cast)=>{ const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = cast !== false; m.receiveShadow = true; grp.add(m); return m; };
+  const bx = (w, h, d, mat, x, y, z)=> add(bevelBoxGeo(w, h, d, 0.003), mat, x, y, z);
+  // الأرضية: بلاط حوالين البيرغولا
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), M.floor); fl.rotation.x = -Math.PI/2; fl.position.set(L/2, 0, -D/2); fl.receiveShadow = true;
+  M.floor.map.repeat.set(60/0.6, 60/0.6); grp.add(fl);
+  // حيط البيت (تركيب عالحيط) ورا البيرغولا
+  const WT = 0.25;
+  if(it.pgMount === 'wall'){
+    M.plaster.map.repeat.set(0.7, 0.7);
+    const wh = Hh + 1.6, ww = L + 6;
+    const wg = new THREE.BoxGeometry(ww, wh, WT);
+    add(wg, M.plaster, L/2, wh/2, -D - WT/2, true);
+  }
+  // الأعمدة
+  const rowsZ = it.pgMount === 'free' ? [-post[1]/2, -D + post[1]/2] : it.pgMount === 'wall' ? [-post[1]/2] : [-D + post[1]/2];
+  rowsZ.forEach((z)=>{ for(let i=0;i<c.per;i++){ const x = c.per === 1 ? L/2 : post[0]/2 + i * (L - post[0]) / (c.per - 1); bx(post[0], Hh, post[1], metal, x, Hh/2, z); } });
+  // قواعد الأعمدة (بليتات)
+  rowsZ.forEach((z)=>{ for(let i=0;i<c.per;i++){ const x = c.per === 1 ? L/2 : post[0]/2 + i * (L - post[0]) / (c.per - 1); bx(post[0] + 0.08, 0.012, post[1] + 0.08, metal, x, 0.006, z); } });
+  // الجسور (الإطار فوق): الارتفاع = آخر قياس بالجسر
+  const bw = beam[0], bh = Math.max(beam[1], beam[0]);
+  const yB = Hh - bh/2;
+  bx(L, bh, bw, metal, L/2, yB, -bw/2);
+  bx(L, bh, bw, metal, L/2, yB, -D + bw/2);
+  bx(bw, bh, D - 2*bw, metal, bw/2, yB, -D/2);
+  bx(bw, bh, D - 2*bw, metal, L - bw/2, yB, -D/2);
+  // الشرائح (ماشية بالعمق، موزّعة عالطول)
+  const roof = PG_ROOFS[it.pgRoof] ? it.pgRoof : 'slats';
+  const n = Math.max(2, c.slats), sw = slat[0], sh = slat[1];
+  const sp = n > 1 ? (L - 2*bw - sw) / (n - 1) : 0;
+  const yS = Hh - sh/2;
+  for(let i=0;i<n;i++){
+    const x = bw + sw/2 + i*sp;
+    if(roof === 'louver'){
+      // شفرات لوفر عريضة ومايلة شوي (مفتوحة)
+      const bl = Math.min(Math.max(sp * 0.92, 0.12), 0.25);
+      const m = add(bevelBoxGeo(bl, 0.022, D - 2*bw, 0.004), metal, x, Hh - 0.07, -D/2); m.rotation.z = 0.55;
+    } else {
+      bx(sw, sh, D - 2*bw, metal, x, yS, -D/2);
+    }
+  }
+  // تغطية السقف
+  const yTop = Hh + 0.004;
+  if(roof === 'poly'){
+    const pm = new THREE.MeshPhysicalMaterial({ color:0xeef6f8, transparent:true, opacity:0.55, roughness:0.35, metalness:0, envMap:M.alu.envMap, envMapIntensity:0.6, side:THREE.DoubleSide, depthWrite:false });
+    const m = add(new THREE.BoxGeometry(L, 0.01, D), pm, L/2, yTop + 0.005, -D/2, false); m.renderOrder = 2;
+    // خطوط البولي (قنوات)
+    const lm = new THREE.MeshStandardMaterial({ color:0xdde8ec, transparent:true, opacity:0.5, roughness:0.4 });
+    for(let x = 0.25; x < L; x += 0.5) add(new THREE.BoxGeometry(0.008, 0.012, D), lm, x, yTop + 0.012, -D/2, false);
+  } else if(roof === 'glass'){
+    const m = add(new THREE.BoxGeometry(L, 0.01, D), M.glass, L/2, yTop + 0.005, -D/2, false); m.renderOrder = 2;
+    const rf = new THREE.Mesh(new THREE.PlaneGeometry(L, D), M.glassRefl); rf.rotation.x = -Math.PI/2; rf.position.set(L/2, yTop + 0.011, -D/2); rf.renderOrder = 3; grp.add(rf);
+  } else if(roof === 'sandwich'){
+    // ساندويتش بانل: لوح مسكّر بسماكة + أضلاع (ribs) فوق، لونه أبيض/رمادي فاتح، ومن تحت أملس
+    const thk = 0.05;
+    const top = new THREE.MeshStandardMaterial({ color:0xe6e4df, roughness:0.55, metalness:0.25, envMap:M.alu.envMap, envMapIntensity:0.5 });
+    const under = new THREE.MeshStandardMaterial({ color:0xf1f0ec, roughness:0.7, metalness:0.1, envMap:M.alu.envMap, envMapIntensity:0.3 });
+    const pan = add(new THREE.BoxGeometry(L + 0.06, thk, D + 0.06), [top, top, top, under, top, top], L/2, Hh + thk/2, -D/2);
+    pan.castShadow = true;
+    for(let x = 0.17; x < L; x += 0.333) add(bevelBoxGeo(0.035, 0.03, D + 0.06, 0.004), top, x, Hh + thk + 0.015, -D/2);
+    // فلاشينغ عالأطراف
+    bx(L + 0.1, 0.06, 0.02, top, L/2, Hh + thk/2 + 0.005, 0.04);
+  }
+  // إضاءة
+  const span = Math.max(L, D, Hh) + 3;
+  const sun = new THREE.DirectionalLight(0xfff1dc, 1.8);
+  sun.position.set(L/2 - span*0.6, Hh + span*0.9, span*0.5); sun.target.position.set(L/2, 0, -D/2);
+  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0005; sun.shadow.radius = 3;
+  const sc = sun.shadow.camera; sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 0.5; sc.far = span * 4;
+  scene.add(sun); scene.add(sun.target);
+  scene.add(new THREE.HemisphereLight(0xdfeaf5, 0x7a6f60, 0.35));
+  const W = Math.max(L, D * 0.9) + 0.6, HH = Hh + 0.4;
+  return { scene, focus: new THREE.Vector3(L/2, Hh * 0.5, -D/2), W, H: HH, mats: M, pergola: true };
+}
+function sceneFor(it, opts, H){ return isPergolaSupported(it, H) ? buildPergolaScene(it, opts, H) : buildScene(it, opts, H); }
+function canRender(it, H){ return isPergolaSupported(it, H) || isOpeningSupported(it, H); }
+
 function placeCamera(cam, info, aspect, yawDeg, pitchDeg){
   const THREE = T();
   const fov = cam.fov * Math.PI / 180;
@@ -489,15 +585,15 @@ function optsFor(it, o){
 
 // صورة ثابتة (dataURL) لبطاقة العرض
 function renderImage(it, H, o){
-  if(!supported() || !isOpeningSupported(it, H)) return null;
+  if(!supported() || !canRender(it, H)) return null;
   const THREE = T();
   const opts = optsFor(it, o);
   const w = (o && o.w) || 900, h = (o && o.h) || 680;
   const st = getState(), r = st.renderer;
   r.setPixelRatio(1); r.setSize(w, h, false);
-  const info = buildScene(it, opts, H);
+  const info = sceneFor(it, opts, H);
   const cam = new THREE.PerspectiveCamera(30, w/h, 0.05, 120);
-  placeCamera(cam, info, w/h, opts.yaw, opts.pitch);
+  placeCamera(cam, info, w/h, opts.yaw != null ? opts.yaw : (info.pergola ? 28 : null), opts.pitch != null ? opts.pitch : (info.pergola ? 20 : null));
   r.render(info.scene, cam);
   const url = r.domElement.toDataURL('image/png');
   disposeScene(info.scene);
@@ -507,7 +603,8 @@ function renderImage(it, H, o){
 /* ---------- العارض التفاعلي (دوّر وشوف) ---------- */
 let VW = null;
 function openViewer(it, H, onSave){
-  if(!supported() || !isOpeningSupported(it, H)) return false;
+  if(!supported() || !canRender(it, H)) return false;
+  const isPg = isPergolaSupported(it, H);
   const THREE = T();
   closeViewer();
   const ov = document.createElement('div'); ov.id = 'mzR3dOverlay';
@@ -526,6 +623,7 @@ function openViewer(it, H, onSave){
     <div id="mzR3dStage" style="flex:1;position:relative;min-height:0;"></div>
     <div id="mzR3dBar" style="display:flex;flex-wrap:wrap;gap:6px 8px;padding:10px 14px;background:#1b1f24;color:#cfd8dc;font-size:13px;align-items:center;">
       <span>لون الألمنيوم:</span>${Object.keys(COLORS).map(k=> chip('color', k, COLORS[k].ar, opts.color === k, sw(COLORS[k].hex))).join('')}
+      ${isPg ? `<span style="margin-inline-start:10px">السقف:</span>${Object.keys(PG_ROOFS).map(k=> chip('roof', k, PG_ROOFS[k], (it.pgRoof || 'slats') === k)).join('')}` : ''}
       <span style="margin-inline-start:10px">الزجاج:</span>${Object.keys(GLASS).map(k=> chip('glass', k, GLASS[k].ar, opts.glass === k)).join('')}
       <span style="margin-inline-start:10px">الخلفية:</span>${chip('bg', 'facade', 'واجهة', opts.bg === 'facade')}${chip('bg', 'studio', 'استوديو', opts.bg === 'studio')}
     </div>`;
@@ -539,10 +637,10 @@ function openViewer(it, H, onSave){
   function rebuild(keepView){
     const prev = keepView && info ? { p: cam.position.clone(), t: controls ? controls.target.clone() : null } : null;
     if(info) disposeScene(info.scene);
-    info = buildScene(it, opts, H);
+    info = sceneFor(it, opts, H);
     size();
     if(prev){ cam.position.copy(prev.p); if(controls && prev.t) controls.target.copy(prev.t); }
-    else { placeCamera(cam, info, cam.aspect, 22, 5); if(controls){ controls.target.copy(info.focus); } }
+    else { placeCamera(cam, info, cam.aspect, info.pergola ? 30 : 22, info.pergola ? 22 : 5); if(controls){ controls.target.copy(info.focus); } }
     if(controls) controls.update();
     dirty = true;
   }
@@ -555,7 +653,7 @@ function openViewer(it, H, onSave){
     controls = new THREE.OrbitControls(cam, r.domElement);
     controls.enableDamping = true; controls.dampingFactor = 0.08;
     controls.minPolarAngle = 0.25; controls.maxPolarAngle = Math.PI/2 - 0.02;
-    controls.minAzimuthAngle = -1.25; controls.maxAzimuthAngle = 1.25;
+    if(!isPg){ controls.minAzimuthAngle = -1.25; controls.maxAzimuthAngle = 1.25; }
     controls.addEventListener('change', ()=>{ dirty = true; });
   }
   rebuild(false);
@@ -565,7 +663,7 @@ function openViewer(it, H, onSave){
   window.addEventListener('resize', onResize);
   ov.querySelector('#mzR3dBar').addEventListener('click', (e)=>{
     const b = e.target.closest('button[data-k]'); if(!b) return;
-    opts[b.dataset.k] = b.dataset.v;
+    if(b.dataset.k === 'roof'){ it.pgRoof = b.dataset.v; } else opts[b.dataset.k] = b.dataset.v;
     ov.querySelectorAll(`button[data-k="${b.dataset.k}"]`).forEach(x=>{ const on = x.dataset.v === b.dataset.v; x.style.background = on ? '#00B8D4' : 'rgba(255,255,255,0.06)'; x.style.borderColor = on ? '#00B8D4' : '#556'; });
     it.r3dColor = opts.color; it.r3dGlass = opts.glass; it.r3dBg = opts.bg;
     try{ if(onSave) onSave(it); }catch(err){}
@@ -587,5 +685,5 @@ function closeViewer(){
   VW = null;
 }
 
-window.MzReal3D = { _state: ()=> getState(), supported, isOpeningSupported, renderImage, openViewer, closeViewer, COLORS, GLASS, _buildOpening: buildOpening };
+window.MzReal3D = { _state: ()=> getState(), supported, canRender, isPergolaSupported, PG_ROOFS, isOpeningSupported, renderImage, openViewer, closeViewer, COLORS, GLASS, _buildOpening: buildOpening };
 })();

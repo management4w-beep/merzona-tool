@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-18.6';
+  var CURRENT_VERSION = '2026-11-19.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -9122,7 +9122,7 @@ window.wdApplyBack = function(results){
             <div><label>المسافة بين الشرائح (مم)</label><input type="text" inputmode="decimal" id="inPgGap" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);pgField('pgSlatGap',this.value)"></div>
           </div>
           <div class="row2" style="margin-top:8px;">
-            <div><label>السقف</label><select id="inPgRoof" onchange="pgField('pgRoof',this.value)"><option value="slats">شرائح مفتوحة</option><option value="louver">لوفر متحرك</option><option value="poly">بولي كاربونيت فوق الشرائح</option><option value="glass">زجاج فوق الشرائح</option></select></div>
+            <div><label>السقف</label><select id="inPgRoof" onchange="pgField('pgRoof',this.value)"><option value="slats">شرائح مفتوحة</option><option value="louver">لوفر متحرك</option><option value="sandwich">ساندويتش بانل (سقف مسكّر)</option><option value="poly">بولي كاربونيت فوق الشرائح</option><option value="glass">زجاج فوق الشرائح</option></select></div>
             <div><label>المادة</label><select id="inPgMat" onchange="pgField('pgMaterial',this.value)"><option value="alu">ألمنيوم</option><option value="steel">حديد مجلفن</option></select></div>
           </div>
           <p class="hint" id="pgSummary" style="margin-top:8px;"></p>
@@ -9955,7 +9955,7 @@ function buildPurchSummaries(){
       try{
         if(!it || it.isCameraTemp || isRoom(it) || isGableRoof(it)) return;
         if(it.isRoomWallElevation && !it.sourceRowUid) return; // بند "منظور حائط" يتيم (بدون صف بجدول الكميات) - مو بند مشتريات حقيقي
-        if(isPergola(it)){ const c = pgCalc(it); out[it.id] = { type:'pergola', qty: getPurchItemQty(it), aluMm: Math.round(c.aluMm), glassM2: it.pgRoof === 'glass' ? c.roofM2 : 0, leaves: 0, hw: null, pgCut: c.cut }; return; }
+        if(isPergola(it)){ const c = pgCalc(it); out[it.id] = { type:'pergola', qty: getPurchItemQty(it), aluMm: Math.round(c.aluMm), glassM2: it.pgRoof === 'glass' ? c.roofM2 : 0, sandwichM2: it.pgRoof === 'sandwich' ? c.roofM2 : 0, polyM2: it.pgRoof === 'poly' ? c.roofM2 : 0, leaves: 0, hw: null, pgCut: c.cut }; return; }
         const handrail = isHandrail(it) || isMirror(it);
         const ll = isMirror(it) ? [{ type:'plain', w:it.width, h:it.height }] : (handrail ? [] : purchLeafList(it));
         out[it.id] = {
@@ -21662,7 +21662,7 @@ function pgEnsure(it){
   if(!it.pgBeam) it.pgBeam = '150x150';
   if(!it.pgSlat) it.pgSlat = '50x50';
   if(!(it.pgSlatGap >= 0)) it.pgSlatGap = 100;
-  if(!['slats','louver','poly','glass'].includes(it.pgRoof)) it.pgRoof = 'slats';
+  if(!['slats','louver','poly','glass','sandwich'].includes(it.pgRoof)) it.pgRoof = 'slats';
   if(!['alu','steel'].includes(it.pgMaterial)) it.pgMaterial = 'alu';
 }
 function mzInitPergolaFromRow(it, rd){
@@ -21712,6 +21712,8 @@ function buildPergolaSVG(it, printCount){
   const sp = c.slats > 1 ? (pl - c.sw*s) / (c.slats - 1) : 0;
   for(let i=0;i<c.slats;i++){ const x = x0 + i*sp; g += `<rect x="${x.toFixed(1)}" y="${y0}" width="${Math.max(1, c.sw*s).toFixed(1)}" height="${pd.toFixed(1)}" fill="${it.pgRoof==='louver' ? '#7fa8c8' : '#6c8aa6'}" opacity="0.75"/>`; }
   if(it.pgRoof === 'poly' || it.pgRoof === 'glass') g += `<rect x="${x0}" y="${y0}" width="${pl}" height="${pd}" fill="${it.pgRoof==='glass' ? '#9fd8ff' : '#cfe6f5'}" opacity="0.25"/>`;
+  // 🆕 2026-11-19: سقف ساندويتش بانل (مسكّر) - لوح كامل مع أضلاع
+  if(it.pgRoof === 'sandwich'){ g += `<rect x="${x0}" y="${y0}" width="${pl}" height="${pd}" fill="#d9dcdf" opacity="0.9"/>`; const rs = Math.max(4, 333 * s); for(let x = x0 + rs/2; x < x0 + pl; x += rs) g += `<line x1="${x.toFixed(1)}" y1="${y0}" x2="${x.toFixed(1)}" y2="${y0+pd}" stroke="#9aa3ab" stroke-width="1.5"/>`; }
   // frame beams
   g += `<rect x="${x0}" y="${y0}" width="${pl}" height="${pd}" fill="none" stroke="${ink}" stroke-width="3"/>`;
   // posts
@@ -21734,11 +21736,11 @@ function buildPergolaSVG(it, printCount){
   // cut list
   let ty = ey + eh + 34;
   const mountTxt = { free:'أعمدة قدام وورا', wall:'عالحيط + أعمدة قدام', cantilever:'كابولي - أعمدة ورا بس' }[it.pgMount];
-  const roofTxt = { slats:'شرائح مفتوحة', louver:'لوفر متحرك', poly:'بولي كاربونيت', glass:'زجاج' }[it.pgRoof];
+  const roofTxt = { slats:'شرائح مفتوحة', louver:'لوفر متحرك', poly:'بولي كاربونيت', glass:'زجاج', sandwich:'ساندويتش بانل (مسكّر)' }[it.pgRoof];
   g += `<text x="${VW-M}" y="${ty}" fill="${cyan}" font-size="13" font-weight="700" direction="rtl" text-anchor="start" font-family="var(--wd-font-ui)">${mountTxt} · ${roofTxt} · ${it.pgMaterial==='steel' ? 'حديد مجلفن' : 'ألمنيوم'} · المسافة بين الشرائح ≈ ${Math.round(c.realGap)} مم</text>`;
   ty += 22;
   c.cut.forEach(r => { g += `<text x="${VW-M}" y="${ty}" fill="${ink}" font-size="13" direction="rtl" text-anchor="start" font-family="var(--wd-font-ui)">${r.name} (${r.size}): <tspan font-weight="700">${r.n} قطعة، طول ${r.len} مم</tspan></text>`; ty += 20; });
-  g += `<text x="${VW-M}" y="${ty}" fill="${amber}" font-size="13" font-weight="700" direction="rtl" text-anchor="start" font-family="var(--wd-font-ui)">مجموع التيوبات: ${(c.aluMm/1000).toFixed(1)} متر طولي${(it.pgRoof==='poly'||it.pgRoof==='glass') ? ' · مساحة السقف ' + c.roofM2.toFixed(2) + ' م²' : ''}</text>`;
+  g += `<text x="${VW-M}" y="${ty}" fill="${amber}" font-size="13" font-weight="700" direction="rtl" text-anchor="start" font-family="var(--wd-font-ui)">مجموع التيوبات: ${(c.aluMm/1000).toFixed(1)} متر طولي${(it.pgRoof==='poly'||it.pgRoof==='glass'||it.pgRoof==='sandwich') ? ' · مساحة السقف ' + c.roofM2.toFixed(2) + ' م²' : ''}</text>`;
   const VH = ty + 16;
   const defs = `<defs><pattern id="pgHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#8fa3b8" stroke-width="2"/></pattern></defs>`;
   let wAttr = VW, hAttr = VH;
@@ -23554,6 +23556,7 @@ function build3DHandrailPlanSVG(it){
   return '<svg class="hr3d-plan-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + Hh.toFixed(0) + '" style="width:100%;max-width:' + W + 'px;height:auto;display:block;margin:0 auto;">' + out + '</svg>';
 }
 function build3DRenderSVG(it){
+  if(isPergola(it)) return buildPergolaSVG(it, null);
   if(isHandrail(it) && hrHasPlan(it)){
     const s3 = build3DHandrailPlanSVG(it);
     if(s3) return s3 + '<div style="margin-top:10px;border-top:1px dashed #cfd8dc;padding-top:8px;"><div style="font-size:12px;color:#455a64;margin-bottom:4px;font-family:var(--wd-font-ui);">📐 المسقط</div>' + buildHandrailPlanSVG(it, { maxW: 520, maxH: 260 }) + '</div>';
@@ -23804,7 +23807,8 @@ function open3DPreview(){
   const grid = document.getElementById('threeDGrid');
   { const ov = document.getElementById('threeDOverlay'); if(ov && ov.parentElement !== document.body) document.body.appendChild(ov); }
   grid.innerHTML = '';
-  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it) && !isPergola(it));
+  // 🆕 2026-11-19 (حمدي: "فيه بيرغولا بس ما ظهرت عالثري دي"): البيرغولا صارت تبين (صورة واقعية، أو المسقط والواجهة إذا الجهاز ما بيدعم)
+  const visibleItems = items.filter(it => !it.isCameraTemp && !isRoom(it) && !isGableRoof(it));
   if(!visibleItems.length){
     grid.innerHTML = '<p style="color:#666;font-family:var(--wd-font-ui);padding:20px;">ما في تصاميم بعد لعرضها.</p>';
   } else {
@@ -23823,7 +23827,7 @@ function open3DPreview(){
 /* ✨ 2026-11-18 (حمدي: "الثري دي ماعم يطلع مرندر واقعي... منقدر نوصل فيه بالتطوير لدرجة يصير حقيقي؟"):
    كل بطاقة شباك/باب بتنعرض صورة واقعية (WebGL - real3d.js) بدل الرسمة، مع زر "🔍 دوّر وشوف" (عارض تفاعلي + لون الألمنيوم
    ونوع الزجاج + تنزيل صورة). إذا الجهاز ما بيدعم أو صار أي خطأ ← بتضل الرسمة القديمة متل ما هي. */
-const MZ_R3D_HELPERS = { isDoorLike, isSlidingType, isShowerDoor, isHandrail, isMirror, isRoom, isPergola, isGableRoof, DEFAULT_FRAME_THICKNESS, DEFAULT_LEAF_THICKNESS };
+const MZ_R3D_HELPERS = { pgCalc, isDoorLike, isSlidingType, isShowerDoor, isHandrail, isMirror, isRoom, isPergola, isGableRoof, DEFAULT_FRAME_THICKNESS, DEFAULT_LEAF_THICKNESS };
 let mzR3dPromise = null;
 function mzR3dLoad(){
   if(window.MzReal3D) return Promise.resolve(window.MzReal3D);
@@ -23845,7 +23849,7 @@ async function mzR3dEnhanceCards(list){
   if(!R.supported()) return;
   for(const it of list){
     if(seq !== mzR3dSeq || document.getElementById('threeDOverlay').style.display !== 'block') return;
-    if(!R.isOpeningSupported(it, MZ_R3D_HELPERS)) continue;
+    if(!(R.canRender ? R.canRender(it, MZ_R3D_HELPERS) : R.isOpeningSupported(it, MZ_R3D_HELPERS))) continue;
     const card = document.querySelector(`#threeDGrid .threeD-card[data-item-id="${it.id}"]`);
     const body = card && card.querySelector('.threeD-body'); if(!body) continue;
     await new Promise(r=> setTimeout(r, 0)); // ما منعلّق الشاشة - بطاقة ورا بطاقة
@@ -23854,9 +23858,9 @@ async function mzR3dEnhanceCards(list){
     const svgHtml = body.innerHTML;
     body.innerHTML = `<img class="threeD-real" src="${url}" alt="" style="width:100%;height:auto;display:block;border-radius:8px;">
       <div class="threeD-real-tools no-print" style="display:flex;gap:6px;justify-content:center;margin-top:6px;flex-wrap:wrap;">
-        <button type="button" class="small" data-r3d="view">🔍 دوّر وشوف (ألوان وزجاج)</button>
+        <button type="button" class="small" data-r3d="view">🔍 دوّر وشوف (${isPergola(it) ? 'ألوان ونوع السقف' : 'ألوان وزجاج'})</button>
         <button type="button" class="small" data-r3d="sketch">✏️ الرسمة</button></div>`;
-    body.querySelector('[data-r3d="view"]').onclick = ()=>{ R.openViewer(it, MZ_R3D_HELPERS, ()=>{ try{ saveDesignItemsToStorage(); }catch(e){} }); };
+    body.querySelector('[data-r3d="view"]').onclick = ()=>{ R.openViewer(it, MZ_R3D_HELPERS, ()=>{ try{ saveDesignItemsToStorage(); }catch(e){} try{ if(isPergola(it) && getSelected() === it) pgLoadControls(it); renderGallery(); }catch(e){} }); };
     body.querySelector('[data-r3d="sketch"]').onclick = (ev)=>{
       const b = ev.currentTarget, img = body.querySelector('.threeD-real');
       let sk = body.querySelector('.threeD-sketch');
