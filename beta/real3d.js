@@ -496,11 +496,21 @@ function buildPergolaScene(it, opts, H){
     const wg = new THREE.BoxGeometry(ww, wh, WT);
     add(wg, M.plaster, L/2, wh/2, -D - WT/2, true);
   }
-  // الأعمدة
-  const rowsZ = it.pgMount === 'free' ? [-post[1]/2, -D + post[1]/2] : it.pgMount === 'wall' ? [-post[1]/2] : [-D + post[1]/2];
-  rowsZ.forEach((z)=>{ for(let i=0;i<c.per;i++){ const x = c.per === 1 ? L/2 : post[0]/2 + i * (L - post[0]) / (c.per - 1); bx(post[0], Hh, post[1], metal, x, Hh/2, z); } });
-  // قواعد الأعمدة (بليتات)
-  rowsZ.forEach((z)=>{ for(let i=0;i<c.per;i++){ const x = c.per === 1 ? L/2 : post[0]/2 + i * (L - post[0]) / (c.per - 1); bx(post[0] + 0.08, 0.012, post[1] + 0.08, metal, x, 0.006, z); } });
+  // الأعمدة حسب تصميمها (عادي / مزدوج / زاوية) + القطع الصغيرة بيناتهم - من pgPostLayout بالمصمم (نفس الحساب والرسمة)
+  if(typeof H.pgPostLayout === 'function'){
+    const ly = H.pgPostLayout(it);
+    ly.posts.forEach((q)=>{ bx(mm(q.w), Hh, mm(q.d), metal, mm(q.x), Hh/2, -mm(q.z)); bx(mm(q.w) + 0.08, 0.012, mm(q.d) + 0.08, metal, mm(q.x), 0.006, -mm(q.z)); });
+    const iw = mm(ly.iw), ih = mm(ly.ih);
+    ly.rungs.forEach((r)=>{
+      const dx = mm(r.x2 - r.x1), dz = mm(r.z2 - r.z1), len = Math.hypot(dx, dz); if(len < 0.005) return;
+      const along = Math.abs(dx) >= Math.abs(dz);
+      const cx = mm((r.x1 + r.x2) / 2), cz = -mm((r.z1 + r.z2) / 2);
+      ly.ys.forEach((y)=>{ bx(along ? len : iw, ih, along ? iw : len, metal, cx, mm(y), cz); });
+    });
+  } else {
+    const rowsZ = it.pgMount === 'free' ? [-post[1]/2, -D + post[1]/2] : it.pgMount === 'wall' ? [-post[1]/2] : [-D + post[1]/2];
+    rowsZ.forEach((z)=>{ for(let i=0;i<c.per;i++){ const x = c.per === 1 ? L/2 : post[0]/2 + i * (L - post[0]) / (c.per - 1); bx(post[0], Hh, post[1], metal, x, Hh/2, z); bx(post[0] + 0.08, 0.012, post[1] + 0.08, metal, x, 0.006, z); } });
+  }
   // الجسور (الإطار فوق): الارتفاع = آخر قياس بالجسر
   const bw = beam[0], bh = Math.max(beam[1], beam[0]);
   const yB = Hh - bh/2;
