@@ -392,6 +392,73 @@ async def t_pergola_posts(p, b, port):
     await ctx.close()
 
 
+async def t_hr_sizes_steppers(p, b, port):
+    """🏷️ مسقط الهاندريل: مقاس كل لوح مكتوب (بالمسقط وبالثري دي) + أسهم −/+ للعدد بدل الكتابة + عدد القطع الصغيرة بالبيرغولا"""
+    print('• مقاسات ألواح الهاندريل + أسهم العدد')
+    fx = os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'three')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await ctx.route('**/three.min.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'three.min.js'), 'rb').read()))
+    await ctx.route('**/OrbitControls.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'OrbitControls.js'), 'rb').read()))
+    await open_tool(pg, port, [[7230, 1100, 'Glass Handrail for Balcony'], [8750, 4800, 'Aluminum Pergola']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    iid = await pg.evaluate("WD.__t.items()[0].id"); await pg.evaluate(f"WD.__t.sel({iid})"); await pg.wait_for_timeout(300)
+    # أسهم عدد الألواح (الهاندريل المسطح)
+    st = await pg.evaluate("(function(){ var i = document.getElementById('inHrCount'); var w = i.parentNode; return { wrap: w.classList.contains('mz-step'), btns: w.querySelectorAll('button.mz-step-b').length, v: i.value }; })()")
+    check(st['wrap'] and st['btns'] == 2, 'خانة عدد الألواح إلها أسهم − و + ' + str(st))
+    v0 = int(st['v'])
+    await pg.click('#inHrCount + button.mz-step-b'); await pg.wait_for_timeout(300)
+    check(await pg.evaluate("+document.getElementById('inHrCount').value") == v0 + 1, 'سهم + بيزيد العدد')
+    await pg.locator('.mz-step:has(#inHrCount) button.mz-step-b').first.click(); await pg.locator('.mz-step:has(#inHrCount) button.mz-step-b').first.click(); await pg.wait_for_timeout(300)
+    check(await pg.evaluate("+document.getElementById('inHrCount').value") == v0 - 1, 'سهم − بينقّص العدد')
+    check(await pg.evaluate("!!document.querySelector('.mz-step #inHrStandoffPairs')"), 'أزواج الستاند أوف كمان بأسهم')
+    # المسقط + الأضلاع
+    await pg.click('#btnHrPlanStart'); await pg.wait_for_timeout(400)
+    segs = await pg.evaluate("WD.__t.items()[0].hrSegments.map(function(s){return s.id})")
+    await pg.evaluate(f"onHrSegField({iid},'{segs[0]}','totalLength',6040); onHrSegField({iid},'{segs[0]}','panelCount',5); onHrSegField({iid},'{segs[1]}','totalLength',1190); onHrSegField({iid},'{segs[1]}','panelCount',1)")
+    await pg.wait_for_timeout(400)
+    n = await pg.evaluate("document.querySelectorAll('#hrSegmentsList .mz-step').length")
+    check(n >= 2, 'عدد ألواح كل ضلع بأسهم ' + str(n))
+    await pg.locator('#hrSegmentsList .mz-step >> nth=1 >> button.mz-step-b >> nth=1').click(); await pg.wait_for_timeout(400)
+    check(await pg.evaluate("WD.__t.items()[0].hrSegments[1].panelCount") == 2, 'سهم + على الضلع التاني ← لوحين')
+    pw = await pg.evaluate(f"Array.from(document.querySelectorAll('#card-{iid} .hr-plan-svg text.hr-pw')).map(function(t){{return t.textContent}})")
+    pws = [round(int(x)) for x in pw]
+    check(len(pw) == 7 and pws.count(pws[0]) >= 5 and all(450 < x < 1250 for x in pws), 'مقاس كل لوح مكتوب عالمسقط ' + str(pw))
+    # ثري دي: لافتات المقاسات + زر إخفاء
+    await pg.evaluate(f"WD.__t.sel({iid})"); await pg.click('#btnHr3D'); await pg.wait_for_timeout(900)
+    d3 = await pg.evaluate("window.__getHr3DDebugState__()")
+    check(d3['open'] and d3['labels'] == 7 + 2 and d3['labelsVisible'] == 9, 'ثري دي: مقاس على كل لوح + طول كل ضلع ' + str(d3))
+    if os.environ.get('MZ_SHOT'): await pg.screenshot(path=os.environ['MZ_SHOT'] + '/hr3d_labels.png')
+    await pg.click('#hr3DLblBtn'); await pg.wait_for_timeout(200)
+    check(await pg.evaluate("window.__getHr3DDebugState__().labelsVisible") == 0, 'زر خبّي المقاسات')
+    await pg.click('#hr3DLblBtn'); await pg.wait_for_timeout(200)
+    check(await pg.evaluate("window.__getHr3DDebugState__().labelsVisible") == 9, 'زر أظهر المقاسات')
+    await pg.evaluate("closeHandrail3D()")
+    if os.environ.get('MZ_SHOT'):
+        await pg.locator(f'#card-{iid}').screenshot(path=os.environ['MZ_SHOT'] + '/hr_plan_pw.png')
+        await pg.locator('#hrSegmentsList').screenshot(path=os.environ['MZ_SHOT'] + '/hr_segs_step.png')
+    # البيرغولا: عدد القطع الصغيرة بين العمودين
+    pid = await pg.evaluate("WD.__t.items()[1].id"); await pg.evaluate(f"WD.__t.sel({pid}); setShape('pergola')"); await pg.wait_for_timeout(300)
+    await pg.evaluate("pgField('width', 8750); pgField('height', 4800); pgField('pgMount', 'wall'); pgField('pgPostsPerRow', 3); pgField('pgPostStyle', 'double')"); await pg.wait_for_timeout(300)
+    F = "pgPostLayout(WD.__t.items()[1]).fins.length"
+    check(await pg.evaluate(F) == 6, 'تلقائي حسب الفراغ (6)')
+    check(await pg.evaluate("!!document.querySelector('.mz-step #inPgInfillCount')"), 'خانة عدد القطع الصغيرة بأسهم')
+    for k in range(4): await pg.locator('.mz-step:has(#inPgInfillCount) button.mz-step-b >> nth=1').click()
+    await pg.wait_for_timeout(300)
+    check(await pg.evaluate("WD.__t.items()[1].pgInfillCount") == 4 and await pg.evaluate(F) == 12, 'عدد ثابت 4 بين كل عمودين (3 مسافات = 12) ' + str(await pg.evaluate(F)))
+    cut = await pg.evaluate("pgCalc(WD.__t.items()[1]).cut.filter(function(c){ return /قطع تصميم/.test(c.name); }).map(function(c){ return c.n; })")
+    check(cut == [12], 'التيوبات بتحسب العدد الجديد ' + str(cut))
+    await pg.click('#pgInfillDirBtns [data-v="h"]'); await pg.wait_for_timeout(200)
+    check(await pg.evaluate("pgPostLayout(WD.__t.items()[1]).ys.length") == 4, 'أفقي كمان بيلتزم بالعدد')
+    await pg.click('#pgInfillDirBtns [data-v="v"]'); await pg.wait_for_timeout(200)
+    await reopen(pg)
+    check(await pg.evaluate("WD.__t.items()[1].pgInfillCount") == 4, 'العدد انحفظ بعد إعادة الفتح')
+    await pg.evaluate("WD.__t.sel(WD.__t.items()[1].id); pgField('pgInfillCount', 0)"); await pg.wait_for_timeout(200)
+    check(await pg.evaluate(F) == 6, 'صفر ← رجع تلقائي')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_design_new_item_confirm(p, b, port):
     """🛠️ M-Q-260224: بند انضاف بالمصمم بالغلط (بيرغولا تانية) ما بيصير بند بعرض السعر بلا سؤال، واسمه مش Plan + Front"""
     print('• المصمم: بند جديد بلا صف ← سؤال قبل ما ينضاف لعرض السعر')
@@ -2878,7 +2945,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
