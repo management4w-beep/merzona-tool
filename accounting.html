@@ -82,7 +82,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-17.1';
+  var CURRENT_VERSION = '2026-11-19.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'accounting';
   var VERSION_URL = 'version.json';
@@ -1176,6 +1176,8 @@ function openDoc(d){
   if(t === 'journal' && !(d.lines && d.lines.length)) d.lines = [{ acct: '', dr: '', cr: '' }, { acct: '', dr: '', cr: '' }];
   var curs = C.BOOKS[S.bookId].currencies;
   var h = '<div class="fg">';
+  // 🆕 2026-11-19 (حمدي: "بدي المحاسبة يقدر يكتب رفرنس الفواتير بشكل يدوي"): رقم المستند يدوي - فاضي = ترقيم تلقائي
+  if(t !== 'journal') h += '<label>رقم ' + esc(def.label) + '<input id="fNo" value="' + esc(d.no || '') + '" placeholder="تلقائي (' + esc((function(){ try{ return C.nextNo(B, t, d.date).no; }catch(e){ return 'رقم تلقائي'; } })()) + ')" maxlength="40" autocomplete="off"></label>';
   h += '<label>التاريخ *<input type="date" id="fD" value="' + esc(d.date) + '"></label>';
   if(def.party) h += '<label>' + (def.party === 'customer' ? 'الزبون *' : 'المورد *') + '<span class="row"><select id="fP" class="grow">' + partySelect(def.party, d.partyId) + '</select><button class="sm" id="fPadd" type="button" title="إضافة جديد">+</button></span></label>';
   if(t === 'invoice' || t === 'bill') h += '<label>تاريخ الاستحقاق<input type="date" id="fDue" value="' + esc(d.due || '') + '"></label>';
@@ -1343,6 +1345,7 @@ function openDoc(d){
     if(['receipt','vpayment','credit','vcredit'].indexOf(t) !== -1) o.applies = (d.applies || []).slice();
     if(d.source) o.source = d.source;
     o.taxRate = isNew ? C.num(B.settings.vatRate) : C.num(d.taxRate);
+    { var ne = q('#fNo'); var nv = ne ? String(ne.value || '').trim() : ''; if(nv) o.manualNo = nv; }
     return o;
   }
   function save(){
