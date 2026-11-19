@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-19.4';
+  var CURRENT_VERSION = '2026-11-19.6';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -230,6 +230,7 @@
         // ⚠️ هون فقط: ما منحط __merzonaVersionCheckSettled__ = true لأنو فعلاً رح يصير reload،
         // وبدنا الفلاغ يضل false حتى النسخة الجديدة المعاد تحميلها تعمل الفحص من جديد وتقرر بنفسها.
         var _qs = ''; try { var _u = new URLSearchParams(location.search); _u.set('_cb', bust); _qs = '?' + _u.toString(); } catch (e) { _qs = '?_cb=' + bust; }
+        try{ sessionStorage.setItem("mz-restore-quote", "1"); }catch(e){} // 🔄 تحديث تلقائي = متل الريفريش: منرجع لنفس العرض
         location.replace(location.pathname + _qs + (location.hash || ''));
       })
       .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); window.__merzonaVersionCheckSettled__ = true; onDone(); } });
@@ -1617,6 +1618,7 @@
     border-color: var(--wd-cyan); color: var(--wd-cyan); background: var(--wd-cyan-dim);
   }
   .frost-toggle-btn:hover{ border-color: var(--wd-cyan); }
+  .frost-toggle-btn.mz-card-del{ color: var(--wd-danger, #e5484d); border-color: rgba(229,72,77,.5); }
   .item-card .card-canvas{
     background:
       linear-gradient(var(--wd-line-soft) 1px, transparent 1px) 0 0/20px 20px,
@@ -3966,7 +3968,8 @@ function resetAll(){
 // عندها أصلًا تأكيد منفصل خاص فيها (متل deleteQuotationFromDrive تحت)، بدون ما نطلع مربعي تأكيد
 // وراء بعض على نفس الكبسة.
 function resetAllNoConfirm(){
-  clearDraft(); // عرض سعر جديد فاضي بالنية - ما منحتاج نرجع نقترح مسودة عرض السعر القديم بعد هلق
+  clearDraft();
+  try{ sessionStorage.setItem('mz-wd-open', '0'); }catch(e){} // عرض سعر جديد فاضي بالنية - ما منحتاج نرجع نقترح مسودة عرض السعر القديم بعد هلق
   // 🛠️ 2026-10-04.9 (فحص شامل - فقدان بيانات): عرض سعر جديد كان يرث هوية المسودة/التصميم القديم (draftId/
   // designId/وقت الحفظ) فأول "حفظ" كان يكتب فوق ملف العرض القديم عالدرايف. هلق هوية جديدة تمامًا.
   currentDraftId = null; currentDesignId = null; currentDesignName = null; currentDesignBranch = null; currentDesignSavedAt = 0;
@@ -8067,6 +8070,33 @@ async function mzResumePendingDrive(pend){
     await saveToGoogleDrive();
   }catch(e){ mzDriveStatus('fail', '⚠️ ' + ((e && e.message) || e), { fn: () => mzResumePendingDrive(pend), later: true }); }
 }
+// 🔄 2026-11-19: هل هالفتحة ريفريش؟ (الأداة لحالها: نوع التنقل reload · جوّا الداشبورد: الداشبورد بيحط علامة قبل ما يحمّلها بعد ريفريش)
+function mzShouldRestoreAfterReload(){
+  if(window.__mzViewMode) return false;
+  let flag = false;
+  try{ flag = sessionStorage.getItem('mz-restore-quote') === '1'; sessionStorage.removeItem('mz-restore-quote'); }catch(e){}
+  if(flag) return true;
+  try{ const nav = performance.getEntriesByType('navigation')[0]; if(nav && nav.type === 'reload' && window.top === window.self) return true; }catch(e){}
+  return false;
+}
+function mzRestoreSessionQuote(){
+  let d = null;
+  try{ d = JSON.parse(sessionStorage.getItem(DRAFT_STORAGE_KEY) || 'null'); }catch(e){ d = null; }
+  if(!d || !isDraftMeaningful(d)) return false;
+  if(d.savedAt && Date.now() - d.savedAt > 24 * 3600e3) return false;
+  const copy = JSON.parse(JSON.stringify(d)); delete copy.savedAt;
+  setTimeout(()=>{
+    try{ applyFullQuotationData(copy); }catch(e){ console.warn('[رجوع بعد الريفريش]', e); return; }
+    setTimeout(()=>{ try{ offerNewerSavedDesign(); }catch(e){} }, 600);
+    setTimeout(()=>{ try{ mzOfferNewerFromServer(copy); }catch(e){} }, 1500);
+    let wd = false; try{ wd = sessionStorage.getItem('mz-wd-open') === '1'; }catch(e){}
+    if(wd) setTimeout(()=>{ try{ if(typeof openDesignerFromToolbar === 'function') openDesignerFromToolbar(); }catch(e){} }, 1200);
+    try{ showMerzonaToast('🔄 رجعتك على نفس العرض يلي كنت فاتحه', true); }catch(e){}
+  }, 0);
+  return true;
+}
+// المصمم مفتوح؟ (منحفظها بهالتبويب حتى الريفريش يرجّعه)
+setInterval(()=>{ try{ const o = document.getElementById('wdOverlay'); const open = !!(o && o.style.display !== 'none' && getComputedStyle(o).display !== 'none'); sessionStorage.setItem('mz-wd-open', open ? '1' : '0'); }catch(e){} }, 2000);
 function runPendingLoadLogicWhenSafe(attemptsLeft){
   if(!window.__merzonaVersionCheckSettled__ && attemptsLeft > 0){
     setTimeout(()=> runPendingLoadLogicWhenSafe(attemptsLeft-1), 50);
@@ -8121,6 +8151,9 @@ function runPendingLoadLogicWhenSafe(attemptsLeft){
     }catch(e){}
   } else if(pendingDesignLoad){
     // تصميم حر بس (مش مرتبط بعرض سعر مفتوح) - ولا شي هون؛ رح ينفتح مباشرة بـwdOverlay تحت.
+  } else if(mzShouldRestoreAfterReload() && mzRestoreSessionQuote()){
+    // 🔄 2026-11-19 (حمدي: "كل ما بعمل ريفريش بيرجع للصفحة الأساسية ما بضل وين كنت"): ريفريش ← نفس العرض يلي كان مفتوح
+    // (من النسخة المؤقتة بهالتبويب)، ومع المصمم إذا كان مفتوح. عرض سعر جديد بالنية بيمسح هالنسخة (resetAllNoConfirm).
   } else if(document.body.getAttribute('data-prefilled') === '1' || alreadyHasContent){
     // 🛠️ إصلاح جذري 2026-09-30.21 (شوف شرح resyncRowUidCounter فوق): صفحة عرض سعر جاهزة من قبل
     // (HTML ثابت فيه صفوف جدول كمية أصلًا) لازم تزامن rowUidCounter كمان، نفس مسار pendingQuotationLoad
@@ -8447,6 +8480,7 @@ window.wdApplyBack = function(results){
         <button type="button" class="mz-ed-nav" onclick="mzEdStep(-1)" title="البند السابق">▶</button>
         <div class="mz-ed-name"><span id="mzEdName">—</span><small id="mzEdPos"></small></div>
         <button type="button" class="mz-ed-nav" onclick="mzEdStep(1)" title="البند الجاي">◀</button>
+        <button type="button" class="mz-ed-del" onclick="mzDeleteAsk(selectedId)" title="احذف البند المفتوح" style="border:1px solid var(--wd-danger,#e5484d);background:transparent;color:var(--wd-danger,#e5484d);border-radius:8px;padding:4px 8px;font-size:14px;cursor:pointer;">🗑️</button>
         <button type="button" class="mz-ed-close" onclick="mzEdClose()" title="سكّر لوحة التعديل">✕</button>
       </div>
 
@@ -10977,6 +11011,14 @@ function addItem(type){
   renderGallery();
 }
 
+// 🆕 2026-11-19 (حمدي: "ماعم اعرف وين زر الحذف"): عالموبايل شريط أسماء البنود (مع ×) مخفي - هلق في "🗑️ احذف" على كل بطاقة وبشريط التعديل
+function mzDeleteAsk(id){
+  const it = items.find(i => i.id === id); if(!it) return;
+  const linked = it.sourceRowUid && document.querySelector('#qty-rows tr[data-row-uid="' + it.sourceRowUid + '"]');
+  if(!linked && !confirm('بدك تحذف "' + it.label + '" من التصميم؟')) return; // المربوط بصف بيسأل سؤالو الخاص
+  deleteItem(id);
+}
+window.mzDeleteAsk = mzDeleteAsk;
 function deleteItem(id, evt){
   if(evt) evt.stopPropagation();
   // 🛠️ إصلاح 2026-09-30.14 (فحص شامل - بلاغ حمدي المباشر: "لما عم احذفها بالمصمم ماعم تنطبق على
@@ -21614,6 +21656,7 @@ function renderGallery(){
     head.onclick = () => { if(window.mzEdIsSheet && mzEdIsSheet()) mzEditItem(it.id); else selectItem(it.id); };
     head.innerHTML = `<span class="name">${it.label}${it.refCode ? ` <span style="opacity:0.6;font-weight:400;">(${it.refCode})</span>` : ''}</span>
       ${(isHandrail(it) || isMirror(it) || isPergola(it)) ? '' : `<button class="frost-toggle-btn${it.frostedOverlay?' active':''}" onclick="event.stopPropagation();toggleFrostedOverlay(${it.id})" title="تفعيل/إلغاء التضبيب على الشكل كامل">🌫️ مضبب</button>`}
+      <button class="frost-toggle-btn mz-card-del" onclick="event.stopPropagation();mzDeleteAsk(${it.id})" title="احذف هالبند من التصميم">🗑️ احذف</button>
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();rotateRoomPlan(${it.id})" title="دوّر المسقط 90° (بس شكل العرض - ما بيغيّر أي مقاس أو زاوية حقيقية)">🔄 دوّر المسقط</button>` : ''}
       ${isRoom(it) ? `<button class="frost-toggle-btn" onclick="event.stopPropagation();openRoomFloorPreviewFullscreen(${it.id})" title="كبّر المسقط لكامل الشاشة - مفيد لما تكون الزوايا مزنّرة على بعض وصعب تشوفها/تضغط عليها بالحجم الصغير">🔍 كبّر لكامل الشاشة</button>` : ''}
       ${it.mzUncertainType ? '<span class="type-badge" style="color:#ffb020;border-color:#ffb020;" title="اسم البند ما بيدل على نوع معروف - اختار النوع الصح من (تغيير نوع البند)">⚠️ تأكد من النوع</span>' : ''}

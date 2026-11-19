@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-18.1';
+  var CURRENT_VERSION = '2026-11-19.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -3844,6 +3844,8 @@ document.getElementById('quotationTabBtn').addEventListener('click', ()=>{
     }
   }catch(e){ console.warn('[عرض سعر جديد] فشل التصفير، منعيد التحميل:', e); }
   if(declined){ showQuotationView(); return; }
+  // 🔄 2026-11-19: عرض جديد بالنية ← ما منرجّع العرض المؤقت تبع الريفريش
+  try{ sessionStorage.removeItem('merzona-quotation-draft-v1'); sessionStorage.removeItem('mz-restore-quote'); sessionStorage.setItem('mz-wd-open', '0'); }catch(e){}
   if(!startBlank && fr && fr.getAttribute('data-loaded')){
     // الأداة انفتحت من قبل (غالبًا عرض قديم) بس ما قدرنا نصفّرها (لسا عم تتحمّل أو فشل التصفير): منعيد تحميلها
     // من الصفر بدون أي بيانات معلّقة، حتى ما نرجع لنفس العرض القديم.
@@ -12063,6 +12065,34 @@ window.mzRunMaintenance = runMaintenance;
       }catch(e){ $('co-msg').style.color = '#b91c1c'; $('co-msg').textContent = '❌ ما انحفظ: ' + e.message; $('co-save').disabled = false; }
     };
   };
+})();
+</script>
+<script>
+/* 🔄 2026-11-19 (حمدي: "كل ما بعمل ريفريش بيرجع للصفحة الأساسية ما بضل وين كنت"):
+   منحفظ آخر قسم مفتوح بهالتبويب (sessionStorage)، وبعد الريفريش (أو التحديث التلقائي) منرجع عليه.
+   إذا كان عرض السعر مفتوح، الأداة بترجّع نفس العرض (ومع المصمم إذا كان مفتوح). */
+(function(){
+  var V = ['Dashboard','Quotation','Quotations','DraftsDesigns','Designer','Accounting','Procurement','Contracts','Payroll','Clients','Catalogs','Pmp','Users'];
+  var restoring = false;
+  V.forEach(function(n){
+    var f = window['show' + n + 'View']; if(typeof f !== 'function') return;
+    window['show' + n + 'View'] = function(){ var r = f.apply(this, arguments); if(!restoring){ try{ sessionStorage.setItem('mz-dash-view', n); }catch(e){} } return r; };
+  });
+  // فتح عرض قديم/جديد من الداشبورد (iframe من جديد) = قسم عرض السعر
+  var fo = window.openQuotationWithFreshLoad;
+  if(typeof fo === 'function') window.openQuotationWithFreshLoad = function(){ try{ sessionStorage.setItem('mz-dash-view', 'Quotation'); }catch(e){} return fo.apply(this, arguments); };
+  var last = null; try{ last = sessionStorage.getItem('mz-dash-view'); }catch(e){}
+  if(!last || last === 'Dashboard' || V.indexOf(last) < 0) return;
+  function go(){
+    restoring = true;
+    try{
+      if(last === 'Quotation'){ try{ sessionStorage.setItem('mz-restore-quote', '1'); }catch(e){} }
+      window['show' + last + 'View']();
+    }catch(e){ console.warn('[رجوع بعد الريفريش]', e); }
+    restoring = false;
+    try{ sessionStorage.setItem('mz-dash-view', last); }catch(e){}
+  }
+  if(document.readyState === 'complete') setTimeout(go, 200); else window.addEventListener('load', function(){ setTimeout(go, 200); });
 })();
 </script>
 </body></html>
