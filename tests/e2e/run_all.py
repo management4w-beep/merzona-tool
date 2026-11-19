@@ -392,6 +392,37 @@ async def t_pergola_posts(p, b, port):
     await ctx.close()
 
 
+async def t_design_new_item_confirm(p, b, port):
+    """🛠️ M-Q-260224: بند انضاف بالمصمم بالغلط (بيرغولا تانية) ما بيصير بند بعرض السعر بلا سؤال، واسمه مش Plan + Front"""
+    print('• المصمم: بند جديد بلا صف ← سؤال قبل ما ينضاف لعرض السعر')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    msgs = []; mode = {'accept': False}
+    def on_dialog(d):
+        msgs.append(d.message)
+        asyncio.ensure_future(d.accept() if mode['accept'] else d.dismiss())
+    pg.on('dialog', on_dialog)
+    await open_tool(pg, port, [[1200, 1400, 'Hinged Window']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    rows0 = await pg.evaluate("document.querySelectorAll('#qty-rows tr[data-row-uid]').length")
+    await pg.evaluate("addItem('pergola')"); await pg.wait_for_timeout(300)
+    await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(1000)
+    check(any('مش موجود بعرض السعر' in m and 'بيرغولا' in m for m in msgs), 'سؤال قبل إضافة البند ' + str(msgs[-1:]))
+    check(await pg.evaluate("document.querySelectorAll('#qty-rows tr[data-row-uid]').length") == rows0, 'إلغاء ← ما انضاف صف')
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1000)
+    check(await pg.evaluate("WD.__t.items().filter(function(i){ return i.shapeType === 'pergola'; }).length") == 0, 'إلغاء ← البند انشال من التصميم')
+    mode['accept'] = True; n0 = len(msgs)
+    await pg.evaluate("addItem('pergola')"); await pg.wait_for_timeout(300)
+    await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(1200)
+    check(len(msgs) > n0 and await pg.evaluate("document.querySelectorAll('#qty-rows tr[data-row-uid]').length") == rows0 + 1, 'موافق ← انضاف صف')
+    nm = await pg.evaluate("(function(){ var r = document.querySelectorAll('#qty-rows tr[data-row-uid]'); return r[r.length-1].querySelector('.item-input').value; })()")
+    check('Plan + Front' not in nm and 'ergola' in nm, 'اسم البند الجديد من بنود السيستم ' + nm)
+    # بلا بنود جديدة ← بلا سؤال
+    n1 = len(msgs); await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1000); await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(800)
+    check(not any('مش موجود بعرض السعر' in m for m in msgs[n1:]), 'ما في بنود جديدة ← ما في سؤال')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+
 async def t_types_and_roundtrip(p, b, port):
     print('• أنواع البنود + حفظ وإعادة فتح')
     ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
@@ -2780,7 +2811,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_design_new_item_confirm, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()

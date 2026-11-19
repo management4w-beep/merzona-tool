@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-19.3';
+  var CURRENT_VERSION = '2026-11-19.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -6967,7 +6967,11 @@ async function offerNewerSavedDesign(){
     }
     // 🛠️ 2026-10-04.9: خط الأساس = أحدث وقت معروف لحفظ التصميم المفتوح: وقت حفظ التصميم نفسه، أو وقت حفظ
     // عرض السعر (لو انحفظ بعد التصميم فهو أحدث منه)، أو وقت خبز ملف HTML المحفوظ.
-    const baseline = Math.max(currentDesignSavedAt || 0, window.__quotationSavedAtBaseline || 0, Number(DESIGN_BAKED_AT_DEFAULT) || 0);
+    // 🛠️ 2026-11-19 (حمدي: "بنود غريبة متل مجلس والمشكلة مافيني الغيها"): إذا عدّلت/حذفت بالمصمم بعد آخر حفظ، تعديلك هو الأحدث -
+    // ما منرجّع النسخة المحفوظة فوقه (كانت ترجّع البند المحذوف).
+    let localEdit = window.__mzDesignEditedAt || 0;
+    try{ const k = window.getDesignAutosaveStorageKey ? window.getDesignAutosaveStorageKey() : null; const a = k ? JSON.parse(localStorage.getItem(k) || 'null') : null; if(a && (!a.projectRef || a.projectRef === ref) && a.editedAt > localEdit) localEdit = a.editedAt; }catch(e){}
+    const baseline = Math.max(currentDesignSavedAt || 0, window.__quotationSavedAtBaseline || 0, Number(DESIGN_BAKED_AT_DEFAULT) || 0, localEdit);
     if((env.savedAt||0) <= baseline) return false; // التصميم المفتوح هو نفسه أو أحدث
     // 🛠️ 2026-11-18 (حمدي: "صار يقللي في تصميم محفوظ من قبل بدك تفتحو - مزعجة، لازم يعطيني آخر تحديث فورًا"):
     // ما في سؤال: آخر تصميم محفوظ بينفتح لحالو. النسخ القديمة بتنشاف من "🕘 سجل النسخ" (👁️ شوف).
@@ -8354,6 +8358,7 @@ window.wdApplyBack = function(results){
       const PREFERRED = { 'Hinged Door':'Aluminum Door', 'Sliding Door':"Aluminum's Sliding Doors", 'Sliding Window':"Aluminum's Sliding Window", 'Folding Door':'Folding Door EU Profile', 'Frameless Glass Door':'Shower Glass Door' };
       let guess = -1;
       if(PREFERRED[r.classEn]) guess = ITEMS.findIndex(x => x.en === PREFERRED[r.classEn]);
+      if(guess < 0 && /^Pergola/i.test(r.classEn)) guess = ITEMS.findIndex(x => /pergola|برغولا|بيرغولا/i.test(x.en + ' ' + (x.ar || '')));
       if(guess < 0 && !/^Mirror/i.test(r.classEn)) guess = findBestItemMatch(r.classEn);
       if(guess >= 0 && /^\(Automatic Motor\)/i.test(ITEMS[guess].en) && !/motor/i.test(r.classEn)) guess = -1;
       if(guess >= 0){
@@ -9973,7 +9978,7 @@ function saveDesignItemsToStorage(){
     // بدل ما تحسبها لحالها بشكل مختلف (كانت تتجاهل العدد وما بتدعم الفولدينغ/الشاور/الهاندريل). ما بيندخل جوا items نفسها.
     let ref = '';
     try{ const re = document.getElementById('m-ref'); ref = re ? (re.value || '').trim() : ''; }catch(e){}
-    mzSafeSetItem(key, JSON.stringify({ items: items, nextId: nextId, selectedId: selectedId, savedAt: new Date().toISOString(), projectRef: ref || null, purchSummaries: buildPurchSummaries() }));
+    mzSafeSetItem(key, JSON.stringify({ items: items, nextId: nextId, selectedId: selectedId, savedAt: new Date().toISOString(), editedAt: window.__mzDesignEditedAt || 0, projectRef: ref || null, purchSummaries: buildPurchSummaries() }));
   }catch(e){}
 }
 function buildPurchSummaries(){
@@ -10322,12 +10327,14 @@ const PUSH_HISTORY_MIN_INTERVAL_MS = 600;
 let lastPushHistoryAt = 0;
 // 🛠️ 2026-10-03: force=true للعمليات المنفصلة (حذف/إضافة ضلع أو بند، تقسيم، دمج...) - هاي لازم
 // تنسجّل دايمًا بدون ما الفاصل الزمني يبلعها، وإلا التراجع بعدها بيرجع بخطوة زيادة (شكوى حمدي).
+try{ ['pointerdown','keydown'].forEach(ev => document.addEventListener(ev, () => { window.__mzUserTouched = true; }, true)); }catch(e){}
 function pushHistory(force){
   const now = Date.now();
   if(!force && lastPushHistoryAt && (now - lastPushHistoryAt) < PUSH_HISTORY_MIN_INTERVAL_MS){
     return; // لسا بنفس دفعة التعديل السريعة - اللقطة يلي انسجّلت أول هالدفعة كافية كنقطة تراجع
   }
   lastPushHistoryAt = now;
+  if(window.__mzUserTouched) window.__mzDesignEditedAt = now; // 🛠️ 2026-11-19: وقت آخر تعديل من المستخدم (حذف/تعديل) - النسخة المحفوظة الأقدم منه ما بتمسحه
   try{
     historyStack.push(JSON.stringify({ items, selectedId, nextId }));
     if(historyStack.length > MAX_HISTORY) historyStack.shift();
@@ -22257,6 +22264,14 @@ function wdSaveAndClose(){
   // 🛠️ 2026-10-04.9 (فحص شامل): (1) الغرفة نفسها (حاوية الأضلاع) ما إلها سطر مسعّر - كانت تنضاف كسطر "Plan"
   // جديد بكل "حفظ وإغلاق"؛ (2) بند "منظور ضلع" يتيم (ما إله سطر حي) ما لازم يرجع كسطر مسعّر غريب.
   const liveRowsNow = new Set(Array.from(document.querySelectorAll('#qty-rows tr[data-row-uid]')).map(tr=>tr.dataset.rowUid));
+  // 🛠️ 2026-11-19 (حمدي M-Q-260224: "طلع عندي بيرغولا مرتين مع اني ما ضفتها"): بند انضاف بالمصمم وما إلو صف بعرض السعر
+  // (مثلاً كبسة غلط على "+ بيرغولا / مظلة جديدة") كان ينضاف للعرض بصمت. هلق منسأل أول، وإذا لأ بينشال من التصميم.
+  { const fresh = items.filter(it => !it.isCameraTemp && it.shapeType !== 'room' && !it.isRoomWallElevation && !(it.sourceRowUid && liveRowsNow.has(it.sourceRowUid)));
+    const hasRows = liveRowsNow.size > 0;
+    if(fresh.length && hasRows){
+      const ok = confirm('في ' + fresh.length + ' بند بالتصميم مش موجود بعرض السعر:\n' + fresh.map(it => '• ' + it.label + ' (' + Math.round(it.width) + '×' + Math.round(it.height) + ')').join('\n') + '\n\nموافق = ضيفهن كبنود جديدة بعرض السعر\nإلغاء = شيلهن من التصميم');
+      if(!ok){ const ids = new Set(fresh.map(it => it.id)); items = items.filter(it => !ids.has(it.id)); if(ids.has(selectedId)) selectedId = items.length ? items[0].id : null; try{ saveDesignItemsToStorage(); }catch(e){} }
+    } }
   const results = items.filter(it => {
     if(it.shapeType === 'room' && !(it.sourceRowUid && liveRowsNow.has(it.sourceRowUid))) return false;
     if(it.isRoomWallElevation && !(it.sourceRowUid && liveRowsNow.has(it.sourceRowUid))) return false;
