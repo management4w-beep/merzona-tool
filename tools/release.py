@@ -97,9 +97,10 @@ def sufiya_transform(name, text, profile):
         if name in ('catalog.html', 'sign.html', 'salary.html'):
             sy = profile['branches']['syria']
             wa = re.sub(r'\D', '', profile.get('whatsapp') or profile.get('phone') or '')
+            waShow = profile.get('whatsapp') or profile.get('phone', '')
             if name == 'catalog.html':
-                text = re.sub(r'var BRANCHES = \{.*?\n  \};', lambda _: 'var BRANCHES = {\n    ae: { wa: ' + json.dumps(wa) + ', phone: ' + json.dumps(profile.get('phone', '')) + ', label: ' + json.dumps(sy.get("labelAr", ""), ensure_ascii=False) + ' },\n    sy: { wa: ' + json.dumps(wa) + ', phone: ' + json.dumps(profile.get('phone', '')) + ', label: ' + json.dumps(sy.get("labelAr", ""), ensure_ascii=False) + ' }\n  };', text, count=1, flags=re.S)
-                text = text.replace('+971 50 847 1158', profile.get('phone', ''))
+                text = re.sub(r'var BRANCHES = \{.*?\n  \};', lambda _: 'var BRANCHES = {\n    ae: { wa: ' + json.dumps(wa) + ', phone: ' + json.dumps(waShow) + ', label: ' + json.dumps(sy.get("labelAr", ""), ensure_ascii=False) + ' },\n    sy: { wa: ' + json.dumps(wa) + ', phone: ' + json.dumps(waShow) + ', label: ' + json.dumps(sy.get("labelAr", ""), ensure_ascii=False) + ' }\n  };', text, count=1, flags=re.S)
+                text = text.replace('+971 50 847 1158', waShow)
             for x, y in [('Merzona for Aluminum &amp; Glass Works', profile.get('fullNameEn') or profile['nameEn']), ('دمشق · دبي · الشارقة', profile.get('cities', '')),
                          ('Info@Merzona.com', profile.get('email', '')), ('www.Merzona.ae', profile.get('website', '')),
                          ('MERZONA', profile['nameEn'].upper()), ('Merzona', profile['nameEn']), ('ميرزونا', profile['nameAr']), ('مرزونا', profile['nameAr'])]:

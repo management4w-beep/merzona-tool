@@ -1440,7 +1440,7 @@ async def t_sufiya_site(p, b, port, root):
         raw = open(os.path.join(dest, f), encoding='utf8').read()
         check(not re.search('Merzona|MERZONA|ميرزونا|مرزونا', raw), f + ': ولا كلمة ميرزونا بالصفحة نفسها (معاينة الرابط بواتساب)')
     rawc = open(os.path.join(dest, 'catalog.html'), encoding='utf8').read()
-    check('971508471158' not in rawc and '963939919670' not in rawc and '963116625999' in rawc, 'استفسارات واتساب من كتالوج صوفيه بتروح لرقم صوفيه')
+    check('971508471158' not in rawc and 'wa: "963939919670"' in rawc and 'wa: "971' not in rawc, 'استفسارات واتساب من كتالوج صوفيه بتروح لرقم واتساب صوفيه (+963939919670 حسب طلب حمدي)')
     check(all('img/sufiya-icon.png' in open(os.path.join(dest, f), encoding='utf8').read() and 'catalog-icon.png' not in open(os.path.join(dest, f), encoding='utf8').read() for f in os.listdir(dest) if f.endswith('.html')), 'كل صفحات صوفيه أيقونتها لوغو صوفيه')
     import hashlib as _h
     check(_h.md5(open(os.path.join(dest, 'img', 'sufiya-icon.png'), 'rb').read()).hexdigest() == _h.md5(open(os.path.join(ROOT, 'tools', 'sufiya', 'icon.png'), 'rb').read()).hexdigest(), 'ملف الأيقونة = أيقونة صوفيه')
