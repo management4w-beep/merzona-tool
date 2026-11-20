@@ -88,6 +88,22 @@ def sufiya_transform(name, text, profile):
         m = re.search(r'<meta[^>]*charset[^>]*>', text[:2000], re.I) or re.search(r'<head[^>]*>', text)
         text = text[:m.end()] + '\n' + STORAGE_SHIM + boot + text[m.end():] if m else STORAGE_SHIM + boot + text
         text = re.sub(r'<title>([^<]*)</title>', lambda t: '<title>' + t.group(1).replace('Merzona Tool', profile['nameEn']).replace('Merzona', profile['nameEn']).replace('ميرزونا', profile['nameAr']) + '</title>', text, count=1)
+        # 🆕 2026-11-20 (حمدي: "لما بدي ابعت رابط الكتالوج لصوفيه عم يطلع لوغو ميرزونا... كل شي يخص صوفيه يكون ب لوغو صوفيه"):
+        # أيقونة صوفيه لكل الصفحات (اسم ملف جديد مشان ما يضل المتصفح حافظ أيقونة ميرزونا القديمة)
+        text = re.sub(r'<link[^>]*rel="(?:icon|apple-touch-icon|shortcut icon)"[^>]*>\s*', '', text)
+        icons = '<link rel="icon" type="image/png" href="img/sufiya-icon.png">\n<link rel="apple-touch-icon" href="img/sufiya-icon.png">\n'
+        text = re.sub(r'</head>', lambda _: icons + '</head>', text, count=1)
+        # صفحات الزبائن (الكتالوج، التوقيع، الرواتب): الاسم مكتوب بالصفحة نفسها - واتساب وجوجل بيقروها بلا جافاسكربت
+        if name in ('catalog.html', 'sign.html', 'salary.html'):
+            sy = profile['branches']['syria']
+            wa = re.sub(r'\D', '', profile.get('whatsapp') or profile.get('phone') or '')
+            if name == 'catalog.html':
+                text = re.sub(r'var BRANCHES = \{.*?\n  \};', lambda _: 'var BRANCHES = {\n    ae: { wa: ' + json.dumps(wa) + ', phone: ' + json.dumps(profile.get('phone', '')) + ', label: ' + json.dumps(sy.get("labelAr", ""), ensure_ascii=False) + ' },\n    sy: { wa: ' + json.dumps(wa) + ', phone: ' + json.dumps(profile.get('phone', '')) + ', label: ' + json.dumps(sy.get("labelAr", ""), ensure_ascii=False) + ' }\n  };', text, count=1, flags=re.S)
+                text = text.replace('+971 50 847 1158', profile.get('phone', ''))
+            for x, y in [('Merzona for Aluminum &amp; Glass Works', profile.get('fullNameEn') or profile['nameEn']), ('دمشق · دبي · الشارقة', profile.get('cities', '')),
+                         ('Info@Merzona.com', profile.get('email', '')), ('www.Merzona.ae', profile.get('website', '')),
+                         ('MERZONA', profile['nameEn'].upper()), ('Merzona', profile['nameEn']), ('ميرزونا', profile['nameAr']), ('مرزونا', profile['nameAr'])]:
+                text = text.replace(x, y)
         text = text.replace('<title>M-Q-260</title>', '<title>' + profile['branches']['syria'].get('refPrefix', 'S') + '-Q-260</title>', 1)
     return text
 
@@ -107,6 +123,7 @@ def build_sufiya(dest):
     for n in ['logo.png', 'logo-light.png', 'logo-light-word.png', 'company-logo.png']: shutil.copy(os.path.join(sd, 'logo.png'), os.path.join(img, n))
     for n in ['logo-mark.png', 'logo-light-mark.png']: shutil.copy(os.path.join(sd, 'logo-vertical.png'), os.path.join(img, n))
     shutil.copy(os.path.join(sd, 'icon.png'), os.path.join(img, 'catalog-icon.png'))
+    shutil.copy(os.path.join(sd, 'icon.png'), os.path.join(img, 'sufiya-icon.png'))
     open(os.path.join(dest, '.nojekyll'), 'w').close()
     return profile
 

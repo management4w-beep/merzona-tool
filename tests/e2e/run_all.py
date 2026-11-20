@@ -1434,6 +1434,16 @@ async def t_sufiya_site(p, b, port, root):
     seed = os.path.join(sdir, 'tenants', 'sufiya', 'company.json')
     prof = json.load(open(seed, encoding='utf8')) if os.path.isfile(seed) else {'rev': 1, 'profile': json.load(open(os.path.join(ROOT, 'tools', 'sufiya', 'profile.json'), encoding='utf8'))}
     # الكتالوج (13Qxtn...) مشترك عن قصد من 2026-11-20 (حمدي: "خلي كتالوج صوفية من مجلد ميرزونا") - قراءة بس من صوفيه
+    import re
+    # 🆕 2026-11-20: روابط الكتالوج/التوقيع/الرواتب المبعوتة لزبائن صوفيه (واتساب بيقرا الصفحة بلا جافاسكربت) + أيقونة صوفيه
+    for f in ['catalog.html', 'sign.html', 'salary.html']:
+        raw = open(os.path.join(dest, f), encoding='utf8').read()
+        check(not re.search('Merzona|MERZONA|ميرزونا|مرزونا', raw), f + ': ولا كلمة ميرزونا بالصفحة نفسها (معاينة الرابط بواتساب)')
+    rawc = open(os.path.join(dest, 'catalog.html'), encoding='utf8').read()
+    check('971508471158' not in rawc and '963939919670' not in rawc and '963116625999' in rawc, 'استفسارات واتساب من كتالوج صوفيه بتروح لرقم صوفيه')
+    check(all('img/sufiya-icon.png' in open(os.path.join(dest, f), encoding='utf8').read() and 'catalog-icon.png' not in open(os.path.join(dest, f), encoding='utf8').read() for f in os.listdir(dest) if f.endswith('.html')), 'كل صفحات صوفيه أيقونتها لوغو صوفيه')
+    import hashlib as _h
+    check(_h.md5(open(os.path.join(dest, 'img', 'sufiya-icon.png'), 'rb').read()).hexdigest() == _h.md5(open(os.path.join(ROOT, 'tools', 'sufiya', 'icon.png'), 'rb').read()).hexdigest(), 'ملف الأيقونة = أيقونة صوفيه')
     MERZ = ['13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS', '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy']
     reqs = []; errs = []
     ctx = await b.new_context(viewport={"width": 1400, "height": 900})
