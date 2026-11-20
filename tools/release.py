@@ -48,8 +48,8 @@ SUFIYA = {
     'server': SERVER + '/t/sufiya',
     'drive': {'13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D': '1w3Oc1It95tJfdTXJyVqrMfErCBMcblj7',   # الرئيسي (فرع الإمارات بميرزونا)
               '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS': '1CYCE3CwiGDRV5itxLCxhWE-fmf-JtMmC',   # عروض الأسعار (فرع سوريا)
-              '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy': '1bxdG5pi0x9Vlkzmpc1KCXzwUYrnXnilG',   # نسخ الداشبورد الاحتياطية
-              '13QxtnBbXx3SuOZIu8hA90TiD7T2CiMoC': '183xxHse1hEsPCD6rfbKbaZQbNBz6SISl'},  # الكتالوج
+              '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy': '1bxdG5pi0x9Vlkzmpc1KCXzwUYrnXnilG'},  # نسخ الداشبورد الاحتياطية
+    # الكتالوج: 🆕 2026-11-20 (حمدي: "خلي كتالوج صوفية من مجلد ميرزونا") - نفس مجلد ميرزونا (13Qxtn...)، قراءة بس من صوفيه
     'skip': ['about.html', 'privacy.html', 'googleeaa4937c2234d2e6.html'],
 }
 # أول سكربت بالصفحة: كل مفاتيح التخزين بتصير "sufiya:..." - هيك ولا جهاز/جلسة/مسودة بتختلط مع ميرزونا
