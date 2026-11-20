@@ -1433,7 +1433,8 @@ async def t_sufiya_site(p, b, port, root):
     sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
     seed = os.path.join(sdir, 'tenants', 'sufiya', 'company.json')
     prof = json.load(open(seed, encoding='utf8')) if os.path.isfile(seed) else {'rev': 1, 'profile': json.load(open(os.path.join(ROOT, 'tools', 'sufiya', 'profile.json'), encoding='utf8'))}
-    MERZ = ['13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS', '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy', '13QxtnBbXx3SuOZIu8hA90TiD7T2CiMoC']
+    # الكتالوج (13Qxtn...) مشترك عن قصد من 2026-11-20 (حمدي: "خلي كتالوج صوفية من مجلد ميرزونا") - قراءة بس من صوفيه
+    MERZ = ['13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D', '1tQkVAUHGy9_Tm2JZxlkkTvGUTxAWM8uS', '1FL-I0R4qXdAtqLF8JgcranzKsffKgLzy']
     reqs = []; errs = []
     ctx = await b.new_context(viewport={"width": 1400, "height": 900})
     # جهاز عليه ميرزونا من قبل (نفس github.io)
