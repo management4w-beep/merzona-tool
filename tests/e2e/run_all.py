@@ -705,7 +705,7 @@ async def t_techcat(p, b, port):
     check(n >= 20, 'كل الأنظمة معروضة ' + str(n))
     txt = await pg.inner_text('#doc')
     check('غير محدد' not in txt and '.pdf' not in txt and 'صفحة)' not in txt and 'الكتالوج بيذكر' not in txt, 'بلا ملاحظات داخلية ولا "غير محدد" ولا أسماء ملفات')
-    srcs = await pg.evaluate("Array.from(document.querySelectorAll('figure img')).map(function(i){ return i.src; })")
+    srcs = await pg.evaluate("Array.from(document.querySelectorAll('figure:not(.web) img')).map(function(i){ return i.src; })")
     bad = []
     for u in srcs:
         r = await pg.request.get(u)
@@ -714,6 +714,17 @@ async def t_techcat(p, b, port):
     check(await pg.locator('figure svg').count() >= 6, 'مقاطع توضيحية للأنظمة يلي ما إلها رسمة رسمية')
     check(all(await pg.evaluate("Array.from(document.querySelectorAll('section.sys')).map(function(s){ return !!s.querySelector('figure'); })")), 'كل نظام إلو مقطع/رسمة')
     check(await pg.locator('.toc a').count() == n, 'فهرس فيه كل الأنظمة')
+    # 🧊 مقاطع ميرزونا: كل رسمة 2D إلها مجسّم 3D من نفس الأشكال
+    fx = os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'three')
+    await ctx.route('**/three.min.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'three.min.js'), 'rb').read()))
+    await ctx.route('**/OrbitControls.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'OrbitControls.js'), 'rb').read()))
+    nb = await pg.locator('.b3d').count(); check(nb >= 7, 'زر 3D على كل مقطع مرسوم ' + str(nb))
+    for code in ['MZ-HG-03', 'MZ-BL-01', 'MZ-VS-01']:
+        await pg.click('#' + code + ' .b3d'); await pg.wait_for_timeout(1500)
+        v = await pg.evaluate("[window.__v3, !!document.querySelector('#v3c canvas'), getComputedStyle(document.getElementById('v3')).display]")
+        nparts = await pg.evaluate("(function(){ var k = Object.keys(TC.SECTIONS).filter(function(x){ return document.querySelector('#%s .b3d').getAttribute('onclick').indexOf(\"'\" + x + \"'\") > 0; })[0]; return TC.SECTIONS[k].parts.length; })()" % code)
+        check(v[1] and v[2] == 'flex' and v[0]['parts'] == nparts, code + ': المجسّم 3D من نفس أشكال الرسمة (' + str(nparts) + ' قطعة)')
+        await pg.click('#v3 button >> text=➕'); await pg.click('#v3 button >> text=↺ رجّع'); await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
     await ctx.close()
     # ⛔ إطفاء/تشغيل الأنظمة
     ctx = await new_ctx(p, b); posted = []; state = {'hidden': ['MZ-SL-01', 'MZ-CW-06']}
@@ -729,6 +740,16 @@ async def t_techcat(p, b, port):
     check(posted and sorted(posted[-1]['hidden']) == ['MZ-CW-06', 'MZ-HG-02'] and '✅' in await pg.inner_text('#tcMsg'), 'التشغيل والإطفاء بينحفظ عالسيرفر ' + str(posted[-1:]))
     pg2 = await ctx.new_page(); await pg2.goto(f'http://127.0.0.1:{port}/techcat.html'); await pg2.wait_for_timeout(1500)
     check(await pg2.locator('#MZ-SL-01').count() == 1 and await pg2.locator('#MZ-HG-02').count() == 0, 'الزبون بيشوف التعديل فوراً')
+    # 📤 رابط لنظام واحد (متل كتالوج الصور)
+    p3 = await ctx.new_page(); await p3.goto(f'http://127.0.0.1:{port}/techcat.html?s=MZ-SL-04'); await p3.wait_for_timeout(1500)
+    t3 = await p3.inner_text('#doc')
+    check(await p3.locator('section.sys').count() == 1 and await p3.locator('#MZ-SL-04 figure').count() >= 2 and 'Montana' in t3 and 'كل الكتالوج' in t3 and 'Montana' in await p3.title(), 'رابط نظام واحد: النظام بمقاطعه + اللوغو + التواصل')
+    await p3.goto(f'http://127.0.0.1:{port}/techcat.html?s=MZ-HG-02'); await p3.wait_for_timeout(1200)
+    check(await p3.locator('section.sys').count() == 0 and 'مش متوفر' in await p3.inner_text('#doc'), 'النظام المطفي ما بينفتح برابطه')
+    await p3.goto(f'http://127.0.0.1:{port}/techcat.html'); await p3.wait_for_timeout(1200)
+    await p3.evaluate("navigator.share = function(o){ window.__sh = o; return Promise.resolve(); }")
+    await p3.click('#MZ-SL-04 .tc-share'); sh = await p3.evaluate("window.__sh")
+    check(sh and sh['url'].endswith('techcat.html?s=MZ-SL-04') and 'Montana' in sh['title'], 'زر «ابعت هالنظام» بيبعت رابط النظام ' + str(sh))
     await ctx.close()
     ctx = await new_ctx(p, b); pd = await ctx.new_page()
     await pd.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pd.wait_for_timeout(3000)
