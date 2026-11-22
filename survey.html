@@ -82,7 +82,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.1';
+  var CURRENT_VERSION = '2026-11-22.3';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'survey';
   var VERSION_URL = 'version.json';
@@ -475,7 +475,7 @@
 })();
 </script>
 <!-- ===== MERZONA ACCESS GATE - END ===== -->
-<title>الكشف بالموقع</title>
+<title>نوت</title>
 <link rel="manifest" href="data:application/manifest+json,{}">
 <style>
 :root{--main:#12324a;--blue:#0f88cd;--bg:#f3f6f9;--card:#fff;--line:#dde5ec;--muted:#6b7d8c;--ok:#1e8e3e;--warn:#b26a00;--err:#c62828}
@@ -544,10 +544,10 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 <body>
 <div class="sv-top">
   <button class="pill" id="svBack" onclick="SV.home()" style="display:none">→ رجوع</button>
-  <h1 id="svTitle">📏 الكشف بالموقع</h1>
+  <h1 id="svTitle">📝 نوت</h1>
   <span class="sv-net" id="svNet">متصل</span>
   <button class="pill" id="svLaserBtn" onclick="SV.laserConnect()" title="ليزر بلوتوث (Leica DISTO / Bosch GLM)">📡 ليزر</button>
-  <a class="pill" href="Dashboard.html" style="text-decoration:none">🏠</a>
+  <a class="pill" href="Dashboard.html" style="text-decoration:none" title="رجوع للداشبورد">🏠</a>
 </div>
 <div class="wrap" id="svMain"></div>
 <div class="dock" id="svDock" style="display:none">
@@ -632,15 +632,16 @@ window.addEventListener('offline', netUI);
 
 // ---------- الشاشة الرئيسية: الكشوفات ----------
 function home(){
-  S.cur = null; S.sel = null; $('svDock').style.display = 'none'; $('svBack').style.display = 'none'; $('svTitle').textContent = '📏 الكشف بالموقع';
+  S.cur = null; S.sel = null; $('svDock').style.display = 'none'; $('svBack').style.display = 'none'; $('svTitle').textContent = '📝 نوت';
   dbAll().then(function(all){
     S.list = all.sort(function(a, b){ return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); });
-    var h = '<div class="card"><div class="row" style="justify-content:space-between"><div><b>كشوفات المواقع</b><div class="hint">كل كشف محفوظ عالموبايل وبيشتغل بلا نت. بس يرجع النت بيترفع نسخة للسيرفر.</div></div>' +
-      '<button class="btn" id="svNew" onclick="SV.newSurvey()">➕ كشف جديد</button></div></div><div class="sv-list">';
-    if(!S.list.length) h += '<div class="card hint" style="display:block">ما في كشوفات لسا. كبّس «➕ كشف جديد» وبلّش: صوّر الفتحة واحكي مقاسها.</div>';
+    var h = '<div class="card"><div class="row" style="justify-content:space-between"><div><b>📝 النوتات</b><div class="hint">صوّر وحط المقاسات عالصورة (بالصوت أو بإيدك)، وبعدين «حوّل لعرض سعر». كل نوت محفوظة عالموبايل وبيشتغل بلا نت. بس يرجع النت بيترفع نسخة للسيرفر.</div></div>' +
+      '<span class="row"><button class="btn" id="svNew" onclick="SV.newSurvey()">➕ نوت جديدة</button><button class="btn ghost" id="svNewInst" onclick="SV.newInstall()">✅ تركيب / تسليم</button></span></div></div><div class="sv-list">';
+    if(!S.list.length) h += '<div class="card hint" style="display:block">ما في نوتات لسا. كبّس «➕ نوت جديدة» وبلّش: صوّر الفتحة واحكي مقاسها.</div>';
     S.list.forEach(function(sv){
       var pend = (sv.openings || []).filter(function(o){ return o.pendingAudio; }).length;
-      h += '<div class="card" onclick="SV.open(\'' + sv.id + '\')"><div style="flex:1;min-width:0"><b>' + esc(sv.client || 'بلا اسم') + '</b><span class="hint">' + esc(sv.location || '') + ' · ' + (sv.openings || []).length + ' فتحة · ' + esc(String(sv.updatedAt || '').slice(0, 10)) + '</span></div>' +
+      var isI = sv.type === 'install', done = isI ? (sv.steps || []).filter(function(x){ return x.done; }).length : 0;
+      h += '<div class="card" onclick="SV.open(\'' + sv.id + '\')"><div style="flex:1;min-width:0"><b>' + (isI ? '✅ ' : '📝 ') + esc(sv.client || 'بلا اسم') + '</b><span class="hint">' + esc(sv.location || '') + ' · ' + (isI ? esc(INST_KINDS[sv.kind] || 'تركيب') + ' ' + done + '/' + (sv.steps || []).length + (sv.signature ? ' · ✍️ موقّع' : '') : (sv.openings || []).length + ' فتحة') + ' · ' + esc(String(sv.updatedAt || '').slice(0, 10)) + '</span></div>' +
         (pend ? '<span class="badge wait">🎙️ ' + pend + ' بانتظار النت</span>' : '') + '<span class="badge ' + (sv.syncedAt && sv.syncedAt >= sv.updatedAt ? 'ok">☁️ محفوظ' : 'wait">📱 عالموبايل') + '</span></div>';
     });
     $('svMain').innerHTML = h + '</div>';
@@ -653,8 +654,10 @@ function newSurvey(){
 function open(id){
   dbAll().then(function(all){
     var sv = all.filter(function(x){ return x.id === id; })[0]; if(!sv) return home();
-    S.cur = sv; S.sel = sv.openings.length ? sv.openings[sv.openings.length - 1].id : null;
-    $('svDock').style.display = 'block'; $('svBack').style.display = '';
+    S.cur = sv; S.sel = (sv.openings || []).length ? sv.openings[sv.openings.length - 1].id : null;
+    $('svBack').style.display = '';
+    if(sv.type === 'install'){ $('svDock').style.display = 'none'; return renderInstall(); }
+    $('svDock').style.display = 'block';
     render();
   });
 }
@@ -665,14 +668,14 @@ function saveNow(){ if(!S.cur) return Promise.resolve(); clearTimeout(saveT); S.
 // ---------- شاشة الكشف ----------
 function render(){
   var sv = S.cur; if(!sv) return;
-  $('svTitle').textContent = '📏 ' + (sv.client || 'كشف جديد');
+  $('svTitle').textContent = '📝 ' + (sv.client || 'نوت جديدة');
   var h = '<div class="card"><div class="grid2">' +
     '<label class="f">اسم الزبون<input id="svClient" value="' + esc(sv.client) + '" oninput="SV.field(\'client\',this.value)" placeholder="مثلاً: أبو سامر"></label>' +
     '<label class="f">الموبايل<input id="svPhone" inputmode="tel" value="' + esc(sv.phone) + '" oninput="SV.field(\'phone\',this.value)"></label>' +
     '<label class="f">الموقع / العنوان<input id="svLoc" value="' + esc(sv.location) + '" oninput="SV.field(\'location\',this.value)"></label>' +
     '<label class="f">الفرع<select onchange="SV.field(\'branch\',this.value)"><option value="">—</option><option value="syria"' + (sv.branch === 'syria' ? ' selected' : '') + '>سوريا</option><option value="uae"' + (sv.branch === 'uae' ? ' selected' : '') + '>الإمارات</option></select></label>' +
     '</div><div class="row no-print" style="margin-top:8px;justify-content:space-between"><span class="hint">' + sv.openings.length + ' فتحة · ' + totalQty(sv) + ' قطعة</span><span class="row">' +
-    '<button class="btn small" onclick="SV.toQuote()">📄 لعرض سعر</button><button class="btn ghost small" onclick="SV.report()">🖨️ تقرير الكشف</button><button class="btn red small" onclick="SV.delSurvey()">🗑️ احذف الكشف</button></span></div></div>';
+    '<button class="btn small" onclick="SV.toQuote()">📄 لعرض سعر</button><button class="btn ghost small" onclick="SV.newInstall(\'' + sv.id + '\')">✅ تركيب</button><button class="btn ghost small" onclick="SV.report()">🖨️ اطبع النوت</button><button class="btn red small" onclick="SV.delSurvey()">🗑️ احذف النوت</button></span></div></div>';
   if(!sv.openings.length) h += '<div class="card hint">كبّس 🎙️ تحت واحكي، مثلاً: <b>«المطبخ شباك سحاب ألف وميتين بألف وخمسمية»</b> — أو «غرفة النوم شباك 120 على 150 عدد 2». بيعبّي الخانات لحالو، وإنت بتراجع.</div>';
   sv.openings.forEach(function(o, i){ h += opHTML(o, i); });
   $('svMain').innerHTML = h;
@@ -699,7 +702,7 @@ function opHTML(o, i){
 function rerenderOp(id){ var sv = S.cur; var i = sv.openings.findIndex(function(o){ return o.id === id; }); var el = $('op-' + id); if(i < 0 || !el) return render(); var d = document.createElement('div'); d.innerHTML = opHTML(sv.openings[i], i); el.replaceWith(d.firstChild); }
 function getOp(id){ return S.cur && S.cur.openings.filter(function(o){ return o.id === id; })[0]; }
 function num(v){ var n = parseFloat(String(v).replace(/[٠-٩]/g, function(d){ return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); }).replace(',', '.')); return Number.isFinite(n) ? Math.round(n) : null; }
-SV.field = function(k, v){ S.cur[k] = v; if(k === 'client') $('svTitle').textContent = '📏 ' + (v || 'كشف جديد'); touch(); };
+SV.field = function(k, v){ S.cur[k] = v; if(k === 'client') $('svTitle').textContent = S.cur.type === 'install' ? '✅ ' + (INST_KINDS[S.cur.kind] || 'تركيب') + (v ? ' · ' + v : '') : '📝 ' + (v || 'نوت جديدة'); touch(); };
 SV.op = function(id, k, v){
   var o = getOp(id); if(!o) return;
   if(k === 'w' || k === 'h'){ o[k] = num(v); o.unitGuess = ''; updateDim(o); }
@@ -716,7 +719,7 @@ function newOpening(fields){ var o = Object.assign({ id: uid('op'), room: '', it
 SV.addOpening = function(){ var prev = S.cur.openings[S.cur.openings.length - 1]; var o = newOpening({ room: prev ? prev.room : '' }); render(); touch(); scrollTo(o.id); };
 function scrollTo(id){ setTimeout(function(){ var el = $('op-' + id); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); }
 SV.delOpening = function(id){ if(!confirm('أكيد بدك تحذف هالفتحة؟')) return; S.cur.openings = S.cur.openings.filter(function(o){ return o.id !== id; }); if(S.sel === id) S.sel = null; render(); touch(); };
-SV.delSurvey = function(){ if(!confirm('أكيد بدك تحذف هالكشف كلو من هالموبايل؟ (النسخة يلي عالسيرفر بتضل)')) return; var id = S.cur.id; dbDel(id).then(home); };
+SV.delSurvey = function(){ if(!confirm('أكيد بدك تحذف هالنوت كلها من هالموبايل؟ (النسخة يلي عالسيرفر بتضل)')) return; var id = S.cur.id; dbDel(id).then(home); };
 
 // ---------- الصور ----------
 var photoFor = null;
@@ -731,6 +734,7 @@ function shrink(file, max, q){
 SV.photoPicked = function(inp){
   var f = inp.files && inp.files[0]; inp.value = ''; if(!f) return;
   shrink(f, 1280, 0.72).then(function(data){
+    if(photoFor === '__step__'){ photoFor = null; stepPhotoPicked(data); toast('📷 انحفظت الصورة'); return; }
     var o = photoFor ? getOp(photoFor) : null;
     if(!o){ var prev = S.cur.openings[S.cur.openings.length - 1]; o = newOpening({ room: prev ? prev.room : '' }); }
     o.photo = data; S.sel = o.id; render(); touch(); scrollTo(o.id);
@@ -892,7 +896,7 @@ SV.aiPicked = function(inp){
     var h = '<h3>🤖 ' + (r.j.kind === 'plan' ? 'لقيت بالمخطط' : 'لقيت بالصورة') + ' ' + r.j.openings.length + ' فتحة</h3><div class="hint">نقّي يلي بدك ياه. المقاسات بتنزل بس إذا مكتوبة بالصورة — الباقي لازم ينقاس.</div>';
     r.j.openings.forEach(function(o, i){ h += '<label class="ai-op"><input type="checkbox" checked data-ai="' + i + '"><div><b>' + esc(o.type) + '</b>' + (o.qty > 1 ? ' ×' + o.qty : '') + ' <span class="hint">' + esc(o.where || '') + '</span><div class="hint" style="direction:ltr;text-align:right">' + (o.w || o.h ? (o.w || '?') + ' × ' + (o.h || '?') + ' mm' : 'بلا مقاس') + '</div>' + (o.note ? '<div class="hint">' + esc(o.note) + '</div>' : '') + '</div></label>'; });
     if(r.j.notes) h += '<div class="heard">' + esc(r.j.notes) + '</div>';
-    h += '<div class="row" style="margin-top:10px"><button class="btn" onclick="SV.aiUse()">✓ ضيفهن للكشف</button><button class="btn ghost" onclick="SV.closeModal()">إلغاء</button></div>';
+    h += '<div class="row" style="margin-top:10px"><button class="btn" onclick="SV.aiUse()">✓ ضيفهن للنوت</button><button class="btn ghost" onclick="SV.closeModal()">إلغاء</button></div>';
     modal(h);
   }).catch(function(){ modal('<h3>⚠️ ما في اتصال بالسيرفر</h3><button class="btn" onclick="SV.closeModal()">تمام</button>'); });
 };
@@ -926,25 +930,109 @@ SV.report = function(){ saveNow().then(function(){ window.print(); }); };
 // ---------- ☁️ نسخة للسيرفر ----------
 var syncT = null;
 function syncSoon(){ clearTimeout(syncT); syncT = setTimeout(syncAll, 4000); }
-function slim(sv){ var c = JSON.parse(JSON.stringify(sv)); c.openings.forEach(function(o){ delete o.pendingAudio; }); return c; }
+function slim(sv){ var c = JSON.parse(JSON.stringify(sv)); (c.openings || []).forEach(function(o){ delete o.pendingAudio; }); return c; }
 function thumb(data){ return new Promise(function(res){ if(!data) return res(''); var img = new Image(); img.onload = function(){ var k = Math.min(1, 360 / Math.max(img.width, img.height)); var c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.6)); }; img.onerror = function(){ res(''); }; img.src = data; }); }
 function syncAll(){
   if(!online()) return;
   dbAll().then(function(all){
     all.filter(function(sv){ return !sv.syncedAt || sv.syncedAt < sv.updatedAt; }).forEach(function(sv0){
       var sv = (S.cur && S.cur.id === sv0.id) ? S.cur : sv0; var c = slim(sv); var stamp = sv.updatedAt;
-      Promise.all(c.openings.map(function(o){ return thumb(o.photo).then(function(t){ o.photo = t; }); })).then(function(){
+      var jobs = (c.openings || []).map(function(o){ return thumb(o.photo).then(function(t){ o.photo = t; }); });
+      (c.steps || []).forEach(function(st){ (st.photos || []).forEach(function(ph, i){ jobs.push(thumb(ph).then(function(t){ st.photos[i] = t; })); }); });
+      Promise.all(jobs).then(function(){
         return srv('POST', '/survey/save', { survey: c });
       }).then(function(r){ if(r && r.status === 200){ sv.syncedAt = stamp; dbPut(sv); if(!S.cur) home(); } }).catch(function(){});
     });
   });
 }
 
+// ---------- ✅ قوائم التركيب والتسليم (2026-11-22، الفكرة 5) ----------
+// كل خطوة: تمّت + ملاحظة + صور (قبل/بعد). بالآخر توقيع الزبون وتقرير PDF بينبعت بالواتس اب.
+var INST_KINDS = { install: 'تركيب', handover: 'تسليم', maint: 'صيانة' };
+var INST_STEPS = {
+  install: ['وصلت المواد وفحصتها (ما في كسر ولا نقص)', 'قيست الفتحة قبل التركيب وطابقت التصنيع', 'صور قبل التركيب', 'ثبّتت الإطار وزبطت الميزان (شاقول وأفقي)', 'ركّبت الزجاج والدرف', 'سيليكون وعزل من برّا ومن جوّا', 'جرّبت الفتح والسكّر والأقفال', 'نظّفت الموقع والزجاج', 'صور بعد التركيب'],
+  handover: ['الزبون شاف الشغل كامل', 'جرّب الفتح والسكّر والأقفال قدام الزبون', 'شرحت للزبون الاستعمال والتنظيف', 'سلّمت المفاتيح والملحقات', 'ما في ملاحظات مفتوحة (أو انكتبت تحت)', 'صور التسليم'],
+  maint: ['صور المشكلة قبل', 'سبب المشكلة', 'شو انعمل', 'جرّبت بعد التصليح', 'صور بعد'],
+};
+function mkSteps(kind){ return (INST_STEPS[kind] || INST_STEPS.install).map(function(t){ return { id: uid('st'), title: t, done: false, note: '', photos: [] }; }); }
+function newInstall(fromId){
+  var base = fromId && S.cur && S.cur.id === fromId ? S.cur : null;
+  var sv = { id: uid('in'), type: 'install', kind: 'install', client: base ? base.client : '', phone: base ? base.phone : '', location: base ? base.location : '', ref: '', fromSurvey: base ? base.id : '',
+    steps: mkSteps('install'), signature: '', signedName: '', signedAt: '', openings: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  (base ? saveNow() : Promise.resolve()).then(function(){ return dbPut(sv); }).then(function(){ open(sv.id); });
+}
+function renderInstall(){
+  var sv = S.cur; if(!sv) return;
+  var done = sv.steps.filter(function(x){ return x.done; }).length, tot = sv.steps.length;
+  $('svTitle').textContent = '✅ ' + (INST_KINDS[sv.kind] || 'تركيب') + (sv.client ? ' · ' + sv.client : '');
+  var h = '<div class="print-only"><h2>✅ تقرير ' + esc(INST_KINDS[sv.kind] || 'تركيب') + (sv.ref ? ' — ' + esc(sv.ref) : '') + '</h2></div>';
+  h += '<div class="card"><div class="grid2">' +
+    '<label class="f">اسم الزبون<input id="inClient" value="' + esc(sv.client) + '" oninput="SV.field(\'client\',this.value)"></label>' +
+    '<label class="f">الموبايل<input inputmode="tel" value="' + esc(sv.phone) + '" oninput="SV.field(\'phone\',this.value)"></label>' +
+    '<label class="f">الموقع<input value="' + esc(sv.location) + '" oninput="SV.field(\'location\',this.value)"></label>' +
+    '<label class="f">رقم العرض<input value="' + esc(sv.ref) + '" oninput="SV.field(\'ref\',this.value)" placeholder="M-Q-..."></label>' +
+    '</div><div class="row no-print" style="margin-top:8px">' + Object.keys(INST_KINDS).map(function(k){ return '<button class="btn small ' + (sv.kind === k ? '' : 'ghost') + '" onclick="SV.instKind(\'' + k + '\')">' + INST_KINDS[k] + '</button>'; }).join('') + '</div>' +
+    '<div style="margin-top:10px;background:#e8f1f8;border-radius:99px;height:12px;overflow:hidden"><div id="inProg" style="height:100%;width:' + (tot ? Math.round(done / tot * 100) : 0) + '%;background:var(--ok)"></div></div>' +
+    '<div class="hint" id="inProgTxt" style="margin-top:4px">' + done + ' من ' + tot + ' خطوة</div></div>';
+  sv.steps.forEach(function(st, i){
+    h += '<div class="card" id="st-' + st.id + '"><div class="row" style="align-items:flex-start;flex-wrap:nowrap"><input type="checkbox" class="st-chk" ' + (st.done ? 'checked' : '') + ' onchange="SV.step(\'' + st.id + '\',\'done\',this.checked)" style="width:26px;height:26px;flex:0 0 26px;margin:2px 0 0">' +
+      '<div style="flex:1;min-width:0"><input class="st-title" value="' + esc(st.title) + '" oninput="SV.step(\'' + st.id + '\',\'title\',this.value)" style="width:100%;border:0;font-weight:700;font-size:15px;background:transparent;padding:4px 0' + (st.done ? ';text-decoration:line-through;color:var(--muted)' : '') + '">' +
+      '<input value="' + esc(st.note) + '" oninput="SV.step(\'' + st.id + '\',\'note\',this.value)" placeholder="ملاحظة..." style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px;margin-top:4px">' +
+      '<div class="row" style="margin-top:6px">' + (st.photos || []).map(function(ph, k){ return '<span style="position:relative"><img src="' + ph + '" style="width:84px;height:84px;object-fit:cover;border-radius:8px"><button class="no-print" onclick="SV.stepPhotoDel(\'' + st.id + '\',' + k + ')" style="position:absolute;top:2px;left:2px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;width:22px;height:22px;padding:0">×</button></span>'; }).join('') +
+      '<button class="btn ghost small no-print" onclick="SV.stepPhoto(\'' + st.id + '\')">📷 صورة</button></div></div>' +
+      '<button class="btn red small no-print" onclick="SV.stepDel(\'' + st.id + '\')">🗑️</button></div></div>';
+  });
+  h += '<div class="row no-print" style="margin-bottom:10px"><button class="btn ghost" onclick="SV.stepAdd()">➕ خطوة</button></div>';
+  h += '<div class="card"><b>✍️ توقيع الزبون</b><div class="hint no-print">الزبون بيوقّع بإصبعه بالمربع.</div>' +
+    (sv.signature ? '<img id="inSigImg" src="' + sv.signature + '" style="width:100%;max-width:420px;border:1px solid var(--line);border-radius:8px;background:#fff;display:block;margin-top:6px">' :
+      '<canvas id="inSig" width="840" height="300" style="width:100%;max-width:420px;height:150px;border:1px dashed #90a4ae;border-radius:8px;background:#fff;touch-action:none;display:block;margin-top:6px"></canvas>') +
+    '<label class="f" style="margin-top:8px;max-width:420px">اسم الموقّع<input value="' + esc(sv.signedName) + '" oninput="SV.field(\'signedName\',this.value)"></label>' +
+    (sv.signedAt ? '<div class="hint">انوقّع: ' + esc(new Date(sv.signedAt).toLocaleString('ar')) + '</div>' : '') +
+    '<div class="row no-print" style="margin-top:8px">' + (sv.signature ? '<button class="btn red small" onclick="SV.sigClear()">امسح التوقيع</button>' : '<button class="btn small" onclick="SV.sigSave()">✓ اعتمد التوقيع</button><button class="btn ghost small" onclick="SV.sigReset()">امسح</button>') + '</div></div>';
+  h += '<div class="card no-print"><div class="row"><button class="btn" onclick="SV.report()">🖨️ تقرير PDF</button><button class="btn ghost" onclick="SV.instShare()">📤 ابعت للزبون بالواتس اب</button><button class="btn red small" onclick="SV.delSurvey()">🗑️ احذف</button></div></div>';
+  $('svMain').innerHTML = h;
+  sigInit();
+}
+function instProg(){ var sv = S.cur, d = sv.steps.filter(function(x){ return x.done; }).length; var p = $('inProg'); if(p) p.style.width = Math.round(d / sv.steps.length * 100) + '%'; var t = $('inProgTxt'); if(t) t.textContent = d + ' من ' + sv.steps.length + ' خطوة'; }
+function getStep(id){ return S.cur.steps.filter(function(x){ return x.id === id; })[0]; }
+SV.newInstall = newInstall;
+SV.instKind = function(k){ var sv = S.cur; if(sv.kind === k) return; var touched = sv.steps.some(function(x){ return x.done || x.note || (x.photos || []).length; }); if(touched && !confirm('بدّل نوع القائمة؟ الخطوات يلي تعلّمت رح تنشال.')) return; sv.kind = k; sv.steps = mkSteps(k); touch(); renderInstall(); };
+SV.step = function(id, k, v){ var st = getStep(id); if(!st) return; st[k] = v; if(k === 'done'){ var t = document.querySelector('#st-' + id + ' .st-title'); if(t){ t.style.textDecoration = v ? 'line-through' : ''; t.style.color = v ? 'var(--muted)' : ''; } instProg(); } touch(); };
+SV.stepAdd = function(){ S.cur.steps.push({ id: uid('st'), title: 'خطوة جديدة', done: false, note: '', photos: [] }); touch(); renderInstall(); };
+SV.stepDel = function(id){ if(!confirm('تحذف هالخطوة؟')) return; S.cur.steps = S.cur.steps.filter(function(x){ return x.id !== id; }); touch(); renderInstall(); };
+var stepPhotoFor = null;
+SV.stepPhoto = function(id){ stepPhotoFor = id; photoFor = '__step__'; $('svFile').click(); };
+SV.stepPhotoDel = function(id, k){ var st = getStep(id); if(!st) return; st.photos.splice(k, 1); touch(); renderInstall(); };
+function stepPhotoPicked(data){ var st = getStep(stepPhotoFor); if(!st) return; st.photos = st.photos || []; st.photos.push(data); touch(); renderInstall(); }
+var sigDirty = false;
+function sigInit(){
+  var c = $('inSig'); if(!c) return; var ctx = c.getContext('2d'); ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.strokeStyle = '#12324a'; sigDirty = false;
+  var down = false;
+  function pt(e){ var r = c.getBoundingClientRect(); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; }
+  c.addEventListener('pointerdown', function(e){ down = true; var p = pt(e); ctx.beginPath(); ctx.moveTo(p[0], p[1]); try{ c.setPointerCapture(e.pointerId); }catch(_){} e.preventDefault(); });
+  c.addEventListener('pointermove', function(e){ if(!down) return; var p = pt(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); sigDirty = true; e.preventDefault(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(function(ev){ c.addEventListener(ev, function(){ down = false; }); });
+}
+SV.sigReset = function(){ var c = $('inSig'); if(c) c.getContext('2d').clearRect(0, 0, c.width, c.height); sigDirty = false; };
+SV.sigSave = function(){ var c = $('inSig'); if(!c || !sigDirty){ toast('خلّي الزبون يوقّع بالمربع أول.', true); return; } S.cur.signature = c.toDataURL('image/png'); S.cur.signedAt = new Date().toISOString(); touch(); renderInstall(); toast('✍️ انحفظ التوقيع'); };
+SV.sigClear = function(){ if(!confirm('تمسح التوقيع؟')) return; S.cur.signature = ''; S.cur.signedAt = ''; touch(); renderInstall(); };
+SV.instShare = function(){
+  var sv = S.cur, d = sv.steps.filter(function(x){ return x.done; });
+  var lines = ['✅ ' + (INST_KINDS[sv.kind] || 'تركيب') + (sv.ref ? ' ' + sv.ref : '') + (sv.client ? ' — ' + sv.client : ''), sv.location ? '📍 ' + sv.location : ''].concat(sv.steps.map(function(x){ return (x.done ? '✔️ ' : '⬜ ') + x.title + (x.note ? ' (' + x.note + ')' : ''); }));
+  lines.push('', d.length + ' من ' + sv.steps.length + ' خطوة' + (sv.signature ? ' · ✍️ موقّع من ' + (sv.signedName || 'الزبون') : ''));
+  var txt = lines.filter(function(x){ return x !== ''; }).join('\n');
+  var ph = String(sv.phone || '').replace(/\D/g, '').replace(/^00/, '');
+  if(/^09\d{8}$/.test(ph)) ph = '963' + ph.slice(1); else if(/^05\d{8}$/.test(ph)) ph = '971' + ph.slice(1); // رقم محلي (سوريا / الإمارات)
+  if(navigator.share && !ph){ navigator.share({ text: txt }).catch(function(){}); return; }
+  window.open('https://wa.me/' + ph + '?text=' + encodeURIComponent(txt), '_blank');
+};
+SV._instPhoto = stepPhotoPicked;
+
 // ---------- البداية ----------
 SV.home = function(){ saveNow().then(home); };
 SV.newSurvey = newSurvey; SV.open = open;
 SV._state = S;
-function boot(){ netUI(); loadItems(); var m = /[#&]survey=([a-z0-9-]+)/i.exec(location.hash || ''); if(m) open(m[1]); else home(); setTimeout(function(){ syncAll(); retryPendingVoice(); }, 1500); }
+function boot(){ netUI(); loadItems(); var m = /[#&]survey=([a-z0-9-]+)/i.exec(location.hash || ''); if(m) open(m[1]); else if(/[#&]new\b/.test(location.hash || '')){ try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){} newSurvey(); } else home(); setTimeout(function(){ syncAll(); retryPendingVoice(); }, 1500); }
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 // الليزرات يلي بتشتغل «كيبورد» بتكتب الرقم وبعدين Enter ← منقفز للخانة الجاية
 document.addEventListener('keydown', function(e){ if(e.key !== 'Enter') return; var t = e.target; if(!t || !t.getAttribute || !t.getAttribute('data-f')) return; e.preventDefault(); if(t.getAttribute('data-f') === 'w'){ var n = document.querySelector('#op-' + t.getAttribute('data-op') + ' input[data-f="h"]'); if(n) n.focus(); } else t.blur(); });

@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.1';
+  var CURRENT_VERSION = '2026-11-22.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1195,7 +1195,6 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
              بسجل "_Designs" بشكل سليم. الكود تبع الأداة المستقلة (showDesignerView/iframe) خليناه بالملف
              كاحتياط بس مش ظاهر بالواجهة، حتى لو حابب حمدي يرجعه بالمستقبل يكفي يشيل "display:none" هون. -->
         <span class="nav-pill" id="designerTabBtn" style="display:none;">🎨 (تصميم/Sketch)</span>
-        <span class="nav-pill" id="surveyTabBtn" onclick="location.href='survey.html'" title="رفع مقاسات من الموقع: صور + صوت + ليزر، وبيشتغل بلا نت">📏 الكشف بالموقع</span>
         <span class="nav-pill" id="procurementTabBtn">🧾 المشتريات</span>
         <span class="nav-pill" id="accountingTabBtn" style="display:none;">📒 المحاسبة</span>
         <a href="https://drive.google.com/drive/folders/13q5WtejXrydWEeIEZ7pZoon6ocyVuX1D" target="_blank" class="nav-pill" id="navFilesUAE">📁 ملفات الإمارات</a>
@@ -1347,6 +1346,17 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
   </div>
 
   <div id="quotationsView" style="display:none;">
+
+    <!-- 📝 2026-11-22 (حمدي: "بدي يكون في شيء اسمه نوت... بمكان تبع عروض الاسعار"): النوت = صور + مقاسات عالصورة (صوت/ليزر/إيد) ← حوّل لعرض سعر -->
+    <div class="panel" id="mzNotePanel">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;">
+        <div><p class="panel-title" style="margin:0;">📝 نوت</p><div style="font-size:12.5px;color:var(--muted);">صوّر الفتحة وحط المقاس عالصورة (احكيه أو اكتبه)، وبعدين «حوّل لعرض سعر» بتتفرّغ المقاسات وإنت بتعبّي البنود. بتشتغل بلا نت.</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <a class="year-chip" id="mzNoteOpen" href="survey.html" style="text-decoration:none;">📂 النوتات</a>
+          <a class="year-chip" id="mzNoteNew" href="survey.html#new" style="text-decoration:none;background:#1b2b34;color:#fff;">➕ نوت جديدة</a>
+        </div>
+      </div>
+    </div>
 
     <!-- 🎫 2026-11-18: طلبات عروض الأسعار المفتوحة (تيكيتات) - بتنفتح من الواتس اب أو من هون -->
     <div class="panel" id="mzTkPanel" style="display:none;">
@@ -4065,7 +4075,6 @@ window.applyMerzonaPermissions = function(permissions, isOwner){
   var navMap = {
     quotationTabBtn: 'quotation',
     quotationsTabBtn: 'quotationsLog',
-    surveyTabBtn: 'quotation',
     procurementTabBtn: 'procurement',
     accountingTabBtn: 'accounting',
     contractsTabBtn: 'contracts',
