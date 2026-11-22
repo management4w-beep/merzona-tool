@@ -724,6 +724,32 @@ async def t_techcat(p, b, port):
         v = await pg.evaluate("[window.__v3, !!document.querySelector('#v3c canvas'), getComputedStyle(document.getElementById('v3')).display, TC.SECMAP['%s'].parts.length]" % code)
         check(v[1] and v[2] == 'flex' and v[0]['parts'] == v[3], code + ': المجسّم 3D من نفس أشكال الرسمة (' + str(v[3]) + ' قطعة)')
         await pg.click('#v3 button >> text=➕'); await pg.click('#v3 button >> text=↺ رجّع'); await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(150)
+    # 🆕 مقاطع متتبّعة من رسومات الكتالوج الأصلية + فكّ/تجميع + سيليكون + حركة الدرفة (حمدي 2026-11-22)
+    cats = await pg.evaluate("Object.keys(TC.SECMAP).filter(function(k){ return TC.SECMAP[k].cat; })")
+    check(len(cats) >= 9, 'مقاطع من رسومات الكتالوج الأصلية (' + str(len(cats)) + ')')
+    for code, want in [('MZ-CW-01', ['13794', '11388', '11069', '11472']), ('MZ-CW-03', ['21073', '23389', 'Weather silicone']), ('MZ-HG-01', ['15811', '15812'])]:
+        svg = await pg.inner_html('#' + code + ' figure.sec2d')
+        check(all(w in svg for w in want), code + ': أسماء/أرقام القطع من الكتالوج بالرسمة ' + str([w for w in want if w not in svg]))
+    async def wait_t(target, key='t'):
+        for _ in range(60):
+            st = await pg.evaluate('window.__v3.state()')
+            if st[key] == target: return st
+            await pg.wait_for_timeout(300)
+        return await pg.evaluate('window.__v3.state()')
+    await pg.click('#MZ-CW-03 .b3d'); await pg.wait_for_timeout(1500)
+    check(await pg.is_visible('#v3x') and not await pg.is_visible('#v3m'), 'SSG: زر فكّ القطع ظاهر (وبلا زر فتح لأنه ثابت)')
+    st0 = await pg.evaluate('window.__v3.state()'); check(st0['sil'] and all(st0['sil']), 'SSG: السيليكون موجود وهو مجمّع')
+    await pg.click('#v3x'); st = await wait_t(1)
+    check(st['t'] == 1 and not any(st['sil']) and (await pg.inner_text('#v3x')).strip().endswith('جمّع'), 'فكّ: السيليكون انشال والقطع انفكّت')
+    await pg.click('#v3x'); st = await wait_t(0)
+    check(st['t'] == 0 and all(st['sil']), 'تجميع: القطع رجعت والسيليكون انحط من جديد')
+    await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
+    await pg.click('#MZ-SL-02 .b3d'); await pg.wait_for_timeout(1500)
+    check(await pg.is_visible('#v3m'), 'رفع وسحب: زر فتح الدرفة ظاهر')
+    await pg.click('#v3m'); st = await wait_t(1, 'mt'); check(st['mt'] == 1, 'الدرفة انفتحت (رفع ثم سحب)')
+    await pg.click('#v3m'); st = await wait_t(0, 'mt'); check(st['mt'] == 0, 'الدرفة تسكّرت')
+    await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
+    check(not errs, 'بلا أخطاء بالمقاطع ' + str(errs[:3]))
     await ctx.close()
     # ⛔ إطفاء/تشغيل الأنظمة
     ctx = await new_ctx(p, b); posted = []; state = {'hidden': ['MZ-SL-01', 'MZ-CW-06']}
