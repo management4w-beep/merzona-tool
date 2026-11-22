@@ -487,6 +487,91 @@ async def t_hr_sizes_steppers(p, b, port):
     await ctx.close()
 
 
+async def t_survey(p, b, port):
+    """📏 الكشف بالموقع (2026-11-22): صوت ← مقاسات، بلا نت ← بينحفظ وبينفهم بعدين، ليزر، ذكاء اصطناعي من صورة، حفظ عالموبايل، وتحويل لعرض سعر"""
+    print('• 📏 الكشف بالموقع: صوت + بلا نت + ليزر + صورة + عرض سعر')
+    ctx = await new_ctx(p, b, mobile=True); calls = []
+    async def sv(route):
+        u = route.request.url.split('?')[0]; body = route.request.post_data or ''
+        calls.append((u.rsplit('/', 1)[-1] if '/survey/' not in u else u.split('/survey/')[1], len(body)))
+        J = lambda o, st=200: route.fulfill(status=st, content_type='application/json', body=json.dumps(o, ensure_ascii=False))
+        if u.endswith('/quote-items'): return await J({'items': [{'en': 'Hinged Window', 'ar': 'شباك مفصلي'}, {'en': 'Aluminum Door', 'ar': 'باب ألمنيوم'}]})
+        if u.endswith('/survey/status'): return await J({'voice': True, 'ai': True})
+        if u.endswith('/survey/stt'):
+            n = sum(1 for c in calls if c[0] == 'stt')
+            return await J({'heard': 'المطبخ شباك مفصلي ألف وميتين بألف وخمسمية عدد 2', 'w': 1200, 'h': 1500, 'qty': 2, 'room': 'المطبخ', 'item': {'en': 'Hinged Window', 'ar': 'شباك مفصلي'}} if n == 1 else
+                           {'heard': 'باب الصالون تسعمية بألفين ومية', 'w': 900, 'h': 2100, 'qty': 1, 'room': 'الصالون', 'item': {'en': 'Aluminum Door', 'ar': 'باب ألمنيوم'}})
+        if u.endswith('/survey/parse'): return await J({'heard': '', 'w': None, 'h': None, 'qty': 1, 'room': 'الواجهة', 'item': {'en': 'Hinged Window', 'ar': 'شباك مفصلي'}})
+        if u.endswith('/survey/ai-photo'): return await J({'kind': 'plan', 'openings': [{'type': 'شباك مفصلي', 'where': 'الواجهة', 'w': 1450, 'h': None, 'qty': 3, 'note': 'قيس الارتفاع'}, {'type': 'باب', 'where': 'المدخل', 'w': None, 'h': None, 'qty': 1, 'note': ''}], 'notes': ''})
+        if u.endswith('/survey/save'): return await J({'ok': True})
+        if '/users/status' in u: return await J({})
+        return await J({'status': 'approved'} if '/access/status' in u else {})
+    await ctx.route(SRV + '/**', sv)
+    # مايك وهمي (صوت من مولّد نغمة) - MediaRecorder حقيقي
+    await ctx.add_init_script("""navigator.mediaDevices.getUserMedia = function(){ var ac = new AudioContext(); var o = ac.createOscillator(); var d = ac.createMediaStreamDestination(); o.connect(d); o.start(); return Promise.resolve(d.stream); };""")
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/survey.html'); await pg.wait_for_timeout(2500)
+    check(await pg.is_visible('#svNew'), 'الصفحة بتفتح (بعد البوابة) وفيها «كشف جديد»')
+    await pg.click('#svNew'); await pg.wait_for_timeout(500)
+    await pg.fill('#svClient', 'أبو سامر'); await pg.fill('#svLoc', 'المزة')
+    # 🎙️ صوت ← السيرفر ← الخانات
+    await pg.click('#svMic'); await pg.wait_for_timeout(1500)
+    check(await pg.evaluate("document.getElementById('svMic').classList.contains('rec')"), 'عم يسجّل (الزر أحمر)')
+    await pg.click('#svMic'); await pg.wait_for_timeout(1500)
+    o = await pg.evaluate("SV._state.cur.openings.map(function(o){ return [o.room, o.item && o.item.en, o.w, o.h, o.qty]; })")
+    check(o == [['المطبخ', 'Hinged Window', 1200, 1500, 2]], 'الصوت عبّى الفتحة: المطبخ، شباك مفصلي، 1200×1500، عدد 2 ' + str(o))
+    stt = [c for c in calls if c[0] == 'stt']
+    check(len(stt) == 1 and stt[0][1] > 2000, 'التسجيل انبعت للسيرفر ' + str(stt))
+    check('سمعت' in await pg.inner_text('#svMain'), 'بيبيّن شو سمع')
+    # 📴 بلا نت ← التسجيل بينحفظ، ولما يرجع النت بينفهم
+    await ctx.set_offline(True); await pg.evaluate("window.dispatchEvent(new Event('offline'))"); await pg.wait_for_timeout(200)
+    check('بلا نت' in await pg.inner_text('#svNet'), 'شارة «بلا نت»')
+    await pg.click('#svMic'); await pg.wait_for_timeout(1300); await pg.click('#svMic'); await pg.wait_for_timeout(1200)
+    st = await pg.evaluate("SV._state.cur.openings.map(function(o){ return !!o.pendingAudio; })")
+    check(st == [False, True], 'بلا نت: فتحة جديدة والتسجيل محفوظ ' + str(st))
+    check('بانتظار' in await pg.inner_text('#svMain') or 'بيتفهم' in await pg.inner_text('#svMain'), 'مكتوب إنو التسجيل بانتظار النت')
+    await ctx.set_offline(False); await pg.evaluate("window.dispatchEvent(new Event('online'))"); await pg.wait_for_timeout(2000)
+    o = await pg.evaluate("SV._state.cur.openings.map(function(o){ return [o.room, o.w, o.h, !!o.pendingAudio]; })")
+    check(o[1] == ['الصالون', 900, 2100, False], 'رجع النت ← التسجيل انفهم لحالو ' + str(o))
+    # 📡 ليزر: بعد ما تكبس عالعرض، القياس بينزل فيه وبعدين بالارتفاع
+    oid = await pg.evaluate("SV._state.cur.openings[1].id")
+    await pg.evaluate(f"SV.focusField(document.querySelector('#op-{oid} input[data-f=w]'))")
+    await pg.evaluate("SV._laserValue(915)"); await pg.evaluate("SV._laserValue(2095)")
+    o = await pg.evaluate("[SV._state.cur.openings[1].w, SV._state.cur.openings[1].h]")
+    check(o == [915, 2095], 'الليزر: العرض وبعدين الارتفاع ' + str(o))
+    # − / + للعدد
+    await pg.click(f'#op-{oid} .step button >> nth=1'); await pg.click(f'#op-{oid} .step button >> nth=1')
+    check(await pg.evaluate("SV._state.cur.openings[1].qty") == 3, 'أسهم العدد')
+    # 🤖 صورة/مخطط
+    tmpimg = os.path.join(tempfile.gettempdir(), 'mz-plan.png'); open(tmpimg, 'wb').write(PNG)
+    await pg.set_input_files('#svAiFile', tmpimg); await pg.wait_for_timeout(1500)
+    txt = await pg.inner_text('#svModalBox')
+    check('لقيت بالمخطط 2' in txt and '1450' in txt, 'الذكاء الاصطناعي اقترح فتحتين ' + txt[:80])
+    await pg.click('#svModalBox [data-ai="1"]'); await pg.click('#svModalBox .btn >> text=ضيفهن'); await pg.wait_for_timeout(1200)
+    o = await pg.evaluate("SV._state.cur.openings.slice(2).map(function(o){ return [o.item && o.item.en, o.w, o.h, o.qty, o.room]; })")
+    check(o == [['Hinged Window', 1450, None, 3, 'الواجهة']], 'بس المختارة انضافت، مع المقاس المكتوب والعدد ' + str(o))
+    if os.environ.get('MZ_SHOT'): await pg.screenshot(path=os.environ['MZ_SHOT'] + '/survey.png', full_page=True)
+    # 💾 عالموبايل: بعد إعادة التحميل كل شي موجود
+    await pg.wait_for_timeout(600); await pg.reload(); await pg.wait_for_timeout(2500)
+    t = await pg.inner_text('#svMain')
+    check('أبو سامر' in t and '3 فتحة' in t, 'بعد إعادة التحميل الكشف محفوظ عالموبايل ' + t[:120])
+    await pg.click('.sv-list .card'); await pg.wait_for_timeout(600)
+    check(await pg.evaluate("SV._state.cur.openings.length") == 3, 'الفتحات رجعت')
+    await pg.wait_for_timeout(4500)
+    check(any(c[0] == 'save' for c in calls), 'نسخة انرفعت للسيرفر')
+    # 📄 حوّل لعرض سعر
+    await pg.click('.dock .btn >> text=حوّل لعرض سعر'); await pg.wait_for_timeout(9000)
+    check('index.html' in pg.url, 'انفتحت أداة عرض السعر')
+    rows = await pg.evaluate(ROWS)
+    cl = await pg.evaluate("document.getElementById('m-client').value")
+    check(rows[:2] == ['1200x1500', '915x2095'] and rows[2].startswith('1450x') and len(rows) == 3 and cl == 'أبو سامر', 'العرض انعبّى من الكشف ' + str((rows, cl)))
+    qty = await pg.evaluate("Array.from(document.querySelectorAll('#qty-rows tr')).filter(function(tr){return (tr.querySelector('.item-input')||{}).value}).map(function(tr){return tr.querySelector('.qty-input').value})")
+    check(qty == ['2', '3', '3'], 'الأعداد ' + str(qty))
+    check('الكشف بالموقع' in await pg.evaluate("document.body.innerText"), 'رسالة «من الكشف بالموقع»')
+    check(not errs, 'بلا أخطاء ' + str(errs[:3]))
+    await ctx.close()
+
+
 async def t_design_new_item_confirm(p, b, port):
     """🛠️ M-Q-260224: بند انضاف بالمصمم بالغلط (بيرغولا تانية) ما بيصير بند بعرض السعر بلا سؤال، واسمه مش Plan + Front"""
     print('• المصمم: بند جديد بلا صف ← سؤال قبل ما ينضاف لعرض السعر')
@@ -2984,7 +3069,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
