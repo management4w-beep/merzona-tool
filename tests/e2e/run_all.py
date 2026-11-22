@@ -572,6 +572,66 @@ async def t_survey(p, b, port):
     await ctx.close()
 
 
+async def t_cutplan(p, b, port):
+    """✂️ خطة القص والستيكرات (2026-11-22): الزجاج على ألواح المعمل والألمنيوم على القضبان بأقل هدر + ستيكر لكل قطعة"""
+    print('• ✂️ خطة القص (زجاج + ألمنيوم) والستيكرات')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    # الخوارزميات
+    r = await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2500)
+    sh = await pg.evaluate("(function(){ var r = cpPackSheets([{code:'A',name:'x',w:1600,h:1100,qty:6}], {sheetW:3210,sheetH:2250,gap:4,rotate:true}); return [r.sheets.length, r.sheets.map(function(s){return s.used.length}), r.tooBig.length]; })()")
+    check(sh == [2, [4, 2], 0], '6 قطع 1600×1100 ← لوحين (4 + 2) ' + str(sh))
+    sh = await pg.evaluate("(function(){ var r = cpPackSheets([{code:'A',name:'x',w:2200,h:3000,qty:1},{code:'B',name:'y',w:4000,h:500,qty:1}], {sheetW:3210,sheetH:2250,gap:4,rotate:true}); return [r.sheets.length, r.sheets[0].used[0].rot, r.tooBig.length]; })()")
+    check(sh == [1, True, 1], 'قطعة بتندار لتساع، والأكبر من اللوح بتنحكى ' + str(sh))
+    ov = await pg.evaluate("(function(){ var r = cpPackSheets([{code:'A',name:'x',w:700,h:900,qty:7},{code:'B',name:'y',w:1300,h:400,qty:5},{code:'C',name:'z',w:500,h:2100,qty:3}], {sheetW:3210,sheetH:2250,gap:4,rotate:true}); return r.sheets.map(function(s){ return s.used.map(function(a){ return [a.x,a.y,a.w,a.h]; }); }); })()")
+    bad = []
+    for shs in ov:
+        for i, a in enumerate(shs):
+            if a[0] < 0 or a[1] < 0 or a[0] + a[2] > 3210.01 or a[1] + a[3] > 2250.01: bad.append(('out', a))
+            for c in shs[i+1:]:
+                sep = max(c[0] - (a[0] + a[2]), a[0] - (c[0] + c[2]), c[1] - (a[1] + a[3]), a[1] - (c[1] + c[3]))
+                if sep < 4 - 0.01: bad.append(('near', a, c, sep))
+    check(not bad and sum(len(x) for x in ov) == 15, 'ولا قطعة فوق التانية ولا برّا اللوح وبينهن فراغ القص، وكل القطع انحطت ' + str(bad[:2]))
+    rnd = await pg.evaluate("(function(){ var bad = 0, lost = 0, seed = 7; function R(n){ seed = (seed * 16807) % 2147483647; return seed % n; } for(var t = 0; t < 40; t++){ var ps = [], tot = 0; for(var k = 0; k < 1 + R(8); k++){ var q = 1 + R(6); tot += q; ps.push({code:'P'+k, name:'x', w: 150 + R(2600), h: 150 + R(2000), qty: q}); } var r = cpPackSheets(ps, {sheetW:3210, sheetH:2250, gap:4, rotate: !!R(2)}); var n = r.tooBig.length; r.sheets.forEach(function(s){ n += s.used.length; s.used.forEach(function(a, i){ if(a.x < 0 || a.y < 0 || a.x + a.w > 3210.01 || a.y + a.h > 2250.01) bad++; s.used.forEach(function(c, j){ if(j <= i) return; var sep = Math.max(c.x - (a.x + a.w), a.x - (c.x + c.w), c.y - (a.y + a.h), a.y - (c.y + c.h)); if(sep < 3.99) bad++; }); }); }); if(n !== tot) lost++; } return [bad, lost]; })()")
+    check(rnd == [0, 0], '40 تجربة عشوائية: ولا تداخل ولا قطعة ضايعة ' + str(rnd))
+    br = await pg.evaluate("(function(){ var r = cpPackBars([{profile:'P1',name:'a',len:3000,qty:2},{profile:'P1',name:'b',len:2900,qty:1},{profile:'P1',name:'c',len:1000,qty:1},{profile:'P2',name:'d',len:7000,qty:1}], {bar:6000,kerf:4,trim:10}); return r.map(function(g){ return [g.profile, g.bars.length, g.bars.map(function(b){ return b.cuts.map(function(c){return c.len}); }), g.tooLong.length]; }); })()")
+    check(br == [['P1', 2, [[3000, 2900], [3000, 1000]], 0], ['P2', 0, [], 1]], 'القضبان: 3000+3000 ما بيساعوا بقضيب (الشفرة والأطراف) ← قضيبين، والأطول من القضيب بينحكى ' + str(br))
+    # من التصميم: شاور + هاندريل + بيرغولا
+    await pg.evaluate(ADD % json.dumps([[1350, 2200, 'Full Shower With Glass Door'], [6040, 1100, 'Glass Handrail for Balcony'], [4000, 3000, 'Aluminum Pergola']]))
+    await pg.fill('#m-ref', 'M-Q-260999'); await pg.fill('#m-client', 'أبو سامر')
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1500)
+    ids = await pg.evaluate("WD.__t.items().map(function(i){return i.id})")
+    await pg.evaluate(f"WD.__t.sel({ids[2]}); setShape('pergola')"); await pg.wait_for_timeout(300)
+    await pg.evaluate("openMfgSizesOverlay()"); await pg.wait_for_timeout(300)
+    await pg.click('#mfgSizesOverlay button >> text=خطة القص'); await pg.wait_for_timeout(600)
+    g = await pg.evaluate("__CP.glass.map(function(p){ return [p.name, p.w, p.h, p.qty]; })")
+    check(['ثابت يسار', 545, 2200, 1] in g and ['الباب', 795, 2200, 1] in g, 'قطع الشاور بعد خصم الجدار ' + str(g))
+    hr = [x for x in g if x[0] == 'لوح هاندريل']
+    check(hr and sum(x[3] for x in hr) >= 4 and all(x[2] == 1100 for x in hr), 'ألواح الهاندريل ' + str(hr))
+    bars = await pg.evaluate("__CP.bars.length")
+    check(bars > 0, 'قطع البيرغولا نزلت للقضبان ' + str(bars))
+    gs = await pg.inner_text('#cpGlassSum'); bs = await pg.inner_text('#cpBarsSum')
+    check(('لوح' in gs or 'ألواح' in gs) and 'الاستفادة' in gs and 'قضيب' in bs and 'الهدر' in bs, 'الملخص: ألواح وقضبان وهدر ' + gs[:80] + ' | ' + bs[:80])
+    check(await pg.locator('#cpBody .cp-sheet svg').count() >= 1 and await pg.locator('#cpBody .cp-bar svg').count() >= 1, 'رسمة لكل لوح ولكل قضيب')
+    # قطعة يدوية + بتنحفظ لنفس العرض
+    await pg.click('#cpBody button >> text=قطعة زجاج'); await pg.wait_for_timeout(300)
+    n = await pg.evaluate("__CP.glass.length")
+    await pg.fill(f'input[data-cp="glass:{n-1}:w"]', '1450'); await pg.dispatch_event(f'input[data-cp="glass:{n-1}:w"]', 'change'); await pg.wait_for_timeout(300)
+    await pg.evaluate("closeCutPlan(); openCutPlan()"); await pg.wait_for_timeout(400)
+    check(await pg.evaluate("__CP.glass.filter(function(p){return p.manual && p.w === 1450}).length") == 1, 'القطعة اليدوية انحفظت لهالعرض')
+    if os.environ.get('MZ_SHOT'): await pg.screenshot(path=os.environ['MZ_SHOT'] + '/cutplan.png', full_page=False)
+    # الستيكرات
+    html = await pg.evaluate("cpLabelsHTML()")
+    tot = await pg.evaluate("__CP.glass.filter(function(p){return !p.off}).reduce(function(a,p){return a+p.qty},0) + __CP.bars.filter(function(p){return !p.off}).reduce(function(a,p){return a+p.qty},0)")
+    check(html.count('class="lb"') == tot and (html.count('<svg') == tot or not await pg.evaluate("typeof qrcode !== 'undefined'")) and 'M-Q-260999' in html and 'أبو سامر' in html and '545 × 2200' in html, 'ستيكر لكل قطعة مع QR ورقم العرض والمقاس (' + str(tot) + ')')
+    async with pg.expect_popup() as pinfo:
+        await pg.evaluate("window.print = function(){}"); await pg.click('#cpOverlay button >> text=اطبع الستيكرات')
+    pop = await pinfo.value
+    await pop.wait_for_load_state(); check(await pop.locator('.lb').count() == tot, 'صفحة الطباعة فيها كل الستيكرات')
+    await pop.close()
+    check(not errs, 'بلا أخطاء ' + str(errs[:3]))
+    await ctx.close()
+
+
 async def t_design_new_item_confirm(p, b, port):
     """🛠️ M-Q-260224: بند انضاف بالمصمم بالغلط (بيرغولا تانية) ما بيصير بند بعرض السعر بلا سؤال، واسمه مش Plan + Front"""
     print('• المصمم: بند جديد بلا صف ← سؤال قبل ما ينضاف لعرض السعر')
@@ -3069,7 +3129,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()

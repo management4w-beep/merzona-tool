@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.3';
+  var CURRENT_VERSION = '2026-11-22.4';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -9436,6 +9436,7 @@ window.wdApplyBack = function(results){
   <div class="threeD-topbar">
     <span>📐 مقاسات التصنيع</span>
     <div style="display:flex; gap:8px;">
+      <button onclick="openCutPlan()" style="background:#1e8e3e; color:#fff; border:none; border-radius:7px; padding:8px 16px; font-size:13px; cursor:pointer; font-weight:600;" title="توزيع الزجاج على ألواح المعمل والألمنيوم على القضبان بأقل هدر + ستيكر لكل قطعة">✂️ خطة القص والستيكرات</button>
       <button onclick="printMfgSizes()" style="background:#0f88cd; color:#fff; border:none; border-radius:7px; padding:8px 16px; font-size:13px; cursor:pointer; font-weight:600;" title="بيطبع كل البنود على مقاس التصنيع المعدّل، بنفس حجم الورقة والهوامش وعدد البنود بالصفحة المضبوطين حاليًا بأدوات الطباعة العادية">🖨️ طباعة مقاسات التصنيع</button>
       <button class="camera-close-btn" onclick="closeMfgSizesOverlay()">✕ إغلاق</button>
     </div>
@@ -22605,6 +22606,283 @@ function closeMfgSizesOverlay(){
 }
 window.openMfgSizesOverlay = openMfgSizesOverlay;
 window.closeMfgSizesOverlay = closeMfgSizesOverlay;
+/* =====================================================================================
+   ✂️ خطة القص + 🏷️ ستيكرات القطع (2026-11-22) - طلب حمدي ("ضيف الميزات كلها": 1 تحسين القص، 2 ستيكرات)
+   من "📐 مقاسات التصنيع" ← "✂️ خطة القص والستيكرات":
+   - ألواح الزجاج: كل القطع (الشاور بعد خصم الجدار، ألواح الهاندريل، المرايات، ويلي بتضيفه بإيدك) بتتوزّع على ألواح
+     المعمل بأقل عدد ألواح (MaxRects مع تدوير)، مع فراغ القص. بيطلع كم لوح لازم تشتري ونسبة الهدر ورسمة لكل لوح.
+   - قضبان الألمنيوم: القطع (من قوائم القص يلي عنا متل البيرغولا + يلي بتضيفه) بتتوزّع على قضبان 6 متر بأقل هدر،
+     مع سماكة الشفرة والقص من الطرفين. بيطلع كم قضيب لكل بروفايل والهدر.
+   - ستيكر لكل قطعة: رقم العرض، الزبون، رمز البند، اسم القطعة، المقاس، وكود QR - بينطبع على A4 أو طابعة ليبلات.
+   ما بيغيّر أي شي بالعرض نفسه. القطع اليدوية والإعدادات بتنحفظ بهالجهاز لكل رقم عرض.
+   ===================================================================================== */
+const CP = { glass: [], bars: [], set: null };
+function cpRef(){ return ((document.getElementById('m-ref') || {}).value || '').trim() || 'بلا-رقم'; }
+function cpClient(){ return ((document.getElementById('m-client') || {}).value || '').trim(); }
+function cpLoadSet(){
+  let s = null; try{ s = JSON.parse(localStorage.getItem('mz-cutplan-set') || 'null'); }catch(e){}
+  return Object.assign({ sheetW: 3210, sheetH: 2250, gap: 4, rotate: true, bar: 6000, kerf: 4, trim: 10, label: 'a4' }, s || {});
+}
+function cpSaveSet(){ try{ localStorage.setItem('mz-cutplan-set', JSON.stringify(CP.set)); }catch(e){} }
+function cpManualKey(){ return 'mz-cutplan-manual:' + cpRef(); }
+function cpLoadManual(){ try{ return JSON.parse(localStorage.getItem(cpManualKey()) || 'null') || { glass: [], bars: [], off: {} }; }catch(e){ return { glass: [], bars: [], off: {} }; } }
+function cpSaveManual(){
+  const m = { glass: CP.glass.filter(p => p.manual), bars: CP.bars.filter(p => p.manual), off: {} };
+  CP.glass.concat(CP.bars).forEach(p => { if(!p.manual && p.off) m.off[p.key] = 1; });
+  try{ localStorage.setItem(cpManualKey(), JSON.stringify(m)); }catch(e){}
+}
+// القطع من التصميم
+function cpCollect(){
+  const glass = [], bars = [];
+  items.filter(it => !it.isCameraTemp && !it.mfgExcluded && (typeof isRoom !== 'function' || !isRoom(it))).forEach(it => {
+    const code = it.refCode || '', q = getPurchItemQty(it), lbl = it.label || '';
+    if(isShowerDoor(it)){
+      const mfg = getMfgSizeMm(it);
+      showerMfgPieces(it, mfg).pieces.forEach(p => glass.push({ key: it.id + ':' + p.k, code, item: lbl, name: p.name, w: p.w, h: p.h, qty: q }));
+    } else if(isHandrail(it)){
+      const g = hrPlanGeometry(it), H = Math.round(it.hrGlassHeight || it.height || 1200);
+      const by = {}; g.sides.forEach(d => { const w = Math.round(d.pw); by[w] = (by[w] || 0) + d.n; });
+      Object.keys(by).forEach(w => glass.push({ key: it.id + ':hr' + w, code, item: lbl, name: 'لوح هاندريل', w: +w, h: H, qty: by[w] * q }));
+    } else if(isMirror(it)){
+      glass.push({ key: it.id + ':m', code, item: lbl, name: 'مراية', w: Math.round(it.width), h: Math.round(it.height), qty: q });
+    }
+    if(isPergola(it)){
+      try{ (pgCalc(it).cut || []).forEach((c, i) => { if(c.len > 0 && c.n > 0) bars.push({ key: it.id + ':pg' + i, code, item: lbl, name: c.name + (c.size ? ' ' + c.size : ''), profile: (c.size || c.name), len: Math.round(c.len), qty: c.n * q, angle: 90 }); }); }catch(e){}
+    }
+  });
+  return { glass, bars };
+}
+function cpRefresh(){
+  const m = cpLoadManual(), c = cpCollect();
+  c.glass.forEach(p => { if(m.off[p.key]) p.off = true; }); c.bars.forEach(p => { if(m.off[p.key]) p.off = true; });
+  CP.glass = c.glass.concat((m.glass || []).map(p => Object.assign({}, p, { manual: true })));
+  CP.bars = c.bars.concat((m.bars || []).map(p => Object.assign({}, p, { manual: true })));
+}
+
+// ---- 2D: ألواح الزجاج (MaxRects - أفضل تطابق للضلع القصير، مع تدوير) ----
+// بنجرّب كذا ترتيب (ومع/بلا تدوير) ومناخد يلي بيطلع بأقل ألواح وأقل هدر
+function cpPackSheets(pieces, S){
+  const orders = [
+    (a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h) || (b.w * b.h) - (a.w * a.h),
+    (a, b) => (b.w * b.h) - (a.w * a.h),
+    (a, b) => b.h - a.h || b.w - a.w,
+    (a, b) => b.w - a.w || b.h - a.h,
+    (a, b) => Math.min(b.w, b.h) - Math.min(a.w, a.h) || (b.w * b.h) - (a.w * a.h),
+  ];
+  let best = null;
+  [S.rotate ? 'free' : 'none', S.rotate ? 'none' : null].filter(Boolean).forEach(rm => orders.forEach(o => {
+    const r = cpPackSheets1(pieces, Object.assign({}, S, { rotate: S.rotate, __pref: rm }), o);
+    if(!best || r.sheets.length < best.sheets.length || (r.sheets.length === best.sheets.length && r.lastUse > best.lastUse)) best = r;
+  }));
+  return best;
+}
+function cpPackSheets1(pieces, S, order){
+  const W = S.sheetW, H = S.sheetH, g = Math.max(0, +S.gap || 0);
+  const list = [];
+  pieces.forEach(p => { for(let k = 0; k < p.qty; k++) list.push({ p, n: k + 1, w: p.w, h: p.h }); });
+  const tooBig = list.filter(x => !((x.w <= W && x.h <= H) || (S.rotate && x.h <= W && x.w <= H)));
+  const todo = list.filter(x => tooBig.indexOf(x) < 0).sort(order);
+  const sheets = [];
+  function fitsNoRot(x){ return x.w <= W && x.h <= H; }
+  function place(sh, x){
+    let best = null;
+    sh.free.forEach(f => {
+      [[x.w, x.h, false], [x.h, x.w, true]].forEach(([w, h, rot]) => {
+        if(rot && (!S.rotate || x.w === x.h)) return;
+        // "none" = منفضّل بلا تدوير (بنقبل التدوير بس إذا ما في غيره)
+        if(rot && S.__pref === 'none' && fitsNoRot(x)) return;
+        const ww = w + g, hh = h + g;
+        // فراغ القص لازم بين كل قطعتين؛ بس عطرف اللوح نفسه ما في داعي
+        const atR = f.x + f.w >= W - 0.01, atB = f.y + f.h >= H - 0.01;
+        if(ww <= f.w + (atR ? g : 0) + 0.01 && hh <= f.h + (atB ? g : 0) + 0.01){
+          const sc = Math.min(f.w - w, f.h - h), sc2 = Math.max(f.w - w, f.h - h);
+          if(!best || sc < best.sc || (sc === best.sc && sc2 < best.sc2)) best = { f, w, h, rot, sc, sc2 };
+        }
+      });
+    });
+    if(!best) return false;
+    const r = { x: best.f.x, y: best.f.y, w: best.w, h: best.h, rot: best.rot, it: x };
+    sh.used.push(r);
+    const cut = { x: r.x, y: r.y, w: r.w + g, h: r.h + g };
+    const nf = [];
+    sh.free.forEach(f => {
+      if(cut.x >= f.x + f.w || cut.x + cut.w <= f.x || cut.y >= f.y + f.h || cut.y + cut.h <= f.y){ nf.push(f); return; }
+      if(cut.x > f.x) nf.push({ x: f.x, y: f.y, w: cut.x - f.x, h: f.h });
+      if(cut.x + cut.w < f.x + f.w) nf.push({ x: cut.x + cut.w, y: f.y, w: f.x + f.w - cut.x - cut.w, h: f.h });
+      if(cut.y > f.y) nf.push({ x: f.x, y: f.y, w: f.w, h: cut.y - f.y });
+      if(cut.y + cut.h < f.y + f.h) nf.push({ x: f.x, y: cut.y + cut.h, w: f.w, h: f.y + f.h - cut.y - cut.h });
+    });
+    sh.free = nf.filter((a, i) => a.w > 0 && a.h > 0 && !nf.some((b, j) => j !== i && b.x <= a.x && b.y <= a.y && b.x + b.w >= a.x + a.w && b.y + b.h >= a.y + a.h && (j < i || b.w * b.h > a.w * a.h)));
+    return true;
+  }
+  todo.forEach(x => {
+    if(sheets.some(sh => place(sh, x))) return;
+    const sh = { free: [{ x: 0, y: 0, w: W, h: H }], used: [] }; sheets.push(sh); place(sh, x);
+  });
+  const area = sheets.reduce((a, sh) => a + sh.used.reduce((b, r) => b + r.w * r.h, 0), 0);
+  const last = sheets[sheets.length - 1];
+  return { sheets, tooBig, used: area, total: sheets.length * W * H, lastUse: last ? -last.used.reduce((b, r) => b + r.w * r.h, 0) : 0 };
+}
+// ---- 1D: قضبان الألمنيوم (أول قضيب بيساع - بعد الترتيب من الأطول) ----
+function cpPackBars(pieces, S){
+  const groups = {};
+  pieces.forEach(p => { const k = String(p.profile || p.name || 'بروفايل').trim(); (groups[k] = groups[k] || []).push(p); });
+  const usable = S.bar - 2 * (+S.trim || 0), kerf = +S.kerf || 0;
+  return Object.keys(groups).map(k => {
+    const list = []; groups[k].forEach(p => { for(let i = 0; i < p.qty; i++) list.push({ p, len: p.len }); });
+    const tooLong = list.filter(x => x.len > usable); const todo = list.filter(x => x.len <= usable).sort((a, b) => b.len - a.len);
+    const bars = [];
+    todo.forEach(x => {
+      let b = null, bestLeft = Infinity;
+      bars.forEach(bb => { const left = usable - bb.used - (bb.cuts.length ? kerf : 0) - x.len; if(left >= 0 && left < bestLeft){ bestLeft = left; b = bb; } });
+      if(!b){ b = { cuts: [], used: 0 }; bars.push(b); }
+      b.used += (b.cuts.length ? kerf : 0) + x.len; b.cuts.push(x);
+    });
+    const net = list.filter(x => x.len <= usable).reduce((a, x) => a + x.len, 0);
+    return { profile: k, bars, tooLong, net, total: bars.length * S.bar };
+  });
+}
+
+// ---- الواجهة ----
+function cpEnsureOverlay(){
+  let ov = document.getElementById('cpOverlay'); if(ov) return ov;
+  ov = document.createElement('div'); ov.id = 'cpOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100050;background:#eef2f6;overflow:auto;display:none;direction:rtl;font-family:inherit;';
+  ov.innerHTML = '<div class="threeD-topbar" style="position:sticky;top:0;z-index:2"><span>✂️ خطة القص والستيكرات</span><div style="display:flex;gap:8px;flex-wrap:wrap">' +
+    '<button type="button" onclick="cpPrint(\'plan\')" style="background:#0f88cd;color:#fff;border:0;border-radius:7px;padding:8px 14px;font-weight:600;cursor:pointer">🖨️ اطبع الخطة</button>' +
+    '<button type="button" onclick="cpPrint(\'labels\')" style="background:#1e8e3e;color:#fff;border:0;border-radius:7px;padding:8px 14px;font-weight:600;cursor:pointer">🏷️ اطبع الستيكرات</button>' +
+    '<button type="button" class="camera-close-btn" onclick="closeCutPlan()">✕ إغلاق</button></div></div><div id="cpBody" style="max-width:1000px;margin:0 auto;padding:16px 14px 60px"></div>';
+  document.body.appendChild(ov); return ov;
+}
+function openCutPlan(){ CP.set = cpLoadSet(); cpRefresh(); cpEnsureOverlay().style.display = 'block'; cpRender(); }
+function closeCutPlan(){ const ov = document.getElementById('cpOverlay'); if(ov) ov.style.display = 'none'; }
+const cpE = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+function cpNum(v){ const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) ? n : 0; }
+function cpRender(){
+  const S = CP.set, el = document.getElementById('cpBody'); if(!el) return;
+  const box = (t, h) => '<div style="background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.06)"><h3 style="margin:0 0 10px;font-size:17px">' + t + '</h3>' + h + '</div>';
+  const inp = (k, w, step) => '<input type="number" ' + (step ? 'step="' + step + '" ' : '') + 'value="' + cpE(S[k]) + '" style="width:' + (w || 80) + 'px;padding:5px;border:1px solid #cfd8dc;border-radius:6px" onchange="cpSet(\'' + k + '\',this.value)">';
+  // الزجاج
+  const G = CP.glass.filter(p => !p.off && p.w > 0 && p.h > 0 && p.qty > 0);
+  const gr = cpPackSheets(G, S); CP.lastGlass = gr;
+  let h = '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:13px;margin-bottom:10px">لوح المعمل: ' + inp('sheetW') + ' × ' + inp('sheetH') + ' مم · فراغ القص ' + inp('gap', 60) + ' مم · <label><input type="checkbox" ' + (S.rotate ? 'checked' : '') + ' onchange="cpSet(\'rotate\',this.checked)"> مسموح ندوّر القطعة</label></div>';
+  h += cpTable('glass', ['', 'البند', 'القطعة', 'العرض', 'الارتفاع', 'العدد', ''], CP.glass.map((p, i) => [
+    '<input type="checkbox" ' + (p.off ? '' : 'checked') + ' onchange="cpRow(\'glass\',' + i + ',\'off\',!this.checked)">', cpE(p.code), cpCell('glass', i, 'name', p.name, 150, p.manual), cpCell('glass', i, 'w', p.w, 70, true), cpCell('glass', i, 'h', p.h, 70, true), cpCell('glass', i, 'qty', p.qty, 50, true),
+    p.manual ? '<button type="button" onclick="cpDel(\'glass\',' + i + ')" style="border:0;background:none;cursor:pointer">🗑️</button>' : '']));
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><button type="button" onclick="cpAdd(\'glass\')" class="cp-b">➕ قطعة زجاج</button><button type="button" onclick="cpAddAllItems()" class="cp-b" title="كل بند (شباك، باب...) كلوح واحد بمقاس التصنيع - عدّل بعدين">➕ ضيف البنود التانية بمقاس التصنيع</button></div>';
+  const pieces = G.reduce((a, p) => a + p.qty, 0);
+  h += '<div class="cp-sum" id="cpGlassSum">' + (G.length ? '🧮 <b>' + gr.sheets.length + '</b> ' + (gr.sheets.length === 1 ? 'لوح' : 'ألواح') + ' ' + S.sheetW + '×' + S.sheetH + ' لـ ' + pieces + ' قطعة · الاستفادة <b>' + (gr.total ? Math.round(gr.used / gr.total * 100) : 0) + '%</b> · الهدر ' + ((gr.total - gr.used) / 1e6).toFixed(2) + ' م²' : 'ما في قطع زجاج — ضيف قطعة أو بنود.') +
+    (gr.tooBig.length ? '<div style="color:#c62828">⚠️ ' + gr.tooBig.length + ' قطعة أكبر من اللوح: ' + gr.tooBig.map(x => cpE(x.p.code + ' ' + x.w + '×' + x.h)).join('، ') + '</div>' : '') + '</div>';
+  h += '<div class="cp-sheets">' + gr.sheets.map((sh, i) => cpSheetSVG(sh, i, S)).join('') + '</div>';
+  let out = box('🪟 ألواح الزجاج', h);
+  // الألمنيوم
+  const B = CP.bars.filter(p => !p.off && p.len > 0 && p.qty > 0);
+  const br = cpPackBars(B, S); CP.lastBars = br;
+  h = '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:13px;margin-bottom:10px">طول القضيب: ' + inp('bar') + ' مم · سماكة الشفرة ' + inp('kerf', 60) + ' مم · قص من كل طرف ' + inp('trim', 60) + ' مم</div>';
+  h += cpTable('bars', ['', 'البند', 'البروفايل', 'القطعة', 'الطول', 'العدد', 'الزاوية', ''], CP.bars.map((p, i) => [
+    '<input type="checkbox" ' + (p.off ? '' : 'checked') + ' onchange="cpRow(\'bars\',' + i + ',\'off\',!this.checked)">', cpE(p.code), cpCell('bars', i, 'profile', p.profile, 120, true), cpCell('bars', i, 'name', p.name, 150, p.manual), cpCell('bars', i, 'len', p.len, 70, true), cpCell('bars', i, 'qty', p.qty, 50, true),
+    '<select onchange="cpRow(\'bars\',' + i + ',\'angle\',+this.value)"><option value="90"' + (p.angle == 45 ? '' : ' selected') + '>90°</option><option value="45"' + (p.angle == 45 ? ' selected' : '') + '>45°</option></select>',
+    p.manual ? '<button type="button" onclick="cpDel(\'bars\',' + i + ')" style="border:0;background:none;cursor:pointer">🗑️</button>' : '']));
+  h += '<div style="margin:8px 0"><button type="button" onclick="cpAdd(\'bars\')" class="cp-b">➕ قطعة ألمنيوم</button> <span style="font-size:12px;color:#6b7d8c">القطع ٤٥° قيسها من الرأس الطويل.</span></div>';
+  h += '<div class="cp-sum" id="cpBarsSum">' + (br.length ? br.map(g => '🧮 <b>' + cpE(g.profile) + '</b>: <b>' + g.bars.length + '</b> قضيب ' + (S.bar / 1000) + ' م · الهدر ' + Math.round((g.total - g.net) / 10) / 100 + ' م (' + (g.total ? Math.round((g.total - g.net) / g.total * 100) : 0) + '%)' + (g.tooLong.length ? ' <span style="color:#c62828">⚠️ ' + g.tooLong.length + ' قطعة أطول من القضيب</span>' : '')).join('<br>') : 'ما في قطع ألمنيوم — ضيف قطع (البيرغولا بتنزل لحالها).') + '</div>';
+  h += br.map(g => g.bars.map((b, i) => cpBarSVG(g, b, i, S)).join('')).join('');
+  out += box('📏 قضبان الألمنيوم', h);
+  out += box('🏷️ الستيكرات', '<div style="font-size:13px;margin-bottom:8px">ستيكر لكل قطعة (' + (pieces + B.reduce((a, p) => a + p.qty, 0)) + ' ستيكر): رقم العرض، الزبون، رمز البند، القطعة، المقاس، وكود QR.</div>' +
+    '<label style="font-size:13px">المقاس: <select onchange="cpSet(\'label\',this.value)"><option value="a4"' + (S.label === 'a4' ? ' selected' : '') + '>ورقة A4 (3×7 ستيكر)</option><option value="60x40"' + (S.label === '60x40' ? ' selected' : '') + '>طابعة ليبلات 60×40 مم</option><option value="100x50"' + (S.label === '100x50' ? ' selected' : '') + '>طابعة ليبلات 100×50 مم</option></select></label>');
+  el.innerHTML = '<style>.cp-b{border:0;background:#e8f1f8;color:#12324a;border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:600}.cp-sum{background:#f4f8fb;border-radius:8px;padding:10px;font-size:13.5px;margin:8px 0;line-height:1.8}.cp-t{width:100%;border-collapse:collapse;font-size:13px}.cp-t td,.cp-t th{border-bottom:1px solid #eceff1;padding:4px;text-align:right}.cp-t input[type=text],.cp-t input[type=number]{padding:4px;border:1px solid #cfd8dc;border-radius:5px}#cpBody{color:#12324a}#cpBody input[type=text],#cpBody input[type=number],#cpBody select{background:#fff!important;color:#12324a!important;border:1px solid #cfd8dc;border-radius:6px}#cpBody label{color:#12324a}#cpBody svg text{font-family:Tajawal,Cairo,Arial,sans-serif;letter-spacing:0}</style>' + out;
+}
+function cpTable(kind, head, rows){
+  return '<div style="overflow-x:auto"><table class="cp-t" data-kind="' + kind + '"><tr>' + head.map(x => '<th>' + x + '</th>').join('') + '</tr>' + rows.map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('') + '</table></div>';
+}
+function cpCell(kind, i, k, v, w, edit){
+  if(!edit) return cpE(v);
+  const isNum = k !== 'name' && k !== 'profile';
+  return '<input type="' + (isNum ? 'number' : 'text') + '" data-cp="' + kind + ':' + i + ':' + k + '" value="' + cpE(v) + '" style="width:' + w + 'px" onchange="cpRow(\'' + kind + '\',' + i + ',\'' + k + '\',this.value)">';
+}
+function cpSet(k, v){ CP.set[k] = (k === 'rotate') ? !!v : (k === 'label' ? v : Math.max(0, cpNum(v))); if(k === 'sheetW' || k === 'sheetH' || k === 'bar') CP.set[k] = Math.max(100, CP.set[k]); cpSaveSet(); cpRender(); }
+function cpRow(kind, i, k, v){
+  const p = CP[kind][i]; if(!p) return;
+  if(k === 'off') p.off = !!v;
+  else if(k === 'name' || k === 'profile') p[k] = String(v || '').slice(0, 80);
+  else if(k === 'angle') p.angle = v;
+  else p[k] = Math.max(0, Math.round(cpNum(v)));
+  if(!p.manual && k !== 'off'){ p.manual = true; p.key = 'm' + Date.now() + i; } // تعديل قطعة من التصميم ← بتصير يدوية (التصميم ما بيتغيّر)
+  cpSaveManual(); cpRender();
+}
+function cpAdd(kind){
+  if(kind === 'glass') CP.glass.push({ manual: true, key: 'm' + Date.now(), code: '', item: '', name: 'قطعة زجاج', w: 1000, h: 1000, qty: 1 });
+  else CP.bars.push({ manual: true, key: 'm' + Date.now(), code: '', item: '', profile: 'بروفايل', name: 'قطعة', len: 1000, qty: 1, angle: 90 });
+  cpSaveManual(); cpRender();
+}
+function cpDel(kind, i){ CP[kind].splice(i, 1); cpSaveManual(); cpRender(); }
+function cpAddAllItems(){
+  const have = new Set(CP.glass.map(p => String(p.key).split(':')[0]));
+  let n = 0;
+  items.filter(it => !it.isCameraTemp && !it.mfgExcluded && !isShowerDoor(it) && !isHandrail(it) && !isMirror(it) && !isPergola(it) && (typeof isRoom !== 'function' || !isRoom(it)) && !have.has('x' + it.id)).forEach(it => {
+    const m = getMfgSizeMm(it); if(!(m.w > 0 && m.h > 0)) return;
+    CP.glass.push({ manual: true, key: 'x' + it.id + ':' + Date.now(), code: it.refCode || '', item: it.label || '', name: it.label || 'لوح', w: m.w, h: m.h, qty: getPurchItemQty(it) }); n++;
+  });
+  cpSaveManual(); cpRender();
+  if(!n) alert('ما في بنود تانية بمقاسات (أو انضافوا من قبل).');
+}
+const CP_COLORS = ['#bbdefb', '#c8e6c9', '#ffe0b2', '#e1bee7', '#b2ebf2', '#f8bbd0', '#dcedc8', '#ffccbc'];
+function cpSheetSVG(sh, i, S){
+  const k = 760 / S.sheetW, W = S.sheetW * k, H = S.sheetH * k;
+  let g = '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#f1f4f6" stroke="#607d8b" stroke-width="1.5"/>';
+  const codes = []; sh.used.forEach(r => { const c = r.it.p.code + r.it.p.name; if(codes.indexOf(c) < 0) codes.push(c); });
+  sh.used.forEach(r => {
+    const col = CP_COLORS[codes.indexOf(r.it.p.code + r.it.p.name) % CP_COLORS.length];
+    const x = r.x * k, y = r.y * k, w = r.w * k, h = r.h * k, fs = Math.max(8, Math.min(13, Math.min(w, h) / 4));
+    g += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + col + '" stroke="#37474f" stroke-width="1"/>';
+    if(w > 30 && h > 18) g += '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (y + h / 2).toFixed(1) + '" font-size="' + fs.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" fill="#102a3a" font-weight="700"><tspan x="' + (x + w / 2).toFixed(1) + '" dy="-0.5em">' + cpE(r.it.p.code || '') + ' ' + cpE(r.it.p.name) + '</tspan><tspan x="' + (x + w / 2).toFixed(1) + '" dy="1.2em">\u202A' + r.it.p.w + '×' + r.it.p.h + '\u202C' + (r.rot ? ' ↻' : '') + '</tspan></text>';
+  });
+  const used = sh.used.reduce((a, r) => a + r.w * r.h, 0);
+  return '<div class="cp-sheet" style="margin:10px 0;break-inside:avoid"><div style="font-size:13px;font-weight:700;margin-bottom:4px">لوح ' + (i + 1) + ' — ' + sh.used.length + ' قطعة · استفادة ' + Math.round(used / (S.sheetW * S.sheetH) * 100) + '%</div><svg viewBox="0 0 ' + W.toFixed(0) + ' ' + H.toFixed(0) + '" style="width:100%;max-width:760px;background:#fff" xmlns="http://www.w3.org/2000/svg">' + g + '</svg></div>';
+}
+function cpBarSVG(gp, b, i, S){
+  const k = 760 / S.bar, trim = (+S.trim || 0) * k, kerf = (+S.kerf || 0) * k; let x = trim, g = '';
+  g += '<rect x="0" y="0" width="760" height="30" fill="#eceff1" stroke="#607d8b"/>';
+  b.cuts.forEach((c, j) => {
+    const w = c.len * k; const col = CP_COLORS[j % CP_COLORS.length];
+    g += '<rect x="' + x.toFixed(1) + '" y="0" width="' + w.toFixed(1) + '" height="30" fill="' + col + '" stroke="#37474f"/>';
+    if(w > 34) g += '<text x="' + (x + w / 2).toFixed(1) + '" y="19" font-size="11" text-anchor="middle" fill="#102a3a" font-weight="700">' + c.len + (c.p.angle == 45 ? '∠' : '') + '</text>';
+    x += w + kerf;
+  });
+  const left = S.bar - 2 * (+S.trim || 0) - b.used;
+  return '<div class="cp-bar" style="margin:6px 0;break-inside:avoid"><div style="font-size:12px">' + cpE(gp.profile) + ' — قضيب ' + (i + 1) + ': ' + b.cuts.map(c => c.len).join(' + ') + ' · الباقي ' + Math.round(left) + ' مم</div><svg viewBox="0 0 760 30" style="width:100%;max-width:760px" xmlns="http://www.w3.org/2000/svg">' + g + '</svg></div>';
+}
+// ---- الطباعة ----
+function cpLabels(){
+  const out = [], ref = cpRef(), cl = cpClient();
+  CP.glass.filter(p => !p.off && p.qty > 0 && p.w > 0).forEach(p => { for(let k = 1; k <= p.qty; k++) out.push({ ref, cl, code: p.code, name: p.name, size: p.w + ' × ' + p.h, n: k, of: p.qty, kind: 'زجاج' }); });
+  CP.bars.filter(p => !p.off && p.qty > 0 && p.len > 0).forEach(p => { for(let k = 1; k <= p.qty; k++) out.push({ ref, cl, code: p.code, name: p.profile + ' · ' + p.name, size: p.len + (p.angle == 45 ? ' (45°)' : ''), n: k, of: p.qty, kind: 'ألمنيوم' }); });
+  return out;
+}
+function cpQR(text){
+  try{ if(typeof qrcode === 'undefined') return ''; const q = qrcode(0, 'M'); q.addData(unescape(encodeURIComponent(text))); q.make(); return q.createSvgTag({ cellSize: 2, margin: 0, scalable: true }); }catch(e){ return ''; }
+}
+function cpLabelsHTML(){
+  const S = CP.set, L = cpLabels();
+  const dims = S.label === '60x40' ? [60, 40] : S.label === '100x50' ? [100, 50] : [70, 42.3];
+  const page = S.label === 'a4' ? '@page{size:A4;margin:0}body{margin:0}.lw{display:grid;grid-template-columns:repeat(3,70mm);grid-auto-rows:42.3mm}' : '@page{size:' + dims[0] + 'mm ' + dims[1] + 'mm;margin:0}body{margin:0}.lb{page-break-after:always}';
+  const css = page + '.lb{width:' + dims[0] + 'mm;height:' + dims[1] + 'mm;box-sizing:border-box;padding:2.5mm 3mm;display:flex;gap:2mm;align-items:center;overflow:hidden;font-family:Tajawal,Arial,sans-serif;direction:rtl;border:' + (S.label === 'a4' ? '0.2mm dashed #bbb' : '0') + '}.lb .q{width:' + (dims[1] - 9) + 'mm;height:' + (dims[1] - 9) + 'mm;flex:0 0 auto}.lb .q svg{width:100%;height:100%}.lb .t{flex:1;min-width:0;font-size:' + (dims[1] < 45 ? 8.5 : 10) + 'pt;line-height:1.25}.lb .s{font-size:' + (dims[1] < 45 ? 14 : 17) + 'pt;font-weight:800;direction:ltr;text-align:right}.lb .c{font-weight:800}.lb .m{color:#555;font-size:7.5pt}';
+  return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>ستيكرات ' + cpE(cpRef()) + '</title><style>' + css + '</style></head><body><div class="lw">' + L.map(l =>
+    '<div class="lb"><div class="q">' + cpQR([l.ref, l.code, l.name, l.size, l.n + '/' + l.of].join(' | ')) + '</div><div class="t"><div class="c">' + cpE(l.code ? l.code + ' · ' : '') + cpE(l.name) + '</div><div class="s">' + cpE(l.size) + '</div><div class="m">' + cpE(l.ref) + (l.cl ? ' · ' + cpE(l.cl) : '') + ' · ' + l.kind + ' ' + l.n + '/' + l.of + '</div></div></div>').join('') + '</div></body></html>';
+}
+function cpPlanHTML(){
+  const b = document.getElementById('cpBody').cloneNode(true);
+  b.querySelectorAll('input,select,button').forEach(x => { if(x.tagName === 'BUTTON'){ x.remove(); return; } const s = document.createElement('span'); s.textContent = x.type === 'checkbox' ? (x.checked ? '✓' : '✗') : (x.tagName === 'SELECT' ? x.options[x.selectedIndex].text : x.value); x.replaceWith(s); });
+  return '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>خطة القص ' + cpE(cpRef()) + '</title><style>body{font-family:Tajawal,Arial,sans-serif;margin:10mm}@page{size:A4;margin:8mm}h3{margin:6px 0}</style></head><body><h2>✂️ خطة القص — ' + cpE(cpRef()) + (cpClient() ? ' · ' + cpE(cpClient()) : '') + '</h2>' + b.innerHTML + '</body></html>';
+}
+function cpPrint(kind){
+  const html = kind === 'labels' ? cpLabelsHTML() : cpPlanHTML();
+  if(kind === 'labels' && !cpLabels().length){ alert('ما في قطع لستيكرات.'); return; }
+  const w = window.open('', '_blank'); if(!w){ alert('المتصفح منع فتح نافذة الطباعة - اسمح بالنوافذ المنبثقة.'); return; }
+  w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try{ w.focus(); w.print(); }catch(e){} }, 400);
+}
+Object.assign(window, { openCutPlan, closeCutPlan, cpSet, cpRow, cpAdd, cpDel, cpAddAllItems, cpPrint, cpPackSheets, cpPackBars, cpLabelsHTML, cpRefresh });
+window.__CP = CP;
+
 
 // expose all top-level functions so inline onclick="..." HTML attributes (which run in global scope) can find them
 window.isSlidingType = isSlidingType;
