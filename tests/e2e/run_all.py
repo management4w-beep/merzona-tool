@@ -715,10 +715,25 @@ async def t_techcat(p, b, port):
     check(all(await pg.evaluate("Array.from(document.querySelectorAll('section.sys')).map(function(s){ return !!s.querySelector('figure'); })")), 'كل نظام إلو مقطع/رسمة')
     check(await pg.locator('.toc a').count() == n, 'فهرس فيه كل الأنظمة')
     await ctx.close()
+    # ⛔ إطفاء/تشغيل الأنظمة
+    ctx = await new_ctx(p, b); posted = []; state = {'hidden': ['MZ-SL-01', 'MZ-CW-06']}
+    async def tcs(route):
+        if route.request.method == 'POST': posted.append(json.loads(route.request.post_data)); state['hidden'] = posted[-1]['hidden']
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps({'hidden': state['hidden']}))
+    await ctx.route(SRV + '/public/techcat-settings', tcs); await ctx.route(SRV + '/techcat-settings', tcs)
+    pg = await ctx.new_page(); await pg.goto(f'http://127.0.0.1:{port}/techcat.html'); await pg.wait_for_timeout(1500)
+    check(await pg.locator('section.sys').count() == n - 2 and await pg.locator('#MZ-SL-01').count() == 0 and 'MZ-CW-06' not in await pg.inner_text('.toc'), 'الأنظمة المطفية ما بتطلع للزبون (ولا بالفهرس)')
+    await pg.goto(f'http://127.0.0.1:{port}/techcat.html#manage'); await pg.reload(); await pg.wait_for_timeout(1500)
+    check(await pg.locator('section.sys').count() == n and await pg.locator('#MZ-SL-01.off').count() == 1 and await pg.locator('.tc-sw').count() == n, 'وضع الإدارة: كل الأنظمة مع مفتاح، والمطفي باهت')
+    await pg.click('#MZ-SL-01 .tc-sw input'); await pg.click('#MZ-HG-02 .tc-sw input'); await pg.wait_for_timeout(600)
+    check(posted and sorted(posted[-1]['hidden']) == ['MZ-CW-06', 'MZ-HG-02'] and '✅' in await pg.inner_text('#tcMsg'), 'التشغيل والإطفاء بينحفظ عالسيرفر ' + str(posted[-1:]))
+    pg2 = await ctx.new_page(); await pg2.goto(f'http://127.0.0.1:{port}/techcat.html'); await pg2.wait_for_timeout(1500)
+    check(await pg2.locator('#MZ-SL-01').count() == 1 and await pg2.locator('#MZ-HG-02').count() == 0, 'الزبون بيشوف التعديل فوراً')
+    await ctx.close()
     ctx = await new_ctx(p, b); pd = await ctx.new_page()
     await pd.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pd.wait_for_timeout(3000)
     await pd.click('#catalogsTabBtn'); await pd.wait_for_timeout(800)
-    check(await pd.is_visible('#techCatPanel') and await pd.get_attribute('#techCatOpen', 'href') == 'techcat.html', 'زر الكتالوج الفني بقسم الكتالوجات')
+    check(await pd.is_visible('#techCatPanel') and await pd.get_attribute('#techCatOpen', 'href') == 'techcat.html' and await pd.get_attribute('#techCatManage', 'href') == 'techcat.html#manage', 'زر الكتالوج الفني بقسم الكتالوجات')
     check(not errs, 'بلا أخطاء ' + str(errs[:3]))
     await ctx.close()
 

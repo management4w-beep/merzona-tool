@@ -76,6 +76,10 @@ figcaption .sch{color:var(--gold);font-weight:600}
 @media(max-width:640px){.gl{grid-template-columns:1fr}}
 .gl b{display:block}
 .foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--muted)}
+.tc-sw{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;background:var(--soft);border:1px solid var(--line);border-radius:99px;padding:5px 12px;cursor:pointer;margin-top:4px}
+.tc-sw input{width:18px;height:18px}
+section.sys.off{opacity:.45}
+section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 .zoom{position:fixed;inset:0;background:rgba(10,20,28,.88);z-index:50;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
 .zoom img{max-width:100%;max-height:100%;background:#fff;border-radius:6px}
 @media print{
@@ -104,6 +108,11 @@ figcaption .sch{color:var(--gold);font-weight:600}
 (function(){
 'use strict';
 const CATALOG_IMAGES_DIR = 'catalog-images/';
+const SERVER = 'https://merzona-server-production.up.railway.app';
+// 🆕 2026-11-22 (حمدي: "بدي يكون عندي قابلية طفي وشغل البنود بالكتالوج"): الأنظمة المطفية ما بتطلع للزبون.
+// techcat.html#manage = وضع الإدارة (من الداشبورد): مفتاح تشغيل/إطفاء لكل نظام، بينحفظ عالسيرفر.
+let HIDDEN = new Set(); const MANAGE = /[#&]manage\b/.test(location.hash || '');
+function ls(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
 const IMG = (f) => CATALOG_IMAGES_DIR + 'tc/' + f.replace(/\.(png|jpe?g)$/i, '') + '.jpg';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
@@ -321,35 +330,56 @@ function sysHTML(s){
 }
 function render(){
   const c = co(), name = c.nameEn || 'Merzona', nameAr = c.nameAr || 'ميرزونا';
-  const total = CATS.reduce((a, k) => a + k.sys.length, 0);
+  const VC = CATS.map(k => Object.assign({}, k, { sys: MANAGE ? k.sys : k.sys.filter(s => !HIDDEN.has(s.code)) })).filter(k => k.sys.length);
+  const total = VC.reduce((a, k) => a + k.sys.length, 0);
   document.title = name + ' — الكتالوج الفني | Technical Catalogue';
   let h = '<div class="page cover"><div><img class="logo" data-co-logo src="' + esc(c.logo || 'img/logo.png') + '" alt="Merzona logo"></div>' +
     '<div><h1>الكتالوج الفني لأنظمة الألمنيوم والزجاج<small>Aluminium & Glass Systems — Technical Catalogue</small></h1>' +
     '<p class="lead">مرجع فني للمهندسين والاستشاريين: ' + total + ' نظاماً مع المقاطع والأبعاد والتزجيج والأداء والتشطيبات، من كتالوجات المصنّعين المعتمدة. للتصميم الأولي واختيار النظام المناسب لكل فتحة.</p>' +
-    '<div class="cats">' + CATS.map(k => '<span>' + esc(k.ar) + '</span>').join('') + '</div></div>' +
+    '<div class="cats">' + VC.map(k => '<span>' + esc(k.ar) + '</span>').join('') + '</div></div>' +
     '<div class="meta"><span>' + esc(nameAr) + ' · ' + esc(c.fullNameEn || name) + '</span>' + (c.cities ? '<span>📍 ' + esc(c.cities) + '</span>' : '') + (c.phone ? '<span dir="ltr">☎ ' + esc(c.whatsapp || c.phone) + '</span>' : '') + (c.email ? '<span dir="ltr">✉ ' + esc(c.email) + '</span>' : '') + '<span>إصدار ' + new Date().getFullYear() + '</span></div></div>';
-  h += '<div class="page toc"><h2 class="cat">المحتويات <span class="en">Contents</span></h2><ol>' + CATS.map(k => '<li><b>' + esc(k.ar) + '</b> <small>' + esc(k.en) + '</small><ul style="padding-right:16px;margin:2px 0 8px;font-size:13px">' + k.sys.map(s => '<li><a href="#' + esc(s.code) + '">' + esc(s.code) + ' — ' + esc(s.ar) + '</a></li>').join('') + '</ul></li>').join('') + '</ol>' +
+  h += '<div class="page toc"><h2 class="cat">المحتويات <span class="en">Contents</span></h2><ol>' + VC.map(k => '<li><b>' + esc(k.ar) + '</b> <small>' + esc(k.en) + '</small><ul style="padding-right:16px;margin:2px 0 8px;font-size:13px">' + k.sys.map(s => '<li><a href="#' + esc(s.code) + '">' + esc(s.code) + ' — ' + esc(s.ar) + '</a></li>').join('') + '</ul></li>').join('') + '</ol>' +
     '<h2 class="cat" style="margin-top:26px">مصطلحات ومعايير <span class="en">Glossary & standards</span></h2><div class="gl" style="margin-top:12px">' +
     '<div><b>Uw — معامل الانتقال الحراري للفتحة</b>كل ما قلّ الرقم كان العزل أفضل (W/m²K).</div><div><b>Thermal break — عازل حراري</b>شريط بولي أميد بيفصل الألمنيوم الداخلي عن الخارجي.</div>' +
     '<div><b>ASTM E283 / E331 / E330</b>اختبارات تسرب الهواء، تسرب المياه، والأداء الإنشائي تحت ضغط الرياح.</div><div><b>DIN ENV 1627 — WK2</b>تصنيف مقاومة الاقتحام.</div>' +
     '<div><b>SSG — تزجيج إنشائي</b>الزجاج ملصوق بسيليكون إنشائي بلا أغطية ظاهرة.</div><div><b>Qualicoat / Qualanod</b>شهادات جودة الدهان البودرة والأنودايز.</div></div>' +
     '<div class="note">القيم بهالكتالوج مأخوذة من كتالوجات المصنّعين الرسمية لكل نظام، وهي للتصميم الأولي واختيار النظام. المقاطع النهائية وسماكات الزجاج والتقويات بتتحدّد لكل مشروع حسب المقاسات والأحمال والحسابات الإنشائية، وبتنعطى بمخططات التصنيع (Shop drawings). الرسومات المكتوب عليها «مقطع توضيحي» مبسّطة وليست بمقياس.</div></div>';
-  CATS.forEach(k => { h += '<div class="page" id="cat-' + k.id + '"><h2 class="cat">' + esc(k.ar) + ' <span class="en">' + esc(k.en) + '</span></h2><p class="cat-intro">' + esc(k.intro) + '</p>' + k.sys.map(sysHTML).join('') + '</div>'; });
+  VC.forEach(k => { h += '<div class="page" id="cat-' + k.id + '"><h2 class="cat">' + esc(k.ar) + ' <span class="en">' + esc(k.en) + '</span></h2><p class="cat-intro">' + esc(k.intro) + '</p>' + k.sys.map(sysHTML).join('') + '</div>'; });
   h += '<div class="page"><h2 class="cat">التشطيبات والخدمات <span class="en">Finishes & services</span></h2><div class="gl" style="margin-top:14px">' +
     '<div><b>دهان بودرة — Powder coating</b>بوليستر (PE-F)، سوبر ديورابل (SDF)، هايبر ديورابل (HDF)، أو PVDF — كل ألوان RAL، بمعايير Qualicoat.</div>' +
     '<div><b>أنودايز — Anodizing</b>طبيعي، ذهبي، برونزي، سبكترو — سماكة 5 – 30 ميكرون، بمعايير Qualanod.</div>' +
     '<div><b>الزجاج — Glazing</b>مفرد، مزدوج، أو ثلاثي؛ مقسّى، لامينيت، Low-E، عاكس، أو ملوّن — حسب متطلبات العزل والأمان.</div>' +
     '<div><b>الخدمات — Services</b>رفع مقاسات بالموقع، مخططات تصنيع، تصنيع، تركيب، وصيانة.</div></div>' +
     '<div class="foot" style="margin-top:30px;border-top:1px solid var(--line);padding-top:14px"><span>' + esc(nameAr) + ' — ' + esc(c.fullNameEn || name) + '</span><span dir="ltr">' + esc([c.whatsapp || c.phone, c.email, c.website].filter(Boolean).join(' · ')) + '</span></div></div>';
+  if(MANAGE) h = '<div class="page no-print" id="tcManage" style="border:2px solid var(--accent)"><b>⚙️ وضع الإدارة</b> — طفّي أي نظام ما بدك تعرضه أو وقّفت شغل فيه، وبيختفي فوراً من الرابط يلي عند الزبائن. <span id="tcMsg" style="color:var(--muted)"></span><div style="margin-top:6px;font-size:13px;color:var(--muted)">مطفي هلق: <b id="tcOffN">' + HIDDEN.size + '</b> · <a href="techcat.html" target="_blank">👁️ شوف متل الزبون</a></div></div>' + h;
   document.getElementById('doc').innerHTML = h;
+  if(MANAGE) document.querySelectorAll('section.sys').forEach(sec => {
+    const code = sec.id, on = !HIDDEN.has(code);
+    const sw = document.createElement('label'); sw.className = 'tc-sw no-print';
+    sw.innerHTML = '<input type="checkbox" ' + (on ? 'checked' : '') + ' data-code="' + esc(code) + '"> <span>' + (on ? '✅ ظاهر للزبائن' : '⛔ مطفي') + '</span>';
+    sw.querySelector('input').addEventListener('change', e => TC.toggle(code, e.target.checked));
+    sec.querySelector('.sys-h').appendChild(sw); if(!on) sec.classList.add('off');
+  });
   if(window.MzCompany && MzCompany.applyNode) try{ MzCompany.applyNode(document.getElementById('doc'), true); }catch(e){}
 }
 window.TC = {
   zoom(src){ document.getElementById('zoomImg').src = src; document.getElementById('zoom').style.display = 'flex'; },
   share(){ const u = location.href.split('#')[0]; const t = (co().nameEn || 'Merzona') + ' — الكتالوج الفني'; if(navigator.share) navigator.share({ title: t, url: u }).catch(() => {}); else { try{ navigator.clipboard.writeText(u); alert('انسخ الرابط: ' + u); }catch(e){ prompt('الرابط:', u); } } },
   CATS, SCHEMES,
+  toggle(code, on){
+    if(on) HIDDEN.delete(code); else HIDDEN.add(code);
+    const sec = document.getElementById(code); if(sec){ sec.classList.toggle('off', !on); const sp = sec.querySelector('.tc-sw span'); if(sp) sp.textContent = on ? '✅ ظاهر للزبائن' : '⛔ مطفي'; }
+    const n = document.getElementById('tcOffN'); if(n) n.textContent = HIDDEN.size;
+    const msg = document.getElementById('tcMsg'); if(msg) msg.textContent = '⏳ عم احفظ...';
+    const h = { 'Content-Type': 'application/json', 'x-device': ls('merzona-device-token') }; const ss = ls('merzona-session-token'); if(ss) h['x-session'] = ss;
+    return fetch(SERVER + '/techcat-settings', { method: 'POST', headers: h, body: JSON.stringify({ hidden: Array.from(HIDDEN) }) }).then(r => r.json().then(j => ({ s: r.status, j }))).then(r => {
+      if(msg) msg.textContent = r.s === 200 ? '✅ انحفظ' : (r.s === 403 ? '⚠️ ما عندك صلاحية الكتالوجات' : r.s === 401 ? '⚠️ افتحها من جهاز مسجّل بالسيستم' : '⚠️ ما انحفظ (' + r.s + ')');
+    }).catch(() => { if(msg) msg.textContent = '⚠️ ما في اتصال — ما انحفظ'; });
+  },
+  _hidden: () => Array.from(HIDDEN),
 };
 render();
+fetch(SERVER + '/public/techcat-settings', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if(j && Array.isArray(j.hidden)){ HIDDEN = new Set(j.hidden); render(); } }).catch(() => {});
 window.addEventListener('mz-company', render);
 })();
 </script>
