@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.3';
+  var CURRENT_VERSION = '2026-11-22.5';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1770,9 +1770,10 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <div class="panel" id="techCatPanel">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;">
         <div><p class="panel-title" style="margin:0;">📘 الكتالوج الفني للمهندسين والاستشاريين</p>
-          <div style="font-size:12.5px;color:var(--muted);">نسخة مرتّبة للزبائن: الأنظمة حسب النوع، المقاطع، الأبعاد، الأداء والتشطيبات — رابط بينبعت أو PDF.</div></div>
+          <div style="font-size:12.5px;color:var(--muted);">رابط بينبعت للزبائن (متل كتالوج الصور): الأنظمة حسب النوع، المقاطع، الأبعاد، الأداء والتشطيبات. فيك تطفي أي نظام ما بدك تعرضه.</div></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <a class="export-btn" id="techCatOpen" href="techcat.html" target="_blank" rel="noopener" style="text-decoration:none;">👁️ افتح</a>
+          <a class="export-btn" id="techCatManage" href="techcat.html#manage" target="_blank" rel="noopener" style="text-decoration:none;" title="طفّي/شغّل أي نظام بالكتالوج">⚙️ شغّل / طفّي الأنظمة</a>
           <button type="button" class="export-btn" id="techCatCopy" onclick="(function(){ var u = new URL('techcat.html', location.href).href; try{ navigator.clipboard.writeText(u); alert('انسخ الرابط: ' + u); }catch(e){ prompt('الرابط:', u); } })()">🔗 انسخ الرابط</button>
           <a class="export-btn" id="techCatWa" href="#" onclick="this.href = 'https://wa.me/?text=' + encodeURIComponent('الكتالوج الفني لأنظمة الألمنيوم والزجاج: ' + new URL('techcat.html', location.href).href); return true;" target="_blank" rel="noopener" style="text-decoration:none;">📤 واتس اب</a>
         </div>
@@ -12100,7 +12101,16 @@ window.mzRunMaintenance = runMaintenance;
   var restoring = false;
   V.forEach(function(n){
     var f = window['show' + n + 'View']; if(typeof f !== 'function') return;
-    window['show' + n + 'View'] = function(){ var r = f.apply(this, arguments); if(!restoring){ try{ sessionStorage.setItem('mz-dash-view', n); }catch(e){} } return r; };
+    window['show' + n + 'View'] = function(){ var r = f.apply(this, arguments); if(!restoring){ try{ sessionStorage.setItem('mz-dash-view', n); }catch(e){} }
+      // ↩️ 2026-11-22 (حمدي: "لما بكبس زر الرجوع بالموبايل بتتسكر الصفحة كلها"): كل قسم = خطوة بسجل المتصفح، فالرجوع بيرجع للقسم يلي قبل
+      if(!popping && !(history.state && history.state.mzView === n)){ try{ history.pushState({ mzView: n }, ''); }catch(e){} }
+      return r; };
+  });
+  var popping = false;
+  try{ if(!history.state || !history.state.mzView) history.replaceState(Object.assign({}, history.state || {}, { mzView: 'Dashboard' }), ''); }catch(e){}
+  window.addEventListener('popstate', function(e){
+    var v = e.state && e.state.mzView; if(!v || typeof window['show' + v + 'View'] !== 'function') return;
+    popping = true; try{ window['show' + v + 'View'](); }catch(err){ console.warn('[رجوع]', err); } popping = false;
   });
   // فتح عرض قديم/جديد من الداشبورد (iframe من جديد) = قسم عرض السعر
   var fo = window.openQuotationWithFreshLoad;
