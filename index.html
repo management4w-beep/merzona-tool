@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.1';
+  var CURRENT_VERSION = '2026-11-22.2';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -8572,7 +8572,8 @@ window.wdApplyBack = function(results){
             <div><label>عرض الباب (مم)</label><input type="text" inputmode="decimal" id="shDoor" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);shOnInput('door')" onblur="evalMeasureField(this);shOnInput('door')"></div>
             <div><label>الزجاج الثابت</label><div id="shFixedOut" style="padding:9px 4px;font-weight:700;font-size:15px;"></div></div>
           </div>
-          <label style="margin-top:10px;display:block;">✂️ فراغ الجدار: خصم ½ سم من الزجاج عند كل جدار (جدارين = 1 سم)</label>
+          <label style="margin-top:10px;display:block;">✂️ فراغ الجدار: خصم من الزجاج عند كل جدار</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 6px;"><span style="font-size:12.5px;">الخصم عند كل جدار (مم)</span><input type="number" data-stepper id="shWallGap" min="0" max="100" step="1" value="5" onchange="shSetWallGap(null,this.value)"><span id="shWallGapTot" style="font-size:12px;opacity:.75;"></span></div>
           <div class="shape-toggle" id="shWallBtns">
             <button type="button" data-wall="left" onclick="shToggleWall('left')">🧱 جدار يسار</button>
             <button type="button" data-wall="right" onclick="shToggleWall('right')">🧱 جدار يمين</button>
@@ -9519,10 +9520,22 @@ function showerTotalW(it){ return (it.width || 0) + showerPanelsW(it); }
    يمين و5 ملم يسار"): مقاس القص = المقاس - 5 مم لكل جهة لازقة بالجدار. القطعة يلي عاليسار (الثابت، أو الباب إذا ما في ثابت)
    بتنخصم من جهة الجدار اليسار، وكذلك اليمين. الجدار بكل جهة مفعّل افتراضيًا (ممكن تطفيه إذا الجهة مش جدار). */
 const SH_WALL_GAP = 5;
+// 🆕 2026-11-22 (حمدي: "بدي اختار الخصم اللي بدي ياه... بس الافتراضي 1 سنتي، نص سنتي يمين ونص سنتي يسار"): خصم كل جدار قابل للتعديل لكل بند
+function showerWallGapMm(it){ const v = parseFloat(it && it.showerWallGap); return Number.isFinite(v) && v >= 0 ? Math.min(100, v) : SH_WALL_GAP; }
+function shSetWallGap(id, val){
+  const it = id != null ? items.find(i => i.id === id) : getSelected(); if(!it || !isShowerDoor(it)) return;
+  let v = parseFloat(String(val).replace(',', '.')); if(!Number.isFinite(v) || v < 0) v = SH_WALL_GAP; v = Math.min(100, Math.round(v * 10) / 10);
+  if(v === showerWallGapMm(it)) return;
+  pushHistory(); it.showerWallGap = v;
+  try{ if(getSelected() === it) shRefreshPanel(it); }catch(e){}
+  try{ const ov = document.getElementById('mfgSizesOverlay'); if(ov && ov.style.display === 'block') renderMfgSizesTable(); }catch(e){}
+  renderGallery();
+}
+window.shSetWallGap = shSetWallGap;
 function showerWallSide(it, side){ const k = side === 'left' ? 'showerWallL' : 'showerWallR'; return it[k] !== false; }
 function showerCut(it){
   const hasL = !!(it.showerLeftPanel && it.showerLeftWidth > 0), hasR = !!(it.showerRightPanel && it.showerRightWidth > 0);
-  const gL = showerWallSide(it, 'left') ? SH_WALL_GAP : 0, gR = showerWallSide(it, 'right') ? SH_WALL_GAP : 0;
+  const G = showerWallGapMm(it), gL = showerWallSide(it, 'left') ? G : 0, gR = showerWallSide(it, 'right') ? G : 0;
   const c = { left: hasL ? (it.showerLeftWidth || 0) - gL : 0, right: hasR ? (it.showerRightWidth || 0) - gR : 0, door: (it.width || 0) - (hasL ? 0 : gL) - (hasR ? 0 : gR), gL, gR };
   c.any = !!(gL || gR);
   return c;
@@ -9559,6 +9572,9 @@ function shRefreshPanel(it){
   const L = it.showerLeftPanel ? it.showerLeftWidth : 0, R = it.showerRightPanel ? it.showerRightWidth : 0;
   const gmm = showerGlassMm(it); document.querySelectorAll('#shGlassBtns [data-g]').forEach(b=> b.classList.toggle('active', +b.dataset.g === gmm));
   document.querySelectorAll('#shWallBtns [data-wall]').forEach(b=> b.classList.toggle('active', showerWallSide(it, b.dataset.wall)));
+  { const G = showerWallGapMm(it), gi = document.getElementById('shWallGap'); if(gi && document.activeElement !== gi) gi.value = G;
+    const nW = (showerWallSide(it, 'left') ? 1 : 0) + (showerWallSide(it, 'right') ? 1 : 0), tt = document.getElementById('shWallGapTot');
+    if(tt) tt.textContent = nW ? ('يعني ' + (Math.round(G) / 10) + ' سم كل جهة، والمجموع ' + (Math.round(G * nW) / 10) + ' سم') : 'ما في جدار ← ما في خصم'; }
   document.getElementById('shFixedOut').textContent = m === 'both' ? (Math.round(L) + ' + ' + Math.round(R) + ' مم') : (Math.round(L + R) + ' مم');
   const w = document.getElementById('inWidth'), h = document.getElementById('inHeight'); if(w) w.value = it.width; if(h) h.value = it.height;
 }
@@ -20623,7 +20639,7 @@ function buildItemSVG(it){
     if(cut.any){
       const parts = []; if(hasLeft) parts.push('ثابت ' + Math.round(cut.left)); parts.push('باب ' + Math.round(cut.door)); if(hasRight) parts.push('ثابت ' + Math.round(cut.right));
       const x0c = hasLeft ? -leftSidePx - mullionGap : 0, x1c = drawW + (hasRight ? rightSidePx + mullionGap : 0);
-      dim += `<text class="sh-cut-line" x="${(x0c + x1c) / 2}" y="${drawH + ((hasLeft || hasRight) ? 64 : 42)}" fill="var(--wd-cyan, #6fd3ff)" font-size="13" font-weight="700" text-anchor="middle">✂️ قص: ${parts.join(' · ')} (−${SH_WALL_GAP} عند الجدار)</text>`;
+      dim += `<text class="sh-cut-line" x="${(x0c + x1c) / 2}" y="${drawH + ((hasLeft || hasRight) ? 64 : 42)}" fill="var(--wd-cyan, #6fd3ff)" font-size="13" font-weight="700" text-anchor="middle">✂️ قص: ${parts.join(' · ')} (−${showerWallGapMm(it)} عند الجدار)</text>`;
       if(cut.gL) dim += `<rect x="${x0c - 8}" y="0" width="5" height="${drawH}" fill="var(--wd-ink-dim, #8aa)" opacity="0.6"/>`;
       if(cut.gR) dim += `<rect x="${x1c + 3}" y="0" width="5" height="${drawH}" fill="var(--wd-ink-dim, #8aa)" opacity="0.6"/>`;
     }
@@ -21367,7 +21383,7 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
   if(hasRight) dim += subDim(rightX, rightPx, 'ثابت ' + Math.round(cut.right));
   const gmm = showerGlassMm(it);
   dim += `<text x="${totalDrawW/2}" y="${drawH+58}" fill="#000" font-size="13" text-anchor="middle" font-weight="700">زجاج سكوريت ${it.frostedOverlay ? 'مضبب' : 'شفاف'} ${gmm} مم</text>`;
-  if(cut.any) dim += `<text x="${totalDrawW/2}" y="${drawH+76}" fill="#A15C1E" font-size="11.5" text-anchor="middle" font-weight="700">✂️ مقاسات الزجاج تحت = مقاس القص (خصم ${SH_WALL_GAP} مم عند ${cut.gL && cut.gR ? 'كل جدار' : (cut.gL ? 'جدار اليسار' : 'جدار اليمين')}) · ${Math.round(totalRealW)} = الفتحة</text>`;
+  if(cut.any) dim += `<text x="${totalDrawW/2}" y="${drawH+76}" fill="#A15C1E" font-size="11.5" text-anchor="middle" font-weight="700">✂️ مقاسات الزجاج تحت = مقاس القص (خصم ${showerWallGapMm(it)} مم عند ${cut.gL && cut.gR ? 'كل جدار' : (cut.gL ? 'جدار اليسار' : 'جدار اليمين')}) · ${Math.round(totalRealW)} = الفتحة</text>`;
   if(cut.gL) dim += `<rect x="-9" y="0" width="5" height="${drawH}" fill="#999" opacity="0.55"/>`;
   if(cut.gR) dim += `<rect x="${totalDrawW + 4}" y="0" width="5" height="${drawH}" fill="#999" opacity="0.55"/>`;
 
@@ -22178,7 +22194,7 @@ function mzFixMisguessedHandrail(it, rd){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
+const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','showerWallGap','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
@@ -22485,12 +22501,13 @@ function showerMfgOutText(it, mfg){ return showerMfgPieces(it, mfg).pieces.map(p
 function showerMfgCutHTML(it, mfg){
   const { pieces, c } = showerMfgPieces(it, mfg), tot = Math.round(showerTotalW(it));
   const wl = showerWallSide(it, 'left'), wr = showerWallSide(it, 'right');
-  const ded = (wl ? SH_WALL_GAP : 0) + (wr ? SH_WALL_GAP : 0);
+  const G = showerWallGapMm(it), ded = (wl ? G : 0) + (wr ? G : 0), fmt = (mm) => (Math.round(mm) / 10).toString();
   return '<div class="sh-mfg-cut" style="margin-top:8px;padding:8px 10px;border:1px solid #f0d9b5;background:#fff8ec;border-radius:8px;font-size:12.5px;color:#5a3a12;">' +
-    '<div style="font-weight:700;margin-bottom:6px;">✂️ مقاس قص الزجاج — خصم فراغ ' + (SH_WALL_GAP/10) + ' سم عند كل جدار' + (ded ? ' (المجموع ' + (ded/10) + ' سم)' : ' (ما في جدار)') + '</div>' +
+    '<div style="font-weight:700;margin-bottom:6px;">✂️ مقاس قص الزجاج — خصم فراغ ' + fmt(G) + ' سم عند كل جدار' + (ded ? ' (المجموع ' + fmt(ded) + ' سم)' : ' (ما في جدار)') + '</div>' +
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">الخصم عند كل جدار (مم): <input type="number" data-stepper class="sh-gap-in" min="0" max="100" step="1" value="' + G + '" onchange="shSetWallGap(' + it.id + ',this.value)"> <span style="opacity:.7">الافتراضي 5 مم = ½ سم</span></div>' +
     '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px;">' +
-      '<label style="display:flex;gap:4px;align-items:center;cursor:pointer;color:#5a3a12;font-size:12.5px;white-space:nowrap;"><input type="checkbox" data-shwall="left" ' + (wl ? 'checked' : '') + ' onchange="shMfgWall(' + it.id + ',\'left\',this.checked)">🧱 جدار يسار (−' + (SH_WALL_GAP/10) + ' سم)</label>' +
-      '<label style="display:flex;gap:4px;align-items:center;cursor:pointer;color:#5a3a12;font-size:12.5px;white-space:nowrap;"><input type="checkbox" data-shwall="right" ' + (wr ? 'checked' : '') + ' onchange="shMfgWall(' + it.id + ',\'right\',this.checked)">🧱 جدار يمين (−' + (SH_WALL_GAP/10) + ' سم)</label>' +
+      '<label style="display:flex;gap:4px;align-items:center;cursor:pointer;color:#5a3a12;font-size:12.5px;white-space:nowrap;"><input type="checkbox" data-shwall="left" ' + (wl ? 'checked' : '') + ' onchange="shMfgWall(' + it.id + ',\'left\',this.checked)">🧱 جدار يسار (−' + fmt(G) + ' سم)</label>' +
+      '<label style="display:flex;gap:4px;align-items:center;cursor:pointer;color:#5a3a12;font-size:12.5px;white-space:nowrap;"><input type="checkbox" data-shwall="right" ' + (wr ? 'checked' : '') + ' onchange="shMfgWall(' + it.id + ',\'right\',this.checked)">🧱 جدار يمين (−' + fmt(G) + ' سم)</label>' +
     '</div>' +
     pieces.map(p => '<div style="direction:rtl;">• ' + p.name + ': <b style="direction:ltr;display:inline-block;">' + p.w + ' × ' + p.h + ' mm</b>' + (p.wall ? ' <span style="opacity:.7">(−' + p.wall + ' مم جدار)</span>' : '') + '</div>').join('') +
     '<div style="opacity:.7;margin-top:4px;">العرض الكلي للفتحة ' + tot + ' مم ← مجموع الزجاج ' + pieces.reduce((a, p) => a + p.w, 0) + ' مم</div></div>';
