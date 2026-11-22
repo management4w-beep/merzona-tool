@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-19.7';
+  var CURRENT_VERSION = '2026-11-22.1';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -8572,7 +8572,7 @@ window.wdApplyBack = function(results){
             <div><label>عرض الباب (مم)</label><input type="text" inputmode="decimal" id="shDoor" oninput="restrictMeasureChars(this)" onchange="evalMeasureField(this);shOnInput('door')" onblur="evalMeasureField(this);shOnInput('door')"></div>
             <div><label>الزجاج الثابت</label><div id="shFixedOut" style="padding:9px 4px;font-weight:700;font-size:15px;"></div></div>
           </div>
-          <label style="margin-top:10px;display:block;">جدار (خصم 5 مم من القص)</label>
+          <label style="margin-top:10px;display:block;">✂️ فراغ الجدار: خصم ½ سم من الزجاج عند كل جدار (جدارين = 1 سم)</label>
           <div class="shape-toggle" id="shWallBtns">
             <button type="button" data-wall="left" onclick="shToggleWall('left')">🧱 جدار يسار</button>
             <button type="button" data-wall="right" onclick="shToggleWall('right')">🧱 جدار يمين</button>
@@ -22470,6 +22470,38 @@ function buildMfgSketchSVG(it, mfg){
   return svg || '<div style="color:#999;font-size:11px;padding:24px 8px;text-align:center;">تعذّر رسم المعاينة</div>';
 }
 
+// 🆕 2026-11-22 (حمدي، S-Q-260008: "فتحت الشاورات ما لقيت خاصم فراغ 1 سم - نص سم يمين ونص سم يسار مع الزجاج يللي بكون مع الجدران"):
+// بمقاسات التصنيع الشاور بيطلع مقاس قص كل لوح زجاج (الثابت والباب) بعد خصم 5 مم عند كل جدار، مع أزرار الجدار هونيك مباشرة.
+function showerMfgPieces(it, mfg){
+  const c = showerCut(it), h = mfg ? mfg.h : Math.round(it.height || 0), adjW = mfg ? (mfg.w - Math.round(it.width || 0)) : 0;
+  const P = [];
+  if(c.left > 0) P.push({ k: 'left', name: 'ثابت يسار', w: Math.round(c.left), h, wall: c.gL });
+  P.push({ k: 'door', name: 'الباب', w: Math.round(c.door + adjW), h, wall: (c.left > 0 ? 0 : c.gL) + (c.right > 0 ? 0 : c.gR) });
+  if(c.right > 0) P.push({ k: 'right', name: 'ثابت يمين', w: Math.round(c.right), h, wall: c.gR });
+  return { pieces: P, c };
+}
+window.showerMfgPieces = showerMfgPieces;
+function showerMfgOutText(it, mfg){ return showerMfgPieces(it, mfg).pieces.map(p => p.w + ' × ' + p.h).join('  +  ') + ' mm'; }
+function showerMfgCutHTML(it, mfg){
+  const { pieces, c } = showerMfgPieces(it, mfg), tot = Math.round(showerTotalW(it));
+  const wl = showerWallSide(it, 'left'), wr = showerWallSide(it, 'right');
+  const ded = (wl ? SH_WALL_GAP : 0) + (wr ? SH_WALL_GAP : 0);
+  return '<div class="sh-mfg-cut" style="margin-top:8px;padding:8px 10px;border:1px solid #f0d9b5;background:#fff8ec;border-radius:8px;font-size:12.5px;color:#5a3a12;">' +
+    '<div style="font-weight:700;margin-bottom:6px;">✂️ مقاس قص الزجاج — خصم فراغ ' + (SH_WALL_GAP/10) + ' سم عند كل جدار' + (ded ? ' (المجموع ' + (ded/10) + ' سم)' : ' (ما في جدار)') + '</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px;">' +
+      '<label style="display:flex;gap:4px;align-items:center;cursor:pointer;color:#5a3a12;font-size:12.5px;white-space:nowrap;"><input type="checkbox" data-shwall="left" ' + (wl ? 'checked' : '') + ' onchange="shMfgWall(' + it.id + ',\'left\',this.checked)">🧱 جدار يسار (−' + (SH_WALL_GAP/10) + ' سم)</label>' +
+      '<label style="display:flex;gap:4px;align-items:center;cursor:pointer;color:#5a3a12;font-size:12.5px;white-space:nowrap;"><input type="checkbox" data-shwall="right" ' + (wr ? 'checked' : '') + ' onchange="shMfgWall(' + it.id + ',\'right\',this.checked)">🧱 جدار يمين (−' + (SH_WALL_GAP/10) + ' سم)</label>' +
+    '</div>' +
+    pieces.map(p => '<div style="direction:rtl;">• ' + p.name + ': <b style="direction:ltr;display:inline-block;">' + p.w + ' × ' + p.h + ' mm</b>' + (p.wall ? ' <span style="opacity:.7">(−' + p.wall + ' مم جدار)</span>' : '') + '</div>').join('') +
+    '<div style="opacity:.7;margin-top:4px;">العرض الكلي للفتحة ' + tot + ' مم ← مجموع الزجاج ' + pieces.reduce((a, p) => a + p.w, 0) + ' مم</div></div>';
+}
+function shMfgWall(id, side, on){
+  const it = items.find(i => i.id === id); if(!it || !isShowerDoor(it)) return;
+  pushHistory(); it[side === 'left' ? 'showerWallL' : 'showerWallR'] = !!on;
+  renderMfgSizesTable(); renderGallery();
+  try{ if(getSelected() === it) shRefreshPanel(it); }catch(e){}
+}
+window.shMfgWall = shMfgWall;
 function renderMfgSizesTable(){
   const visibleItems = items.filter(it => !it.isCameraTemp && !isHandrail(it) && !isMirror(it) && !isPergola(it));
   const el = document.getElementById('mfgSizesTable');
@@ -22490,7 +22522,7 @@ function renderMfgSizesTable(){
             تضمين بمقاسات التصنيع
           </label>
         </div>
-        <div style="font-size:11.5px;color:#999;margin:2px 0 12px;">مقاس الفتحة: ${Math.round(it.width)} × ${Math.round(it.height)} مم</div>
+        <div style="font-size:11.5px;color:#999;margin:2px 0 12px;">مقاس الفتحة: ${Math.round(isShowerDoor(it) ? showerTotalW(it) : it.width)} × ${Math.round(it.height)} مم</div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
           <label style="font-size:11px;color:#555;display:flex;flex-direction:column;gap:2px;">تعديل العرض (سم)
             <input type="number" step="0.1" value="${it.mfgWidthAdjustCm||0}" ${excluded?'disabled':''} oninput="onMfgAdjustChange(${it.id},'w',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
@@ -22499,7 +22531,8 @@ function renderMfgSizesTable(){
             <input type="number" step="0.1" value="${it.mfgHeightAdjustCm||0}" ${excluded?'disabled':''} oninput="onMfgAdjustChange(${it.id},'h',this.value)" style="width:90px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-size:13px;direction:ltr;">
           </label>
         </div>
-        <div class="purch-len" id="mfgOut-${it.id}" style="direction:ltr;">${excluded ? 'مستبعد من مقاسات التصنيع' : mfg.w + ' × ' + mfg.h + ' mm'}</div>
+        <div class="purch-len" id="mfgOut-${it.id}" style="direction:ltr;">${excluded ? 'مستبعد من مقاسات التصنيع' : (isShowerDoor(it) ? showerMfgOutText(it, mfg) : mfg.w + ' × ' + mfg.h + ' mm')}</div>
+        ${(isShowerDoor(it) && !excluded) ? showerMfgCutHTML(it, mfg) : ''}
       </div>
     </div>`;
   }).join('');

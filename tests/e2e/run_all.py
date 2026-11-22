@@ -161,6 +161,18 @@ async def t_shower_wall(p, b, port):
     check(tot[0]['w'] == 800 and tot[0]['L'] + tot[0]['R'] == 550, 'المقاسات المحفوظة ما تغيّرت (الفتحة)')
     for k in range(2): await reopen(pg)
     t1 = await line(ids[1]); check('باب 795' in t1, 'إعدادات الجدار محفوظة بعد حفظ/فتح ' + repr(t1))
+    # 🆕 2026-11-22 (S-Q-260008): مقاسات التصنيع بتطلع مقاس قص كل لوح بعد خصم الجدار
+    await pg.evaluate("openMfgSizesOverlay()"); await pg.wait_for_timeout(400)
+    o0 = await pg.evaluate(f"document.getElementById('mfgOut-{ids[0]}').textContent")
+    check(o0.replace(' ', '') == '545×2200+795×2200mm', 'مقاسات التصنيع: ثابت 545 + باب 795 ' + repr(o0))
+    blk = await pg.evaluate(f"document.querySelector('#mfgOut-{ids[0]} + .sh-mfg-cut').textContent")
+    check('خصم فراغ 0.5 سم' in blk and 'المجموع 1 سم' in blk and 'ثابت يسار' in blk and 'الباب' in blk, 'شرح الخصم واضح ' + blk[:90])
+    if os.environ.get('MZ_SHOT'): await pg.locator(f'#mfgOut-{ids[0]}').locator('xpath=../..').screenshot(path=os.environ['MZ_SHOT'] + '/shower_mfg.png')
+    await pg.click(f'#mfgOut-{ids[0]} + .sh-mfg-cut input[data-shwall="right"]'); await pg.wait_for_timeout(300)
+    o0 = await pg.evaluate(f"document.getElementById('mfgOut-{ids[0]}').textContent")
+    check(o0.replace(' ', '') == '545×2200+800×2200mm', 'شيل جدار يمين من مقاسات التصنيع ← الباب 800 ' + repr(o0))
+    check(await pg.evaluate(f"WD.__t.items().find(function(i){{return i.id=={ids[0]}}}).showerWallR") is False, 'الإعداد انحفظ عالبند')
+    await pg.evaluate("closeMfgSizesOverlay()")
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
