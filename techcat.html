@@ -117,7 +117,7 @@ section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
   <button type="button" class="pri" onclick="window.print()">🖨️ PDF</button>
 </div>
 <div class="doc" id="doc"></div>
-<div class="zoom" id="zoom" onclick="this.style.display='none'"><img id="zoomImg" alt=""></div>
+<div class="zoom" id="zoom" onclick="if(history.state && history.state.tcModal) history.back(); else this.style.display='none'"><img id="zoomImg" alt=""></div>
 <div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
 <div id="v3c" class="v3c"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
 <script>
@@ -578,10 +578,13 @@ function render(){
   });
   if(window.MzCompany && MzCompany.applyNode) try{ MzCompany.applyNode(document.getElementById('doc'), true); }catch(e){}
 }
+// ↩️ 2026-11-22: الرجوع بالموبايل بيسكّر الصورة المكبّرة / الثري دي بدل ما يطلع من الصفحة
+window.addEventListener('popstate', () => { const z = document.getElementById('zoom'); if(z.style.display === 'flex'){ z.style.display = 'none'; return; } if(document.getElementById('v3').style.display === 'flex') close3D(); });
+const pushModal = () => { try{ history.pushState({ tcModal: 1 }, ''); }catch(e){} };
 window.TC = {
-  zoom(src){ document.getElementById('zoomImg').src = src; document.getElementById('zoom').style.display = 'flex'; },
+  zoom(src){ document.getElementById('zoomImg').src = src; document.getElementById('zoom').style.display = 'flex'; pushModal(); },
   share(){ const u = location.href.split('#')[0]; const t = (co().nameEn || 'Merzona') + ' — الكتالوج الفني'; if(navigator.share) navigator.share({ title: t, url: u }).catch(() => {}); else { try{ navigator.clipboard.writeText(u); alert('انسخ الرابط: ' + u); }catch(e){ prompt('الرابط:', u); } } },
-  CATS, SECTIONS, SECMAP, open3D, close3D, v3Reset, v3Zoom, v3Shot,
+  CATS, SECTIONS, SECMAP, open3D(code){ open3D(code); pushModal(); }, close3D(){ if(history.state && history.state.tcModal) history.back(); else close3D(); }, v3Reset, v3Zoom, v3Shot,
   toggle(code, on){
     if(on) HIDDEN.delete(code); else HIDDEN.add(code);
     const sec = document.getElementById(code); if(sec){ sec.classList.toggle('off', !on); const sp = sec.querySelector('.tc-sw span'); if(sp) sp.textContent = on ? '✅ ظاهر للزبائن' : '⛔ مطفي'; }

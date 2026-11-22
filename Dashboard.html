@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.4';
+  var CURRENT_VERSION = '2026-11-22.5';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -12101,7 +12101,16 @@ window.mzRunMaintenance = runMaintenance;
   var restoring = false;
   V.forEach(function(n){
     var f = window['show' + n + 'View']; if(typeof f !== 'function') return;
-    window['show' + n + 'View'] = function(){ var r = f.apply(this, arguments); if(!restoring){ try{ sessionStorage.setItem('mz-dash-view', n); }catch(e){} } return r; };
+    window['show' + n + 'View'] = function(){ var r = f.apply(this, arguments); if(!restoring){ try{ sessionStorage.setItem('mz-dash-view', n); }catch(e){} }
+      // ↩️ 2026-11-22 (حمدي: "لما بكبس زر الرجوع بالموبايل بتتسكر الصفحة كلها"): كل قسم = خطوة بسجل المتصفح، فالرجوع بيرجع للقسم يلي قبل
+      if(!popping && !(history.state && history.state.mzView === n)){ try{ history.pushState({ mzView: n }, ''); }catch(e){} }
+      return r; };
+  });
+  var popping = false;
+  try{ if(!history.state || !history.state.mzView) history.replaceState(Object.assign({}, history.state || {}, { mzView: 'Dashboard' }), ''); }catch(e){}
+  window.addEventListener('popstate', function(e){
+    var v = e.state && e.state.mzView; if(!v || typeof window['show' + v + 'View'] !== 'function') return;
+    popping = true; try{ window['show' + v + 'View'](); }catch(err){ console.warn('[رجوع]', err); } popping = false;
   });
   // فتح عرض قديم/جديد من الداشبورد (iframe من جديد) = قسم عرض السعر
   var fo = window.openQuotationWithFreshLoad;

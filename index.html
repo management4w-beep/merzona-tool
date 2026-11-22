@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.5';
+  var CURRENT_VERSION = '2026-11-22.6';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -25230,6 +25230,42 @@ body.pdf-capturing .mzcs-box{display:none!important}
   document.addEventListener('mousedown', function(e){ if(box.style.display !== 'none' && !box.contains(e.target) && e.target !== inp) hide(); });
   window.addEventListener('resize', hide);
   window.mzClientSuggest = { rebuild: function(){ IDX = null; }, _index: function(){ if(!IDX) build(); return IDX; } };
+})();
+</script>
+<script>
+/* ↩️ 2026-11-22 (حمدي: "لما بكبس زر الرجوع بالموبايل بتتسكر الصفحة كلها بدل ما ترجع للصفحة اللي قبلها"):
+   كل نافذة بتنفتح فوق العرض (المصمم، مقاسات التصنيع، خطة القص، الكاميرا، الثري دي...) بتاخد خطوة بسجل المتصفح،
+   فزر الرجوع بيسكّر النافذة يلي فوق بس (متل زر الإغلاق تبعها) بدل ما يطلع من الصفحة. */
+(function(){
+  if(window.__mzBackOv) return; window.__mzBackOv = true;
+  const OV = [ // الأعلى أول
+    ['cpOverlay', () => closeCutPlan()], ['mzR3dOverlay', () => { const b = document.getElementById('mzR3dClose'); if(b) b.click(); }],
+    ['hr3DOverlay', () => closeHandrail3D()], ['hpeOverlay', () => hpeClose(true)], ['threeDOverlay', () => close3DPreview()],
+    ['cameraOverlay', () => closeCameraOverlay()], ['mfgSizesOverlay', () => closeMfgSizesOverlay()], ['wdOverlay', () => wdSaveAndClose()],
+  ];
+  const isOpen = (id) => { const el = document.getElementById(id); if(!el || !el.isConnected) return false; try{ return getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden'; }catch(e){ return false; } };
+  let open = new Set(), ignorePop = 0, closingByBack = false;
+  function tick(){
+    OV.forEach(([id]) => {
+      const now = isOpen(id);
+      if(now && !open.has(id)){ open.add(id); try{ history.pushState(Object.assign({}, history.state || {}, { mzOv: id, mzOvN: open.size }), ''); }catch(e){} }
+      else if(!now && open.has(id)){
+        open.delete(id);
+        // انسكّرت بزرها (مش بالرجوع) ← منشيل خطوتها من السجل بلا ما نسكّر غيرها
+        if(!closingByBack && history.state && history.state.mzOv === id){ ignorePop++; try{ history.back(); }catch(e){ ignorePop--; } }
+      }
+    });
+  }
+  setInterval(tick, 300);
+  window.addEventListener('popstate', () => {
+    if(ignorePop > 0){ ignorePop--; return; }
+    const top = OV.find(([id]) => open.has(id) && isOpen(id));
+    if(!top) return;
+    closingByBack = true;
+    try{ top[1](); }catch(e){ console.warn('[رجوع]', e); }
+    setTimeout(() => { closingByBack = false; tick(); }, 50);
+  });
+  window.__mzBackOvState = () => ({ open: Array.from(open), state: history.state });
 })();
 </script>
 </body></html>

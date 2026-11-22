@@ -82,7 +82,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.3';
+  var CURRENT_VERSION = '2026-11-22.4';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'survey';
   var VERSION_URL = 'version.json';
@@ -655,6 +655,7 @@ function open(id){
   dbAll().then(function(all){
     var sv = all.filter(function(x){ return x.id === id; })[0]; if(!sv) return home();
     S.cur = sv; S.sel = (sv.openings || []).length ? sv.openings[sv.openings.length - 1].id : null;
+    try{ if(history.state && history.state.svOpen) history.replaceState({ svOpen: sv.id }, ''); else history.pushState({ svOpen: sv.id }, ''); }catch(_){}
     $('svBack').style.display = '';
     if(sv.type === 'install'){ $('svDock').style.display = 'none'; return renderInstall(); }
     $('svDock').style.display = 'block';
@@ -1029,7 +1030,12 @@ SV.instShare = function(){
 SV._instPhoto = stepPhotoPicked;
 
 // ---------- البداية ----------
-SV.home = function(){ saveNow().then(home); };
+SV.home = function(){ if(history.state && history.state.svOpen){ history.back(); return; } saveNow().then(home); };
+// ↩️ 2026-11-22: زر الرجوع بالموبايل بيرجع من النوت لقائمة النوتات (وبيسكّر النافذة المنبثقة إذا مفتوحة) بدل ما يسكّر الصفحة
+window.addEventListener('popstate', function(e){
+  if($('svModal').style.display === 'flex'){ SV.closeModal(); if(S.cur){ try{ history.pushState({ svOpen: S.cur.id }, ''); }catch(_){} } return; }
+  if(S.cur && !(e.state && e.state.svOpen === S.cur.id)){ saveNow().then(home); }
+});
 SV.newSurvey = newSurvey; SV.open = open;
 SV._state = S;
 function boot(){ netUI(); loadItems(); var m = /[#&]survey=([a-z0-9-]+)/i.exec(location.hash || ''); if(m) open(m[1]); else if(/[#&]new\b/.test(location.hash || '')){ try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){} newSurvey(); } else home(); setTimeout(function(){ syncAll(); retryPendingVoice(); }, 1500); }

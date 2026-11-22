@@ -758,6 +758,43 @@ async def t_techcat(p, b, port):
     await ctx.close()
 
 
+async def t_back_button(p, b, port):
+    """↩️ زر الرجوع بالموبايل (2026-11-22): بيسكّر النافذة يلي فوق / بيرجع للقسم يلي قبل، بدل ما يطلع من الصفحة"""
+    print('• ↩️ زر الرجوع: نوافذ عرض السعر، أقسام الداشبورد، النوت')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[1350, 2200, 'Hinged Window']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(900)
+    await pg.evaluate("openMfgSizesOverlay()"); await pg.wait_for_timeout(700)
+    vis = "(function(id){ var e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; })"
+    check(await pg.evaluate(vis + "('wdOverlay')") and await pg.evaluate(vis + "('mfgSizesOverlay')"), 'المصمم ومقاسات التصنيع مفتوحين')
+    await pg.go_back(); await pg.wait_for_timeout(500)
+    check(not await pg.evaluate(vis + "('mfgSizesOverlay')") and await pg.evaluate(vis + "('wdOverlay')") and 'index.html' in pg.url, 'رجوع ← انسكّرت مقاسات التصنيع بس، والمصمم مفتوح والصفحة ما طلعت')
+    await pg.evaluate("openMfgSizesOverlay()"); await pg.wait_for_timeout(700)
+    await pg.evaluate("closeMfgSizesOverlay()"); await pg.wait_for_timeout(900)
+    check(await pg.evaluate(vis + "('wdOverlay')"), 'الإغلاق بالزر ما بيسكّر المصمم يلي تحتو')
+    await pg.go_back(); await pg.wait_for_timeout(1200)
+    check(not await pg.evaluate(vis + "('wdOverlay')") and 'index.html' in pg.url, 'رجوع ← انسكّر المصمم (حفظ وإغلاق) والعرض بيضل مفتوح')
+    await ctx.close()
+    # الداشبورد: الأقسام
+    ctx = await new_ctx(p, b); pd = await ctx.new_page(); pd.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await pd.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pd.wait_for_timeout(3000)
+    await pd.click('#quotationsTabBtn'); await pd.wait_for_timeout(500); await pd.click('#catalogsTabBtn'); await pd.wait_for_timeout(500)
+    await pd.go_back(); await pd.wait_for_timeout(600)
+    check(await pd.evaluate(vis + "('quotationsView')") and not await pd.evaluate(vis + "('catalogsView')") and 'Dashboard.html' in pd.url, 'رجوع بالداشبورد ← القسم يلي قبل (عروض الأسعار)')
+    await pd.go_back(); await pd.wait_for_timeout(600)
+    check(not await pd.evaluate(vis + "('quotationsView')") and 'Dashboard.html' in pd.url, 'رجوع كمان ← اللوحة الرئيسية')
+    await ctx.close()
+    # النوت
+    ctx = await new_ctx(p, b, mobile=True); ps = await ctx.new_page(); ps.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await ps.goto(f'http://127.0.0.1:{port}/survey.html'); await ps.wait_for_timeout(2500)
+    await ps.click('#svNew'); await ps.wait_for_timeout(600)
+    check(await ps.evaluate("!!SV._state.cur"), 'النوت مفتوحة')
+    await ps.go_back(); await ps.wait_for_timeout(800)
+    check(await ps.evaluate("!SV._state.cur") and await ps.is_visible('#svNew') and 'survey.html' in ps.url, 'رجوع ← قائمة النوتات (الصفحة ما انسكّرت)')
+    check(not errs, 'بلا أخطاء ' + str(errs[:3]))
+    await ctx.close()
+
+
 async def t_design_new_item_confirm(p, b, port):
     """🛠️ M-Q-260224: بند انضاف بالمصمم بالغلط (بيرغولا تانية) ما بيصير بند بعرض السعر بلا سؤال، واسمه مش Plan + Front"""
     print('• المصمم: بند جديد بلا صف ← سؤال قبل ما ينضاف لعرض السعر')
@@ -3255,7 +3292,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
