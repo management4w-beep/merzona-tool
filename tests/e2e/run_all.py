@@ -512,6 +512,7 @@ async def t_survey(p, b, port):
     pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
     await pg.goto(f'http://127.0.0.1:{port}/survey.html'); await pg.wait_for_timeout(2500)
     check(await pg.is_visible('#svNew'), 'الصفحة بتفتح (بعد البوابة) وفيها «كشف جديد»')
+    check('📝 النوتات' in await pg.inner_text('#svMain') and 'نوت' in await pg.title(), 'اسمها «نوت»')
     await pg.click('#svNew'); await pg.wait_for_timeout(500)
     await pg.fill('#svClient', 'أبو سامر'); await pg.fill('#svLoc', 'المزة')
     # 🎙️ صوت ← السيرفر ← الخانات
@@ -567,7 +568,14 @@ async def t_survey(p, b, port):
     check(rows[:2] == ['1200x1500', '915x2095'] and rows[2].startswith('1450x') and len(rows) == 3 and cl == 'أبو سامر', 'العرض انعبّى من الكشف ' + str((rows, cl)))
     qty = await pg.evaluate("Array.from(document.querySelectorAll('#qty-rows tr')).filter(function(tr){return (tr.querySelector('.item-input')||{}).value}).map(function(tr){return tr.querySelector('.qty-input').value})")
     check(qty == ['2', '3', '3'], 'الأعداد ' + str(qty))
-    check('الكشف بالموقع' in await pg.evaluate("document.body.innerText"), 'رسالة «من الكشف بالموقع»')
+    check('من النوت' in await pg.evaluate("document.body.innerText"), 'رسالة «من النوت»')
+    # 📝 النوت جوّا قسم عروض الأسعار بالداشبورد
+    pd = await ctx.new_page(); await pd.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pd.wait_for_timeout(3000)
+    await pd.click('#quotationsTabBtn'); await pd.wait_for_timeout(800)
+    check(await pd.is_visible('#mzNotePanel') and await pd.get_attribute('#mzNoteNew', 'href') == 'survey.html#new' and await pd.locator('#surveyTabBtn').count() == 0, 'زر «📝 نوت» بقسم عروض الأسعار (مش زر لحالو)')
+    await pd.click('#mzNoteNew'); await pd.wait_for_timeout(2800)
+    check('survey.html' in pd.url and await pd.evaluate("!!(SV._state.cur && SV._state.cur.openings)"), '«➕ نوت جديدة» بتفتح نوت فاضية مباشرة')
+    await pd.close()
     check(not errs, 'بلا أخطاء ' + str(errs[:3]))
     await ctx.close()
 

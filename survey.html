@@ -82,7 +82,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.2';
+  var CURRENT_VERSION = '2026-11-22.3';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'survey';
   var VERSION_URL = 'version.json';
@@ -475,7 +475,7 @@
 })();
 </script>
 <!-- ===== MERZONA ACCESS GATE - END ===== -->
-<title>الكشف بالموقع</title>
+<title>نوت</title>
 <link rel="manifest" href="data:application/manifest+json,{}">
 <style>
 :root{--main:#12324a;--blue:#0f88cd;--bg:#f3f6f9;--card:#fff;--line:#dde5ec;--muted:#6b7d8c;--ok:#1e8e3e;--warn:#b26a00;--err:#c62828}
@@ -544,10 +544,10 @@ label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px soli
 <body>
 <div class="sv-top">
   <button class="pill" id="svBack" onclick="SV.home()" style="display:none">→ رجوع</button>
-  <h1 id="svTitle">📏 الكشف بالموقع</h1>
+  <h1 id="svTitle">📝 نوت</h1>
   <span class="sv-net" id="svNet">متصل</span>
   <button class="pill" id="svLaserBtn" onclick="SV.laserConnect()" title="ليزر بلوتوث (Leica DISTO / Bosch GLM)">📡 ليزر</button>
-  <a class="pill" href="Dashboard.html" style="text-decoration:none">🏠</a>
+  <a class="pill" href="Dashboard.html" style="text-decoration:none" title="رجوع للداشبورد">🏠</a>
 </div>
 <div class="wrap" id="svMain"></div>
 <div class="dock" id="svDock" style="display:none">
@@ -632,16 +632,16 @@ window.addEventListener('offline', netUI);
 
 // ---------- الشاشة الرئيسية: الكشوفات ----------
 function home(){
-  S.cur = null; S.sel = null; $('svDock').style.display = 'none'; $('svBack').style.display = 'none'; $('svTitle').textContent = '📏 الكشف بالموقع';
+  S.cur = null; S.sel = null; $('svDock').style.display = 'none'; $('svBack').style.display = 'none'; $('svTitle').textContent = '📝 نوت';
   dbAll().then(function(all){
     S.list = all.sort(function(a, b){ return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); });
-    var h = '<div class="card"><div class="row" style="justify-content:space-between"><div><b>كشوفات المواقع</b><div class="hint">كل كشف محفوظ عالموبايل وبيشتغل بلا نت. بس يرجع النت بيترفع نسخة للسيرفر.</div></div>' +
-      '<span class="row"><button class="btn" id="svNew" onclick="SV.newSurvey()">➕ كشف جديد</button><button class="btn ghost" id="svNewInst" onclick="SV.newInstall()">✅ تركيب / تسليم</button></span></div></div><div class="sv-list">';
-    if(!S.list.length) h += '<div class="card hint" style="display:block">ما في كشوفات لسا. كبّس «➕ كشف جديد» وبلّش: صوّر الفتحة واحكي مقاسها.</div>';
+    var h = '<div class="card"><div class="row" style="justify-content:space-between"><div><b>📝 النوتات</b><div class="hint">صوّر وحط المقاسات عالصورة (بالصوت أو بإيدك)، وبعدين «حوّل لعرض سعر». كل نوت محفوظة عالموبايل وبيشتغل بلا نت. بس يرجع النت بيترفع نسخة للسيرفر.</div></div>' +
+      '<span class="row"><button class="btn" id="svNew" onclick="SV.newSurvey()">➕ نوت جديدة</button><button class="btn ghost" id="svNewInst" onclick="SV.newInstall()">✅ تركيب / تسليم</button></span></div></div><div class="sv-list">';
+    if(!S.list.length) h += '<div class="card hint" style="display:block">ما في نوتات لسا. كبّس «➕ نوت جديدة» وبلّش: صوّر الفتحة واحكي مقاسها.</div>';
     S.list.forEach(function(sv){
       var pend = (sv.openings || []).filter(function(o){ return o.pendingAudio; }).length;
       var isI = sv.type === 'install', done = isI ? (sv.steps || []).filter(function(x){ return x.done; }).length : 0;
-      h += '<div class="card" onclick="SV.open(\'' + sv.id + '\')"><div style="flex:1;min-width:0"><b>' + (isI ? '✅ ' : '📏 ') + esc(sv.client || 'بلا اسم') + '</b><span class="hint">' + esc(sv.location || '') + ' · ' + (isI ? esc(INST_KINDS[sv.kind] || 'تركيب') + ' ' + done + '/' + (sv.steps || []).length + (sv.signature ? ' · ✍️ موقّع' : '') : (sv.openings || []).length + ' فتحة') + ' · ' + esc(String(sv.updatedAt || '').slice(0, 10)) + '</span></div>' +
+      h += '<div class="card" onclick="SV.open(\'' + sv.id + '\')"><div style="flex:1;min-width:0"><b>' + (isI ? '✅ ' : '📝 ') + esc(sv.client || 'بلا اسم') + '</b><span class="hint">' + esc(sv.location || '') + ' · ' + (isI ? esc(INST_KINDS[sv.kind] || 'تركيب') + ' ' + done + '/' + (sv.steps || []).length + (sv.signature ? ' · ✍️ موقّع' : '') : (sv.openings || []).length + ' فتحة') + ' · ' + esc(String(sv.updatedAt || '').slice(0, 10)) + '</span></div>' +
         (pend ? '<span class="badge wait">🎙️ ' + pend + ' بانتظار النت</span>' : '') + '<span class="badge ' + (sv.syncedAt && sv.syncedAt >= sv.updatedAt ? 'ok">☁️ محفوظ' : 'wait">📱 عالموبايل') + '</span></div>';
     });
     $('svMain').innerHTML = h + '</div>';
@@ -668,14 +668,14 @@ function saveNow(){ if(!S.cur) return Promise.resolve(); clearTimeout(saveT); S.
 // ---------- شاشة الكشف ----------
 function render(){
   var sv = S.cur; if(!sv) return;
-  $('svTitle').textContent = '📏 ' + (sv.client || 'كشف جديد');
+  $('svTitle').textContent = '📝 ' + (sv.client || 'نوت جديدة');
   var h = '<div class="card"><div class="grid2">' +
     '<label class="f">اسم الزبون<input id="svClient" value="' + esc(sv.client) + '" oninput="SV.field(\'client\',this.value)" placeholder="مثلاً: أبو سامر"></label>' +
     '<label class="f">الموبايل<input id="svPhone" inputmode="tel" value="' + esc(sv.phone) + '" oninput="SV.field(\'phone\',this.value)"></label>' +
     '<label class="f">الموقع / العنوان<input id="svLoc" value="' + esc(sv.location) + '" oninput="SV.field(\'location\',this.value)"></label>' +
     '<label class="f">الفرع<select onchange="SV.field(\'branch\',this.value)"><option value="">—</option><option value="syria"' + (sv.branch === 'syria' ? ' selected' : '') + '>سوريا</option><option value="uae"' + (sv.branch === 'uae' ? ' selected' : '') + '>الإمارات</option></select></label>' +
     '</div><div class="row no-print" style="margin-top:8px;justify-content:space-between"><span class="hint">' + sv.openings.length + ' فتحة · ' + totalQty(sv) + ' قطعة</span><span class="row">' +
-    '<button class="btn small" onclick="SV.toQuote()">📄 لعرض سعر</button><button class="btn ghost small" onclick="SV.newInstall(\'' + sv.id + '\')">✅ تركيب</button><button class="btn ghost small" onclick="SV.report()">🖨️ تقرير الكشف</button><button class="btn red small" onclick="SV.delSurvey()">🗑️ احذف الكشف</button></span></div></div>';
+    '<button class="btn small" onclick="SV.toQuote()">📄 لعرض سعر</button><button class="btn ghost small" onclick="SV.newInstall(\'' + sv.id + '\')">✅ تركيب</button><button class="btn ghost small" onclick="SV.report()">🖨️ اطبع النوت</button><button class="btn red small" onclick="SV.delSurvey()">🗑️ احذف النوت</button></span></div></div>';
   if(!sv.openings.length) h += '<div class="card hint">كبّس 🎙️ تحت واحكي، مثلاً: <b>«المطبخ شباك سحاب ألف وميتين بألف وخمسمية»</b> — أو «غرفة النوم شباك 120 على 150 عدد 2». بيعبّي الخانات لحالو، وإنت بتراجع.</div>';
   sv.openings.forEach(function(o, i){ h += opHTML(o, i); });
   $('svMain').innerHTML = h;
@@ -702,7 +702,7 @@ function opHTML(o, i){
 function rerenderOp(id){ var sv = S.cur; var i = sv.openings.findIndex(function(o){ return o.id === id; }); var el = $('op-' + id); if(i < 0 || !el) return render(); var d = document.createElement('div'); d.innerHTML = opHTML(sv.openings[i], i); el.replaceWith(d.firstChild); }
 function getOp(id){ return S.cur && S.cur.openings.filter(function(o){ return o.id === id; })[0]; }
 function num(v){ var n = parseFloat(String(v).replace(/[٠-٩]/g, function(d){ return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); }).replace(',', '.')); return Number.isFinite(n) ? Math.round(n) : null; }
-SV.field = function(k, v){ S.cur[k] = v; if(k === 'client') $('svTitle').textContent = S.cur.type === 'install' ? '✅ ' + (INST_KINDS[S.cur.kind] || 'تركيب') + (v ? ' · ' + v : '') : '📏 ' + (v || 'كشف جديد'); touch(); };
+SV.field = function(k, v){ S.cur[k] = v; if(k === 'client') $('svTitle').textContent = S.cur.type === 'install' ? '✅ ' + (INST_KINDS[S.cur.kind] || 'تركيب') + (v ? ' · ' + v : '') : '📝 ' + (v || 'نوت جديدة'); touch(); };
 SV.op = function(id, k, v){
   var o = getOp(id); if(!o) return;
   if(k === 'w' || k === 'h'){ o[k] = num(v); o.unitGuess = ''; updateDim(o); }
@@ -719,7 +719,7 @@ function newOpening(fields){ var o = Object.assign({ id: uid('op'), room: '', it
 SV.addOpening = function(){ var prev = S.cur.openings[S.cur.openings.length - 1]; var o = newOpening({ room: prev ? prev.room : '' }); render(); touch(); scrollTo(o.id); };
 function scrollTo(id){ setTimeout(function(){ var el = $('op-' + id); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); }
 SV.delOpening = function(id){ if(!confirm('أكيد بدك تحذف هالفتحة؟')) return; S.cur.openings = S.cur.openings.filter(function(o){ return o.id !== id; }); if(S.sel === id) S.sel = null; render(); touch(); };
-SV.delSurvey = function(){ if(!confirm('أكيد بدك تحذف هالكشف كلو من هالموبايل؟ (النسخة يلي عالسيرفر بتضل)')) return; var id = S.cur.id; dbDel(id).then(home); };
+SV.delSurvey = function(){ if(!confirm('أكيد بدك تحذف هالنوت كلها من هالموبايل؟ (النسخة يلي عالسيرفر بتضل)')) return; var id = S.cur.id; dbDel(id).then(home); };
 
 // ---------- الصور ----------
 var photoFor = null;
@@ -896,7 +896,7 @@ SV.aiPicked = function(inp){
     var h = '<h3>🤖 ' + (r.j.kind === 'plan' ? 'لقيت بالمخطط' : 'لقيت بالصورة') + ' ' + r.j.openings.length + ' فتحة</h3><div class="hint">نقّي يلي بدك ياه. المقاسات بتنزل بس إذا مكتوبة بالصورة — الباقي لازم ينقاس.</div>';
     r.j.openings.forEach(function(o, i){ h += '<label class="ai-op"><input type="checkbox" checked data-ai="' + i + '"><div><b>' + esc(o.type) + '</b>' + (o.qty > 1 ? ' ×' + o.qty : '') + ' <span class="hint">' + esc(o.where || '') + '</span><div class="hint" style="direction:ltr;text-align:right">' + (o.w || o.h ? (o.w || '?') + ' × ' + (o.h || '?') + ' mm' : 'بلا مقاس') + '</div>' + (o.note ? '<div class="hint">' + esc(o.note) + '</div>' : '') + '</div></label>'; });
     if(r.j.notes) h += '<div class="heard">' + esc(r.j.notes) + '</div>';
-    h += '<div class="row" style="margin-top:10px"><button class="btn" onclick="SV.aiUse()">✓ ضيفهن للكشف</button><button class="btn ghost" onclick="SV.closeModal()">إلغاء</button></div>';
+    h += '<div class="row" style="margin-top:10px"><button class="btn" onclick="SV.aiUse()">✓ ضيفهن للنوت</button><button class="btn ghost" onclick="SV.closeModal()">إلغاء</button></div>';
     modal(h);
   }).catch(function(){ modal('<h3>⚠️ ما في اتصال بالسيرفر</h3><button class="btn" onclick="SV.closeModal()">تمام</button>'); });
 };
@@ -1032,7 +1032,7 @@ SV._instPhoto = stepPhotoPicked;
 SV.home = function(){ saveNow().then(home); };
 SV.newSurvey = newSurvey; SV.open = open;
 SV._state = S;
-function boot(){ netUI(); loadItems(); var m = /[#&]survey=([a-z0-9-]+)/i.exec(location.hash || ''); if(m) open(m[1]); else home(); setTimeout(function(){ syncAll(); retryPendingVoice(); }, 1500); }
+function boot(){ netUI(); loadItems(); var m = /[#&]survey=([a-z0-9-]+)/i.exec(location.hash || ''); if(m) open(m[1]); else if(/[#&]new\b/.test(location.hash || '')){ try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){} newSurvey(); } else home(); setTimeout(function(){ syncAll(); retryPendingVoice(); }, 1500); }
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 // الليزرات يلي بتشتغل «كيبورد» بتكتب الرقم وبعدين Enter ← منقفز للخانة الجاية
 document.addEventListener('keydown', function(e){ if(e.key !== 'Enter') return; var t = e.target; if(!t || !t.getAttribute || !t.getAttribute('data-f')) return; e.preventDefault(); if(t.getAttribute('data-f') === 'w'){ var n = document.querySelector('#op-' + t.getAttribute('data-op') + ' input[data-f="h"]'); if(n) n.focus(); } else t.blur(); });
