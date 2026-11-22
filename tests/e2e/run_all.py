@@ -1253,6 +1253,73 @@ async def t_catalog(p, b, port):
     check(not errs, 'ما في أخطاء جافاسكربت')
     await ctx.close()
 
+async def t_catalog_manage(p, b, port):
+    """🖼️ 2026-11-23 (حمدي: "يعني هاد الزر مافي منو لكتالوج الصور؟ ... اذا مافي اعمله"): تشغيل/إطفاء أقسام وصور كتالوج الصور"""
+    print('• كتالوج الصور: تشغيل/إطفاء الأقسام والصور')
+    ctx = await new_ctx(p, b); errs = []
+    st = {'hidden': set(), 'posts': [], 'auth': []}
+    cats = [('c1', 'Showers', ['i1', 'i2', 'i3']), ('c2', 'pergolas', ['i4', 'i5'])]
+    def item(k): return {'id': k, 'v': '1', 'w': 10, 'h': 10}
+    async def fake(route):
+        rq = route.request; u = rq.url; path = u.split('?')[0]; q = u.split('?')[1] if '?' in u else ''
+        mng = 'all=1' in q and rq.headers.get('x-device') == 'dev1'
+        if 'all=1' in q: st['auth'].append(rq.headers.get('x-device'))
+        if path.endswith('/catalog-settings') and rq.method == 'POST':
+            st['hidden'] = set(json.loads(rq.post_data)['hidden']); st['posts'].append(sorted(st['hidden']))
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'hidden': sorted(st['hidden'])}))
+        H = st['hidden']
+        if path.endswith('/public/catalogs'):
+            out = []
+            for cid, nm, its in cats:
+                vis = [i for i in its if i not in H]
+                if mng: out.append({'id': cid, 'name': nm, 'count': len(its), 'cover': item(its[0]), 'hidden': cid in H, 'hiddenCount': len(its) - len(vis)}); continue
+                if cid in H or not vis: continue
+                out.append({'id': cid, 'name': nm, 'count': len(vis), 'cover': item(vis[0])})
+            body = {'catalogs': out}
+            if mng: body.update({'manage': True, 'hidden': sorted(H)})
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+        for cid, nm, its in cats:
+            if path.endswith('/public/catalogs/' + cid):
+                if cid in H and not mng: return await route.fulfill(status=404, content_type='application/json', body='{"error":"not-found"}')
+                lst = [dict(item(i), **({'hidden': True} if i in H else {})) for i in its] if mng else [item(i) for i in its if i not in H]
+                return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'id': cid, 'name': nm, 'items': lst}))
+        await route.fallback()
+    await ctx.route(SRV + '/public/catalogs**', fake); await ctx.route(SRV + '/catalog-settings', fake)
+    pg = await ctx.new_page(); pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    # من الداشبورد: زر بقسم كتالوج الصور
+    await pg.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pg.wait_for_timeout(2500)
+    href = await pg.evaluate("(document.getElementById('mzc-manage')||{}).getAttribute ? document.getElementById('mzc-manage').getAttribute('href') : ''")
+    check(href == 'catalog.html?m=1', 'زر «شغّل / طفّي الصور» بقسم كتالوج الصور بالداشبورد ' + str(href))
+    await pg.goto(f'http://127.0.0.1:{port}/catalog.html?m=1'); await pg.wait_for_timeout(2000)
+    check(await pg.is_visible('#mzMbar') and 'وضع الإدارة' in await pg.inner_text('#mzMbar') and 'dev1' in st['auth'], 'وضع الإدارة: شريط + طلب بهوية الجهاز')
+    check(await pg.evaluate("document.querySelectorAll('.cat .mz-sw').length") == 2, 'مفتاح على كل قسم')
+    # إطفاء قسم pergolas كامل (بدون ما ينفتح القسم)
+    await pg.click('.cat >> nth=1 >> .mz-sw'); await pg.wait_for_timeout(600)
+    check('c=' not in pg.url and st['posts'] and st['posts'][-1] == ['c2'] and await pg.evaluate("document.querySelectorAll('.cat')[1].classList.contains('mz-off')"), 'إطفاء قسم كامل بينحفظ وما بيفتح القسم ' + str(st['posts']))
+    check('انحفظ' in await pg.inner_text('#mzMsg'), 'رسالة «انحفظ»')
+    # جوّا قسم الشاورات: إطفاء صورة وحدة
+    await pg.click('.cat >> nth=0 >> .t'); await pg.wait_for_timeout(1500)
+    check('m=1' in pg.url and await pg.evaluate("document.querySelectorAll('.tile .mz-sw').length") == 3, 'جوّا القسم: مفتاح على كل صورة (ووضع الإدارة باقي)')
+    await pg.click('[data-open="1"] .mz-sw'); await pg.wait_for_timeout(600)
+    check(not await pg.evaluate("document.getElementById('lb').classList.contains('open')") and st['posts'][-1] == ['c2', 'i2'], 'إطفاء صورة وحدة بدون ما تنفتح الصورة ' + str(st['posts'][-1]))
+    check(await pg.evaluate("document.querySelector('[data-open=\"1\"]').classList.contains('mz-off')"), 'الصورة المطفية باهتة')
+    # الزبون
+    pc = await ctx.new_page(); pc.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await pc.goto(f'http://127.0.0.1:{port}/catalog.html'); await pc.wait_for_timeout(1500)
+    check(await pc.evaluate("document.querySelectorAll('.cat').length") == 1 and not await pc.is_visible('#mzMbar') and not await pc.evaluate("document.querySelectorAll('.mz-sw').length"), 'الزبون: القسم المطفي مش ظاهر، وبلا مفاتيح')
+    await pc.goto(f'http://127.0.0.1:{port}/catalog.html?c=c1'); await pc.wait_for_timeout(1500)
+    check(await pc.evaluate("document.querySelectorAll('.tile').length") == 2, 'الزبون: الصورة المطفية مش ظاهرة')
+    await pc.goto(f'http://127.0.0.1:{port}/catalog.html?c=c2'); await pc.wait_for_timeout(1500)
+    check('ما لقينا' in await pc.inner_text('#content'), 'رابط القسم المطفي ما بيفتح للزبون')
+    # رجّع التشغيل
+    await pg.click('[data-open="1"] .mz-sw'); await pg.wait_for_timeout(500)
+    await pg.click('.mz-secsw'); await pg.wait_for_timeout(500)
+    check(st['posts'][-1] == ['c1', 'c2'], 'زر «اطفي القسم كله» من جوّا القسم ' + str(st['posts'][-1]))
+    await pg.click('.mz-secsw'); await pg.wait_for_timeout(500)
+    check(st['posts'][-1] == ['c2'], 'وتشغيله من جديد')
+    check(not errs, 'بلا أخطاء ' + str(errs[:3]))
+    await ctx.close()
+
 async def t_drive_proxy(p, b, port):
     print('• درايف عن طريق السيرفر (المرحلة 2)')
     sdir = os.environ.get('MZ_SERVER_DIR') or os.path.join(os.path.dirname(ROOT), 'merzona-server')
@@ -3318,7 +3385,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_catalog_manage, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()

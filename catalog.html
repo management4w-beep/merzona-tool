@@ -152,6 +152,14 @@ button{font:inherit;color:inherit}
 .toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:.25s;z-index:200;pointer-events:none}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* 🖼️ وضع الإدارة: تشغيل/إطفاء الأقسام والصور */
+.mz-mbar{position:sticky;top:0;z-index:60;background:#12324a;color:#fff;padding:10px 14px;font-size:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.mz-mbar b{color:#ffd58a}.mz-mbar .msg{margin-inline-start:auto;opacity:.9}
+.mz-sw{position:absolute;top:8px;inset-inline-start:8px;z-index:5;border:0;border-radius:999px;padding:6px 11px;font:600 13px inherit;font-family:inherit;cursor:pointer;background:#1f8f4e;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.mz-off .mz-sw{background:#b3261e}
+.mz-off > img,.mz-off .t{opacity:.35;filter:grayscale(1)}
+.mz-secsw{border:0;border-radius:999px;padding:8px 14px;font:600 14px inherit;font-family:inherit;cursor:pointer;background:#1f8f4e;color:#fff}
+.mz-secsw.off{background:#b3261e}
 </style>
 </head>
 <body>
@@ -267,6 +275,14 @@ button{font:inherit;color:inherit}
   var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
   var params = new URLSearchParams(location.search);
   var S = { cats: [], catId: params.get('c') || '', cat: null, items: [], sig: '' };
+  /* 🖼️ 2026-11-23 (حمدي: "من وين بطفي وبشغل الكتالوج... يعني هاد الزر مافي منو لكتالوج الصور؟ ... اذا مافي اعمله"):
+     catalog.html?m=1 = وضع الإدارة (من الداشبورد): مفتاح على كل قسم وكل صورة. المطفي ما بيوصل للزبون أصلاً (بينشال بالسيرفر)،
+     وما بينمسح شي من الدرايف. الحفظ بيحتاج جهاز مسجّل بالسيستم وصلاحية الكتالوجات. */
+  var MANAGE = params.get('m') === '1' || location.hash === '#manage';
+  var HID = new Set(), MANAGE_OK = false;
+  var ls = function(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } };
+  var authH = function(){ var h = { 'x-device': ls('merzona-device-token') }; var ss = ls('merzona-session-token'); if(ss) h['x-session'] = ss; return h; };
+  var navQ = function(first){ return bq(first) + (MANAGE ? '&m=1' : ''); };
 
   function toast(t){ var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove('on'); }, 2200); }
   function waLink(text){ return 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(text); }
@@ -278,7 +294,8 @@ button{font:inherit;color:inherit}
 
   /* ===== الشبكة ===== */
   async function api(path){
-    var r = await fetch(SERVER + path, { cache: 'no-store' });
+    if(MANAGE) path += (path.indexOf('?') < 0 ? '?' : '&') + 'all=1';
+    var r = await fetch(SERVER + path, MANAGE ? { cache: 'no-store', headers: authH() } : { cache: 'no-store' });
     if(!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   }
@@ -360,8 +377,8 @@ button{font:inherit;color:inherit}
 
   /* ===== العرض ===== */
   function renderChips(){
-    var h = '<a class="chip" href="catalog.html' + bq(true) + '"' + (S.catId ? '' : ' aria-current="page"') + '>كل الأعمال</a>';
-    S.cats.forEach(function(c){ h += '<a class="chip" href="?c=' + encodeURIComponent(c.id) + bq(false) + '"' + (c.id === S.catId ? ' aria-current="page"' : '') + '>' + esc(labelOf(c.name)) + '<small>' + c.count + '</small></a>'; });
+    var h = '<a class="chip" href="catalog.html' + navQ(true) + '"' + (S.catId ? '' : ' aria-current="page"') + '>كل الأعمال</a>';
+    S.cats.forEach(function(c){ h += '<a class="chip" href="?c=' + encodeURIComponent(c.id) + navQ(false) + '"' + (c.id === S.catId ? ' aria-current="page"' : '') + '>' + esc(labelOf(c.name)) + '<small>' + c.count + '</small></a>'; });
     $('chips').innerHTML = h;
     var cur = $('chips').querySelector('[aria-current]'); if(cur && cur.scrollIntoView) try{ cur.scrollIntoView({ inline: 'center', block: 'nearest' }); }catch(e){}
   }
@@ -386,21 +403,22 @@ button{font:inherit;color:inherit}
     setHero('كتالوج أعمال Merzona', 'مشاريع منفّذة بالألمنيوم والزجاج: درابزين، واجهات زجاجية، كبائن شاور، برغولات، أبواب ونوافذ. اختار القسم يلي بيهمك.', 'MERZONA · ALUMINIUM & GLASS',
       '<span class="stat"><b>' + S.cats.length + '</b> أقسام</span><span class="stat"><b>' + total + '</b> صورة مشاريع</span>', S.cats[0] && S.cats[0].cover);
     $('content').innerHTML = '<div class="sec-head"><h2>أقسام الأعمال</h2><span>اختار قسم لتتصفح صوره</span></div><div class="cats">' + S.cats.map(function(c, i){
-      return '<a class="cat" href="?c=' + encodeURIComponent(c.id) + bq(false) + '"><img alt="" data-c="' + i + '"><div class="t"><b>' + esc(labelOf(c.name)) + '</b><span>' + c.count + ' صورة</span></div></a>';
+      var off = MANAGE && HID.has(c.id), hc = MANAGE && c.hiddenCount ? ' · ' + c.hiddenCount + ' مطفية' : '';
+      return '<a class="cat' + (off ? ' mz-off' : '') + '" href="?c=' + encodeURIComponent(c.id) + navQ(false) + '"><img alt="" data-c="' + i + '">' + (MANAGE && MANAGE_OK ? swHtml(c.id) : '') + '<div class="t"><b>' + esc(labelOf(c.name)) + '</b><span>' + c.count + ' صورة' + hc + '</span></div></a>';
     }).join('') + '</div>';
     lazyFill($('content'), 900);
   }
   function renderCatalog(){
     var c = S.cat, items = S.items;
-    setHero(labelOf(c.name), blurbOf(c.name), c.name, '<span class="stat"><b>' + items.length + '</b> صورة</span><a class="btn btn-ghost" href="#gallery">تصفّح الأعمال ↓</a>', items[0]);
+    setHero(labelOf(c.name), blurbOf(c.name), c.name, '<span class="stat"><b>' + items.length + '</b> صورة</span><a class="btn btn-ghost" href="#gallery">تصفّح الأعمال ↓</a>' + (MANAGE && MANAGE_OK ? '<button type="button" class="mz-secsw' + (HID.has(c.id) ? ' off' : '') + '" data-hide="' + esc(c.id) + '">' + (HID.has(c.id) ? '⛔ هالقسم كله مطفي — كبسة لتشغيله' : '✅ هالقسم ظاهر — كبسة لإطفائه كله') + '</button>' : ''), items[0]);
     if(!items.length){ $('content').innerHTML = '<div class="state"><b>ما في صور بهالقسم حاليًا</b>رح نضيف أعمال جديدة قريبًا.</div>'; return; }
     $('content').innerHTML = '<div class="sec-head" id="gallery"><h2>' + esc(labelOf(c.name)) + '</h2><span>اضغط على أي صورة لتكبيرها</span></div><div class="masonry">' + items.map(function(it, i){
       var ar = it.w && it.h ? it.w + ' / ' + it.h : '4 / 3';
-      return '<button type="button" class="tile loading" data-open="' + i + '" style="aspect-ratio:' + ar + '" aria-label="صورة ' + (i + 1) + '"><img alt="" data-i="' + i + '"><span class="n">' + (i + 1) + '</span></button>';
+      return '<button type="button" class="tile loading' + (MANAGE && HID.has(it.id) ? ' mz-off' : '') + '" data-open="' + i + '" style="aspect-ratio:' + ar + '" aria-label="صورة ' + (i + 1) + '"><img alt="" data-i="' + i + '">' + (MANAGE && MANAGE_OK ? swHtml(it.id) : '') + '<span class="n">' + (i + 1) + '</span></button>';
     }).join('') + '</div>';
     lazyFill($('content'), 800);
   }
-  function setBack(){ var b = $('backBtn'); if(!b) return; b.href = 'catalog.html' + bq(true); b.hidden = !S.catId; }
+  function setBack(){ var b = $('backBtn'); if(!b) return; b.href = 'catalog.html' + navQ(true); b.hidden = !S.catId; }
   function setWa(){
     var t = S.cat ? 'مرحبا Merzona، شفت كتالوج ' + labelOf(S.cat.name) + ' وحابب اطلب عرض سعر.' : 'مرحبا Merzona، شفت كتالوج الأعمال وحابب اطلب عرض سعر.';
     $('waTop').href = waLink(t + '\n' + pageUrl()); $('waBottom').href = $('waTop').href;
@@ -409,6 +427,7 @@ button{font:inherit;color:inherit}
   async function load(quiet){
     try{
       var d = await api('/public/catalogs'); S.cats = d.catalogs || [];
+      if(MANAGE){ MANAGE_OK = !!d.manage; if(MANAGE_OK && Array.isArray(d.hidden)) HID = new Set(d.hidden); mbar(); }
       if(S.catId){
         var c = await api('/public/catalogs/' + encodeURIComponent(S.catId));
         var sig = c.items.map(function(x){ return x.id + x.v; }).join('|');
@@ -537,10 +556,37 @@ button{font:inherit;color:inherit}
     else if(e.key === 'ArrowRight') prev();
     else if(e.key === '+' || e.key === '=') $('lbZoom').click();
   });
+  function swHtml(id){ var off = HID.has(id); return '<span class="mz-sw" role="switch" aria-checked="' + (!off) + '" data-hide="' + esc(id) + '">' + (off ? '⛔ مطفي' : '✅ ظاهر') + '</span>'; }
+  function mbar(){
+    if(!MANAGE) return; var b = $('mzMbar');
+    if(!b){ b = document.createElement('div'); b.id = 'mzMbar'; b.className = 'mz-mbar'; document.body.insertBefore(b, document.body.firstChild); }
+    b.innerHTML = MANAGE_OK ? '⚙️ <span>وضع الإدارة: كبسة عالمفتاح بتخفي القسم أو الصورة عن الزبون (ما بينمسح شي من الدرايف). المطفي هلّق: <b id="mzOffN">' + HID.size + '</b></span><span class="msg" id="mzMsg"></span>'
+      : '⚠️ <span>ما فيك تدير الكتالوج من هون: افتحه من الداشبورد على جهاز مسجّل بالسيستم، وبحساب عندو صلاحية الكتالوجات.</span>';
+  }
+  function saveHidden(){
+    var m = $('mzMsg'); if(m) m.textContent = '⏳ عم احفظ...';
+    var h = authH(); h['Content-Type'] = 'application/json';
+    return fetch(SERVER + '/catalog-settings', { method: 'POST', headers: h, body: JSON.stringify({ hidden: Array.from(HID) }) }).then(function(r){ return r.json().then(function(j){ return { s: r.status, j: j }; }); }).then(function(r){
+      if(m) m.textContent = r.s === 200 ? '✅ انحفظ — الزبون بيشوف التعديل فوراً' : (r.s === 403 ? '⚠️ ما عندك صلاحية الكتالوجات' : r.s === 401 ? '⚠️ افتحها من جهاز مسجّل بالسيستم' : '⚠️ ما انحفظ (' + r.s + ')');
+      var n = $('mzOffN'); if(n) n.textContent = HID.size;
+    }).catch(function(){ if(m) m.textContent = '⚠️ ما في اتصال — ما انحفظ'; });
+  }
+  function toggleHide(id, el){
+    if(HID.has(id)) HID.delete(id); else HID.add(id);
+    var off = HID.has(id);
+    document.querySelectorAll('[data-hide="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]').forEach(function(sw){
+      if(sw.classList.contains('mz-secsw')){ sw.classList.toggle('off', off); sw.textContent = off ? '⛔ هالقسم كله مطفي — كبسة لتشغيله' : '✅ هالقسم ظاهر — كبسة لإطفائه كله'; }
+      else { sw.textContent = off ? '⛔ مطفي' : '✅ ظاهر'; sw.setAttribute('aria-checked', String(!off)); var host = sw.closest('.cat,.tile'); if(host) host.classList.toggle('mz-off', off); }
+    });
+    return saveHidden();
+  }
+  // المفتاح أول شي (قبل فتح الصورة أو القسم)
+  document.addEventListener('click', function(e){ var sw = e.target.closest('[data-hide]'); if(!sw || !MANAGE) return; e.preventDefault(); e.stopPropagation(); toggleHide(sw.dataset.hide, sw); }, true);
   $('content').addEventListener('click', function(e){ var t = e.target.closest('[data-open]'); if(t) openLb(+t.dataset.open); });
+  window.__mzCat = { hidden: function(){ return Array.from(HID); }, manage: function(){ return MANAGE_OK; } };
   $('shareBtn').onclick = function(){ share(document.title, pageUrl()); };
   $('phoneTxt').textContent = BRANCH.phone; $('branchTxt').textContent = BRANCH.label;
-  document.querySelector('.brand').href = 'catalog.html' + bq(true);
+  document.querySelector('.brand').href = 'catalog.html' + navQ(true);
 
   // تحديث حي: لما الزبون يرجع للصفحة، وكل دقيقة وهي مفتوحة
   document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') load(true); });
