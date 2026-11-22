@@ -32,6 +32,8 @@ def prepare():
         if os.path.isfile(p) and (f.endswith('.html') or f.endswith('.js') or f.endswith('.json')): shutil.copy(p, tmp)
     img = os.path.join(SRC, 'img') if os.path.isdir(os.path.join(SRC, 'img')) else os.path.join(ROOT, 'img')
     if os.path.isdir(img): shutil.copytree(img, os.path.join(tmp, 'img'))
+    tc = os.path.join(SRC, 'catalog-images', 'tc') if os.path.isdir(os.path.join(SRC, 'catalog-images', 'tc')) else os.path.join(ROOT, 'catalog-images', 'tc')
+    if os.path.isdir(tc): shutil.copytree(tc, os.path.join(tmp, 'catalog-images', 'tc'))
     if os.environ.get('MZ_OLD_INDEX') and os.path.isfile(os.environ['MZ_OLD_INDEX']): shutil.copy(os.environ['MZ_OLD_INDEX'], os.path.join(tmp, 'index-old.html'))  # مقارنة مع نسخة قديمة
     # منكشف قائمة البنود للفحص بس (ما بيتغير الملف الأصلي)
     ip = os.path.join(tmp, 'index.html'); s = open(ip, encoding='utf8').read()
@@ -690,6 +692,33 @@ async def t_install_checklist(p, b, port):
     await pg.wait_for_function("window.__opened && window.__opened.length > 0", timeout=5000); u = await pg.evaluate("window.__opened.filter(function(x){ return x; })[0] || JSON.stringify(window.__opened)")
     import urllib.parse as _up
     check(u.startswith('https://wa.me/963939919670?text=') and 'أم خالد' in _up.unquote(u) and '✔️' in _up.unquote(u), 'رسالة واتس اب بالخطوات ' + _up.unquote(u)[:100])
+    check(not errs, 'بلا أخطاء ' + str(errs[:3]))
+    await ctx.close()
+
+
+async def t_techcat(p, b, port):
+    """📘 الكتالوج الفني للمهندسين (2026-11-22): صفحة عامة مرتّبة + كل المقاطع موجودة + بلا ملاحظات داخلية + زر بالداشبورد"""
+    print('• 📘 الكتالوج الفني للمهندسين')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await pg.goto(f'http://127.0.0.1:{port}/techcat.html'); await pg.wait_for_timeout(1500)
+    n = await pg.locator('section.sys').count()
+    check(n >= 20, 'كل الأنظمة معروضة ' + str(n))
+    txt = await pg.inner_text('#doc')
+    check('غير محدد' not in txt and '.pdf' not in txt and 'صفحة)' not in txt and 'الكتالوج بيذكر' not in txt, 'بلا ملاحظات داخلية ولا "غير محدد" ولا أسماء ملفات')
+    srcs = await pg.evaluate("Array.from(document.querySelectorAll('figure img')).map(function(i){ return i.src; })")
+    bad = []
+    for u in srcs:
+        r = await pg.request.get(u)
+        if r.status != 200: bad.append(u.rsplit('/', 1)[-1])
+    check(len(srcs) >= 50 and not bad, 'كل صور المقاطع موجودة (' + str(len(srcs)) + ') ' + str(bad[:3]))
+    check(await pg.locator('figure svg').count() >= 6, 'مقاطع توضيحية للأنظمة يلي ما إلها رسمة رسمية')
+    check(all(await pg.evaluate("Array.from(document.querySelectorAll('section.sys')).map(function(s){ return !!s.querySelector('figure'); })")), 'كل نظام إلو مقطع/رسمة')
+    check(await pg.locator('.toc a').count() == n, 'فهرس فيه كل الأنظمة')
+    await ctx.close()
+    ctx = await new_ctx(p, b); pd = await ctx.new_page()
+    await pd.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pd.wait_for_timeout(3000)
+    await pd.click('#catalogsTabBtn'); await pd.wait_for_timeout(800)
+    check(await pd.is_visible('#techCatPanel') and await pd.get_attribute('#techCatOpen', 'href') == 'techcat.html', 'زر الكتالوج الفني بقسم الكتالوجات')
     check(not errs, 'بلا أخطاء ' + str(errs[:3]))
     await ctx.close()
 
@@ -1671,7 +1700,7 @@ async def t_sufiya_site(p, b, port, root):
     # الكتالوج (13Qxtn...) مشترك عن قصد من 2026-11-20 (حمدي: "خلي كتالوج صوفية من مجلد ميرزونا") - قراءة بس من صوفيه
     import re
     # 🆕 2026-11-20: روابط الكتالوج/التوقيع/الرواتب المبعوتة لزبائن صوفيه (واتساب بيقرا الصفحة بلا جافاسكربت) + أيقونة صوفيه
-    for f in ['catalog.html', 'sign.html', 'salary.html']:
+    for f in ['catalog.html', 'sign.html', 'salary.html', 'techcat.html']:
         raw = open(os.path.join(dest, f), encoding='utf8').read()
         check(not re.search('Merzona|MERZONA|ميرزونا|مرزونا', raw), f + ': ولا كلمة ميرزونا بالصفحة نفسها (معاينة الرابط بواتساب)')
     rawc = open(os.path.join(dest, 'catalog.html'), encoding='utf8').read()
@@ -3191,7 +3220,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()

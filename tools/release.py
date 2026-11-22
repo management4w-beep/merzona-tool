@@ -13,9 +13,9 @@
 import os, re, sys, json, shutil, subprocess, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PAGES = ['Dashboard.html', 'index.html', 'accounting.html', 'procurement.html', 'designer.html', 'salary.html', 'sign.html', 'survey.html', 'survey-sw.js',
+PAGES = ['Dashboard.html', 'index.html', 'accounting.html', 'procurement.html', 'designer.html', 'salary.html', 'sign.html', 'survey.html', 'survey-sw.js', 'techcat.html',
          'catalog.html', 'about.html', 'privacy.html', 'acct-core.js', 'company.js', 'cad-import.js', 'real3d.js', 'pdf-text.js', 'dwg-read.js', 'mz-i18n.js', 'i18n-en-acct.js', 'i18n-en-dash.js', 'i18n-en-proc.js', 'version.json']
-PROD_EXTRA_DIRS = ['tests', 'tools', 'fonts']
+PROD_EXTRA_DIRS = ['tests', 'tools', 'fonts', 'catalog-images/tc']
 BASE = 'https://management4w-beep.github.io/merzona-tool/'
 BANNER = ('<div id="mzBetaRibbon" style="position:fixed;left:8px;bottom:8px;z-index:2147483000;background:#c0392b;color:#fff;'
           'font:700 12px/1 sans-serif;padding:6px 10px;border-radius:12px;pointer-events:none;opacity:.9">🧪 نسخة تجريبية</div>')
@@ -94,7 +94,7 @@ def sufiya_transform(name, text, profile):
         icons = '<link rel="icon" type="image/png" href="img/sufiya-icon.png">\n<link rel="apple-touch-icon" href="img/sufiya-icon.png">\n'
         text = re.sub(r'</head>', lambda _: icons + '</head>', text, count=1)
         # صفحات الزبائن (الكتالوج، التوقيع، الرواتب): الاسم مكتوب بالصفحة نفسها - واتساب وجوجل بيقروها بلا جافاسكربت
-        if name in ('catalog.html', 'sign.html', 'salary.html'):
+        if name in ('catalog.html', 'sign.html', 'salary.html', 'techcat.html'):
             sy = profile['branches']['syria']
             wa = re.sub(r'\D', '', profile.get('whatsapp') or profile.get('phone') or '')
             waShow = profile.get('whatsapp') or profile.get('phone', '')

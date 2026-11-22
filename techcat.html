@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="company.js?v=2026-11-13.1"></script>
+<title>Merzona — الكتالوج الفني | Technical Catalogue</title>
+<meta name="description" content="Merzona — الكتالوج الفني لأنظمة الألمنيوم والزجاج: السحّاب، المفصلي، الطي، المحوري، الكرتن وول، الدرابزين — مقاطع ومواصفات للمهندسين والاستشاريين.">
+<meta property="og:title" content="Merzona — الكتالوج الفني | Technical Catalogue">
+<meta property="og:description" content="أنظمة الألمنيوم والزجاج: مقاطع، أبعاد، أداء، وتشطيبات — للمهندسين والاستشاريين.">
+<meta property="og:image" content="https://management4w-beep.github.io/merzona-tool/img/logo.png">
+<link rel="icon" href="img/catalog-icon.png">
+<style>
+/* =====================================================================================
+   📘 الكتالوج الفني للزبائن المهندسين (2026-11-22) - طلب حمدي: "الكتالوج الفني... بدي ارسله للزباين المهندسين...
+   يتقدم بطريقة جدا سلسة وبروفيشنال... واذا في صورة للمقاطع تبع كل بند حطها".
+   نفس معلومات "الكتالوج الفني" بالداشبورد (من كتالوجات المصنّعين الرسمية)، بس مرتّبة حسب نوع النظام،
+   بلغة فنية نضيفة، بلا الملاحظات الداخلية وبلا "غير محدد". صفحة عامة (رابط بينبعت) + 🖨️ PDF.
+   المقاطع: رسومات المصنّعين المقصوصة (catalog-images/tc). يلي ما إلها رسمة رسمية = مقطع توضيحي مرسوم (مكتوب عليه).
+   ===================================================================================== */
+:root{--ink:#16232d;--muted:#5d6b75;--line:#dfe5ea;--accent:#0f88cd;--soft:#f3f6f9;--paper:#fff;--gold:#a77a45}
+*{box-sizing:border-box}
+html,body{margin:0;background:#e9edf1;color:var(--ink);font-family:Tajawal,Cairo,"Segoe UI",Tahoma,Arial,sans-serif;font-size:15px;line-height:1.65}
+a{color:var(--accent)}
+.bar{position:sticky;top:0;z-index:10;background:var(--ink);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap}
+.bar .t{flex:1;font-weight:700;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar button,.bar a{font:inherit;font-size:14px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.bar .pri{background:var(--accent);border-color:var(--accent)}
+.doc{max-width:960px;margin:18px auto 60px;padding:0 12px}
+.page{background:var(--paper);border-radius:6px;box-shadow:0 2px 10px rgba(16,35,45,.08);padding:34px 40px;margin-bottom:18px}
+@media(max-width:640px){.page{padding:22px 16px}}
+.cover{min-height:78vh;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(160deg,#ffffff 0%,#f2f6f9 55%,#e3ecf2 100%);position:relative;overflow:hidden}
+.cover:after{content:"";position:absolute;inset:auto -10% -30% 40%;height:70%;background:repeating-linear-gradient(115deg,rgba(15,136,205,.07) 0 2px,transparent 2px 26px);transform:rotate(-4deg)}
+.cover .logo{height:92px;width:auto;object-fit:contain}
+.cover h1{font-size:40px;line-height:1.2;margin:0 0 6px;letter-spacing:-.5px}
+.cover h1 small{display:block;font-size:20px;color:var(--muted);font-weight:500;letter-spacing:.5px;direction:ltr;text-align:right}
+.cover .lead{max-width:600px;color:var(--muted);font-size:16px}
+.cover .meta{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);position:relative;z-index:1}
+.cover .cats{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;position:relative;z-index:1}
+.cover .cats span{border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 12px;font-size:13px}
+h2.cat{font-size:26px;margin:0 0 4px;padding-bottom:8px;border-bottom:3px solid var(--accent);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h2.cat .en{font-size:15px;color:var(--muted);font-weight:500;direction:ltr}
+.cat-intro{color:var(--muted);margin:8px 0 0}
+.sys{border-top:1px solid var(--line);padding-top:22px;margin-top:22px}
+.sys:first-of-type{border-top:0}
+.sys-h{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.code{font-family:"DM Mono",ui-monospace,Consolas,monospace;font-size:12px;background:var(--ink);color:#fff;border-radius:6px;padding:3px 8px;direction:ltr;white-space:nowrap;margin-top:6px}
+.sys h3{margin:0;font-size:20px;line-height:1.35;flex:1;min-width:240px}
+.sys h3 .en{display:block;font-size:13.5px;color:var(--muted);font-weight:500;direction:ltr;text-align:right}
+.maker{font-size:12.5px;color:var(--muted);margin-top:2px}
+.desc{margin:10px 0 12px}
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:22px;align-items:start}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+table.spec{width:100%;border-collapse:collapse;font-size:13.5px}
+table.spec th{width:38%;text-align:right;font-weight:600;color:var(--muted);vertical-align:top;padding:7px 10px 7px 0;border-bottom:1px solid var(--line)}
+table.spec td{padding:7px 0;border-bottom:1px solid var(--line);vertical-align:top}
+table.spec th small{display:block;font-weight:400;font-size:11px;direction:ltr;text-align:right;opacity:.8}
+ul.feat{margin:12px 0 0;padding:0 18px 0 0;font-size:13.5px}
+ul.feat li{margin:3px 0}
+.figs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.figs.one{grid-template-columns:1fr}
+figure{margin:0;border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;break-inside:avoid;display:flex;flex-direction:column}
+figure img,figure svg{display:block;width:100%;height:auto;max-height:340px;object-fit:contain;background:#fff;cursor:zoom-in}
+figure svg{cursor:default}
+figcaption{font-size:11.5px;color:var(--muted);padding:6px 8px;border-top:1px solid var(--line);background:var(--soft)}
+figcaption .sch{color:var(--gold);font-weight:600}
+.depth-t{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.depth-t th,.depth-t td{border:1px solid var(--line);padding:6px 8px;text-align:center}
+.depth-t th{background:var(--soft)}
+.toc ol{columns:2;column-gap:28px;padding-right:18px;margin:10px 0 0}
+@media(max-width:640px){.toc ol{columns:1}}
+.toc li{margin:4px 0;break-inside:avoid}
+.toc li small{color:var(--muted);direction:ltr;display:inline-block}
+.note{font-size:12.5px;color:var(--muted);background:var(--soft);border-radius:8px;padding:10px 12px;margin-top:14px}
+.gl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 22px;font-size:13.5px}
+@media(max-width:640px){.gl{grid-template-columns:1fr}}
+.gl b{display:block}
+.foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12.5px;color:var(--muted)}
+.zoom{position:fixed;inset:0;background:rgba(10,20,28,.88);z-index:50;display:none;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
+.zoom img{max-width:100%;max-height:100%;background:#fff;border-radius:6px}
+@media print{
+  @page{size:A4;margin:12mm 11mm}
+  html,body{background:#fff;font-size:11.5pt}
+  .bar,.zoom,.no-print{display:none!important}
+  .doc{max-width:none;margin:0;padding:0}
+  .page{box-shadow:none;border-radius:0;padding:0;margin:0;break-after:page}
+  .cover{min-height:265mm}
+  .sys{break-inside:avoid-page}
+  .grid{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+  figure img,figure svg{max-height:85mm}
+  a{color:inherit;text-decoration:none}
+}
+</style>
+</head>
+<body>
+<div class="bar no-print">
+  <span class="t" id="barT">📘 الكتالوج الفني — Technical Catalogue</span>
+  <button type="button" onclick="TC.share()">🔗 شارك الرابط</button>
+  <button type="button" class="pri" onclick="window.print()">🖨️ PDF</button>
+</div>
+<div class="doc" id="doc"></div>
+<div class="zoom" id="zoom" onclick="this.style.display='none'"><img id="zoomImg" alt=""></div>
+<script>
+(function(){
+'use strict';
+const CATALOG_IMAGES_DIR = 'catalog-images/';
+const IMG = (f) => CATALOG_IMAGES_DIR + 'tc/' + f.replace(/\.(png|jpe?g)$/i, '') + '.jpg';
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+/* ---------- مقاطع توضيحية مرسومة (للأنظمة يلي ما إلها رسمة رسمية بين إيدينا) ---------- */
+const S = {
+  al: 'fill="#cfd8de" stroke="#33434d" stroke-width="1.4"', tb: 'fill="url(#tbh)" stroke="#33434d" stroke-width="1"',
+  gl: 'fill="#d6ecf7" stroke="#5b94b3" stroke-width="1.2"', gk: 'fill="#2d3a42"', dim: 'stroke="#a77a45" stroke-width="1" fill="none"',
+};
+function svgWrap(w, h, body){
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" xmlns="http://www.w3.org/2000/svg" role="img" direction="ltr" style="direction:ltr" font-family="Tajawal,Arial,sans-serif">' +
+    '<defs><pattern id="tbh" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#f2e3c9"/><line x1="0" y1="0" x2="0" y2="6" stroke="#a77a45" stroke-width="1.6"/></pattern>' +
+    '<marker id="ar" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L7 4 L0 7z" fill="#a77a45"/></marker></defs>' +
+    '<rect width="' + w + '" height="' + h + '" fill="#fff"/>' + body + '</svg>';
+}
+const lbl = (x, y, t, a) => '<text x="' + x + '" y="' + y + '" font-size="11" fill="#33434d" text-anchor="' + (a || 'start') + '">' + t + '</text>';
+const dimH = (x1, x2, y, t) => '<line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" ' + S.dim + ' marker-start="url(#ar)" marker-end="url(#ar)"/>' + '<text x="' + ((x1 + x2) / 2) + '" y="' + (y - 4) + '" font-size="11" fill="#a77a45" text-anchor="middle">' + t + '</text>';
+const dimV = (x, y1, y2, t) => '<line x1="' + x + '" y1="' + y1 + '" x2="' + x + '" y2="' + y2 + '" ' + S.dim + ' marker-start="url(#ar)" marker-end="url(#ar)"/>' + '<text x="' + (x - 5) + '" y="' + ((y1 + y2) / 2) + '" font-size="11" fill="#a77a45" text-anchor="end">' + t + '</text>';
+const SCHEMES = {
+  // مفصلي: فريم + دفة + زجاج + غاسكيت، مع/بلا عازل حراري
+  hinged(o){
+    o = o || {}; const tb = !!o.tb, D = o.depth || 'D';
+    let b = '';
+    // الفريم (شكل L)
+    b += '<path d="M60 70 h60 v' + (tb ? 24 : 0) + ' M60 70 v170 h60 v-60 h-36 v-110 z" ' + S.al + '/>';
+    b += tb ? '<rect x="60" y="138" width="60" height="14" ' + S.tb + '/>' : '';
+    // الدفة
+    b += '<path d="M124 96 h62 v150 h-62 z" ' + S.al + '/>' + (tb ? '<rect x="124" y="160" width="62" height="14" ' + S.tb + '/>' : '');
+    b += '<rect x="196" y="40" width="' + (o.dg ? 24 : 10) + '" height="220" ' + S.gl + '/>' + (o.dg ? '<line x1="208" y1="40" x2="208" y2="260" stroke="#5b94b3" stroke-dasharray="3 3"/>' : '');
+    b += '<rect x="186" y="104" width="10" height="16" ' + S.gk + '/><rect x="' + (o.dg ? 220 : 206) + '" y="104" width="8" height="16" ' + S.gk + '/><rect x="' + (o.dg ? 220 : 206) + '" y="96" width="22" height="34" ' + S.al + '/>';
+    b += '<rect x="116" y="100" width="8" height="12" ' + S.gk + '/><rect x="116" y="226" width="8" height="12" ' + S.gk + '/>';
+    b += dimH(60, 186, 282, D) + lbl(250, 60, 'زجاج / Glazing') + lbl(20, 60, 'فريم / Frame') + lbl(250, 200, 'بيدة / Glazing bead') + lbl(130, 30, 'دفة / Sash');
+    if(tb) b += lbl(250, 160, 'عازل حراري / Polyamide');
+    return svgWrap(400, 300, b);
+  },
+  // حلقة مخفية: الدفة وراء الفريم، ما بيبيّن غير الفريم من برّا
+  hidden(){
+    let b = '<path d="M70 60 h46 v190 h-46 z" ' + S.al + '/><rect x="70" y="146" width="46" height="14" ' + S.tb + '/>';
+    b += '<path d="M120 70 h40 v170 h-40 z" ' + S.al + '/><rect x="120" y="150" width="40" height="12" ' + S.tb + '/>';
+    b += '<rect x="164" y="40" width="26" height="230" ' + S.gl + '/><line x1="177" y1="40" x2="177" y2="270" stroke="#5b94b3" stroke-dasharray="3 3"/>';
+    b += '<rect x="160" y="80" width="6" height="14" ' + S.gk + '/><rect x="190" y="80" width="6" height="14" ' + S.gk + '/>';
+    b += dimH(70, 116, 290, '45') + dimH(120, 160, 290, '60') + lbl(210, 70, 'دفة مخفية خلف الفريم') + lbl(210, 88, 'Hidden sash') + lbl(210, 160, 'زجاج مزدوج / IGU') + lbl(14, 50, 'من برّا / Outside');
+    return svgWrap(400, 310, b);
+  },
+  // سحّاب رأسي (غيلوتين): بروفايل نحيف 21 ملم + مسارات
+  guillotine(){
+    let b = '<rect x="40" y="40" width="320" height="220" fill="none" stroke="#33434d" stroke-width="1.4"/>';
+    b += '<rect x="60" y="52" width="280" height="96" ' + S.gl + '/><rect x="60" y="148" width="280" height="98" ' + S.gl + ' opacity=".75"/>';
+    b += '<rect x="60" y="142" width="280" height="8" ' + S.al + '/>';
+    b += '<path d="M200 120 v-40 M190 92 l10 -12 l10 12" stroke="#a77a45" stroke-width="2" fill="none"/>';
+    b += dimV(30, 142, 150, '21') + lbl(360, 30, 'Minimal vertical sliding', 'end') + lbl(70, 275, 'بروفايل التقاء نحيف 21 ملم — حركة يدوية أو موتور');
+    return svgWrap(400, 290, b);
+  },
+  // درابزين: قناة أرضية (Base shoe) + زجاج + إسفين
+  balustrade(){
+    let b = '<rect x="20" y="230" width="360" height="40" fill="#e8e3da" stroke="#8b8172"/>' + lbl(28, 262, 'بلاطة / Slab');
+    b += '<path d="M150 150 h100 v80 h-100 z M172 150 v62 h56 v-62" ' + S.al + '/>';
+    b += '<rect x="193" y="30" width="14" height="182" ' + S.gl + '/>';
+    b += '<path d="M176 160 l14 0 l0 46 l-14 0 z M210 160 l14 0 l0 46 l-14 0 z" fill="#2d3a42"/>';
+    b += '<rect x="186" y="16" width="28" height="18" rx="4" ' + S.al + '/>';
+    b += '<line x1="200" y1="232" x2="200" y2="262" stroke="#33434d" stroke-dasharray="4 3"/>';
+    b += dimH(150, 250, 140, 'Base channel 65–150') + lbl(262, 60, 'زجاج سيكوريت مقسّى') + lbl(262, 76, 'Tempered / laminated') + lbl(262, 190, 'إسفين وغاسكيت') + lbl(262, 22, 'هاندريل علوي');
+    return svgWrap(400, 290, b);
+  },
+  // لوفر: شفرات مائلة على حامل
+  louver(){
+    let b = '<rect x="60" y="30" width="16" height="240" ' + S.al + '/><rect x="324" y="30" width="16" height="240" ' + S.al + '/>';
+    for(let i = 0; i < 6; i++){ const y = 48 + i * 38; b += '<path d="M80 ' + y + ' q120 -26 240 0 l0 10 q-120 -26 -240 0 z" transform="rotate(-8 200 ' + y + ')" ' + S.al + '/>'; }
+    b += dimV(44, 48, 86, 'خطوة') + lbl(345, 290, 'شفرات 45–500 ملم (مسطحة / منحنية / Z)', 'end');
+    return svgWrap(400, 300, b);
+  },
+  // تزجيج جاف: قناة U + غاسكيت EPDM من الجهتين
+  dryglaze(){
+    let b = '<path d="M130 150 h140 v110 h-140 z M152 150 v86 h96 v-86" ' + S.al + '/>';
+    b += '<rect x="193" y="30" width="14" height="206" ' + S.gl + '/>';
+    b += '<path d="M156 156 h34 v76 h-34 z M210 156 h34 v76 h-34 z" fill="#2d3a42"/>';
+    b += lbl(262, 70, 'زجاج 8 / 10 / 12 ملم') + lbl(262, 190, 'غاسكيت EPDM محيطي') + lbl(262, 206, 'بلا سيليكون ولا غراء') + dimH(130, 270, 276, 'TwinPro');
+    return svgWrap(400, 300, b);
+  },
+};
+
+/* ---------- المحتوى (من كتالوجات المصنّعين - مرتّب للمهندسين) ---------- */
+const FIN = 'باودر كوتينغ (PE-F / SDF / HDF) أو أنودايز (طبيعي، ذهبي، برونزي، سبكترو)';
+const CATS = [
+ { id: 'sliding', ar: 'أنظمة السحّاب', en: 'Sliding Systems', intro: 'من السحّاب الاقتصادي غير الحراري لأنظمة الرفع والسحب والأنظمة النحيفة متعددة المسارات بعتبة مخفية.', sys: [
+  { code: 'MZ-SL-01', ar: 'The Next — سحّاب حراري متعدد المسارات', en: 'The Next — Thermally-broken multi-track sliding', maker: 'AGBS / Gulf Extrusions',
+    desc: 'نظام سحّاب حراري للنوافذ والأبواب الكبيرة، بفريم ثنائي أو ثلاثي المسار وعتبات متعددة، مناسب للواجهات السكنية والتجارية ذات المتطلبات العالية للعزل والأمان.',
+    spec: [['عمق الفريم', 'Frame depth', 'ثنائي المسار: 110 / 125 ملم — ثلاثي المسار: 181 / 196 ملم (حتى 222 ملم)'], ['العزل الحراري', 'Thermal break', 'بولي أميد 34 ملم'], ['التزجيج', 'Glazing', '24 – 40 ملم'],
+      ['أقصى درفة', 'Max. sash', 'ارتفاع 3.50 م · عرض 2.00 م · وزن حتى 230 كغ'], ['الأداء', 'Performance', 'تسرب هواء 300–600 Pa · مياه 600 Pa (ساكن/ديناميكي) · رياح تصميمية حتى 2000 Pa · أمان WK2 (DIN ENV 1627)'],
+      ['الأداء الحراري', 'Uw', '≈ 1.7 – 1.9 W/m²K'], ['التشطيب', 'Finish', FIN + ' 5–30 ميكرون']],
+    feat: ['حتى 4 درفات على الفريم الثنائي، وتوليفات أكبر على الثلاثي', 'عائلة عتبات متعددة (أربع عتبات)', 'وصلات تجميع عمودية للواجهات المركّبة'],
+    img: [['next-frame-2track.jpg', 'فريم ثنائي المسار'], ['next-frame-3track.jpg', 'فريم ثلاثي المسار'], ['next-sill-family.jpg', 'عائلة العتبات'], ['next-jamb-2track-detail.jpg', 'تفصيل الجانب — ثنائي'], ['next-jamb-3track-detail.jpg', 'تفصيل الجانب — ثلاثي'], ['next-mullion-coupling.jpg', 'وصلة تجميع']] },
+  { code: 'MZ-SL-02', ar: 'The Glide — رفع وسحب', en: 'The Glide — Lift & Slide', maker: 'Gulf Extrusions',
+    desc: 'باب سحّاب بنظام الرفع والسحب للدرف الثقيلة: الدرفة بترتفع عن الحاشية وقت الحركة وبتنزل لتحكم الإغلاق، للفتحات العريضة المطلّة على التراسات والحدائق.',
+    spec: [['الفريم', 'Frame', '110 × 41 ملم (سماكة جدار 1.6 ملم)'], ['مقطع الدرفة', 'Sash / interlock', '85 × 65 ملم'], ['التزجيج', 'Glazing', '24 – 34 ملم مزدوج (6 توليفات غاسكيت)'], ['أقصى وزن للدرفة', 'Max. sash weight', '420 كغ · نسبة الارتفاع/العرض ≤ 2.5'], ['الأداء الحراري', 'Uw', '1.898 W/m²K (وحدة مرجعية 2.4 × 2.0 م، Ug = 1.3)']],
+    feat: ['مخططات A (درفتين) / C (4 درفات) / K (3 درفات ووسط ثابت)', 'تقوية التقاء (Interlock fin) لارتفاعات حتى ≈ 3.6 م', 'مقابض: طبيعي / أسود / أبيض'],
+    img: [['glide-liftslide-overview.jpg', 'التايبولوجي والمقاطع'], ['glide-crosssection-detail1.jpg', 'مقطع أفقي'], ['glide-crosssection-detail2.jpg', 'مقطع رأسي']] },
+  { code: 'MZ-SL-03', ar: 'The Glide — سحّاب عادي', en: 'The Glide — Standard slide', maker: 'Gulf Extrusions',
+    desc: 'نفس عائلة مقاطع Glide (فريم 110 ملم) بحركة سحب أفقية بلا رفع، لفتحات متوسطة وتركيب أبسط.',
+    spec: [['الفريم', 'Frame', '110 ملم'], ['التزجيج', 'Glazing', '24 – 34 ملم مزدوج'], ['أقصى وزن للدرفة', 'Max. sash weight', '200 كغ · نسبة الارتفاع/العرض ≤ 2']],
+    img: [['glide-slide-overview.jpg', 'التايبولوجي والمقاطع'], ['glide-crosssection-detail1.jpg', 'مقطع أفقي']] },
+  { code: 'MZ-SL-04', ar: 'Montana 120 — سحّاب حراري للخدمة الشاقة', en: 'Montana 120 — Heavy-duty thermal sliding', maker: 'Gulf Extrusions',
+    desc: 'سحّاب أفقي ثقيل 2–4 درفات مع فتحات ثابتة وخيار قوس علوي، مختبَر ومصنّف للخدمة الشاقة.',
+    spec: [['عمق الفريم', 'Frame depth', '120 ملم · عمق الدرفة ≈ 76.3 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد PA66 GF25 مقوّى بالفايبرغلاس — 16 ملم'], ['التزجيج', 'Glazing', '24 ملم مزدوج'],
+      ['التصنيف', 'Rating', 'H-HC40 (Heavy commercial) — Al Futtaim Bodycote'], ['الأداء', 'Performance', 'تسرب هواء ≤ 5.0 م³/س/م² @ 75 Pa · تسرب مياه: صفر'], ['الأداء الحراري', 'Uw', '3.3 W/m²K (مقابل 5.7 بلا عازل)'], ['التشطيب', 'Finish', FIN]],
+    feat: ['قفل 3 نقاط', 'شبك ناموس داخلي أو خارجي', 'صمام تصريف مياه مخصّص'],
+    img: [['montana-frame.jpg', 'مقاطع الفريم والدرفة'], ['montana-frame-fixed.jpg', 'فريم مع ثابت']] },
+  { code: 'MZ-SL-05', ar: 'Vetro Sliding VS36 / VS44 — سحّاب نحيف بعتبة مخفية', en: 'Vetro Sliding VS36 / VS44 — Minimal frame sliding', maker: 'Vetromax',
+    desc: 'نظام سحّاب نحيف بإطار شبه مخفي، حتى 5 مسارات، بعتبة مدفونة تحت الأرضية (حجر أو ألمنيوم) أو مسار ظاهر. للواجهات الزجاجية الكبيرة بأقل خطوط ممكنة.',
+    spec: [['السلسلة', 'Series', 'VS36 و VS44 (حسب سماكة الزجاج والوزن)'], ['المسارات', 'Tracks', 'حتى 5 مسارات — عتبة مخفية أو ظاهرة'], ['العزل الحراري', 'Thermal break', 'نعم'], ['البيانات الفنية', 'Data', 'جدول الأداء ومنحنى U موضّحين بالرسومات']],
+    feat: ['تركيب تحت الحجر أو تحت الألمنيوم بعتبة مستوية مع الأرضية', 'خيارات زجاج مزدوج/ثلاثي حسب السلسلة', 'طقم هاردوير متكامل'],
+    img: [['vetromax-sliding-cutaway-understone.jpg', 'عتبة مخفية تحت الحجر'], ['vetromax-sliding-cutaway-underalum.jpg', 'عتبة مخفية تحت الألمنيوم'], ['vetromax-sliding-cutaway-visibletrack.jpg', 'مسار ظاهر'], ['vetromax-sliding-spec-table.jpg', 'جدول المواصفات VS36 / VS44'],
+      ['vetromax-sliding-system-performance.jpg', 'أداء النظام'], ['vetromax-sliding-thermal-performance.jpg', 'الأداء الحراري'], ['vetroslide-glass-thickness-vs36-vs44.jpg', 'سماكات الزجاج'], ['vetroslide-concealed-5track-stone.jpg', '5 مسارات — مخفي']] },
+  { code: 'MZ-SL-06', ar: 'سحّاب 10.5 سم — عادي وحراري', en: 'Sliding 105 mm — standard & thermal (105 / 120)', maker: 'مقاطع تجارية متعددة المصانع',
+    desc: 'سحّاب اقتصادي غير حراري بعمق 105 ملم للاستعمالات العامة، مع نسخة حرارية بعمق 105 و120 ملم للمشاريع يلي بدها عزل أعلى.',
+    spec: [['العمق', 'Depth', 'عادي: 105 ملم — حراري: 105 / 120 ملم'], ['العزل الحراري', 'Thermal break', 'النسخة الحرارية فقط']],
+    img: [['nbbm-sliding105.jpg', 'سحّاب 105 — عادي'], ['nbbm-sliding105-tb.jpg', 'سحّاب 105 / 120 — حراري']] },
+ ]},
+ { id: 'hinged', ar: 'الأنظمة المفصلية', en: 'Casement & Hinged Systems', intro: 'نوافذ وأبواب مفصلية بفتح للداخل أو الخارج وTurn & Tilt، حرارية وغير حرارية، ومنها نظام الدفة المخفية.', sys: [
+  { code: 'MZ-HG-01', ar: 'TB-600 — مفصلي حراري', en: 'TB-600 — Thermally-broken casement', maker: 'Gulf Extrusions',
+    desc: 'نافذة وباب مفصلي حراري بفتح للداخل أو الخارج وخيار Turn & Tilt، بثلاث طبقات غاسكيت EPDM.',
+    spec: [['عمق الفريم', 'Frame depth', '60 – 120 ملم · الدفة 60 / 67 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد 18.6 ملم'], ['التزجيج', 'Glazing', '18 – 38 ملم'], ['الاختبارات', 'Tested to', 'ASTM E283 / E331 / E330'], ['الأداء الحراري', 'Uw', '≈ 3.0 W/m²K (مقابل 5.7 بلا عازل)'], ['التشطيب', 'Finish', FIN]],
+    img: [['tb600-frame.jpg', 'مقاطع TB-600']] },
+  { code: 'MZ-HG-02', ar: 'TB-62 — مفصلي حراري 62 ملم', en: 'TB-62 — 62 mm thermal casement', maker: 'Gulf Extrusions',
+    desc: 'نظام مفصلي حراري بعمق أساسي 62 ملم وTurn & Tilt، توازن جيد بين العزل والنحافة.',
+    spec: [['عمق الفريم', 'Frame depth', '62 – 106 ملم · الدفة 70.5 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد 22 ملم'], ['التزجيج', 'Glazing', '24 ملم مزدوج'], ['التشطيب', 'Finish', FIN]],
+    img: [['tb62-frame.jpg', 'مقاطع TB-62']] },
+  { code: 'MZ-HG-03', ar: 'مفصلي حراري متعدد الأعماق 60 – 120 ملم', en: 'Thermal casement series 60–120 mm', maker: 'مقاطع تجارية متعددة المصانع',
+    desc: 'سلسلة مفصلية حرارية بأعماق 60، 66، 74، 105، 120 ملم، مع كرتن وول حراري مطابق للتجميع بالواجهات.',
+    spec: [['الأعماق', 'Depths', '60 · 66 · 74 · 105 · 120 ملم'], ['العزل الحراري', 'Thermal break', 'نعم']],
+    scheme: ['hinged', { tb: true, dg: true, depth: '60–120' }, 'مقطع توضيحي — مفصلي حراري'] },
+  { code: 'MZ-HG-04', ar: 'مفصلي 42 ملم وباب مفصلي 45 ملم — غير حراري', en: 'Casement 42 mm & hinged door 45 mm — non-thermal', maker: 'مقاطع تجارية (منها علامة الخليج للسحب)',
+    desc: 'أنظمة مفصلية اقتصادية للنوافذ والأبواب الداخلية والخارجية، مع بيدات زجاج لسماكات مفردة ومزدوجة.',
+    spec: [['العمق', 'Depth', 'نافذة 42 ملم — باب 45 ملم (فريم كامل 105 ملم)'], ['التزجيج (الباب)', 'Glazing (door)', 'مفرد 6 / 8 / 20 ملم · مزدوج 24 / 28 ملم']],
+    scheme: ['hinged', { tb: false, depth: '42 / 45' }, 'مقطع توضيحي — مفصلي غير حراري'] },
+  { code: 'MZ-HG-05', ar: 'Vetro Casement HS 80P — دفة مخفية', en: 'Vetro Casement HS 80P — Hidden sash', maker: 'Vetromax',
+    desc: 'نافذة/باب مفصلي بدفة مخفية خلف الفريم، فما بيبيّن من برّا غير إطار نحيف واحد. مفصلات مخفية بفتح 180° ومقابض نحيفة.',
+    spec: [['العمق', 'Depth', 'فريم ثابت 45 ملم · فريم متحرك 60 ملم'], ['العزل الحراري', 'Thermal break', 'نعم'], ['الأداء', 'Performance', 'هواء Class 4 · مياه E1200 · رياح C5']],
+    feat: ['مفصلات مخفية — فتح 180°', 'قفل متعدد النقاط', 'مقابض إيطالية/ألمانية نحيفة'],
+    scheme: ['hidden', null, 'مقطع توضيحي — دفة مخفية'] },
+ ]},
+ { id: 'special', ar: 'أبواب الطي والمحوري والسحّاب الرأسي', en: 'Folding, Pivot & Vertical Sliding', intro: 'أنظمة للفتحات الكبيرة والمداخل الفاخرة.', sys: [
+  { code: 'MZ-FD-01', ar: 'FFW55 — باب طي وسحب', en: 'FFW55 — Fold & Slide door', maker: 'FFW55 System',
+    desc: 'باب طي وسحب بدرف بتنطوي على بعض وبتنسحب على مسار، لفتح الواجهة بالكامل على التراس أو الحديقة.',
+    spec: [['النوع', 'Type', 'طي وسحب — عتبة سفلية مع وصلات رأسية وأفقية'], ['التشطيب', 'Finish', FIN]],
+    img: [['ffw55-vertical-threshold.jpg', 'مقطع رأسي والعتبة'], ['ffw55-horizontal-joints.jpg', 'الوصلات الأفقية'], ['ffw55-profiles-1.jpg', 'جدول المقاطع (1)'], ['ffw55-profiles-2.jpg', 'جدول المقاطع (2)']] },
+  { code: 'MZ-PV-01', ar: 'Vetro Pivot — باب محوري', en: 'Vetro Pivot — Pivot door', maker: 'Vetromax',
+    desc: 'باب محوري للمداخل الرئيسية بعتبة مستوية مع الأرضية، مع أو بلا مجرى تصريف، بتشطيب ألمنيوم أو حجر.',
+    spec: [['العتبة', 'Threshold', '4 خيارات: مع/بلا مجرى تصريف × تشطيب ألمنيوم/حجر']],
+    img: [['vetropivot-threshold-gutter-alum.jpg', 'عتبة بمجرى — ألمنيوم'], ['vetropivot-threshold-gutter-stone.jpg', 'عتبة بمجرى — حجر'], ['vetropivot-threshold-nogutter-alum.jpg', 'بلا مجرى — ألمنيوم'], ['vetropivot-threshold-nogutter-stone.jpg', 'بلا مجرى — حجر']] },
+  { code: 'MZ-VS-01', ar: 'Vetro Guillotine — سحّاب رأسي نحيف', en: 'Vetro Guillotine — Minimal vertical sliding', maker: 'Vetromax',
+    desc: 'نافذة سحّاب رأسي (غيلوتين) بألواح زجاج كبيرة جداً وبروفايل التقاء نحيف، يدوي أو بموتور، وخيار زاوية حرة بلا عمود.',
+    spec: [['بروفايل الالتقاء', 'Meeting rail', '21 ملم'], ['أقصى لوح', 'Max. panel', '3000 × 6000 ملم'], ['أقصى وزن', 'Max. weight', 'يدوي 1500 كغ/لوح · موتور 700 كغ/لوح'], ['المسارات', 'Tracks', 'حتى 5'], ['الأداء', 'Performance', 'هواء Class 4 · مياه 7A · رياح B4']],
+    feat: ['زاوية حرة (Free corner) بلا عمود ثابت', 'موتور حتى 4 ألواح، كشف عوائق، بطارية احتياطية'],
+    scheme: ['guillotine', null, 'مقطع توضيحي — سحّاب رأسي'] },
+ ]},
+ { id: 'cw', ar: 'الواجهات الزجاجية — كرتن وول', en: 'Curtain Wall Systems', intro: 'أنظمة عمود وكمرة بعرض ظاهر 50 – 70 ملم وأعماق حتى 250 ملم: تغطية تقليدية، أفقية فقط، أو تزجيج إنشائي كامل.', sys: [
+  { code: 'MZ-CW-01', ar: 'كرتن وول 50 — تغطية تقليدية', en: 'Curtain wall 50 — Capped (pressure plate)', maker: 'Gulf Extrusions وغيرها',
+    desc: 'واجهة عمود وكمرة بأغطية ظاهرة على المحورين، تزجيج جاف بغاسكيت EPDM وكوابس ضغط.',
+    spec: [['العرض الظاهر', 'Sightline', '50 ملم'], ['عمق العمود', 'Mullion depth', '44 – 250 ملم (يقبل تقوية حديد/ألمنيوم)'], ['التزجيج', 'Glazing', '6 – 32 ملم'], ['السبائك', 'Alloys', '6005A / 6060 / 6061 / 6063 / 6082'], ['التشطيب', 'Finish', FIN + ' — Qualicoat / Qualanod']],
+    feat: ['8 أشكال أغطية خارجية (منها منحني وبولت-نوز)'],
+    img: [['cw50-conventional-overview.jpg', 'الواجهة والتقسيم'], ['cw50-conventional-detail.jpg', 'المقاطع'], ['nbbm-cw-50x50.jpg', 'عمود 50 × 50']] },
+  { code: 'MZ-CW-02', ar: 'كرتن وول 50 — تغطية أفقية فقط (شبه إنشائي)', en: 'Curtain wall 50 — Two-way (horizontal caps)', maker: 'Gulf Extrusions',
+    desc: 'أغطية أفقية ظاهرة فقط، والوصلات الرأسية سيليكون إنشائي — واجهة بخطوط أفقية ناعمة.',
+    spec: [['العرض الظاهر', 'Sightline', '50 ملم'], ['عمق العمود', 'Mullion depth', '44 – 250 ملم'], ['التزجيج', 'Glazing', '6 – 32 ملم']],
+    img: [['cw50-twoway-overview.jpg', 'الواجهة'], ['cw50-twoway-detail.jpg', 'المقاطع']] },
+  { code: 'MZ-CW-03', ar: 'كرتن وول 50 — تزجيج إنشائي رباعي (SSG)', en: 'Curtain wall 50 — 4-way structural silicone glazing', maker: 'Gulf Extrusions',
+    desc: 'إطار مخفي بالكامل والزجاج ملصوق بسيليكون إنشائي — واجهة زجاجية متصلة بلا خطوط ألمنيوم ظاهرة، الأكثر استعمالاً بالمنطقة.',
+    spec: [['العرض الظاهر', 'Sightline', 'مخفي (عمود 50 ملم)'], ['عمق العمود', 'Mullion depth', '44 – 250 ملم'], ['التزجيج', 'Glazing', 'حتى 32 ملم (مثال: IGU بفراغ 20 ملم)']],
+    img: [['cw50-ssg-overview.jpg', 'الواجهة'], ['cw50-ssg-detail.jpg', 'المقاطع']] },
+  { code: 'MZ-CW-04', ar: 'Vortex 61.5 / 70 — كرتن وول إنشائي مختبَر', en: 'Vortex 61.5 / 70 — Tested structural curtain wall', maker: 'Gulf Extrusions',
+    desc: 'عائلة Vortex بعرض 61.5 و70 ملم، تقبل تزجيج إنشائي رباعي، مع فريم ودرفة حراري أو غير حراري للفتحات ضمن الواجهة.',
+    spec: [['العرض الظاهر', 'Sightline', '61.5 / 70 ملم'], ['التزجيج', 'Glazing', '4 – 28 ملم (61.5)'], ['العزل', 'Thermal', 'فتحات حرارية أو غير حرارية'], ['الاختبارات', 'Tested to', 'ASTM E283 / E331 / E330']],
+    img: [['gc-cw-70mm-vortex.jpg', 'Vortex 70'], ['gc-cw-70mm-mullion.jpg', 'أعمدة Vortex 70'], ['gc-cw-61-5mm.jpg', 'Vortex 61.5'], ['gc-cw-61-5mm-corner.jpg', 'زاوية 61.5']] },
+  { code: 'MZ-CW-05', ar: 'Vetro Facade — كرتن وول 90 قابل للتمديد', en: 'Vetro Facade — 90 mm extendable mullion', maker: 'Vetromax',
+    desc: 'عمود أساسي 90 ملم بيتمدّد بقطعة إضافية لأعماق أكبر حسب البحر والأحمال، مع عمود زاوية مخصص.',
+    spec: [['عمق العمود', 'Mullion depth', '90 ملم ← 110 / 130 / 150 / 170 / 190 ملم']],
+    img: [['vetromax-facade-mullion-depths.jpg', 'الأعماق'], ['vetromax-facade-corner-mullion.jpg', 'عمود الزاوية'], ['vetromax-facade-3levels.jpg', 'تركيب على 3 مستويات']] },
+  { code: 'MZ-CW-06', ar: 'دليل أعماق أعمدة الكرتن وول', en: 'Curtain wall mullion range — quick reference', maker: 'Gulf Extrusions / Emirates Extrusion / AREXCO / White Aluminium',
+    desc: 'المقاطع المتوفرة حسب العرض الظاهر وعمق العمود، لاختيار المقطع المناسب للبحر والأحمال (حسب الحسابات الإنشائية للمشروع).',
+    depthTable: [['50', '44 – 250', 'تقليدي / أفقي / SSG'], ['52', '—', 'عائلة كاملة + ملحقات'], ['55', '—', ''], ['60', '—', 'مع مقاطع مكمّلة'], ['61.5', '—', 'Vortex'], ['63.5', '—', ''], ['64 / 65 / 68', '—', ''], ['70', '—', 'Vortex 70 — SSG'], ['75 / 100 / 130', '—', ''],
+      ['50', '80 / 106 / 125 / 150', 'عمود بكوابس ضغط وأغطية']],
+    img: [['gc-cw-52mm.jpg', 'عائلة 52'], ['gc-cw-60mm-mullion.jpg', 'أعمدة 60'], ['nbbm-cw-80x50.jpg', '80 × 50'], ['nbbm-cw-106x50.jpg', '106 × 50'], ['nbbm-cw-125x50.jpg', '125 × 50'], ['nbbm-cw-150x50.jpg', '150 × 50'], ['gc-cw-100mm.jpg', 'عرض 100'], ['nbbm-cw-frames-accessories.jpg', 'ملحقات: فريم، شطر، كليبات، أغطية']] },
+ ]},
+ { id: 'other', ar: 'الدرابزين والتزجيج والتظليل', en: 'Balustrades, Glazing & Shading', intro: 'أنظمة مكمّلة للمشاريع السكنية والتجارية.', sys: [
+  { code: 'MZ-BL-01', ar: 'درابزين زجاج بقناة أرضية وقنوات درج', en: 'Glass balustrade — base channel & stair rails', maker: 'Gulf Extrusions وغيرها',
+    desc: 'درابزين زجاج مقسّى أو لامينيت مثبّت بقناة ألمنيوم أرضية مخفية أو ظاهرة، مع هاندريل علوي دائري أو مقطعي، وقنوات درج.',
+    spec: [['القناة الأرضية', 'Base channel', '65 – 150 ملم'], ['الهاندريل', 'Handrail', 'قطر 50 – 100 ملم · ريل 65 – 100 ملم'], ['قنوات الدرج', 'Stair channels', '18 – 40 ملم'], ['التشطيب', 'Finish', FIN]],
+    scheme: ['balustrade', null, 'مقطع توضيحي — قناة أرضية'] },
+  { code: 'MZ-GZ-01', ar: 'TwinPro — تزجيج جاف بلا سيليكون', en: 'TwinPro — Dry glazing channel', maker: 'TwinPro',
+    desc: 'قناة ألمنيوم بغاسكيت EPDM محيطي لتثبيت الزجاج بلا سيليكون ولا غراء — للقواطع الزجاجية، واجهات المحلات، البرغولات، السكاي لايت وكبائن الشاور.',
+    spec: [['الزجاج', 'Glass', '8 / 10 / 12 ملم'], ['الأطوال', 'Lengths', '3.6 م و5.8 م (أو حسب الطلب)'], ['التفاوت', 'Tolerance', 'تجويف أعمق بـ 50 ملم'], ['التشطيب', 'Finish', 'أنودايز / طبيعي / أي لون RAL']],
+    feat: ['غاسكيت EPDM بـ 8 حواف — مقاوم للفك'],
+    scheme: ['dryglaze', null, 'مقطع توضيحي — تزجيج جاف'] },
+  { code: 'MZ-LV-01', ar: 'اللوفرات وشفرات التظليل', en: 'Louvers & sun-shading blades', maker: 'Gulf Extrusions وغيرها',
+    desc: 'شفرات تظليل وتهوية مسطحة أو منحنية أو Z، كبيرة وصغيرة وبيضاوية، ومصدّات رمل للفتحات الفنية.',
+    spec: [['عرض الشفرة', 'Blade', '45 – 500 ملم'], ['التشطيب', 'Finish', FIN]],
+    scheme: ['louver', null, 'مقطع توضيحي — لوفر'] },
+ ]},
+];
+
+/* ---------- العرض ---------- */
+function co(){ try{ return (window.MzCompany && MzCompany.get) ? MzCompany.get() : {}; }catch(e){ return {}; } }
+function fig(src, cap){ return '<figure><img loading="lazy" src="' + IMG(src) + '" alt="' + esc(cap) + '" onclick="TC.zoom(this.src)"><figcaption>' + esc(cap) + '</figcaption></figure>'; }
+function sysHTML(s){
+  let h = '<section class="sys" id="' + esc(s.code) + '"><div class="sys-h"><span class="code">' + esc(s.code) + '</span><h3>' + esc(s.ar) + '<span class="en">' + esc(s.en) + '</span></h3></div>';
+  if(s.maker) h += '<div class="maker">النظام / المصنّع: ' + esc(s.maker) + '</div>';
+  h += '<p class="desc">' + esc(s.desc) + '</p><div class="grid"><div>';
+  if(s.spec) h += '<table class="spec">' + s.spec.map(r => '<tr><th>' + esc(r[0]) + '<small>' + esc(r[1]) + '</small></th><td>' + esc(r[2]) + '</td></tr>').join('') + '</table>';
+  if(s.depthTable) h += '<table class="depth-t"><tr><th>العرض الظاهر (ملم)</th><th>عمق العمود (ملم)</th><th>ملاحظة</th></tr>' + s.depthTable.map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>').join('') + '</table>';
+  if(s.feat) h += '<ul class="feat">' + s.feat.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>';
+  h += '</div><div>';
+  if(s.img){ const n = s.img.length; h += '<div class="figs' + (n === 1 ? ' one' : '') + '">' + s.img.map(x => fig(x[0], x[1])).join('') + '</div>'; }
+  if(s.scheme){ const fn = SCHEMES[s.scheme[0]]; h += '<div class="figs one"><figure>' + fn(s.scheme[1]) + '<figcaption><span class="sch">' + esc(s.scheme[2]) + '</span> — رسم مبسّط للتوضيح، مش بمقياس. الأبعاد المعتمدة حسب مخططات التصنيع.</figcaption></figure></div>'; }
+  return h + '</div></div></section>';
+}
+function render(){
+  const c = co(), name = c.nameEn || 'Merzona', nameAr = c.nameAr || 'ميرزونا';
+  const total = CATS.reduce((a, k) => a + k.sys.length, 0);
+  document.title = name + ' — الكتالوج الفني | Technical Catalogue';
+  let h = '<div class="page cover"><div><img class="logo" data-co-logo src="' + esc(c.logo || 'img/logo.png') + '" alt="Merzona logo"></div>' +
+    '<div><h1>الكتالوج الفني لأنظمة الألمنيوم والزجاج<small>Aluminium & Glass Systems — Technical Catalogue</small></h1>' +
+    '<p class="lead">مرجع فني للمهندسين والاستشاريين: ' + total + ' نظاماً مع المقاطع والأبعاد والتزجيج والأداء والتشطيبات، من كتالوجات المصنّعين المعتمدة. للتصميم الأولي واختيار النظام المناسب لكل فتحة.</p>' +
+    '<div class="cats">' + CATS.map(k => '<span>' + esc(k.ar) + '</span>').join('') + '</div></div>' +
+    '<div class="meta"><span>' + esc(nameAr) + ' · ' + esc(c.fullNameEn || name) + '</span>' + (c.cities ? '<span>📍 ' + esc(c.cities) + '</span>' : '') + (c.phone ? '<span dir="ltr">☎ ' + esc(c.whatsapp || c.phone) + '</span>' : '') + (c.email ? '<span dir="ltr">✉ ' + esc(c.email) + '</span>' : '') + '<span>إصدار ' + new Date().getFullYear() + '</span></div></div>';
+  h += '<div class="page toc"><h2 class="cat">المحتويات <span class="en">Contents</span></h2><ol>' + CATS.map(k => '<li><b>' + esc(k.ar) + '</b> <small>' + esc(k.en) + '</small><ul style="padding-right:16px;margin:2px 0 8px;font-size:13px">' + k.sys.map(s => '<li><a href="#' + esc(s.code) + '">' + esc(s.code) + ' — ' + esc(s.ar) + '</a></li>').join('') + '</ul></li>').join('') + '</ol>' +
+    '<h2 class="cat" style="margin-top:26px">مصطلحات ومعايير <span class="en">Glossary & standards</span></h2><div class="gl" style="margin-top:12px">' +
+    '<div><b>Uw — معامل الانتقال الحراري للفتحة</b>كل ما قلّ الرقم كان العزل أفضل (W/m²K).</div><div><b>Thermal break — عازل حراري</b>شريط بولي أميد بيفصل الألمنيوم الداخلي عن الخارجي.</div>' +
+    '<div><b>ASTM E283 / E331 / E330</b>اختبارات تسرب الهواء، تسرب المياه، والأداء الإنشائي تحت ضغط الرياح.</div><div><b>DIN ENV 1627 — WK2</b>تصنيف مقاومة الاقتحام.</div>' +
+    '<div><b>SSG — تزجيج إنشائي</b>الزجاج ملصوق بسيليكون إنشائي بلا أغطية ظاهرة.</div><div><b>Qualicoat / Qualanod</b>شهادات جودة الدهان البودرة والأنودايز.</div></div>' +
+    '<div class="note">القيم بهالكتالوج مأخوذة من كتالوجات المصنّعين الرسمية لكل نظام، وهي للتصميم الأولي واختيار النظام. المقاطع النهائية وسماكات الزجاج والتقويات بتتحدّد لكل مشروع حسب المقاسات والأحمال والحسابات الإنشائية، وبتنعطى بمخططات التصنيع (Shop drawings). الرسومات المكتوب عليها «مقطع توضيحي» مبسّطة وليست بمقياس.</div></div>';
+  CATS.forEach(k => { h += '<div class="page" id="cat-' + k.id + '"><h2 class="cat">' + esc(k.ar) + ' <span class="en">' + esc(k.en) + '</span></h2><p class="cat-intro">' + esc(k.intro) + '</p>' + k.sys.map(sysHTML).join('') + '</div>'; });
+  h += '<div class="page"><h2 class="cat">التشطيبات والخدمات <span class="en">Finishes & services</span></h2><div class="gl" style="margin-top:14px">' +
+    '<div><b>دهان بودرة — Powder coating</b>بوليستر (PE-F)، سوبر ديورابل (SDF)، هايبر ديورابل (HDF)، أو PVDF — كل ألوان RAL، بمعايير Qualicoat.</div>' +
+    '<div><b>أنودايز — Anodizing</b>طبيعي، ذهبي، برونزي، سبكترو — سماكة 5 – 30 ميكرون، بمعايير Qualanod.</div>' +
+    '<div><b>الزجاج — Glazing</b>مفرد، مزدوج، أو ثلاثي؛ مقسّى، لامينيت، Low-E، عاكس، أو ملوّن — حسب متطلبات العزل والأمان.</div>' +
+    '<div><b>الخدمات — Services</b>رفع مقاسات بالموقع، مخططات تصنيع، تصنيع، تركيب، وصيانة.</div></div>' +
+    '<div class="foot" style="margin-top:30px;border-top:1px solid var(--line);padding-top:14px"><span>' + esc(nameAr) + ' — ' + esc(c.fullNameEn || name) + '</span><span dir="ltr">' + esc([c.whatsapp || c.phone, c.email, c.website].filter(Boolean).join(' · ')) + '</span></div></div>';
+  document.getElementById('doc').innerHTML = h;
+  if(window.MzCompany && MzCompany.applyNode) try{ MzCompany.applyNode(document.getElementById('doc'), true); }catch(e){}
+}
+window.TC = {
+  zoom(src){ document.getElementById('zoomImg').src = src; document.getElementById('zoom').style.display = 'flex'; },
+  share(){ const u = location.href.split('#')[0]; const t = (co().nameEn || 'Merzona') + ' — الكتالوج الفني'; if(navigator.share) navigator.share({ title: t, url: u }).catch(() => {}); else { try{ navigator.clipboard.writeText(u); alert('انسخ الرابط: ' + u); }catch(e){ prompt('الرابط:', u); } } },
+  CATS, SCHEMES,
+};
+render();
+window.addEventListener('mz-company', render);
+})();
+</script>
+</body>
+</html>
