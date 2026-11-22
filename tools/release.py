@@ -13,7 +13,7 @@
 import os, re, sys, json, shutil, subprocess, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PAGES = ['Dashboard.html', 'index.html', 'accounting.html', 'procurement.html', 'designer.html', 'salary.html', 'sign.html', 'survey.html', 'survey-sw.js', 'techcat.html',
+PAGES = ['Dashboard.html', 'index.html', 'accounting.html', 'procurement.html', 'designer.html', 'salary.html', 'sign.html', 'survey.html', 'survey-sw.js', 'techcat.html', 'techcat-sec.js',
          'catalog.html', 'about.html', 'privacy.html', 'acct-core.js', 'company.js', 'cad-import.js', 'real3d.js', 'pdf-text.js', 'dwg-read.js', 'mz-i18n.js', 'i18n-en-acct.js', 'i18n-en-dash.js', 'i18n-en-proc.js', 'version.json']
 PROD_EXTRA_DIRS = ['tests', 'tools', 'fonts', 'catalog-images/tc']
 BASE = 'https://management4w-beep.github.io/merzona-tool/'

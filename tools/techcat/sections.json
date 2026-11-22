@@ -1,0 +1,1035 @@
+{
+ "cw50_conv": {
+  "src": "Gulf Extrusions — Curtain Wall 50mm، تفصيل Conventional صفحة 91",
+  "trace": {
+   "pdf": "cw50.pdf",
+   "page": 93,
+   "crop": [
+    200,
+    180,
+    380,
+    550
+   ],
+   "al": [
+    "0.921"
+   ],
+   "calib": {
+    "mm": 50,
+    "axis": "x"
+   },
+   "items": [
+    {
+     "kind": "gk",
+     "sw": [
+      "0.442"
+     ],
+     "mode": "blob",
+     "close": 1.2,
+     "min": 3
+    }
+   ],
+   "glass": {
+    "sw": [
+     "0.553",
+     "0.663"
+    ]
+   },
+   "screw": {
+    "sw": [
+     "0.368"
+    ],
+    "box": [
+     283,
+     380,
+     292.5,
+     530
+    ]
+   }
+  },
+  "normal": "y",
+  "name_idx": {
+   "0": "13794 عمود (Mullion) 50×80",
+   "1": "11388 كابس الضغط (Pressure plate)",
+   "2": "11472 قاعدة الكابس (Pressure plate adapter)",
+   "3": "11069 غطاء خارجي (Cover cap)",
+   "4": "GE-G-033 غاسكيت خارجي",
+   "5": "GE-G-033 غاسكيت خارجي",
+   "6": "GE-G-021 غاسكيت داخلي",
+   "7": "GE-G-021 غاسكيت داخلي"
+  }
+ },
+ "cw50_ssg4": {
+  "src": "Gulf Extrusions — Curtain Wall 50mm، تفصيل 4-way Structural Glazing صفحة 75",
+  "trace": {
+   "pdf": "cw50.pdf",
+   "page": 77,
+   "crop": [
+    190,
+    225,
+    400,
+    575
+   ],
+   "al": [
+    "0.945"
+   ],
+   "calib": {
+    "mm": 50,
+    "axis": "x"
+   },
+   "items": [
+    {
+     "kind": "al",
+     "tag": "toggle",
+     "sw": [
+      "0.567"
+     ],
+     "mode": "parity",
+     "box": [
+      234,
+      504,
+      354,
+      543
+     ],
+     "merge_al": true,
+     "merge_box": [
+      230,
+      495,
+      358,
+      545
+     ]
+    },
+    {
+     "kind": "sp",
+     "sw": [
+      "0.567"
+     ],
+     "mode": "blob",
+     "box": [
+      199,
+      505,
+      229,
+      550
+     ],
+     "close": 1.0,
+     "min": 10,
+     "solid": true
+    },
+    {
+     "kind": "sp",
+     "sw": [
+      "0.567"
+     ],
+     "mode": "blob",
+     "box": [
+      358,
+      505,
+      392,
+      550
+     ],
+     "close": 1.0,
+     "min": 10,
+     "solid": true
+    },
+    {
+     "kind": "gk",
+     "sw": [
+      "0.454"
+     ],
+     "mode": "blob",
+     "box": [
+      200,
+      455,
+      400,
+      485
+     ],
+     "close": 1.2,
+     "min": 3,
+     "open": 0.5,
+     "solid": true
+    },
+    {
+     "kind": "ss",
+     "sw": [
+      "0.454"
+     ],
+     "mode": "blob",
+     "box": [
+      198,
+      503.6,
+      264,
+      516
+     ],
+     "close": 3.0,
+     "min": 3
+    },
+    {
+     "kind": "ss",
+     "sw": [
+      "0.454"
+     ],
+     "mode": "blob",
+     "box": [
+      323,
+      503.6,
+      392,
+      516
+     ],
+     "close": 3.0,
+     "min": 3
+    },
+    {
+     "kind": "ss",
+     "sw": [
+      "0.454"
+     ],
+     "mode": "blob",
+     "box": [
+      198,
+      537,
+      264,
+      551.6
+     ],
+     "close": 3.0,
+     "min": 3
+    },
+    {
+     "kind": "ss",
+     "sw": [
+      "0.454"
+     ],
+     "mode": "blob",
+     "box": [
+      323,
+      537,
+      392,
+      551.6
+     ],
+     "close": 3.0,
+     "min": 3
+    },
+    {
+     "kind": "br",
+     "sw": [
+      "0.378"
+     ],
+     "mode": "blob",
+     "box": [
+      274,
+      541,
+      314,
+      561
+     ],
+     "close": 1.5,
+     "min": 5,
+     "fit": "ellipse"
+    },
+    {
+     "kind": "si",
+     "sw": [
+      "0.454"
+     ],
+     "mode": "blob",
+     "box": [
+      262.5,
+      541,
+      324.5,
+      572
+     ],
+     "close": 3.4,
+     "min": 5
+    }
+   ],
+   "glass": {
+    "sw": [
+     "0.567"
+    ],
+    "box": [
+     190,
+     480,
+     400,
+     571
+    ],
+    "frac": 0.5
+   },
+   "screw": {
+    "sw": [
+     "0.378"
+    ],
+    "box": [
+     288,
+     405,
+     299,
+     541
+    ]
+   }
+  },
+  "glass": {
+   "spacer": false
+  },
+  "normal": "y",
+  "name_idx": {
+   "0": "13794 عمود (Mullion) 50×80",
+   "1": "21073 حامل الزجاج (Glass carrier)",
+   "2": "21073 حامل الزجاج (Glass carrier)",
+   "3": "23389 كليب التثبيت (Toggle)",
+   "4": "فاصل الزجاج المزدوج + مادة مجففة",
+   "5": "فاصل الزجاج المزدوج + مادة مجففة",
+   "6": "GE-G-055 غاسكيت داخلي",
+   "7": "GE-G-055 غاسكيت داخلي",
+   "8": "سيليكون إنشائي (Structural silicone)",
+   "9": "سيليكون إنشائي (Structural silicone)",
+   "10": "سيليكون إنشائي (Structural silicone)",
+   "11": "سيليكون إنشائي (Structural silicone)",
+   "12": "حبل حشو (Backer rod)",
+   "13": "سيليكون عزل خارجي (Weather silicone)"
+  }
+ },
+ "cw50_ssg2": {
+  "src": "Gulf Extrusions — Curtain Wall 50mm، تفصيل 2-way Structural Glazing (الوصلة العمودية) صفحة 83",
+  "trace": {
+   "pdf": "cw50.pdf",
+   "page": 85,
+   "crop": [
+    200,
+    200,
+    420,
+    560
+   ],
+   "al": [
+    "0.945"
+   ],
+   "calib": {
+    "mm": 50,
+    "axis": "x"
+   },
+   "items": [
+    {
+     "kind": "gk",
+     "sw": [
+      "0.453"
+     ],
+     "mode": "blob",
+     "box": [
+      200,
+      435,
+      420,
+      463
+     ],
+     "close": 1.2,
+     "min": 3,
+     "open": 0.4,
+     "solid": true
+    },
+    {
+     "kind": "sp",
+     "sw": [
+      "0.567"
+     ],
+     "mode": "blob",
+     "box": [
+      236,
+      482.5,
+      252.5,
+      519.5
+     ],
+     "close": 1.0,
+     "min": 8,
+     "solid": true
+    },
+    {
+     "kind": "sp",
+     "sw": [
+      "0.567"
+     ],
+     "mode": "blob",
+     "box": [
+      334.5,
+      482.5,
+      352,
+      519.5
+     ],
+     "close": 1.0,
+     "min": 8,
+     "solid": true
+    },
+    {
+     "kind": "gk",
+     "tag": "sec",
+     "sw": [
+      "0.68"
+     ],
+     "mode": "blob",
+     "box": [
+      249,
+      482.5,
+      263.5,
+      519.5
+     ],
+     "close": 1.0,
+     "min": 4,
+     "solid": true
+    },
+    {
+     "kind": "gk",
+     "tag": "sec",
+     "sw": [
+      "0.68"
+     ],
+     "mode": "blob",
+     "box": [
+      322.5,
+      482.5,
+      337,
+      519.5
+     ],
+     "close": 1.0,
+     "min": 4,
+     "solid": true
+    },
+    {
+     "kind": "br",
+     "sw": [
+      "0.378"
+     ],
+     "mode": "blob",
+     "box": [
+      262,
+      484,
+      326,
+      519
+     ],
+     "close": 1.6,
+     "min": 5,
+     "fit": "ellipse"
+    },
+    {
+     "kind": "si",
+     "sw": [
+      "0.453"
+     ],
+     "mode": "blob",
+     "box": [
+      262.5,
+      500,
+      324.5,
+      538.5
+     ],
+     "close": 3.4,
+     "min": 5
+    }
+   ],
+   "glass": {
+    "sw": [
+     "0.567"
+    ],
+    "box": [
+     200,
+     455,
+     420,
+     545
+    ],
+    "frac": 0.5
+   }
+  },
+  "glass": {
+   "spacer": false
+  },
+  "normal": "y",
+  "name_idx": {
+   "0": "13794 عمود (Mullion) 50×80",
+   "1": "GE-G-021 غاسكيت داخلي",
+   "2": "GE-G-021 غاسكيت داخلي",
+   "3": "فاصل الزجاج المزدوج + مادة مجففة",
+   "4": "فاصل الزجاج المزدوج + مادة مجففة",
+   "5": "سيليكون ثانوي للزجاج المزدوج",
+   "6": "سيليكون ثانوي للزجاج المزدوج",
+   "7": "حبل حشو (Backer rod)",
+   "8": "سيليكون عزل خارجي (Weather silicone)"
+  }
+ },
+ "glide_ls": {
+  "src": "Gulf Extrusions — The Glide، تفصيل التقاء الدرفتين (Interlock) صفحة التفاصيل 9",
+  "trace": {
+   "pdf": "glide_typ.pdf",
+   "page": 9,
+   "crop": [
+    165,
+    250,
+    420,
+    740
+   ],
+   "al_mode": "fill",
+   "al": [
+    "fill"
+   ],
+   "calib": {
+    "mm": 40,
+    "axis": "x"
+   },
+   "items": [
+    {
+     "kind": "sp",
+     "sw": [
+      "7"
+     ],
+     "mode": "blob",
+     "box": [
+      336.5,
+      298,
+      367.5,
+      357
+     ],
+     "close": 1.0,
+     "min": 8,
+     "solid": true
+    },
+    {
+     "kind": "sp",
+     "sw": [
+      "7"
+     ],
+     "mode": "blob",
+     "box": [
+      217.5,
+      473,
+      249,
+      532
+     ],
+     "close": 1.0,
+     "min": 8,
+     "solid": true
+    },
+    {
+     "kind": "tb",
+     "sw": [
+      "5"
+     ],
+     "mode": "parity",
+     "box": [
+      246,
+      303,
+      293,
+      352
+     ],
+     "sub": true,
+     "min": 4
+    },
+    {
+     "kind": "tb",
+     "sw": [
+      "5"
+     ],
+     "mode": "parity",
+     "box": [
+      291,
+      478,
+      339,
+      527
+     ],
+     "sub": true,
+     "min": 4
+    },
+    {
+     "kind": "gk",
+     "tag": "ilk",
+     "sw": [
+      "5"
+     ],
+     "mode": "parity",
+     "box": [
+      246,
+      393,
+      347,
+      438.5
+     ],
+     "sub": true,
+     "min": 3
+    },
+    {
+     "kind": "gk",
+     "sw": [
+      "2",
+      "5"
+     ],
+     "mode": "blob",
+     "box": [
+      328,
+      266,
+      360,
+      283.4
+     ],
+     "close": 0.8,
+     "min": 3,
+     "solid": true
+    },
+    {
+     "kind": "gk",
+     "sw": [
+      "2",
+      "5"
+     ],
+     "mode": "blob",
+     "box": [
+      318,
+      373.4,
+      366,
+      396
+     ],
+     "close": 0.8,
+     "min": 3,
+     "solid": true
+    },
+    {
+     "kind": "gk",
+     "sw": [
+      "2",
+      "5"
+     ],
+     "mode": "blob",
+     "box": [
+      226,
+      439,
+      256,
+      457.2
+     ],
+     "close": 0.8,
+     "min": 3,
+     "solid": true
+    },
+    {
+     "kind": "gk",
+     "sw": [
+      "2",
+      "5"
+     ],
+     "mode": "blob",
+     "box": [
+      219,
+      549.3,
+      266,
+      572
+     ],
+     "close": 0.8,
+     "min": 3,
+     "solid": true
+    },
+    {
+     "kind": "ss",
+     "sw": [
+      "2"
+     ],
+     "mode": "blob",
+     "box": [
+      289,
+      282.5,
+      368,
+      373
+     ],
+     "close": 1.6,
+     "min": 5,
+     "solid": true,
+     "smooth": 1.0
+    },
+    {
+     "kind": "ss",
+     "sw": [
+      "2"
+     ],
+     "mode": "blob",
+     "box": [
+      218,
+      457.5,
+      297,
+      549
+     ],
+     "close": 1.6,
+     "min": 5,
+     "solid": true,
+     "smooth": 1.0
+    }
+   ],
+   "glass": [
+    {
+     "sw": [
+      "5"
+     ],
+     "box": [
+      309,
+      279,
+      420,
+      376
+     ],
+     "frac": 0.6,
+     "side": "R",
+     "band": true,
+     "merge": 0.3
+    },
+    {
+     "sw": [
+      "5"
+     ],
+     "box": [
+      165,
+      455,
+      278,
+      552
+     ],
+     "frac": 0.6,
+     "side": "L",
+     "band": true,
+     "merge": 0.3
+    }
+   ],
+   "al_min": 2.5
+  },
+  "glass": {
+   "spacer": false,
+   "ext": 90
+  },
+  "normal": "y",
+  "name_idx": {
+   "0": "درفة متحركة + بروفايل التقوية (Interlock fin)",
+   "1": "درفة (Sash) ألمنيوم بعزل حراري",
+   "2": "بروفايل الالتقاء (Interlock)",
+   "3": "فاصل الزجاج المزدوج",
+   "4": "فاصل الزجاج المزدوج",
+   "5": "عازل حراري بولي أميد (Polyamide)",
+   "6": "عازل حراري بولي أميد (Polyamide)",
+   "7": "عازل حراري بولي أميد (Polyamide)",
+   "8": "عازل حراري بولي أميد (Polyamide)",
+   "9": "عازل حراري بولي أميد (Polyamide)",
+   "10": "عازل حراري بولي أميد (Polyamide)",
+   "11": "عازل حراري بولي أميد (Polyamide)",
+   "12": "عازل حراري بولي أميد (Polyamide)",
+   "13": "قطع إحكام الالتقاء (EPDM/PVC)",
+   "14": "قطع إحكام الالتقاء (EPDM/PVC)",
+   "15": "قطع إحكام الالتقاء (EPDM/PVC)",
+   "16": "قطع إحكام الالتقاء (EPDM/PVC)",
+   "17": "قطع إحكام الالتقاء (EPDM/PVC)",
+   "18": "غاسكيت تزجيج EPDM",
+   "19": "غاسكيت تزجيج EPDM",
+   "20": "غاسكيت تزجيج EPDM",
+   "21": "غاسكيت تزجيج EPDM",
+   "22": "سيليكون إنشائي (Structural bonding)",
+   "23": "سيليكون إنشائي (Structural bonding)"
+  },
+  "motion": {
+   "type": "slide",
+   "dx": 140,
+   "lift": 6,
+   "box": [
+    -60,
+    -80,
+    40,
+    47
+   ]
+  }
+ },
+ "tb600_frame": {
+  "src": "Gulf Extrusions — TB-600، بروفايل فريم الباب 20210 (نصّين 15811 + 15812 بعازل بولي أميد)",
+  "trace": {
+   "raster": "/home/claude/mz-tc/catalog-images/tc/tb600-frame.jpg",
+   "crop": [
+    300,
+    150,
+    860,
+    660
+   ],
+   "al_box": [
+    380,
+    280,
+    800,
+    640
+   ],
+   "calib": {
+    "mm": 60,
+    "axis": "x",
+    "all": true
+   },
+   "line_px": 3,
+   "al_min_px": 1500,
+   "items": [
+    {
+     "kind": "tb",
+     "sw": [
+      "solid"
+     ],
+     "mode": "blob",
+     "box": [
+      560,
+      280,
+      740,
+      640
+     ],
+     "close": 0.3,
+     "min": 5,
+     "smooth": 0
+    }
+   ]
+  },
+  "glass": {
+   "off": true
+  },
+  "normal": "y",
+  "name_idx": {
+   "0": "15811 — النص الداخلي",
+   "1": "15812 — النص الخارجي",
+   "2": "عازل حراري بولي أميد 18.6 ملم",
+   "3": "عازل حراري بولي أميد 18.6 ملم"
+  }
+ },
+ "montana_frame": {
+  "src": "Gulf Extrusions — Montana 120، فريم السحّاب الحراري 20512 (نصّين 17401 + 17402 بعازل بولي أميد)",
+  "trace": {
+   "raster": "/home/claude/mz-tc/catalog-images/tc/montana-frame.jpg",
+   "crop": [
+    170,
+    260,
+    1000,
+    800
+   ],
+   "calib": {
+    "mm": 120,
+    "axis": "x",
+    "all": true
+   },
+   "line_px": 3,
+   "al_min_px": 3000,
+   "items": [
+    {
+     "kind": "tb",
+     "sw": [
+      "solid"
+     ],
+     "mode": "blob",
+     "box": [
+      470,
+      420,
+      620,
+      600
+     ],
+     "close": 0.3,
+     "min": 5,
+     "smooth": 0
+    }
+   ]
+  },
+  "glass": {
+   "off": true
+  },
+  "normal": "y",
+  "name_idx": {
+   "1": "17401 — النص الأول",
+   "0": "17402 — النص التاني",
+   "2": "عازل حراري بولي أميد PA66 GF25",
+   "3": "عازل حراري بولي أميد PA66 GF25"
+  }
+ },
+ "tb62_frame": {
+  "src": "Gulf Extrusions — TB-62، فريم الباب 82207 (نصّين 16887 + 16888 بعازل بولي أميد 22 ملم)",
+  "trace": {
+   "raster": "/home/claude/mz-tc/catalog-images/tc/tb62-frame.jpg",
+   "crop": [
+    170,
+    150,
+    900,
+    680
+   ],
+   "calib": {
+    "mm": 106,
+    "axis": "x",
+    "all": true
+   },
+   "line_px": 3,
+   "al_min_px": 3000,
+   "items": [
+    {
+     "kind": "tb",
+     "sw": [
+      "solid"
+     ],
+     "mode": "blob",
+     "box": [
+      500,
+      340,
+      700,
+      640
+     ],
+     "close": 0.3,
+     "min": 5,
+     "smooth": 0
+    }
+   ]
+  },
+  "glass": {
+   "off": true
+  },
+  "normal": "y",
+  "name_idx": {
+   "0": "16887 — النص الداخلي",
+   "1": "16888 — النص الخارجي",
+   "2": "عازل حراري بولي أميد 22 ملم",
+   "3": "عازل حراري بولي أميد 22 ملم"
+  }
+ },
+ "next_a11": {
+  "src": "Gulf Extrusions — The Next، تفصيل A11 (فريم ثنائي المسار + درفة)",
+  "trace": {
+   "raster": "/home/claude/mz-tc/catalog-images/tc/next-jamb-2track-detail.jpg",
+   "crop": [
+    110,
+    300,
+    1000,
+    1050
+   ],
+   "al_mode": "solid",
+   "wall_px": 2.5,
+   "black_thr": 95,
+   "al_exclude": [
+    [
+     110,
+     990,
+     420,
+     1050
+    ]
+   ],
+   "al_min_px": 2500,
+   "calib": {
+    "px_per_mm": 6.05
+   },
+   "items": [
+    {
+     "kind": "tb",
+     "sw": [
+      "ink"
+     ],
+     "mode": "blob",
+     "box": [
+      283,
+      538,
+      392,
+      768
+     ],
+     "close": 0.9,
+     "min": 10,
+     "nofill": true
+    },
+    {
+     "kind": "pv",
+     "sw": [
+      "ink"
+     ],
+     "mode": "blob",
+     "box": [
+      388,
+      478,
+      562,
+      817
+     ],
+     "close": 0.6,
+     "min": 10
+    },
+    {
+     "kind": "tb",
+     "sw": [
+      "ink"
+     ],
+     "mode": "blob",
+     "box": [
+      738,
+      772,
+      812,
+      972
+     ],
+     "close": 0.9,
+     "min": 10,
+     "nofill": true
+    },
+    {
+     "kind": "gk",
+     "sw": [
+      "ink"
+     ],
+     "mode": "blob",
+     "box": [
+      918,
+      752,
+      1000,
+      812
+     ],
+     "close": 0.6,
+     "min": 5
+    },
+    {
+     "kind": "gk",
+     "sw": [
+      "ink"
+     ],
+     "mode": "blob",
+     "box": [
+      918,
+      928,
+      1000,
+      1002
+     ],
+     "close": 0.6,
+     "min": 5
+    },
+    {
+     "kind": "gk",
+     "sw": [
+      "ink"
+     ],
+     "mode": "blob",
+     "box": [
+      533,
+      408,
+      568,
+      452
+     ],
+     "close": 0.6,
+     "min": 3
+    }
+   ]
+  },
+  "glass": {
+   "ext": 90
+  },
+  "normal": "x",
+  "glass_manual": [
+   {
+    "dir": "h",
+    "faces": [
+     -58.7,
+     -64.7,
+     -76.7,
+     -82.7
+    ],
+    "edgeR": 90.7,
+    "side": "R"
+   }
+  ],
+  "motion": {
+   "type": "slide",
+   "dx": 130,
+   "box": [
+    27,
+    -120,
+    200,
+    -40
+   ]
+  },
+  "name_idx": {
+   "0": "فريم ثنائي المسار — النص الداخلي + Add-on 26060",
+   "1": "فريم — النص الخارجي",
+   "2": "درفة (Sash) — النص الداخلي",
+   "3": "درفة (Sash) — النص الخارجي",
+   "4": "عازل حراري بولي أميد — الفريم",
+   "5": "Frame adapter PVC 103",
+   "6": "عازل حراري بولي أميد — الدرفة",
+   "7": "غاسكيت تزجيج EPDM",
+   "8": "غاسكيت تزجيج EPDM",
+   "9": "Gasket frame AC 106"
+  }
+ }
+}

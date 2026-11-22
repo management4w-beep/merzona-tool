@@ -118,8 +118,9 @@ section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 </div>
 <div class="doc" id="doc"></div>
 <div class="zoom" id="zoom" onclick="if(history.state && history.state.tcModal) history.back(); else this.style.display='none'"><img id="zoomImg" alt=""></div>
-<div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
-<div id="v3c" class="v3c"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
+<div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" id="v3x" style="display:none" onclick="TC.v3Explode()">💥 فكّ القطع</button><button type="button" id="v3m" style="display:none" onclick="TC.v3Move()">🚪 افتح</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
+<div id="v3c" class="v3c" style="position:relative"></div><div id="v3i" style="display:none;background:#12324a;color:#fff;padding:6px 10px;font-size:14px"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
+<script src="techcat-sec.js?v=2026-11-22a"></script>
 <script>
 (function(){
 'use strict';
@@ -144,6 +145,12 @@ const MAT = {
   gk:  { fill: '#2d3a42', stroke: '#1b2328', name: 'غاسكيت EPDM', color: 0x1e2428, metal: 0, rough: 0.9 },
   sp:  { fill: '#8d969c', stroke: '#5f676c', name: 'فاصل الزجاج', color: 0x8d969c, metal: 0.6, rough: 0.4 },
   sl:  { fill: '#e8e3da', stroke: '#8b8172', name: 'بلاطة', color: 0xd9d2c5, metal: 0, rough: 0.95 },
+  sc:  { fill: '#b7bfc4', stroke: '#4d5961', name: 'برغي ستانلس', color: 0xaab3b9, metal: 0.85, rough: 0.3 },
+  si:  { fill: '#3a3f44', stroke: '#1b2328', name: 'سيليكون', color: 0x2b3035, metal: 0, rough: 0.6 },
+  ss:  { fill: '#4a5560', stroke: '#1b2328', name: 'سيليكون إنشائي', color: 0x3c4650, metal: 0, rough: 0.6 },
+  pv:  { fill: '#d8cfbd', stroke: '#8b8172', name: 'PVC', color: 0xcfc6b2, metal: 0, rough: 0.8 },
+  br:  { fill: '#e7cf8a', stroke: '#8b7a45', name: 'حبل حشو (Backer rod)', color: 0xd9c27a, metal: 0, rough: 0.95 },
+  tp:  { fill: '#e9e2c0', stroke: '#8b8172', name: 'شريط لاصق فاصل', color: 0xdcd3a8, metal: 0, rough: 0.9 },
 };
 // مستطيل أجوف (أنبوب): أشكال بالملم [x0,y0,x1,y1] وسماكة الجدار t
 const R = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
@@ -320,6 +327,8 @@ const GEN = {
   },
 };
 GEN.traced = (o) => TRACED[o.id];
+// 🆕 مقاطع متتبّعة من رسومات الكتالوج الأصلية (techcat-sec.js)
+GEN.cat = (o) => { let c = (window.TCSEC || {})[o.id]; if(!c) return null; if(c.motion && o.lift === 0) c = Object.assign({}, c, { motion: Object.assign({}, c.motion, { lift: 0 }) }); const named = {}; const labels = []; c.parts.forEach(p => { if(p.name && !named[p.name]){ named[p.name] = 1; const at = p.at || p.pts[0]; labels.push([at[0], at[1], p.name]); } }); return Object.assign({ cat: true, labels: o.labels === false ? [] : labels }, c); };
 const GEN_FIXED = { hinged: SECTIONS.hinged, hingedTB: SECTIONS.hingedTB, hidden: SECTIONS.hidden, guillotine: SECTIONS.guillotine, balustrade: SECTIONS.balustrade, dryglaze: SECTIONS.dryglaze, louver: SECTIONS.louver };
 function sectionFor(s){
   if(!s.model) return null;
@@ -330,6 +339,7 @@ function sectionFor(s){
 
 function secBox(sec){ let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; sec.parts.forEach(p => p.pts.forEach(([x, y]) => { a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); d = Math.max(d, y); })); return [a, b, c, d]; }
 function secSVG(sec){
+  if(sec.cat) return catSVG(sec);
   const [x0, y0, x1, y1] = secBox(sec);
   const lw = (sec.labels || []).some(l => l[3] !== 'end') ? 260 : 0, pad = 40;
   const W = 420, sc = Math.min((W - lw * 0.55 - pad * 2) / (x1 - x0), 320 / (y1 - y0));
@@ -343,6 +353,32 @@ function secSVG(sec){
   return '<svg viewBox="0 0 ' + W + ' ' + (H + 14) + '" xmlns="http://www.w3.org/2000/svg" role="img" direction="ltr" style="direction:ltr" font-family="Tajawal,Arial,sans-serif">' +
     '<defs><pattern id="tbh" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#f2e3c9"/><line x1="0" y1="0" x2="0" y2="6" stroke="#a77a45" stroke-width="1.6"/></pattern>' +
     '<marker id="ar" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L7 4 L0 7z" fill="#a77a45"/></marker></defs><rect width="' + W + '" height="' + (H + 14) + '" fill="#fff"/>' + b + '</svg>';
+}
+// 🆕 مقطع من الكتالوج: أرقام القطع على اليمين بخطوط دلالة، مرتبة بلا تداخل
+function catSVG(sec){
+  // بالرسمة 2D الزجاج بينقص لـ 25 ملم بعد القطع (بالمجسّم كامل) حتى تبين التفاصيل أكبر
+  const ng = sec.parts.filter(p => p.mat !== 'gl'), nb = secBox({ parts: ng.length ? ng : sec.parts }), G = 25;
+  const clip = (pts) => pts.map(([x, y]) => [Math.min(Math.max(x, nb[0] - G), nb[2] + G), Math.min(Math.max(y, nb[1] - G), nb[3] + G)]);
+  sec = Object.assign({}, sec, { parts: sec.parts.map(p => p.mat === 'gl' ? Object.assign({}, p, { pts: clip(p.pts) }) : p) });
+  const [x0, y0, x1, y1] = secBox(sec);
+  const names = []; sec.parts.forEach(p => { if(p.name && p.at && !names.some(n => n.t === p.name)) names.push({ t: p.name, x: p.at[0], y: p.at[1] }); });
+  const lw = names.length ? 200 : 0, pad = 22, W = 460;
+  const sc = Math.min((W - lw - pad * 2) / (x1 - x0), 420 / (y1 - y0));
+  const H = Math.round((y1 - y0) * sc + pad * 2);
+  const X = (x) => (pad + (x - x0) * sc).toFixed(1), Y = (y) => (pad + (y1 - y) * sc).toFixed(1);
+  const path = (pts) => 'M' + pts.map(p => X(p[0]) + ' ' + Y(p[1])).join(' L') + ' Z';
+  let b = '';
+  sec.parts.forEach(p => { const m = MAT[p.mat] || MAT.al; b += '<path fill-rule="evenodd" d="' + path(p.pts) + (p.holes || []).map(h => ' ' + path(h)).join('') + '" fill="' + (p.mat === 'gl' ? '#d6ecf7' : m.fill) + '" fill-opacity="' + (p.mat === 'gl' ? 0.85 : 1) + '" stroke="' + m.stroke + '" stroke-width="' + (p.mat === 'al' ? 0.7 : 0.5) + '"/>'; });
+  names.sort((a, b) => b.y - a.y);
+  const Hh = Math.max(H, names.length * 15 + pad * 2), lx = W - lw + 8, top = 10, gap = 15;
+  names.forEach(n => { n.ty = +Y(n.y); });
+  for(let i = 0; i < names.length; i++) names[i].ty = Math.max(names[i].ty, i ? names[i - 1].ty + gap : top);
+  for(let i = names.length - 1; i >= 0; i--) names[i].ty = Math.min(names[i].ty, i < names.length - 1 ? names[i + 1].ty - gap : Hh - 8);
+  names.forEach(n => { const ty = n.ty;
+    b += '<polyline fill="none" points="' + X(n.x) + ',' + Y(n.y) + ' ' + (lx - 14) + ',' + ty + ' ' + (lx - 4) + ',' + ty + '" stroke="#a77a45" stroke-width="0.8"/><circle cx="' + X(n.x) + '" cy="' + Y(n.y) + '" r="1.8" fill="#a77a45"/>' +
+      '<text x="' + lx + '" y="' + (ty + 3.5) + '" font-size="10" fill="#22313a">' + esc(n.t) + '</text>'; });
+  const H2 = Hh;
+  return '<svg viewBox="0 0 ' + W + ' ' + H2 + '" xmlns="http://www.w3.org/2000/svg" role="img" style="direction:ltr" font-family="Tajawal,Arial,sans-serif"><defs><pattern id="tbh" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#f2e3c9"/><line x1="0" y1="0" x2="0" y2="6" stroke="#a77a45" stroke-width="1.6"/></pattern></defs><rect width="' + W + '" height="' + H2 + '" fill="#fff"/>' + b + '</svg>';
 }
 // ---------- 🧊 العارض الثري دي ----------
 let V3 = null;
@@ -360,6 +396,9 @@ function open3D(code){
 }
 function close3D(){ document.getElementById('v3').style.display = 'none'; if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; } }
 function build3D(sec, box){
+  ['v3x', 'v3m', 'v3i'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+  if(sec.cat) return build3Dcat(sec, box);
+  if(!sec.noExplode) return build3Dcat(Object.assign({ view: 'flat', normal: 'y' }, sec), box);
   if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; }
   box.innerHTML = '';
   const T = THREE, w = box.clientWidth, h = box.clientHeight;
@@ -393,6 +432,136 @@ function build3D(sec, box){
   V3 = { r, cam, ctl, home, scene, raf: 0 }; loop();
   window.__v3 = { parts: sec.parts.length, meshes: grp.children.length };
 }
+
+/* 🆕 2026-11-22 (حمدي: "بدي اياها تكون ادق... تعمل لي تفجير... متل اكسبلود بالأوتوكاد... وبيرجع عكس التفجير...
+   وبيبين كيف تركيب كل قطعة" + "بالستراكشر... لما اعمل اكسبلود بدك تشيل سيليكون، ولما اعمل تجميع ترجع السيليكون"):
+   مجسّم من القطع الحقيقية المتتبّعة من رسومات الكتالوج: كل قطعة لحالها، زر فكّ/تجميع متحرّك، البراغي بأسنان، السيليكون
+   بيختفي أول الفكّ وبينحط آخر التجميع كأنه عم ينكبس بالمسدس، والكبس على أي قطعة بيطلّع اسمها ورقمها. */
+function build3Dcat(sec, box){
+  if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; }
+  box.innerHTML = '';
+  // الدليل أول شي (قبل قياس مساحة الرسم)
+  const used = []; sec.parts.forEach(p => { if(!used.includes(p.mat)) used.push(p.mat); });
+  document.getElementById('v3l').innerHTML = used.map(k => '<span><i style="background:' + (k === 'tb' ? '#c9a46b' : (MAT[k] || MAT.al).fill) + '"></i>' + (MAT[k] || MAT.al).name + '</span>').join('');
+  document.getElementById('v3x').style.display = '';
+  const T = THREE, w = box.clientWidth, h = box.clientHeight;
+  const r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.setSize(w, h); r.setClearColor(0xeef2f5);
+  if(r.outputEncoding !== undefined) r.outputEncoding = T.sRGBEncoding;
+  box.appendChild(r.domElement);
+  const scene = new T.Scene();
+  scene.add(new T.HemisphereLight(0xffffff, 0x8a9aa5, 0.8));
+  const d1 = new T.DirectionalLight(0xffffff, 0.85); d1.position.set(400, 600, 500); scene.add(d1);
+  const d2 = new T.DirectionalLight(0xdfe9f2, 0.5); d2.position.set(-500, 200, -300); scene.add(d2);
+  const [x0, y0, x1, y1] = secBox(sec), cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const L = sec.len || Math.max(150, Math.max(x1 - x0, y1 - y0) * 1.05);
+  const root = new T.Group(); scene.add(root);
+  // واقف متل الواقع: طول البروفايل عمودي والزجاج مواجهك (متل صفحة 3D بكتالوج المصنّع). المقاطع الرأسية (عتبات) بتضل أفقية.
+  if(sec.view !== 'flat') root.rotation.x = -Math.PI / 2;
+  const ax = sec.normal === 'x' ? 0 : 1; // محور الفكّ (عمودي على الزجاج)
+  const span = ax ? (y1 - y0) : (x1 - x0), STEP = Math.max(16, span / 5.5);
+  const items = []; // {g, disp:Vector3, kind, fade}
+  const cen = (p) => { let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; p.pts.forEach(([x, y]) => { a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); d = Math.max(d, y); }); return [(a + c) / 2, (b + d) / 2]; };
+  sec.parts.forEach((p, i) => {
+    const m = MAT[p.mat] || MAT.al, g = new T.Group();
+    const mat = new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: true, opacity: m.glass ? 0.36 : 1, side: T.DoubleSide, depthWrite: !m.glass });
+    if(p.screw){
+      const S = p.screw, len = Math.abs(S.b - S.a), rr = S.d / 2;
+      const body = new T.Mesh(new T.CylinderGeometry(rr * 0.82, rr * 0.82, len, 20), mat); g.add(body);
+      for(let k = 0; k < len - 3; k += 1.8){ const th = new T.Mesh(new T.TorusGeometry(rr * 0.86, rr * 0.16, 6, 20), mat); th.rotation.x = Math.PI / 2; th.position.y = -len / 2 + 3 + k; g.add(th); }
+      const hd = new T.Mesh(new T.CylinderGeometry(rr * 1.9, rr * 1.9, 2.4, 24), mat); hd.position.y = (S.head === 'b' ? 1 : -1) * (len / 2 + 1.2); g.add(hd);
+      const tip = new T.Mesh(new T.ConeGeometry(rr * 0.82, 3, 16), mat); tip.position.y = (S.head === 'b' ? -1 : 1) * (len / 2 + 1.5); if(S.head === 'b') tip.rotation.z = Math.PI; g.add(tip);
+      const mid = (S.a + S.b) / 2, n = Math.max(2, Math.round(L / 260));
+      for(let k = 0; k < n; k++){ const c = g.clone(); c.position.set(S.c - cx, mid - cy, -L / 2 + L * (k + 0.5) / n); root.add(c); items.push({ g: c, p, i, base: c.position.clone() }); }
+      return;
+    }
+    const sh = new T.Shape(p.pts.map(([x, y]) => new T.Vector2(x - cx, y - cy)));
+    (p.holes || []).forEach(hl => sh.holes.push(new T.Path(hl.map(([x, y]) => new T.Vector2(x - cx, y - cy)))));
+    const geo = new T.ExtrudeGeometry(sh, { depth: L, bevelEnabled: false, curveSegments: 2 }); geo.translate(0, 0, -L / 2);
+    const mesh = new T.Mesh(geo, mat); g.add(mesh);
+    if(!m.glass) g.add(new T.LineSegments(new T.EdgesGeometry(geo, 25), new T.LineBasicMaterial({ color: 0x33434d, transparent: true, opacity: 0.35 })));
+    root.add(g); items.push({ g, p, i, base: new T.Vector3() });
+  });
+  // اتجاه الفكّ لكل قطعة: حسب بعدها عن القطعة الأساسية (أكبر ألمنيوم) على محور الزجاج — بالترتيب متل الكتالوج
+  const anchor = sec.parts.reduce((a, p, i) => (p.mat === 'al' && (a < 0 || area(p) > area(sec.parts[a]))) ? i : a, -1);
+  function area(p){ let s = 0; p.pts.forEach((q, k) => { const o = p.pts[k ? k - 1 : p.pts.length - 1]; s += o[0] * q[1] - q[0] * o[1]; }); return Math.abs(s / 2); }
+  const ac = cen(sec.parts[anchor])[ax];
+  const levels = { '-1': [], '1': [] };
+  items.forEach(it => { if(it.i === anchor){ it.disp = new T.Vector3(); return; }
+    const c = it.p.screw ? (it.p.screw.head === 'b' ? it.p.screw.b : it.p.screw.a) : cen(it.p)[ax];
+    it.side = Math.sign(c - ac) || -1; it.c = Math.abs(c - ac); if(!it.p.screw && it.p.mat !== 'si') levels[it.side].push(Math.round(it.c / 3)); });
+  ['-1', '1'].forEach(k => { levels[k] = Array.from(new Set(levels[k])).sort((a, b) => a - b); });
+  // مسافة الفكّ: مجموع الانتشار ≈ 1.3 × حجم المقطع مهما كتر عدد القطع
+  const nLv = Math.max(levels['-1'].length, levels['1'].length) + 2.5;
+  const STEPc = Math.min(STEP, span * 1.3 / nLv + 4);
+  items.forEach(it => { if(it.disp) return;
+    const lv = levels[String(it.side)]; let rank = lv.indexOf(Math.round(it.c / 3)) + 1;
+    if(it.p.screw) rank = lv.length + 1.6;
+    if(it.p.mat === 'si' || it.p.mat === 'ss') rank = lv.length + 2.4;
+    const v = new T.Vector3(); v.setComponent(ax, it.side * rank * STEPc);
+    if(it.p.mat === 'gl' || it.p.mat === 'sp' || (it.p.name && /سيليكون ثانوي/.test(it.p.name))){ const c0 = cen(it.p)[1 - ax] - (1 - ax ? cy : cx); v.setComponent(1 - ax, Math.sign(c0 || 1) * Math.max(STEPc * 2, 25)); }
+    it.disp = v; });
+  // مركز الوضع المفكوك
+  const exC = new T.Vector3(); { let n = 0; items.forEach(it => { exC.add(it.disp.clone().multiplyScalar(0.5)); n++; }); if(n) exC.divideScalar(n); }
+  const exR = Math.max(...items.map(it => it.disp.length()), 1); const panT = new T.Vector3();
+  const size = Math.max(x1 - x0, y1 - y0, L), Rb = 0.5 * Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + L * L);
+  const cam = new T.PerspectiveCamera(35, w / h, 1, size * 30); const dist = Rb / Math.sin(35 * Math.PI / 360) * (w < h ? 1.45 : 1.08);
+  const camDir = sec.view !== 'flat' ? new T.Vector3(0.42, 0.95, 0.62) : new T.Vector3(0.5, 0.32, 0.8);
+  cam.position.copy(camDir.normalize().multiplyScalar(dist));
+  const ctl = new T.OrbitControls(cam, r.domElement); ctl.enableDamping = true; ctl.autoRotate = true; ctl.autoRotateSpeed = 0.8; ctl.target.set(0, 0, 0); ctl.update();
+  ['pointerdown', 'wheel', 'touchstart'].forEach(ev => r.domElement.addEventListener(ev, () => { ctl.autoRotate = false; }, { passive: true }));
+  const home = cam.position.clone();
+  // الاسم عند الكبس على قطعة
+  const ray = new T.Raycaster(), mv = new T.Vector2(); let downAt = null, sel = null;
+  r.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+  r.domElement.addEventListener('pointerup', e => { if(!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+    const rc = r.domElement.getBoundingClientRect(); mv.set((e.clientX - rc.left) / rc.width * 2 - 1, -(e.clientY - rc.top) / rc.height * 2 + 1); ray.setFromCamera(mv, cam);
+    const hit = ray.intersectObjects(root.children, true).find(x => x.object.isMesh && x.object.material.opacity > 0.05 && !(MAT[itemOf(x.object).p.mat] || {}).glass) || ray.intersectObjects(root.children, true).find(x => x.object.isMesh);
+    if(sel){ sel.traverse(o => { if(o.isMesh) o.material.emissive.setHex(0); }); sel = null; }
+    const info = document.getElementById('v3i');
+    if(hit){ const it = itemOf(hit.object); sel = it.g; sel.traverse(o => { if(o.isMesh) o.material.emissive.setHex(0x2a5d7a); });
+      info.textContent = '🔎 ' + (it.p.name || (MAT[it.p.mat] || {}).name || ''); info.style.display = 'block'; }
+    else info.style.display = 'none'; });
+  function itemOf(o){ while(o && !items.some(it => it.g === o)) o = o.parent; return items.find(it => it.g === o); }
+  // الفكّ/التجميع: t من 0 لـ 1. السيليكون: أول 25% من الفكّ بيختفي، وآخر 30% من التجميع بينحط على طول الفاصل
+  const isSil = (it) => it.p.mat === 'si' || it.p.mat === 'ss';
+  let t = 0, goal = 0;
+  function apply(){
+    const e = (x) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+    items.forEach(it => {
+      if(isSil(it)){ // السيليكون بيتسحب/بينحط على طول الفاصل
+        const vis = 1 - Math.max(0, Math.min(1, t / 0.28)); it.g.visible = vis > 0.01;
+        it.g.scale.z = Math.max(0.001, vis); it.g.position.z = -L / 2 * (1 - vis); return; }
+      const k = Math.max(0, Math.min(1, (t - 0.3) / 0.7));
+      it.g.position.copy(it.base).addScaledVector(it.disp, e(k)); });
+    // الكاميرا بتلحق القطع المفكوكة (كلها ضمن الشاشة)
+    const ek = e(Math.max(0, Math.min(1, (t - 0.3) / 0.7)));
+    root.updateMatrixWorld(); const nt = exC.clone().applyMatrix4(root.matrixWorld).multiplyScalar(ek);
+    const dlt = nt.clone().sub(panT); panT.copy(nt); ctl.target.add(dlt); cam.position.add(dlt);
+    const b = document.getElementById('v3x'); if(b) b.textContent = goal ? '🧩 جمّع' : '💥 فكّ القطع';
+  }
+  // حركة الدرفة (سحب أو فتح على مفصلة) إذا معرّفة بالمقطع
+  const mo = sec.motion; let mt = 0, mgoal = 0;
+  const movers = mo ? items.filter(it => (mo.parts || []).includes(it.i)) : [];
+  movers.forEach(it => { it.hold = new T.Group(); root.add(it.hold); root.remove(it.g); it.hold.add(it.g); if(mo.type === 'hinge'){ it.hold.position.set(mo.at[0] - cx, mo.at[1] - cy, 0); it.g.position.sub(it.hold.position); it.base.sub(it.hold.position); } });
+  function applyMotion(){
+    const e = (x) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2, k = e(mt);
+    // رفع وسحب: بترتفع الدرفة أول شي (Lift) وبعدين بتنسحب
+    const kl = mo.lift ? e(Math.min(1, mt / 0.25)) : 0, ks = mo.lift ? e(Math.max(0, (mt - 0.25) / 0.75)) : k;
+    movers.forEach(it => { if(mo.type === 'slide'){ it.hold.position.set((mo.dx || 0) * ks, (mo.dy || 0) * ks, (mo.lift || 0) * kl); } else { it.hold.rotation.z = (mo.deg || 80) * Math.PI / 180 * k; } });
+    const b = document.getElementById('v3m'); if(b) b.textContent = mgoal ? '🚪 سكّر' : '🚪 افتح';
+  }
+  const loop = () => { V3.raf = requestAnimationFrame(loop);
+    if(t !== goal){ const t0 = t; t += Math.sign(goal - t) * 0.018; if(Math.abs(goal - t) < 0.02) t = goal; apply();
+      // ابعد الكاميرا شوي وقت الفكّ حتى تبيّن كل القطع
+      const zf = (1 + 0.35 * exR / Rb * Math.max(0, Math.min(1, (t - 0.3) / 0.7))) / (1 + 0.35 * exR / Rb * Math.max(0, Math.min(1, (t0 - 0.3) / 0.7)));
+      cam.position.sub(ctl.target).multiplyScalar(zf).add(ctl.target); }
+    if(mt !== mgoal){ mt += Math.sign(mgoal - mt) * 0.025; if(Math.abs(mgoal - mt) < 0.03) mt = mgoal; applyMotion(); }
+    ctl.update(); r.render(scene, cam); };
+  V3 = { r, cam, ctl, home, scene, raf: 0, explode(v){ goal = v == null ? (goal ? 0 : 1) : (v ? 1 : 0); ctl.autoRotate = false; }, move(v){ if(!mo) return; mgoal = v == null ? (mgoal ? 0 : 1) : (v ? 1 : 0); } };
+  const xb = document.getElementById('v3x'), mb = document.getElementById('v3m'); if(xb) xb.style.display = ''; if(mb) mb.style.display = mo ? '' : 'none';
+  apply(); loop();
+  window.__v3 = { parts: sec.parts.length, meshes: items.length, cat: true, state: () => ({ t, goal, mt, mgoal, sil: items.filter(isSil).map(it => it.g.visible) }) };
+}
 function v3Reset(){ if(!V3) return; V3.cam.position.copy(V3.home); V3.ctl.target.set(0, 0, 0); V3.ctl.autoRotate = true; V3.ctl.update(); }
 function v3Zoom(k){ if(!V3) return; V3.cam.position.multiplyScalar(k); V3.ctl.update(); }
 function v3Shot(){ if(!V3) return; const a = document.createElement('a'); a.href = V3.r.domElement.toDataURL('image/png'); a.download = 'section-3d.png'; a.click(); }
@@ -401,23 +570,23 @@ function v3Shot(){ if(!V3) return; const a = document.createElement('a'); a.href
 const FIN = 'باودر كوتينغ (PE-F / SDF / HDF) أو أنودايز (طبيعي، ذهبي، برونزي، سبكترو)';
 const CATS = [
  { id: 'sliding', ar: 'أنظمة السحّاب', en: 'Sliding Systems', intro: 'من السحّاب الاقتصادي غير الحراري لأنظمة الرفع والسحب والأنظمة النحيفة متعددة المسارات بعتبة مخفية.', sys: [
-  { code: 'MZ-SL-01', model: ['traced', { id: 'next83401' }], ar: 'The Next — سحّاب حراري متعدد المسارات', en: 'The Next — Thermally-broken multi-track sliding', maker: 'AGBS / Gulf Extrusions',
+  { code: 'MZ-SL-01', model: ['cat', { id: 'next_a11' }], ar: 'The Next — سحّاب حراري متعدد المسارات', en: 'The Next — Thermally-broken multi-track sliding', maker: 'AGBS / Gulf Extrusions',
     desc: 'نظام سحّاب حراري للنوافذ والأبواب الكبيرة، بفريم ثنائي أو ثلاثي المسار وعتبات متعددة، مناسب للواجهات السكنية والتجارية ذات المتطلبات العالية للعزل والأمان.',
     spec: [['عمق الفريم', 'Frame depth', 'ثنائي المسار: 110 / 125 ملم — ثلاثي المسار: 181 / 196 ملم (حتى 222 ملم)'], ['العزل الحراري', 'Thermal break', 'بولي أميد 34 ملم'], ['التزجيج', 'Glazing', '24 – 40 ملم'],
       ['أقصى درفة', 'Max. sash', 'ارتفاع 3.50 م · عرض 2.00 م · وزن حتى 230 كغ'], ['الأداء', 'Performance', 'تسرب هواء 300–600 Pa · مياه 600 Pa (ساكن/ديناميكي) · رياح تصميمية حتى 2000 Pa · أمان WK2 (DIN ENV 1627)'],
       ['الأداء الحراري', 'Uw', '≈ 1.7 – 1.9 W/m²K'], ['التشطيب', 'Finish', FIN + ' 5–30 ميكرون']],
     feat: ['حتى 4 درفات على الفريم الثنائي، وتوليفات أكبر على الثلاثي', 'عائلة عتبات متعددة (أربع عتبات)', 'وصلات تجميع عمودية للواجهات المركّبة'],
     img: [['next-frame-2track.jpg', 'فريم ثنائي المسار'], ['next-frame-3track.jpg', 'فريم ثلاثي المسار'], ['next-sill-family.jpg', 'عائلة العتبات'], ['next-jamb-2track-detail.jpg', 'تفصيل الجانب — ثنائي'], ['next-jamb-3track-detail.jpg', 'تفصيل الجانب — ثلاثي'], ['next-mullion-coupling.jpg', 'وصلة تجميع']] },
-  { code: 'MZ-SL-02', model: ['sliding', { D: 110, tracks: 2, gl: 28, sash: 46, Dlabel: '110' }], ar: 'The Glide — رفع وسحب', en: 'The Glide — Lift & Slide', maker: 'Gulf Extrusions',
+  { code: 'MZ-SL-02', model: ['cat', { id: 'glide_ls' }], ar: 'The Glide — رفع وسحب', en: 'The Glide — Lift & Slide', maker: 'Gulf Extrusions',
     desc: 'باب سحّاب بنظام الرفع والسحب للدرف الثقيلة: الدرفة بترتفع عن الحاشية وقت الحركة وبتنزل لتحكم الإغلاق، للفتحات العريضة المطلّة على التراسات والحدائق.',
     spec: [['الفريم', 'Frame', '110 × 41 ملم (سماكة جدار 1.6 ملم)'], ['مقطع الدرفة', 'Sash / interlock', '85 × 65 ملم'], ['التزجيج', 'Glazing', '24 – 34 ملم مزدوج (6 توليفات غاسكيت)'], ['أقصى وزن للدرفة', 'Max. sash weight', '420 كغ · نسبة الارتفاع/العرض ≤ 2.5'], ['الأداء الحراري', 'Uw', '1.898 W/m²K (وحدة مرجعية 2.4 × 2.0 م، Ug = 1.3)']],
     feat: ['مخططات A (درفتين) / C (4 درفات) / K (3 درفات ووسط ثابت)', 'تقوية التقاء (Interlock fin) لارتفاعات حتى ≈ 3.6 م', 'مقابض: طبيعي / أسود / أبيض'],
     img: [['glide-liftslide-overview.jpg', 'التايبولوجي والمقاطع'], ['glide-crosssection-detail1.jpg', 'مقطع أفقي'], ['glide-crosssection-detail2.jpg', 'مقطع رأسي']] },
-  { code: 'MZ-SL-03', model: ['sliding', { D: 110, tracks: 2, gl: 24, Dlabel: '110' }], ar: 'The Glide — سحّاب عادي', en: 'The Glide — Standard slide', maker: 'Gulf Extrusions',
+  { code: 'MZ-SL-03', model: ['cat', { id: 'glide_ls', lift: 0 }], ar: 'The Glide — سحّاب عادي', en: 'The Glide — Standard slide', maker: 'Gulf Extrusions',
     desc: 'نفس عائلة مقاطع Glide (فريم 110 ملم) بحركة سحب أفقية بلا رفع، لفتحات متوسطة وتركيب أبسط.',
     spec: [['الفريم', 'Frame', '110 ملم'], ['التزجيج', 'Glazing', '24 – 34 ملم مزدوج'], ['أقصى وزن للدرفة', 'Max. sash weight', '200 كغ · نسبة الارتفاع/العرض ≤ 2']],
     img: [['glide-slide-overview.jpg', 'التايبولوجي والمقاطع'], ['glide-crosssection-detail1.jpg', 'مقطع أفقي']] },
-  { code: 'MZ-SL-04', model: ['traced', { id: 'montana20512' }], ar: 'Montana 120 — سحّاب حراري للخدمة الشاقة', en: 'Montana 120 — Heavy-duty thermal sliding', maker: 'Gulf Extrusions',
+  { code: 'MZ-SL-04', model: ['cat', { id: 'montana_frame' }], ar: 'Montana 120 — سحّاب حراري للخدمة الشاقة', en: 'Montana 120 — Heavy-duty thermal sliding', maker: 'Gulf Extrusions',
     desc: 'سحّاب أفقي ثقيل 2–4 درفات مع فتحات ثابتة وخيار قوس علوي، مختبَر ومصنّف للخدمة الشاقة.',
     spec: [['عمق الفريم', 'Frame depth', '120 ملم · عمق الدرفة ≈ 76.3 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد PA66 GF25 مقوّى بالفايبرغلاس — 16 ملم'], ['التزجيج', 'Glazing', '24 ملم مزدوج'],
       ['التصنيف', 'Rating', 'H-HC40 (Heavy commercial) — Al Futtaim Bodycote'], ['الأداء', 'Performance', 'تسرب هواء ≤ 5.0 م³/س/م² @ 75 Pa · تسرب مياه: صفر'], ['الأداء الحراري', 'Uw', '3.3 W/m²K (مقابل 5.7 بلا عازل)'], ['التشطيب', 'Finish', FIN]],
@@ -435,11 +604,11 @@ const CATS = [
     img: [['nbbm-sliding105.jpg', 'سحّاب 105 — عادي'], ['nbbm-sliding105-tb.jpg', 'سحّاب 105 / 120 — حراري']] },
  ]},
  { id: 'hinged', ar: 'الأنظمة المفصلية', en: 'Casement & Hinged Systems', intro: 'نوافذ وأبواب مفصلية بفتح للداخل أو الخارج وTurn & Tilt، حرارية وغير حرارية، ومنها نظام الدفة المخفية.', sys: [
-  { code: 'MZ-HG-01', model: ['traced', { id: 'tb600_20210' }], ar: 'TB-600 — مفصلي حراري', en: 'TB-600 — Thermally-broken casement', maker: 'Gulf Extrusions',
+  { code: 'MZ-HG-01', model: ['cat', { id: 'tb600_frame' }], ar: 'TB-600 — مفصلي حراري', en: 'TB-600 — Thermally-broken casement', maker: 'Gulf Extrusions',
     desc: 'نافذة وباب مفصلي حراري بفتح للداخل أو الخارج وخيار Turn & Tilt، بثلاث طبقات غاسكيت EPDM.',
     spec: [['عمق الفريم', 'Frame depth', '60 – 120 ملم · الدفة 60 / 67 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد 18.6 ملم'], ['التزجيج', 'Glazing', '18 – 38 ملم'], ['الاختبارات', 'Tested to', 'ASTM E283 / E331 / E330'], ['الأداء الحراري', 'Uw', '≈ 3.0 W/m²K (مقابل 5.7 بلا عازل)'], ['التشطيب', 'Finish', FIN]],
     img: [['tb600-frame.jpg', 'مقاطع TB-600']] },
-  { code: 'MZ-HG-02', model: ['traced', { id: 'tb62_82207' }], ar: 'TB-62 — مفصلي حراري 62 ملم', en: 'TB-62 — 62 mm thermal casement', maker: 'Gulf Extrusions',
+  { code: 'MZ-HG-02', model: ['cat', { id: 'tb62_frame' }], ar: 'TB-62 — مفصلي حراري 62 ملم', en: 'TB-62 — 62 mm thermal casement', maker: 'Gulf Extrusions',
     desc: 'نظام مفصلي حراري بعمق أساسي 62 ملم وTurn & Tilt، توازن جيد بين العزل والنحافة.',
     spec: [['عمق الفريم', 'Frame depth', '62 – 106 ملم · الدفة 70.5 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد 22 ملم'], ['التزجيج', 'Glazing', '24 ملم مزدوج'], ['التشطيب', 'Finish', FIN]],
     img: [['tb62-frame.jpg', 'مقاطع TB-62']] },
@@ -473,16 +642,16 @@ const CATS = [
     model: ['guillotine'] },
  ]},
  { id: 'cw', ar: 'الواجهات الزجاجية — كرتن وول', en: 'Curtain Wall Systems', intro: 'أنظمة عمود وكمرة بعرض ظاهر 50 – 70 ملم وأعماق حتى 250 ملم: تغطية تقليدية، أفقية فقط، أو تزجيج إنشائي كامل.', sys: [
-  { code: 'MZ-CW-01', model: ['cw', { W: 50, D: 150, type: 'capped', gl: 28 }], ar: 'كرتن وول 50 — تغطية تقليدية', en: 'Curtain wall 50 — Capped (pressure plate)', maker: 'Gulf Extrusions وغيرها',
+  { code: 'MZ-CW-01', model: ['cat', { id: 'cw50_conv' }], ar: 'كرتن وول 50 — تغطية تقليدية', en: 'Curtain wall 50 — Capped (pressure plate)', maker: 'Gulf Extrusions وغيرها',
     desc: 'واجهة عمود وكمرة بأغطية ظاهرة على المحورين، تزجيج جاف بغاسكيت EPDM وكوابس ضغط.',
     spec: [['العرض الظاهر', 'Sightline', '50 ملم'], ['عمق العمود', 'Mullion depth', '44 – 250 ملم (يقبل تقوية حديد/ألمنيوم)'], ['التزجيج', 'Glazing', '6 – 32 ملم'], ['السبائك', 'Alloys', '6005A / 6060 / 6061 / 6063 / 6082'], ['التشطيب', 'Finish', FIN + ' — Qualicoat / Qualanod']],
     feat: ['8 أشكال أغطية خارجية (منها منحني وبولت-نوز)'],
     img: [['cw50-conventional-overview.jpg', 'الواجهة والتقسيم'], ['cw50-conventional-detail.jpg', 'المقاطع'], ['nbbm-cw-50x50.jpg', 'عمود 50 × 50']] },
-  { code: 'MZ-CW-02', model: ['cw', { W: 50, D: 150, type: 'twoway', gl: 28 }], ar: 'كرتن وول 50 — تغطية أفقية فقط (شبه إنشائي)', en: 'Curtain wall 50 — Two-way (horizontal caps)', maker: 'Gulf Extrusions',
+  { code: 'MZ-CW-02', model: ['cat', { id: 'cw50_ssg2' }], ar: 'كرتن وول 50 — تغطية أفقية فقط (شبه إنشائي)', en: 'Curtain wall 50 — Two-way (horizontal caps)', maker: 'Gulf Extrusions',
     desc: 'أغطية أفقية ظاهرة فقط، والوصلات الرأسية سيليكون إنشائي — واجهة بخطوط أفقية ناعمة.',
     spec: [['العرض الظاهر', 'Sightline', '50 ملم'], ['عمق العمود', 'Mullion depth', '44 – 250 ملم'], ['التزجيج', 'Glazing', '6 – 32 ملم']],
     img: [['cw50-twoway-overview.jpg', 'الواجهة'], ['cw50-twoway-detail.jpg', 'المقاطع']] },
-  { code: 'MZ-CW-03', model: ['cw', { W: 50, D: 150, type: 'ssg', gl: 28 }], ar: 'كرتن وول 50 — تزجيج إنشائي رباعي (SSG)', en: 'Curtain wall 50 — 4-way structural silicone glazing', maker: 'Gulf Extrusions',
+  { code: 'MZ-CW-03', model: ['cat', { id: 'cw50_ssg4' }], ar: 'كرتن وول 50 — تزجيج إنشائي رباعي (SSG)', en: 'Curtain wall 50 — 4-way structural silicone glazing', maker: 'Gulf Extrusions',
     desc: 'إطار مخفي بالكامل والزجاج ملصوق بسيليكون إنشائي — واجهة زجاجية متصلة بلا خطوط ألمنيوم ظاهرة، الأكثر استعمالاً بالمنطقة.',
     spec: [['العرض الظاهر', 'Sightline', 'مخفي (عمود 50 ملم)'], ['عمق العمود', 'Mullion depth', '44 – 250 ملم'], ['التزجيج', 'Glazing', 'حتى 32 ملم (مثال: IGU بفراغ 20 ملم)']],
     img: [['cw50-ssg-overview.jpg', 'الواجهة'], ['cw50-ssg-detail.jpg', 'المقاطع']] },
@@ -531,7 +700,7 @@ function sysHTML(s){
   h += '</div><div>';
   if(s.web){ h += '<div class="figs' + (s.web.length === 1 ? ' one' : '') + '" style="margin-bottom:10px">' + s.web.map(x => '<figure class="web"><img loading="lazy" referrerpolicy="no-referrer" src="' + esc(x[0]) + '" alt="' + esc(x[1]) + '" onclick="TC.zoom(this.src)" onerror="this.closest(\'figure\').remove()"><figcaption>' + esc(x[1]) + ' <span style="opacity:.7">— المصدر: ' + esc(new URL(x[0]).hostname.replace(/^www\./, '')) + '</span></figcaption></figure>').join('') + '</div>'; }
   const sec = SECMAP[s.code];
-  if(sec) h += '<div class="figs one" style="margin-bottom:10px"><figure class="sec2d">' + secSVG(sec) + '<button type="button" class="b3d no-print" onclick="TC.open3D(\'' + esc(s.code) + '\')">🧊 شوفه 3D</button><figcaption><span class="sch">مقطع ميرزونا</span> — ' + (sec.src ? 'مرسوم من المقاسات المكتوبة لـ' + esc(sec.src) + ' بكتالوج المصنّع، والمجسّم 3D بنفس الشكل تماماً. الرسمة الرسمية تحت.' : s.img ? 'مبني على الأبعاد المنشورة للنظام، والمجسّم 3D بنفس الشكل تماماً. رسومات المصنّع الرسمية تحت.' : 'مقطع نموذجي للنظام، والمجسّم 3D بنفس الشكل تماماً.') + ' الأبعاد النهائية حسب مخططات التصنيع.</figcaption></figure></div>';
+  if(sec) h += '<div class="figs one" style="margin-bottom:10px"><figure class="sec2d">' + secSVG(sec) + '<button type="button" class="b3d no-print" onclick="TC.open3D(\'' + esc(s.code) + '\')">🧊 شوفه 3D</button><figcaption><span class="sch">مقطع ميرزونا</span> — ' + (sec.cat ? 'مأخوذ بالملّي من الرسمة الأصلية (' + esc(sec.src) + ')، وكل قطعة بالمجسّم 3D لحالها: فيك تفكّ القطع وترجّعها، وتكبس على أي قطعة لتعرف اسمها ورقمها.' : sec.src ? 'مرسوم من المقاسات المكتوبة لـ' + esc(sec.src) + ' بكتالوج المصنّع، والمجسّم 3D بنفس الشكل تماماً. الرسمة الرسمية تحت.' : s.img ? 'مبني على الأبعاد المنشورة للنظام، والمجسّم 3D بنفس الشكل تماماً. رسومات المصنّع الرسمية تحت.' : 'مقطع نموذجي للنظام، والمجسّم 3D بنفس الشكل تماماً.') + ' الأبعاد النهائية حسب مخططات التصنيع.</figcaption></figure></div>';
   if(s.img){ const n = s.img.length; h += '<div class="figs' + (n === 1 ? ' one' : '') + '">' + s.img.map(x => fig(x[0], x[1])).join('') + '</div>'; }
   return h + '</div></div></section>';
 }
@@ -584,7 +753,7 @@ const pushModal = () => { try{ history.pushState({ tcModal: 1 }, ''); }catch(e){
 window.TC = {
   zoom(src){ document.getElementById('zoomImg').src = src; document.getElementById('zoom').style.display = 'flex'; pushModal(); },
   share(){ const u = location.href.split('#')[0]; const t = (co().nameEn || 'Merzona') + ' — الكتالوج الفني'; if(navigator.share) navigator.share({ title: t, url: u }).catch(() => {}); else { try{ navigator.clipboard.writeText(u); alert('انسخ الرابط: ' + u); }catch(e){ prompt('الرابط:', u); } } },
-  CATS, SECTIONS, SECMAP, open3D(code){ open3D(code); pushModal(); }, close3D(){ if(history.state && history.state.tcModal) history.back(); else close3D(); }, v3Reset, v3Zoom, v3Shot,
+  CATS, SECTIONS, SECMAP, open3D(code){ open3D(code); pushModal(); }, close3D(){ if(history.state && history.state.tcModal) history.back(); else close3D(); }, v3Reset, v3Zoom, v3Shot, v3Explode(v){ if(V3 && V3.explode) V3.explode(v); }, v3Move(v){ if(V3 && V3.move) V3.move(v); },
   toggle(code, on){
     if(on) HIDDEN.delete(code); else HIDDEN.add(code);
     const sec = document.getElementById(code); if(sec){ sec.classList.toggle('off', !on); const sp = sec.querySelector('.tc-sw span'); if(sp) sp.textContent = on ? '✅ ظاهر للزبائن' : '⛔ مطفي'; }
