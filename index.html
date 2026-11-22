@@ -166,7 +166,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "index" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.2';
+  var CURRENT_VERSION = '2026-11-22.3';
   window.__mzVersion = CURRENT_VERSION;
   // 🆕 2026-09-25: باغ خطير لقيناه بطلب حمدي "لما بفتح تصميم من الداشبورد بيفتحلي عرض السعر، ولا تغيير
   // بيضبط الموضوع" - السبب الحقيقي: فحص "آخر نسخة منشورة" تحت (checkForUpdate) بيصير أحيانًا (خصوصًا
@@ -12140,7 +12140,7 @@ async function mzApplyWaDraft(d, opts){
   recalc();
   window.__mzDirty = true;
   const noPrice = (d.items || []).filter((x, i) => { const r = document.querySelectorAll('#qty-rows tr')[i]; return r && !String((r.querySelector('.price') || {}).value || '').trim(); }).length;
-  mzWaDraftBanner('📱 مسودة من مساعد الواتس اب' + (d.by ? ' (' + mzEscAttrFull(d.by) + ')' : '') + ': ' + (d.items || []).length + ' بنود للزبون ' + mzEscAttrFull(d.client || '') + '. راجع الأسعار والقياسات واحفظ بإيدك.'
+  mzWaDraftBanner((opts.label || '📱 مسودة من مساعد الواتس اب') + (d.by ? ' (' + mzEscAttrFull(d.by) + ')' : '') + ': ' + (d.items || []).length + ' بنود للزبون ' + mzEscAttrFull(d.client || '') + '. راجع الأسعار والقياسات واحفظ بإيدك.'
     + (noPrice ? ' ⚠️ ' + noPrice + ' بند بلا سعر.' : '') + (extraWarn.length ? ' ⚠️ ' + extraWarn.map(mzEscAttrFull).join(' ⚠️ ') : '') + (unmatched.length ? ' ⚠️ بنود مش من القائمة: ' + unmatched.map(mzEscAttrFull).join('، ') + '.' : '') + (d.notes ? ' 📝 ' + mzEscAttrFull(d.notes) : ''));
 }
 async function mzLoadWaDraftFromHash(){
@@ -12157,6 +12157,20 @@ async function mzLoadWaDraftFromHash(){
   try{ await mzApplyWaDraft(r.j); }catch(e){ console.error('[مسودة واتس اب]', e); mzWaDraftBanner('⚠️ صار خطأ وأنا عم عبّي المسودة: ' + mzEscAttrFull(e.message || e), 'err'); }
 }
 window.mzApplyWaDraft = mzApplyWaDraft;
+/* 📏 2026-11-22: من صفحة "الكشف بالموقع" (survey.html) - نفس الجهاز، فالبنود بتجي من مخزن المتصفح مش من السيرفر.
+   المكان والملاحظة بيروحوا لملاحظات البند (إذا في خانة)، والموظف بيراجع الأسعار وبيحفظ بإيده متل مسودة الواتس اب. */
+async function mzLoadSurveyDraftFromHash(){
+  const m = /[#&]surveydraft=([a-z0-9-]{4,60})/i.exec(location.hash || '');
+  if(!m) return;
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  const KEY = 'mz-survey-handoff:' + location.pathname.replace(/[^/]*$/, '');
+  let h = null; try{ h = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){}
+  if(!h || h.key !== m[1] || !h.d) return mzWaDraftBanner('⚠️ ما لقيت الكشف - ارجع لصفحة الكشف وكبّس «حوّل لعرض سعر» مرة تانية.', 'err');
+  try{ localStorage.removeItem(KEY); }catch(e){}
+  try{ await mzApplyWaDraft(h.d, { label: '📏 من الكشف بالموقع' }); }catch(e){ console.error('[كشف]', e); mzWaDraftBanner('⚠️ صار خطأ وأنا عم عبّي الكشف: ' + mzEscAttrFull(e.message || e), 'err'); }
+}
+window.mzLoadSurveyDraftFromHash = mzLoadSurveyDraftFromHash;
+(function(){ const go = () => setTimeout(mzLoadSurveyDraftFromHash, 900); if(document.readyState === 'complete') go(); else window.addEventListener('load', go); })();
 (function(){ const go = () => setTimeout(mzLoadWaDraftFromHash, 900); if(document.readyState === 'complete') go(); else window.addEventListener('load', go); })();
 function hpeAiBox(html){ const b = document.getElementById('hpeAi'); if(!b) return; b.style.display = html ? 'block' : 'none'; b.innerHTML = html || ''; }
 function hpePhoto(){ document.getElementById('hpeFile').click(); }
