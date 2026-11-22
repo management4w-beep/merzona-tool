@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<script src="company.js?v=2026-11-13.1"></script><!-- 🏢 إعدادات الشركة -->
+<script src="mz-i18n.js?v=2026-11-14.2"></script><script src="i18n-en-acct.js?v=2026-11-14.1"></script><script src="i18n-en-dash.js?v=2026-11-14.1"></script><script src="i18n-en-proc.js?v=2026-11-14.1"></script><!-- 🌐 اللغة (عربي/English) -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="only light">
+<meta name="supported-color-schemes" content="light">
+<!-- ===== MERZONA ACCESS GATE - START (لا تحذف هاد القسم إلا إذا بديت تستخدم حماية أقوى متل Cloudflare Access) ===== -->
+<style id="mz-gate-style">body{display:none!important;}</style>
+<script id="mz-error-reporter">
+/* 🐞 تسجيل أخطاء تلقائي (2026-10-06): أي خطأ جافاسكربت بالصفحة بيتبعت للسيرفر (من جهاز معتمد بس) مع اسم الصفحة والنسخة ورقم العرض،
+   وبيتخزّن كمان نسخة بالمتصفح (localStorage: mz-err-log، آخر 30). ما بيعطّل أي شي لو فشل. */
+(function(){
+  if(window.__mzErrReporter) return; window.__mzErrReporter = true;
+  var PAGE = 'survey';
+  var ENDPOINT = 'https://merzona-server-production.up.railway.app/client-error';
+  var seen = {}, sent = 0, winStart = Date.now();
+  var NOISE = /ResizeObserver loop|^Script error\.?$|Failed to load resource|NetworkError|Load failed|Failed to fetch|AbortError|aborted|ERR_TUNNEL|net::ERR/i;
+  function dev(){ try{ return localStorage.getItem('merzona-device-token') || ''; }catch(e){ return ''; } }
+  function refVal(){ try{ var el = document.getElementById('m-ref'); return el ? (el.value || '') : ''; }catch(e){ return ''; } }
+  function keep(rec){
+    try{
+      var arr = JSON.parse(localStorage.getItem('mz-err-log') || '[]'); arr.push(rec);
+      localStorage.setItem('mz-err-log', JSON.stringify(arr.slice(-30)));
+    }catch(e){}
+  }
+  function report(kind, msg, stack, src){
+    try{
+      msg = String(msg == null ? '' : msg).slice(0, 500);
+      if(!msg || NOISE.test(msg)) return;
+      var key = kind + '|' + msg.slice(0, 120); if(seen[key]) return; seen[key] = 1;
+      var now = Date.now(); if(now - winStart > 600000){ winStart = now; sent = 0; } if(++sent > 10) return;
+      var rec = { kind: kind, msg: msg, stack: String(stack || '').slice(0, 1500), src: String(src || '').slice(0, 200), page: PAGE, v: window.__mzVersion || '', ref: refVal(), ua: (navigator.userAgent || '').slice(0, 160), t: new Date().toISOString() };
+      keep(rec);
+      var d = dev(); if(!d) return;
+      fetch(ENDPOINT + '?device=' + encodeURIComponent(d), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec), keepalive: true }).catch(function(){});
+    }catch(e){}
+  }
+  window.addEventListener('error', function(e){
+    if(!e || (e.target && e.target !== window)) return; // أخطاء تحميل ملفات/صور = ضجيج شبكة، منتجاهلها
+    report('error', e.message, e.error && e.error.stack, (e.filename || '') + ':' + (e.lineno || ''));
+  }, true);
+  window.addEventListener('unhandledrejection', function(e){
+    var r = e && e.reason; report('promise', (r && r.message) ? r.message : r, r && r.stack);
+  });
+  var origErr = console.error;
+  console.error = function(){
+    try{
+      var parts = [], st = '';
+      for(var i = 0; i < arguments.length; i++){
+        var x = arguments[i];
+        if(x && x.message){ parts.push(x.message); if(!st && x.stack) st = x.stack; }
+        else if(typeof x === 'string' || typeof x === 'number') parts.push(String(x));
+      }
+      report('console', parts.join(' '), st);
+    }catch(e){}
+    return origErr.apply(console, arguments);
+  };
+})();
+</script>
+<script>
+(function(){
+  // ⚠️ عدّل هاد السطر بعد ما تنشر سيرفر الموافقات (whatsapp-server) - حط رابط السيرفر هون بدون / بالآخر
+  var ACCESS_SERVER_URL = 'https://merzona-server-production.up.railway.app';
+
+  var DEVICE_KEY = 'merzona-device-token';
+  var STATUS_KEY = 'merzona-access-status';
+  // 🆕 2026-08-26: طبقة حسابات المستخدمين (يوزرنيم/باسوورد) فوق موافقة الواتساب. TOOL_PERMISSION_KEY
+  // بيحدد شو اسم الصلاحية يلي هالملف بالذات لازم يتحقق منها (نفس مفاتيح PERMISSION_KEYS بالسيرفر) -
+  // لازم يبقى 'procurement' هون بالضبط (بملف procurement.html)، وبملفات Dashboard.html/index.html
+  // القيمة المكافئة هي 'dashboard'/'quotation' على التوالي.
+  var SESSION_KEY = 'merzona-session-token';
+  // 🆕 2026-08-26: اسم المستخدم (يوزرنيم) محفوظ محليًا بعد إنشاء/تسجيل الدخول - نفس الفكرة يلي
+  // بأداة عرض الأسعار (index.html)، محفوظ هون كمان للتناسق (ما بتستخدمو هالأداة حاليًا).
+  var USERNAME_KEY = 'merzona-username';
+  var TOOL_PERMISSION_KEY = 'quotation';
+  var POLL_MS = 4000;
+  var REVALIDATE_MS = 5 * 60 * 1000; // كل قد ايش نتأكد من السيرفر إنو الجهاز المعتمد لسا مسموح (يلتقط أي إلغاء وصول بسرعة معقولة حتى لو الصفحة ضلت مفتوحة)
+
+  // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
+  // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
+  // بينحدث فيه رقم النسخة تبع "procurement" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
+  var CURRENT_VERSION = '2026-11-22.1';
+  window.__mzVersion = CURRENT_VERSION;
+  var TOOL_KEY = 'survey';
+  var VERSION_URL = 'version.json';
+  var RELOAD_GUARD_KEY = 'merzona-version-guard-' + TOOL_KEY;
+  var VERSION_CHECK_TIMEOUT_MS = 4000;
+
+  function checkForUpdate(onDone){
+    var bust = Date.now() + '-' + Math.random().toString(16).slice(2);
+    var settled = false;
+    var timer = setTimeout(function(){ if(!settled){ settled = true; onDone(); } }, VERSION_CHECK_TIMEOUT_MS);
+    fetch(VERSION_URL + '?_=' + bust, { cache: 'no-store' })
+      .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(data){
+        if(settled) return; settled = true; clearTimeout(timer);
+        var remoteVersion = data && data[TOOL_KEY];
+        if(!remoteVersion || remoteVersion === CURRENT_VERSION){
+          try{ sessionStorage.removeItem(RELOAD_GUARD_KEY); }catch(e){}
+          onDone();
+          return;
+        }
+        // في نسخة أحدث منشورة على جيت هاب من يلي المتصفح فاتحها حاليًا - منعمل reload بس مع رابط
+        // مختلف (cache-busting) حتى نجبر المتصفح ياخد نسخة الملف الجديدة فعليًا من الشبكة مباشرة،
+        // بدل ما يكتفي بالنسخة القديمة المخزنة عندو محليًا.
+        var guard = null;
+        try{ guard = JSON.parse(sessionStorage.getItem(RELOAD_GUARD_KEY) || 'null'); }catch(e){}
+        if(guard && guard.version === remoteVersion && (Date.now() - guard.at) < 60000){
+          // جربنا نحدّث لهاي النسخة قبل شوي وما زبط (يمكن لسا عم تنتشر على سيرفرات جيت هاب) - منكمل
+          // بالنسخة الحالية حتى ما تعلق الأداة بحلقة تحديث متكررة، ومنعاود نحاول بعد شوي من جديد.
+          onDone();
+          return;
+        }
+        try{ sessionStorage.setItem(RELOAD_GUARD_KEY, JSON.stringify({ version: remoteVersion, at: Date.now() })); }catch(e){}
+        var _qs = ''; try { var _u = new URLSearchParams(location.search); _u.set('_cb', bust); _qs = '?' + _u.toString(); } catch (e) { _qs = '?_cb=' + bust; }
+        location.replace(location.pathname + _qs + (location.hash || ''));
+      })
+      .catch(function(){ if(!settled){ settled = true; clearTimeout(timer); onDone(); } });
+  }
+
+  function showCheckingUpdate(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:13px;color:#9aa0aa">🔄 جاري التحقق من آخر نسخة...</div>';
+  }
+
+  function getDeviceToken(){
+    var t = null;
+    try{ t = localStorage.getItem(DEVICE_KEY); }catch(e){}
+    if(!t){
+      t = (crypto.randomUUID ? crypto.randomUUID() : ('dev-' + Date.now() + '-' + Math.random().toString(16).slice(2)));
+      try{ localStorage.setItem(DEVICE_KEY, t); }catch(e){}
+    }
+    return t;
+  }
+
+  function reveal(){
+    var st = document.getElementById('mz-gate-style'); if(st) st.remove();
+    var ov = document.getElementById('mz-gate-overlay'); if(ov) ov.remove();
+  }
+
+  // ============================================================================
+  // 🆕 2026-08-26: حسابات المستخدمين (يوزرنيم/باسوورد) - طبقة إضافية فوق موافقة الواتساب
+  // أعلاه. ما بتشتغل إلا بعد ما الجهاز يصير "approved". مسار المالك (#owner=) ما بيمرق من
+  // هون إطلاقًا - بيرجع reveal() مباشرة (شوف init() تحت).
+  // ============================================================================
+  function getSessionToken(){
+    try{ return localStorage.getItem(SESSION_KEY); }catch(e){ return null; }
+  }
+  function setSessionToken(t, username){
+    try{
+      localStorage.setItem(SESSION_KEY, t);
+      if(username) localStorage.setItem(USERNAME_KEY, username);
+    }catch(e){}
+  }
+
+  // متل api() تمامًا بس ما بترمي خطأ عالحالات 4xx/5xx - بترجع نفس جسم JSON يلي بعتو السيرفر
+  // (فيه رسالة الخطأ بالعربي بحقل error) حتى نقدر نعرضها للمستخدم بدل رسالة عامة.
+  function apiUsers(path, opts){
+    return fetch(ACCESS_SERVER_URL + path, opts).then(function(r){
+      return r.json().catch(function(){ return {}; });
+    });
+  }
+
+  function showBlockedNoPermission(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px;color:#e0554f">ما عندك صلاحية</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">حسابك مسموح بالدخول، بس ما عندك صلاحية لهاد الجزء تحديدًا. تواصل مع الإدارة إذا حابب توصلها.</div>';
+  }
+
+  function proceedIfPermitted(permissions){
+    if(permissions && permissions[TOOL_PERMISSION_KEY]){
+      reveal();
+    } else {
+      showBlockedNoPermission();
+    }
+  }
+
+  function showAccountError(box, msg){
+    var err = box.querySelector('#mz-acct-err');
+    if(err) err.textContent = msg || 'صار في خطأ - جرب كمان شوي';
+  }
+
+  function showCreateAccountForm(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">آخر خطوة - أنشئ حسابك 🔐</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اختار اسم مستخدم وكلمة مرور خاصين فيك، رح تحتاجهم بالمرات الجاية</div>' +
+      '<input id="mz-acct-user" type="text" placeholder="اسم المستخدم" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass" type="password" placeholder="كلمة المرور (6 أحرف عالأقل)" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass2" type="password" placeholder="أعد كتابة كلمة المرور" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-acct-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">إنشاء الحساب</button>' +
+      '<div id="mz-acct-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-acct-btn');
+    var userInput = box.querySelector('#mz-acct-user');
+    var passInput = box.querySelector('#mz-acct-pass');
+    var pass2Input = box.querySelector('#mz-acct-pass2');
+    function submit(){
+      var username = (userInput.value || '').trim();
+      var password = passInput.value || '';
+      var password2 = pass2Input.value || '';
+      if(!username || username.length < 2){ showAccountError(box, 'اكتب اسم مستخدم صحيح'); return; }
+      if(password.length < 6){ showAccountError(box, 'كلمة المرور لازم تكون 6 أحرف عالأقل'); return; }
+      if(password !== password2){ showAccountError(box, 'كلمتا المرور مش متطابقتين'); return; }
+      btn.disabled = true; btn.textContent = 'جاري الإنشاء...';
+      apiUsers('/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, username: username, password: password })
+      }).then(function(r){
+        if(r && r.token){
+          setSessionToken(r.token, r.username);
+          try{ if(window.MZ_I18N) MZ_I18N.applyUser(r.lang); }catch(_){}
+          proceedIfPermitted(r.permissions);
+        } else {
+          btn.disabled = false; btn.textContent = 'إنشاء الحساب';
+          showAccountError(box, (r && r.error) || 'صار في خطأ');
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'إنشاء الحساب';
+        showAccountError(box, 'تعذر الاتصال بالسيرفر');
+      });
+    }
+    btn.addEventListener('click', submit);
+    pass2Input.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ userInput.focus(); }, 50);
+  }
+
+  function showLoginForm(deviceToken, prefillUsername){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    var safePrefill = prefillUsername ? String(prefillUsername).replace(/"/g,'&quot;') : '';
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">سجّل الدخول 🔐</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اكتب اسم المستخدم وكلمة المرور يلي أنشأتهم قبل هيك</div>' +
+      '<input id="mz-acct-user" type="text" placeholder="اسم المستخدم" value="' + safePrefill + '" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<input id="mz-acct-pass" type="password" placeholder="كلمة المرور" autocomplete="current-password" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-acct-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">دخول</button>' +
+      '<div id="mz-acct-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-acct-btn');
+    var userInput = box.querySelector('#mz-acct-user');
+    var passInput = box.querySelector('#mz-acct-pass');
+    function submit(){
+      var username = (userInput.value || '').trim();
+      var password = passInput.value || '';
+      if(!username || !password){ showAccountError(box, 'عبي الاسم وكلمة المرور'); return; }
+      btn.disabled = true; btn.textContent = 'جاري الدخول...';
+      apiUsers('/users/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      }).then(function(r){
+        if(r && r.token){
+          setSessionToken(r.token, r.username);
+          try{ if(window.MZ_I18N) MZ_I18N.applyUser(r.lang); }catch(_){}
+          proceedIfPermitted(r.permissions);
+        } else {
+          btn.disabled = false; btn.textContent = 'دخول';
+          showAccountError(box, (r && r.error) || 'اسم المستخدم أو كلمة المرور غير صحيحة');
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'دخول';
+        showAccountError(box, 'تعذر الاتصال بالسيرفر');
+      });
+    }
+    btn.addEventListener('click', submit);
+    passInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ passInput.focus(); }, 50);
+  }
+
+  // هاد يلي بيستبدل استدعاءات reveal() المباشرة (ما عدا مسار المالك #owner=) - بيتحقق أول
+  // شي إذا الجهاز عملّو حساب يوزرنيم/باسوورد، وإذا لأ بيطلب منه ينشئ واحد قبل ما يفوت.
+  function revealWithAccountCheck(deviceToken){
+    apiUsers('/users/status?deviceToken=' + encodeURIComponent(deviceToken)).then(function(r){
+      if(r && r.isOwnerDevice){
+        // جهاز المالك المعتمد أصلاً (دخل قبل هيك عن طريق #owner=) - فوري وبدون أي حساب.
+        reveal();
+      } else if(r && r.hasAccount){
+        var token = getSessionToken();
+        if(!token){ showLoginForm(deviceToken, r.username); return; }
+        apiUsers('/users/me?token=' + encodeURIComponent(token)).then(function(me){
+          if(me && me.permissions){ try{ if(window.MZ_I18N) MZ_I18N.applyUser(me.lang); }catch(_){} proceedIfPermitted(me.permissions); }
+          else { showLoginForm(deviceToken, r.username); }
+        }).catch(function(){ showLoginForm(deviceToken, r.username); });
+      } else if(r && r.hasAccount === false){
+        showCreateAccountForm(deviceToken);
+      } else {
+        // رد غير متوقع (مثلاً الجهاز مش approved من نظام الواتساب لأي سبب) - منكمل بالوضع
+        // القديم حتى ما حدا ينحبس برا الأداة بسبب ميزة جديدة.
+        reveal();
+      }
+    }).catch(function(){
+      reveal();
+    });
+  }
+
+  function getOwnerTokenFromHash(){
+    var m = /[#&]owner=([^&]+)/.exec(location.hash);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function clearOwnerHash(){
+    if(location.hash.indexOf('owner=') !== -1){
+      try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    }
+  }
+
+  function api(path, opts){
+    return fetch(ACCESS_SERVER_URL + path, opts).then(function(r){
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  function buildOverlayShell(){
+    var existing = document.getElementById('mz-gate-overlay');
+    if(existing) return existing;
+    var overlay = document.createElement('div');
+    overlay.id = 'mz-gate-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:#0f1115;color:#eee;display:flex;align-items:center;justify-content:center;z-index:2147483647;font-family:Tahoma,Arial,sans-serif;direction:rtl;';
+    var box = document.createElement('div');
+    box.className = 'mz-gate-box';
+    box.style.cssText = 'background:#1b1e24;padding:32px 28px;border-radius:12px;max-width:340px;width:90%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)';
+    overlay.appendChild(box);
+    document.documentElement.appendChild(overlay);
+    return overlay;
+  }
+
+  function showMisconfigured(){
+    var overlay = buildOverlayShell();
+    overlay.querySelector('.mz-gate-box').innerHTML =
+      '<div style="font-size:16px;font-weight:700;margin-bottom:10px">نظام الدخول مش جاهز بعد</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">تواصل مع الإدارة لتفعيل رابط سيرفر الموافقات.</div>';
+  }
+
+  function showRequestForm(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">أداة ميرزونا محمية</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">اكتب اسمك واطلب الدخول - رح توصل موافقة الإدارة على الواتس اب</div>' +
+      '<input id="mz-gate-name" type="text" placeholder="اسمك" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid #333;background:#0f1115;color:#eee;font-size:14px;box-sizing:border-box;margin-bottom:10px" />' +
+      '<button id="mz-gate-btn" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">طلب الدخول</button>' +
+      '<div id="mz-gate-err" style="color:#e0554f;font-size:12px;margin-top:10px;min-height:16px"></div>';
+    var btn = box.querySelector('#mz-gate-btn');
+    var nameInput = box.querySelector('#mz-gate-name');
+    var err = box.querySelector('#mz-gate-err');
+    function submit(){
+      var name = (nameInput.value || '').trim();
+      btn.disabled = true; btn.textContent = 'جاري الإرسال...';
+      // منبعت نفس القيمة المكتوبة كـ adminToken كمان مع الاسم - السيرفر بتجاهلها إذا مش نفس
+      // كلمة سر المالك بالضبط، وبيوافق فورًا بدون انتظار الواتس اب إذا كانت مطابقة. هيك صاحبة
+      // الأداة فيها تكتب كلمة السر مكان الاسم وتفتح مباشرة، بدون الحاجة لرابط #owner= الخاص.
+      api('/access/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, name: name, adminToken: name })
+      }).then(function(r){
+        if(r.status === 'approved'){
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          revealWithAccountCheck(deviceToken);
+        } else {
+          showWaiting(deviceToken);
+        }
+      }).catch(function(){
+        btn.disabled = false; btn.textContent = 'طلب الدخول';
+        err.textContent = 'تعذر الاتصال بسيرفر الموافقات - جرب كمان شوي';
+      });
+    }
+    btn.addEventListener('click', submit);
+    nameInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') submit(); });
+    setTimeout(function(){ nameInput.focus(); }, 50);
+  }
+
+  function showWaiting(deviceToken){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px">بانتظار موافقة الإدارة ⏳</div>' +
+      '<div style="font-size:13px;color:#9aa0aa">وصل طلبك - الصفحة رح تفتح تلقائيًا أول ما توافق الإدارة</div>';
+    var poll = setInterval(function(){
+      api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+        if(r.status === 'approved'){
+          clearInterval(poll);
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          revealWithAccountCheck(deviceToken);
+        } else if(r.status === 'denied' || r.status === 'revoked'){
+          clearInterval(poll);
+          try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
+          showRejected();
+        }
+      }).catch(function(){ /* السيرفر مش متاح مؤقتًا - منستمر نحاول بصمت */ });
+    }, POLL_MS);
+  }
+
+  function showRejected(){
+    var overlay = buildOverlayShell();
+    var box = overlay.querySelector('.mz-gate-box');
+    box.innerHTML =
+      '<div style="font-size:18px;font-weight:700;margin-bottom:6px;color:#e0554f">ما توفرت الموافقة</div>' +
+      '<div style="font-size:13px;color:#9aa0aa;margin-bottom:18px">تواصل مع الإدارة، أو جرب تطلب دخول من جديد</div>' +
+      '<button id="mz-gate-retry" style="width:100%;padding:10px 12px;border-radius:8px;border:none;background:#0f88cd;color:#fff;font-size:14px;font-weight:600;cursor:pointer">حاول من جديد</button>';
+    box.querySelector('#mz-gate-retry').addEventListener('click', function(){ location.reload(); });
+  }
+
+  function init(){
+    var deviceToken = getDeviceToken();
+    var ownerToken = getOwnerTokenFromHash();
+
+    var cachedStatus = null;
+    try{ cachedStatus = localStorage.getItem(STATUS_KEY); }catch(e){}
+
+    if(!ACCESS_SERVER_URL){
+      if(cachedStatus === 'approved'){ reveal(); return; }
+      showMisconfigured();
+      return;
+    }
+
+    if(ownerToken){
+      api('/access/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceToken: deviceToken, name: 'Owner', adminToken: ownerToken })
+      }).then(function(r){
+        clearOwnerHash();
+        if(r.status === 'approved'){
+          try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+          reveal();
+        } else {
+          showRequestForm(deviceToken);
+        }
+      }).catch(function(){ clearOwnerHash(); showRequestForm(deviceToken); });
+      return;
+    }
+
+    if(cachedStatus === 'approved'){
+      revealWithAccountCheck(deviceToken); // نفتح فورًا (تفاؤلي)، وبنتأكد بالخلفية بشكل دوري إذا لسا الموافقة سارية
+      function revalidate(){
+        api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+          if(r.status !== 'approved'){
+            try{ localStorage.removeItem(STATUS_KEY); }catch(e){}
+            location.reload();
+          }
+        }).catch(function(){});
+      }
+      revalidate();
+      setInterval(revalidate, REVALIDATE_MS);
+      return;
+    }
+
+    api('/access/status?device=' + encodeURIComponent(deviceToken)).then(function(r){
+      if(r.status === 'approved'){
+        try{ localStorage.setItem(STATUS_KEY, 'approved'); }catch(e){}
+        revealWithAccountCheck(deviceToken);
+      } else if(r.status === 'pending'){
+        showWaiting(deviceToken);
+      } else {
+        showRequestForm(deviceToken);
+      }
+    }).catch(function(){
+      showRequestForm(deviceToken);
+    });
+  }
+
+  function boot(){
+    showCheckingUpdate();
+    checkForUpdate(init);
+  }
+  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', boot); } else { boot(); }
+})();
+</script>
+<!-- ===== MERZONA ACCESS GATE - END ===== -->
+<title>[تجريبي] الكشف بالموقع</title>
+<link rel="manifest" href="data:application/manifest+json,{}">
+<style>
+:root{--main:#12324a;--blue:#0f88cd;--bg:#f3f6f9;--card:#fff;--line:#dde5ec;--muted:#6b7d8c;--ok:#1e8e3e;--warn:#b26a00;--err:#c62828}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--main);font-family:Tajawal,Cairo,"Segoe UI",Tahoma,Arial,sans-serif;font-size:15px}
+button{font:inherit;cursor:pointer;touch-action:manipulation}
+input,select,textarea{font:inherit;color:inherit}
+.sv-top{position:sticky;top:0;z-index:20;background:var(--main);color:#fff;padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sv-top h1{font-size:17px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sv-top .pill{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:99px;padding:6px 11px;font-size:13px}
+.sv-net{font-size:12px;padding:3px 8px;border-radius:99px;background:rgba(255,255,255,.14)}
+.sv-net.off{background:#ffb300;color:#3b2600}
+.wrap{max-width:820px;margin:0 auto;padding:12px 12px 140px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(18,50,74,.05)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label.f{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted);min-width:0}
+label.f input,label.f select,label.f textarea{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;font-size:15px;width:100%;min-width:0}
+label.f input:focus,label.f select:focus,label.f textarea:focus{outline:2px solid var(--blue);border-color:transparent}
+.btn{border:0;border-radius:10px;padding:10px 14px;background:var(--blue);color:#fff;font-weight:700}
+.btn.ghost{background:#e8f1f8;color:var(--main)}
+.btn.red{background:#fdecea;color:var(--err)}
+.btn.small{padding:6px 10px;font-size:13px;border-radius:8px}
+.hint{font-size:12.5px;color:var(--muted)}
+.sv-list .card{display:flex;align-items:center;gap:10px;cursor:pointer}
+.sv-list .card b{display:block}
+.badge{font-size:11.5px;border-radius:99px;padding:2px 8px;background:#e8f1f8;color:var(--main);white-space:nowrap}
+.badge.ok{background:#e6f4ea;color:var(--ok)} .badge.wait{background:#fff4e0;color:var(--warn)}
+.op{position:relative}
+.op.sel{outline:2px solid var(--blue)}
+.op-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.op-no{background:var(--main);color:#fff;border-radius:8px;padding:2px 9px;font-weight:700;font-size:13px}
+.op-head .grow{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-photo{position:relative;width:100%;max-height:260px;border-radius:10px;overflow:hidden;background:#e9eef3;margin-bottom:8px;display:flex;align-items:center;justify-content:center}
+.op-photo img{width:100%;max-height:260px;object-fit:cover;display:block}
+.op-dim{position:absolute;inset:auto 0 0 0;background:linear-gradient(transparent,rgba(0,0,0,.7));color:#fff;font-weight:800;font-size:22px;padding:18px 10px 8px;text-align:center;direction:ltr}
+.dimrow{display:grid;grid-template-columns:1fr 1fr 110px;gap:8px;align-items:end}
+.inbtn{display:flex;gap:4px}
+.inbtn input{flex:1}
+.laser-fill{border:1px solid var(--line);background:#fff;border-radius:8px;width:38px;font-size:16px;padding:0}
+.step{display:flex;align-items:center;gap:4px}
+.step button{width:36px;height:40px;border-radius:8px;border:1px solid rgba(15,136,205,.45);background:rgba(15,136,205,.1);color:var(--blue);font-size:22px;font-weight:700;padding:0}
+.step input{width:100%;text-align:center;border:1px solid var(--line);border-radius:8px;padding:9px 2px}
+.heard{font-size:13px;background:#f6f9fb;border-radius:8px;padding:6px 8px;margin-top:6px;color:#34495e}
+.heard.wait{background:#fff7e6}
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);padding:8px 10px calc(8px + env(safe-area-inset-bottom));box-shadow:0 -4px 14px rgba(18,50,74,.08)}
+.dock .in{max-width:820px;margin:0 auto;display:flex;gap:8px;align-items:center}
+.mic{width:64px;height:64px;border-radius:50%;border:0;background:var(--blue);color:#fff;font-size:28px;flex:0 0 64px;box-shadow:0 3px 10px rgba(15,136,205,.4)}
+.mic.rec{background:var(--err);animation:pulse 1s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(198,40,40,.5)}100%{box-shadow:0 0 0 16px rgba(198,40,40,0)}}
+.dock .tools{display:flex;gap:6px;flex:1;overflow-x:auto}
+.dock .tools .btn{white-space:nowrap;padding:9px 11px;font-size:13.5px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:104px;z-index:50;background:var(--main);color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;max-width:92vw;box-shadow:0 4px 14px rgba(0,0,0,.2);display:none}
+.toast.err{background:var(--err)}
+.modal{position:fixed;inset:0;z-index:60;background:rgba(10,25,40,.55);display:none;align-items:flex-end;justify-content:center}
+.modal .box{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:820px;max-height:88vh;overflow:auto;padding:14px}
+.modal h3{margin:0 0 8px}
+.ai-op{display:flex;gap:8px;align-items:flex-start;border-bottom:1px solid var(--line);padding:8px 0}
+.recbar{display:none;font-size:13px;color:var(--err);font-weight:700}
+.recbar.on{display:block}
+@media print{.sv-top,.dock,.no-print,.toast,.modal{display:none!important}.wrap{padding:0;max-width:none}.card{break-inside:avoid;box-shadow:none}body{background:#fff}}
+.print-only{display:none}
+@media print{.print-only{display:block}}
+</style>
+</head>
+<body>
+<div class="sv-top">
+  <button class="pill" id="svBack" onclick="SV.home()" style="display:none">→ رجوع</button>
+  <h1 id="svTitle">📏 الكشف بالموقع</h1>
+  <span class="sv-net" id="svNet">متصل</span>
+  <button class="pill" id="svLaserBtn" onclick="SV.laserConnect()" title="ليزر بلوتوث (Leica DISTO / Bosch GLM)">📡 ليزر</button>
+  <a class="pill" href="Dashboard.html" style="text-decoration:none">🏠</a>
+</div>
+<div class="wrap" id="svMain"></div>
+<div class="dock" id="svDock" style="display:none">
+  <div class="recbar" id="svRecBar">🔴 عم سجّل... احكي: المكان، نوع البند، العرض بالارتفاع، والعدد. كبّس مرة تانية لتوقّف.</div>
+  <div class="in">
+    <button class="mic" id="svMic" onclick="SV.mic()" aria-label="سجّل بالصوت">🎙️</button>
+    <div class="tools">
+      <button class="btn ghost" onclick="SV.addOpening()">➕ فتحة</button>
+      <button class="btn ghost" onclick="SV.pickPhoto(null)">📷 صورة</button>
+      <button class="btn ghost" onclick="SV.aiPhoto()">🤖 اقرا صورة/مخطط</button>
+      <button class="btn" onclick="SV.toQuote()">📄 حوّل لعرض سعر</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="svFile" accept="image/*" capture="environment" style="display:none" onchange="SV.photoPicked(this)">
+<input type="file" id="svAiFile" accept="image/*,application/pdf" style="display:none" onchange="SV.aiPicked(this)">
+<div class="toast" id="svToast"></div>
+<div class="modal" id="svModal" onclick="if(event.target===this)SV.closeModal()"><div class="box" id="svModalBox"></div></div>
+<datalist id="svRooms"></datalist>
+<datalist id="svItems"></datalist>
+<script>
+/* =====================================================================================
+   📏 الكشف بالموقع (2026-11-22) - طلب حمدي: "ضيف الميزات كلها وخصوصي تبع تسجيل المقاسات بالصوت"
+   (أفكار من تطبيق BOLDR Pro). لكل فتحة: صورة + المكان + البند + العرض × الارتفاع + العدد + ملاحظة.
+   - 🎙️ الصوت: بيتسجّل وبيروح للسيرفر (نفس السامع يلي بيتعلّم لهجة حمدي بالواتس اب) ← بيعبّي الخانات.
+     إذا السيرفر مش متاح ← سماع الموبايل نفسه. إذا ما في نت أبداً ← الصوت بينحفظ وبينفهم لما يرجع النت.
+   - 📡 ليزر بلوتوث (Leica DISTO / Bosch GLM) ← بيعبّي الخانة المختارة. والليزرات يلي بتشتغل "كيبورد" بتكتب لحالها.
+   - 📴 بلا نت: كل شي محفوظ عالموبايل (IndexedDB)، وبيترفع نسخة للسيرفر لما يرجع النت.
+   - 🤖 صورة الموقع أو المخطط ← الذكاء الاصطناعي بيقترح الفتحات (والمقاسات إذا مكتوبة) - للمراجعة بس.
+   - 📄 حوّل لعرض سعر: بيفتح أداة عرض السعر معبّاية بالبنود (ما بينحفظ شي لحالو).
+   ===================================================================================== */
+(function(){
+'use strict';
+var SERVER = 'https://merzona-server-production.up.railway.app';
+var NS = location.pathname.replace(/[^/]*$/, '');              // ميرزونا / التجريبي / صوفيه كل وحدة إلها مخزنها
+var DB_NAME = 'mz-survey:' + NS, HANDOFF_KEY = 'mz-survey-handoff:' + NS, ITEMS_KEY = 'mz-survey-items:' + NS;
+var ROOMS = ['المطبخ','الصالون','غرفة النوم','غرفة النوم الرئيسية','غرفة الأولاد','غرفة الضيوف','الحمام','المجلس','البلكون','الشرفة','التراس','الدرج','المدخل','الممر','السطح','الحديقة','الكراج','المكتب','الواجهة'];
+var S = { list: [], cur: null, sel: null, items: [], voice: null, ai: null, rec: null, laser: null, lastField: null };
+window.SV = {};
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+function uid(p){ return (p || 'sv') + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function toast(msg, err, ms){ var t = $('svToast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(function(){ t.style.display = 'none'; }, ms || 3200); }
+function ls(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+function online(){ return navigator.onLine !== false; }
+
+// ---------- التخزين عالموبايل (IndexedDB، وإذا مش متاح ← الذاكرة) ----------
+var mem = {};
+function idb(){ return new Promise(function(res){ try{ var r = indexedDB.open(DB_NAME, 1); r.onupgradeneeded = function(){ r.result.createObjectStore('surveys', { keyPath: 'id' }); }; r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ res(null); }; }catch(e){ res(null); } }); }
+function dbAll(){ return idb().then(function(db){ if(!db) return Object.keys(mem).map(function(k){ return mem[k]; }); return new Promise(function(res){ var q = db.transaction('surveys').objectStore('surveys').getAll(); q.onsuccess = function(){ res(q.result || []); }; q.onerror = function(){ res([]); }; }); }); }
+function dbPut(sv){ mem[sv.id] = sv; return idb().then(function(db){ if(!db) return; return new Promise(function(res){ var tx = db.transaction('surveys', 'readwrite'); tx.objectStore('surveys').put(JSON.parse(JSON.stringify(sv))); tx.oncomplete = res; tx.onerror = function(){ res(); }; }); }); }
+function dbDel(id){ delete mem[id]; return idb().then(function(db){ if(!db) return; return new Promise(function(res){ var tx = db.transaction('surveys', 'readwrite'); tx.objectStore('surveys').delete(id); tx.oncomplete = res; tx.onerror = function(){ res(); }; }); }); }
+
+// ---------- السيرفر ----------
+function srv(method, p, body){
+  var h = { 'Content-Type': 'application/json', 'x-device': ls('merzona-device-token') }; var s = ls('merzona-session-token'); if(s) h['x-session'] = s;
+  return fetch(SERVER + p, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
+    .then(function(r){ return r.json().catch(function(){ return null; }).then(function(j){ return { status: r.status, j: j }; }); });
+}
+function loadItems(){
+  try{ S.items = JSON.parse(ls(ITEMS_KEY) || '[]') || []; }catch(e){ S.items = []; }
+  fillItemList();
+  if(!online()) return;
+  srv('GET', '/quote-items').then(function(r){ if(r.status === 200 && r.j && Array.isArray(r.j.items)){ S.items = r.j.items.map(function(x){ return { en: x.en, ar: x.ar || '' }; }); try{ localStorage.setItem(ITEMS_KEY, JSON.stringify(S.items)); }catch(e){} fillItemList(); } }).catch(function(){});
+  srv('GET', '/survey/status').then(function(r){ if(r.status === 200 && r.j){ S.voice = !!r.j.voice; S.ai = !!r.j.ai; } }).catch(function(){});
+}
+function itemLabel(x){ return x ? (x.ar ? x.ar + ' — ' + x.en : x.en) : ''; }
+function fillItemList(){
+  $('svItems').innerHTML = S.items.map(function(x){ return '<option value="' + esc(itemLabel(x)) + '">'; }).join('');
+  $('svRooms').innerHTML = ROOMS.map(function(r){ return '<option value="' + esc(r) + '">'; }).join('');
+}
+function findItem(label){
+  var v = String(label || '').trim(); if(!v) return null;
+  for(var i = 0; i < S.items.length; i++){ var x = S.items[i]; if(itemLabel(x) === v || x.en === v || x.ar === v) return x; }
+  return null;
+}
+
+// ---------- الشبكة ----------
+function netUI(){ var n = $('svNet'); var on = online(); n.textContent = on ? 'متصل' : '📴 بلا نت - عم احفظ عالموبايل'; n.className = 'sv-net' + (on ? '' : ' off'); }
+window.addEventListener('online', function(){ netUI(); loadItems(); syncAll(); retryPendingVoice(); });
+window.addEventListener('offline', netUI);
+
+// ---------- الشاشة الرئيسية: الكشوفات ----------
+function home(){
+  S.cur = null; S.sel = null; $('svDock').style.display = 'none'; $('svBack').style.display = 'none'; $('svTitle').textContent = '📏 الكشف بالموقع';
+  dbAll().then(function(all){
+    S.list = all.sort(function(a, b){ return String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')); });
+    var h = '<div class="card"><div class="row" style="justify-content:space-between"><div><b>كشوفات المواقع</b><div class="hint">كل كشف محفوظ عالموبايل وبيشتغل بلا نت. بس يرجع النت بيترفع نسخة للسيرفر.</div></div>' +
+      '<button class="btn" id="svNew" onclick="SV.newSurvey()">➕ كشف جديد</button></div></div><div class="sv-list">';
+    if(!S.list.length) h += '<div class="card hint" style="display:block">ما في كشوفات لسا. كبّس «➕ كشف جديد» وبلّش: صوّر الفتحة واحكي مقاسها.</div>';
+    S.list.forEach(function(sv){
+      var pend = (sv.openings || []).filter(function(o){ return o.pendingAudio; }).length;
+      h += '<div class="card" onclick="SV.open(\'' + sv.id + '\')"><div style="flex:1;min-width:0"><b>' + esc(sv.client || 'بلا اسم') + '</b><span class="hint">' + esc(sv.location || '') + ' · ' + (sv.openings || []).length + ' فتحة · ' + esc(String(sv.updatedAt || '').slice(0, 10)) + '</span></div>' +
+        (pend ? '<span class="badge wait">🎙️ ' + pend + ' بانتظار النت</span>' : '') + '<span class="badge ' + (sv.syncedAt && sv.syncedAt >= sv.updatedAt ? 'ok">☁️ محفوظ' : 'wait">📱 عالموبايل') + '</span></div>';
+    });
+    $('svMain').innerHTML = h + '</div>';
+  });
+}
+function newSurvey(){
+  var sv = { id: uid('sv'), client: '', phone: '', location: '', branch: NS.indexOf('Sufiya') >= 0 ? 'syria' : '', openings: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  dbPut(sv).then(function(){ open(sv.id); });
+}
+function open(id){
+  dbAll().then(function(all){
+    var sv = all.filter(function(x){ return x.id === id; })[0]; if(!sv) return home();
+    S.cur = sv; S.sel = sv.openings.length ? sv.openings[sv.openings.length - 1].id : null;
+    $('svDock').style.display = 'block'; $('svBack').style.display = '';
+    render();
+  });
+}
+var saveT = null;
+function touch(){ if(!S.cur) return; S.cur.updatedAt = new Date().toISOString(); clearTimeout(saveT); var sv = S.cur; saveT = setTimeout(function(){ dbPut(sv).then(function(){ syncSoon(); }); }, 250); }
+function saveNow(){ if(!S.cur) return Promise.resolve(); clearTimeout(saveT); S.cur.updatedAt = new Date().toISOString(); return dbPut(S.cur); }
+
+// ---------- شاشة الكشف ----------
+function render(){
+  var sv = S.cur; if(!sv) return;
+  $('svTitle').textContent = '📏 ' + (sv.client || 'كشف جديد');
+  var h = '<div class="card"><div class="grid2">' +
+    '<label class="f">اسم الزبون<input id="svClient" value="' + esc(sv.client) + '" oninput="SV.field(\'client\',this.value)" placeholder="مثلاً: أبو سامر"></label>' +
+    '<label class="f">الموبايل<input id="svPhone" inputmode="tel" value="' + esc(sv.phone) + '" oninput="SV.field(\'phone\',this.value)"></label>' +
+    '<label class="f">الموقع / العنوان<input id="svLoc" value="' + esc(sv.location) + '" oninput="SV.field(\'location\',this.value)"></label>' +
+    '<label class="f">الفرع<select onchange="SV.field(\'branch\',this.value)"><option value="">—</option><option value="syria"' + (sv.branch === 'syria' ? ' selected' : '') + '>سوريا</option><option value="uae"' + (sv.branch === 'uae' ? ' selected' : '') + '>الإمارات</option></select></label>' +
+    '</div><div class="row no-print" style="margin-top:8px;justify-content:space-between"><span class="hint">' + sv.openings.length + ' فتحة · ' + totalQty(sv) + ' قطعة</span><span class="row">' +
+    '<button class="btn small" onclick="SV.toQuote()">📄 لعرض سعر</button><button class="btn ghost small" onclick="SV.report()">🖨️ تقرير الكشف</button><button class="btn red small" onclick="SV.delSurvey()">🗑️ احذف الكشف</button></span></div></div>';
+  if(!sv.openings.length) h += '<div class="card hint">كبّس 🎙️ تحت واحكي، مثلاً: <b>«المطبخ شباك سحاب ألف وميتين بألف وخمسمية»</b> — أو «غرفة النوم شباك 120 على 150 عدد 2». بيعبّي الخانات لحالو، وإنت بتراجع.</div>';
+  sv.openings.forEach(function(o, i){ h += opHTML(o, i); });
+  $('svMain').innerHTML = h;
+}
+function totalQty(sv){ return sv.openings.reduce(function(a, o){ return a + (Number(o.qty) || 1); }, 0); }
+function dimTxt(o){ return (o.w ? o.w : '?') + ' × ' + (o.h ? o.h : '?'); }
+function opHTML(o, i){
+  var it = o.item ? itemLabel(o.item) : (o.itemText || '');
+  return '<div class="card op' + (S.sel === o.id ? ' sel' : '') + '" id="op-' + o.id + '" onclick="SV.select(\'' + o.id + '\')">' +
+    '<div class="op-head"><span class="op-no">' + (i + 1) + '</span><span class="grow">' + esc((o.room ? o.room + ' · ' : '') + (o.item ? (o.item.ar || o.item.en) : (o.itemText || 'فتحة'))) + '</span>' +
+    '<button class="btn ghost small no-print" onclick="event.stopPropagation();SV.pickPhoto(\'' + o.id + '\')">📷</button>' +
+    '<button class="btn red small no-print" onclick="event.stopPropagation();SV.delOpening(\'' + o.id + '\')">🗑️</button></div>' +
+    (o.photo ? '<div class="op-photo"><img src="' + o.photo + '" alt=""><div class="op-dim">' + esc(dimTxt(o)) + (Number(o.qty) > 1 ? '  ×' + o.qty : '') + '</div></div>' : '') +
+    '<div class="grid2" style="margin-bottom:8px"><label class="f">المكان<input list="svRooms" value="' + esc(o.room || '') + '" oninput="SV.op(\'' + o.id + '\',\'room\',this.value)" placeholder="المطبخ، غرفة النوم..."></label>' +
+    '<label class="f">البند<input list="svItems" value="' + esc(it) + '" onchange="SV.op(\'' + o.id + '\',\'item\',this.value)" placeholder="اختار من القائمة أو اكتب"></label></div>' +
+    '<div class="dimrow"><label class="f">العرض (مم)<span class="inbtn"><input data-f="w" data-op="' + o.id + '" inputmode="numeric" value="' + esc(o.w || '') + '" onfocus="SV.focusField(this)" oninput="SV.op(\'' + o.id + '\',\'w\',this.value)"><button class="laser-fill no-print" title="من الليزر" onclick="event.stopPropagation();SV.laserTarget(\'' + o.id + '\',\'w\')">📡</button></span></label>' +
+    '<label class="f">الارتفاع (مم)<span class="inbtn"><input data-f="h" data-op="' + o.id + '" inputmode="numeric" value="' + esc(o.h || '') + '" onfocus="SV.focusField(this)" oninput="SV.op(\'' + o.id + '\',\'h\',this.value)"><button class="laser-fill no-print" title="من الليزر" onclick="event.stopPropagation();SV.laserTarget(\'' + o.id + '\',\'h\')">📡</button></span></label>' +
+    '<label class="f">العدد<span class="step"><button class="no-print" onclick="event.stopPropagation();SV.qty(\'' + o.id + '\',-1)">−</button><input inputmode="numeric" value="' + esc(o.qty || 1) + '" oninput="SV.op(\'' + o.id + '\',\'qty\',this.value)"><button class="no-print" onclick="event.stopPropagation();SV.qty(\'' + o.id + '\',1)">+</button></span></label></div>' +
+    '<label class="f" style="margin-top:8px">ملاحظة<input value="' + esc(o.note || '') + '" oninput="SV.op(\'' + o.id + '\',\'note\',this.value)" placeholder="اتجاه الفتح، عدد الدرف، لون..."></label>' +
+    (o.unitGuess ? '<div class="heard">ℹ️ ' + (o.unitGuess === 'cm' ? 'فهمت الأرقام بالسانتي وحوّلتها لملم' : 'فهمت الأرقام بالمتر وحوّلتها لملم') + ' — صلّحها إذا غلط.</div>' : '') +
+    (o.pendingAudio ? '<div class="heard wait">🎙️ التسجيل محفوظ — بيتفهم أول ما يرجع النت.</div>' : (o.heard ? '<div class="heard">🎙️ سمعت: «' + esc(o.heard) + '»</div>' : '')) +
+    '</div>';
+}
+function rerenderOp(id){ var sv = S.cur; var i = sv.openings.findIndex(function(o){ return o.id === id; }); var el = $('op-' + id); if(i < 0 || !el) return render(); var d = document.createElement('div'); d.innerHTML = opHTML(sv.openings[i], i); el.replaceWith(d.firstChild); }
+function getOp(id){ return S.cur && S.cur.openings.filter(function(o){ return o.id === id; })[0]; }
+function num(v){ var n = parseFloat(String(v).replace(/[٠-٩]/g, function(d){ return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); }).replace(',', '.')); return Number.isFinite(n) ? Math.round(n) : null; }
+SV.field = function(k, v){ S.cur[k] = v; if(k === 'client') $('svTitle').textContent = '📏 ' + (v || 'كشف جديد'); touch(); };
+SV.op = function(id, k, v){
+  var o = getOp(id); if(!o) return;
+  if(k === 'w' || k === 'h'){ o[k] = num(v); o.unitGuess = ''; updateDim(o); }
+  else if(k === 'qty'){ o.qty = Math.max(1, Math.min(999, num(v) || 1)); updateDim(o); }
+  else if(k === 'item'){ var x = findItem(v); o.item = x; o.itemText = x ? '' : String(v || '').trim(); var hd = document.querySelector('#op-' + id + ' .grow'); if(hd) hd.textContent = (o.room ? o.room + ' · ' : '') + (x ? (x.ar || x.en) : (o.itemText || 'فتحة')); }
+  else { o[k] = v; if(k === 'room'){ var hd2 = document.querySelector('#op-' + id + ' .grow'); if(hd2) hd2.textContent = (v ? v + ' · ' : '') + (o.item ? (o.item.ar || o.item.en) : (o.itemText || 'فتحة')); } }
+  touch();
+};
+function updateDim(o){ var d = document.querySelector('#op-' + o.id + ' .op-dim'); if(d) d.textContent = dimTxt(o) + (Number(o.qty) > 1 ? '  ×' + o.qty : ''); }
+SV.qty = function(id, d){ var o = getOp(id); if(!o) return; o.qty = Math.max(1, Math.min(999, (Number(o.qty) || 1) + d)); rerenderOp(id); touch(); };
+SV.select = function(id){ if(S.sel === id) return; var old = S.sel && $('op-' + S.sel); if(old) old.classList.remove('sel'); S.sel = id; var el = $('op-' + id); if(el) el.classList.add('sel'); };
+SV.focusField = function(inp){ S.lastField = { op: inp.getAttribute('data-op'), f: inp.getAttribute('data-f') }; SV.select(S.lastField.op); };
+function newOpening(fields){ var o = Object.assign({ id: uid('op'), room: '', item: null, itemText: '', w: null, h: null, qty: 1, note: '', photo: '', heard: '' }, fields || {}); S.cur.openings.push(o); S.sel = o.id; return o; }
+SV.addOpening = function(){ var prev = S.cur.openings[S.cur.openings.length - 1]; var o = newOpening({ room: prev ? prev.room : '' }); render(); touch(); scrollTo(o.id); };
+function scrollTo(id){ setTimeout(function(){ var el = $('op-' + id); if(el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); }
+SV.delOpening = function(id){ if(!confirm('أكيد بدك تحذف هالفتحة؟')) return; S.cur.openings = S.cur.openings.filter(function(o){ return o.id !== id; }); if(S.sel === id) S.sel = null; render(); touch(); };
+SV.delSurvey = function(){ if(!confirm('أكيد بدك تحذف هالكشف كلو من هالموبايل؟ (النسخة يلي عالسيرفر بتضل)')) return; var id = S.cur.id; dbDel(id).then(home); };
+
+// ---------- الصور ----------
+var photoFor = null;
+SV.pickPhoto = function(id){ photoFor = id; $('svFile').click(); };
+function shrink(file, max, q){
+  return new Promise(function(res, rej){
+    var fr = new FileReader();
+    fr.onload = function(){ var img = new Image(); img.onload = function(){ var k = Math.min(1, max / Math.max(img.width, img.height)); var c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', q || 0.72)); }; img.onerror = function(){ rej(new Error('img')); }; img.src = fr.result; };
+    fr.onerror = function(){ rej(new Error('read')); }; fr.readAsDataURL(file);
+  });
+}
+SV.photoPicked = function(inp){
+  var f = inp.files && inp.files[0]; inp.value = ''; if(!f) return;
+  shrink(f, 1280, 0.72).then(function(data){
+    var o = photoFor ? getOp(photoFor) : null;
+    if(!o){ var prev = S.cur.openings[S.cur.openings.length - 1]; o = newOpening({ room: prev ? prev.room : '' }); }
+    o.photo = data; S.sel = o.id; render(); touch(); scrollTo(o.id);
+    toast('📷 الصورة انحفظت. هلق احكي مقاسها 🎙️ أو اكتبه.');
+  }).catch(function(){ toast('⚠️ ما قدرت إقرا الصورة', true); });
+};
+
+// ---------- 🎙️ الصوت ----------
+SV.mic = function(){
+  if(!S.cur) return;
+  if(S.rec){ stopRec(); return; }
+  var useServer = online() && S.voice !== false && window.MediaRecorder && navigator.mediaDevices;
+  // بلا نت ← منسجّل الصوت ومنحفظه (بينفهم لما يرجع النت بنفس السامع يلي بيعرف لهجتك)
+  if(useServer || (!online() && window.MediaRecorder && navigator.mediaDevices)) return startRecorder();
+  if(speechAPI()) return startSpeech();
+  toast('⚠️ هالمتصفح ما بيدعم التسجيل. جرّب كروم.', true);
+};
+function speechAPI(){ return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
+function recUI(on){ $('svMic').classList.toggle('rec', on); $('svMic').textContent = on ? '⏹️' : '🎙️'; $('svRecBar').classList.toggle('on', on); }
+function startRecorder(){
+  navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(function(stream){
+    var mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'].filter(function(m){ try{ return MediaRecorder.isTypeSupported(m); }catch(e){ return false; } })[0] || '';
+    var mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined); var chunks = [];
+    mr.ondataavailable = function(e){ if(e.data && e.data.size) chunks.push(e.data); };
+    mr.onstop = function(){ stream.getTracks().forEach(function(t){ t.stop(); }); recUI(false); var blob = new Blob(chunks, { type: mr.mimeType || mime || 'audio/webm' }); S.rec = null; gotAudio(blob); };
+    S.rec = { mr: mr, t: setTimeout(function(){ if(S.rec && S.rec.mr === mr) stopRec(); }, 45000) };
+    mr.start(); recUI(true);
+  }).catch(function(){ toast('⚠️ لازم تسمح للصفحة تستعمل المايك (من إعدادات المتصفح).', true, 5000); });
+}
+function stopRec(){ var r = S.rec; if(!r) return; clearTimeout(r.t); if(r.mr){ try{ r.mr.stop(); }catch(e){ S.rec = null; recUI(false); } } else if(r.sr){ try{ r.sr.stop(); }catch(e){} } }
+function blobToData(blob){ return new Promise(function(res){ var fr = new FileReader(); fr.onload = function(){ res(fr.result); }; fr.onerror = function(){ res(''); }; fr.readAsDataURL(blob); }); }
+function targetOpening(){
+  // التسجيل بيعبّي الفتحة المختارة إذا لسا فاضية (صورة بلا مقاس)، وإلا بيعمل فتحة جديدة
+  var o = S.sel && getOp(S.sel);
+  if(o && !o.w && !o.h && !o.heard && !o.pendingAudio) return o;
+  var prev = S.cur.openings[S.cur.openings.length - 1];
+  return newOpening({ room: prev ? prev.room : '' });
+}
+function gotAudio(blob){
+  if(blob.size < 1200){ toast('ما سمعت شي — كبّس 🎙️ واحكي، وكبّس مرة تانية لما تخلص.'); return; }
+  var o = targetOpening(); var sv = S.cur;
+  blobToData(blob).then(function(data){
+    if(!online()){ o.pendingAudio = data; o.pendingMime = blob.type; render(); touch(); scrollTo(o.id); toast('📴 ما في نت — التسجيل انحفظ وبيتفهم أول ما يرجع النت.', false, 4500); return; }
+    o.heard = '⏳ عم افهم...'; render(); scrollTo(o.id);
+    transcribe(o, data, blob.type, sv);
+  });
+}
+function transcribe(o, data, mime, sv){
+  return srv('POST', '/survey/stt', { audio: data, mime: mime }).then(function(r){
+    if(r.status === 200 && r.j){ o.pendingAudio = ''; applyParsed(o, r.j); if(S.cur === sv) { render(); scrollTo(o.id); } touch(); return true; }
+    if(r.status === 503){ S.voice = false; }
+    o.pendingAudio = data; o.pendingMime = mime; o.heard = ''; if(S.cur === sv) render(); touch();
+    toast(r.status === 503 ? '⚠️ السامع مش جاهز عالسيرفر هلق — المرة الجاية بستعمل سماع الموبايل.' : r.status === 401 || r.status === 403 ? '⚠️ لازم تسجّل دخول بالسيستم أول.' : '⚠️ ما قدرت افهم التسجيل هلق — انحفظ وبجرب كمان شوي.', true, 5000);
+    return false;
+  }).catch(function(){ o.pendingAudio = data; o.pendingMime = mime; o.heard = ''; if(S.cur === sv) render(); touch(); toast('📴 النت ضعيف — التسجيل انحفظ وبيتفهم بعدين.', false, 4500); return false; });
+}
+function retryPendingVoice(){
+  dbAll().then(function(all){
+    all.forEach(function(sv){
+      var live = (S.cur && S.cur.id === sv.id) ? S.cur : sv;
+      live.openings.filter(function(o){ return o.pendingAudio; }).reduce(function(p, o){ return p.then(function(){ return transcribe(o, o.pendingAudio, o.pendingMime || 'audio/webm', live).then(function(){ if(live !== S.cur) return dbPut(live); }); }); }, Promise.resolve());
+    });
+  });
+}
+function startSpeech(){
+  var R = speechAPI(); var sr = new R(); sr.lang = 'ar-SY'; sr.interimResults = false; sr.maxAlternatives = 1; sr.continuous = true;
+  var txt = [];
+  sr.onresult = function(e){ for(var i = e.resultIndex; i < e.results.length; i++) if(e.results[i].isFinal) txt.push(e.results[i][0].transcript); };
+  sr.onerror = function(e){ if(e.error === 'not-allowed') toast('⚠️ لازم تسمح للصفحة تستعمل المايك.', true); };
+  sr.onend = function(){ recUI(false); S.rec = null; var t = txt.join(' ').trim(); if(!t){ toast('ما سمعت شي — جرّب مرة تانية.'); return; } gotText(t); };
+  S.rec = { sr: sr, t: setTimeout(function(){ stopRec(); }, 45000) }; recUI(true);
+  try{ sr.start(); }catch(e){ recUI(false); S.rec = null; toast('⚠️ ما قدرت شغّل السماع.', true); }
+}
+function gotText(t){
+  var o = targetOpening(); var sv = S.cur;
+  if(online()) srv('POST', '/survey/parse', { text: t }).then(function(r){ applyParsed(o, r.status === 200 && r.j ? r.j : localParse(t)); if(S.cur === sv){ render(); scrollTo(o.id); } touch(); }).catch(function(){ applyParsed(o, localParse(t)); render(); touch(); });
+  else { applyParsed(o, localParse(t)); render(); touch(); scrollTo(o.id); }
+}
+// فهم بسيط عالموبايل (بلا نت): أرقام بالعرض × الارتفاع، العدد، والمكان
+function localParse(t){
+  var s = String(t).replace(/[٠-٩]/g, function(d){ return '٠١٢٣٤٥٦٧٨٩'.indexOf(d); });
+  var out = { heard: t, w: null, h: null, qty: 1, room: '', item: null, unitGuess: '' };
+  var m = /(\d+(?:[.,]\d+)?)\s*(?:×|x|X|\*|ب|على|في)\s*(\d+(?:[.,]\d+)?)\s*(سم|سانتي|متر|ملم|مم)?/.exec(s);
+  if(m){ var a = parseFloat(m[1].replace(',', '.')), b = parseFloat(m[2].replace(',', '.')), u = m[3] || '', k = 1;
+    if(/سم|سانتي/.test(u)) k = 10; else if(/متر/.test(u)) k = 1000; else if(!u && a <= 12 && b <= 12){ k = 1000; out.unitGuess = 'm'; } else if(!u && a < 400 && b < 400){ k = 10; out.unitGuess = 'cm'; }
+    out.w = Math.round(a * k); out.h = Math.round(b * k); }
+  var q = /(?:عدد|العدد)\s*(\d{1,3})|(\d{1,3})\s*(?:قطع|قطعة|حبات)/.exec(s); if(q) out.qty = parseInt(q[1] || q[2], 10) || 1;
+  ROOMS.some(function(r){ if(s.indexOf(r) >= 0 || s.indexOf(r.replace(/^ال/, '')) >= 0){ out.room = r; return true; } return false; });
+  var best = null, bs = 0; var words = s.replace(/\d+/g, ' ').split(/\s+/).filter(function(w){ return w.length > 2; });
+  S.items.forEach(function(x){ var hay = (x.ar + ' ' + x.en).toLowerCase(); var sc = words.filter(function(w){ return hay.indexOf(w.toLowerCase()) >= 0; }).length; if(sc > bs){ bs = sc; best = x; } });
+  if(best) out.item = { en: best.en, ar: best.ar };
+  return out;
+}
+function applyParsed(o, p){
+  o.heard = p.heard || p.text || '';
+  if(p.w) o.w = p.w; if(p.h) o.h = p.h; if(p.qty && p.qty > 1) o.qty = p.qty;
+  if(p.room) o.room = p.room;
+  if(p.item){ var x = findItem(p.item.en) || p.item; o.item = { en: x.en, ar: x.ar || '' }; o.itemText = ''; }
+  else if(!o.item && p.note) o.itemText = p.note;
+  o.unitGuess = p.unitGuess || '';
+}
+
+// ---------- 📡 ليزر بلوتوث ----------
+var LEICA = { svc: '3ab10100-f831-4395-b29d-570977d5bf94', ch: '3ab10101-f831-4395-b29d-570977d5bf94' };
+var BOSCH = { svc: '02a6c0d0-0451-4000-b000-fb3210111989', ch: '02a6c0d1-0451-4000-b000-fb3210111989' };
+SV.laserConnect = function(){
+  if(!navigator.bluetooth){ toast('📡 البلوتوث من المتصفح بيشتغل عكروم أندرويد بس. إذا ليزرك بيشتغل «كيبورد» (HID): كبّس عالخانة وقيس، والرقم بينكتب لحالو.', false, 7000); return; }
+  navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [LEICA.svc, BOSCH.svc] }).then(function(dev){
+    toast('⏳ عم وصّل ' + (dev.name || 'الليزر') + '...');
+    dev.addEventListener('gattserverdisconnected', function(){ S.laser = null; $('svLaserBtn').textContent = '📡 ليزر'; toast('📡 الليزر انفصل'); });
+    return dev.gatt.connect().then(function(g){
+      return g.getPrimaryService(LEICA.svc).then(function(s){ return s.getCharacteristic(LEICA.ch).then(function(c){ return { c: c, kind: 'leica' }; }); })
+        .catch(function(){ return g.getPrimaryService(BOSCH.svc).then(function(s){ return s.getCharacteristic(BOSCH.ch).then(function(c){ return { c: c, kind: 'bosch' }; }); }); });
+    }).then(function(x){
+      return x.c.startNotifications().then(function(){
+        x.c.addEventListener('characteristicvaluechanged', function(e){ onLaser(x.kind, e.target.value); });
+        if(x.kind === 'bosch'){ try{ return x.c.writeValue(new Uint8Array([0xC0, 0x55, 0x02, 0x01, 0x00, 0x1A])); }catch(e){} }
+      }).then(function(){ S.laser = { dev: dev, kind: x.kind }; $('svLaserBtn').textContent = '📡 ' + (dev.name || 'متصل'); toast('✅ الليزر متصل. كبّس 📡 جنب الخانة (أو كبّس عالخانة) وقيس.', false, 5000); });
+    });
+  }).catch(function(e){ if(e && e.name === 'NotFoundError') return; toast('⚠️ ما قدرت وصّل الليزر: ' + (e && e.message ? e.message : e) + ' — جرّب «كيبورد» بإعدادات الليزر.', true, 7000); });
+};
+function onLaser(kind, dv){
+  var m = null;
+  try{
+    if(kind === 'leica' && dv.byteLength >= 4) m = dv.getFloat32(0, true);
+    else if(kind === 'bosch' && dv.byteLength >= 11 && dv.getUint8(0) === 0xC0 && dv.getUint8(1) === 0x55 && dv.getUint8(2) === 0x10) m = dv.getFloat32(7, true);
+  }catch(e){}
+  if(!(m > 0 && m < 300)) return;
+  laserValue(Math.round(m * 1000));
+}
+SV.laserTarget = function(id, f){ S.lastField = { op: id, f: f }; SV.select(id); var inp = document.querySelector('#op-' + id + ' input[data-f="' + f + '"]'); if(inp) inp.focus(); if(!S.laser) SV.laserConnect(); else toast('📡 قيس هلق — الرقم بينزل بـ' + (f === 'w' ? 'العرض' : 'الارتفاع')); };
+function laserValue(mm){
+  if(!S.cur) return;
+  var tgt = S.lastField && getOp(S.lastField.op) ? S.lastField : null;
+  if(!tgt){ var o0 = (S.sel && getOp(S.sel)) || S.cur.openings[S.cur.openings.length - 1]; if(!o0){ o0 = newOpening({}); render(); } tgt = { op: o0.id, f: !o0.w ? 'w' : 'h' }; }
+  var o = getOp(tgt.op); o[tgt.f] = mm; o.unitGuess = '';
+  var inp = document.querySelector('#op-' + o.id + ' input[data-f="' + tgt.f + '"]'); if(inp) inp.value = mm; updateDim(o); touch();
+  toast('📡 ' + mm + ' مم ← ' + (tgt.f === 'w' ? 'العرض' : 'الارتفاع'));
+  // بعد العرض ← الارتفاع لحالو
+  S.lastField = tgt.f === 'w' ? { op: o.id, f: 'h' } : null;
+  if(S.lastField){ var n = document.querySelector('#op-' + o.id + ' input[data-f="h"]'); if(n) n.focus(); }
+}
+SV._laserValue = laserValue;
+
+// ---------- 🤖 الذكاء الاصطناعي من صورة أو مخطط ----------
+SV.aiPhoto = function(){ if(!online()){ toast('📴 قراءة الصور بالذكاء الاصطناعي بدها نت.', true); return; } $('svAiFile').click(); };
+SV.aiPicked = function(inp){
+  var f = inp.files && inp.files[0]; inp.value = ''; if(!f) return;
+  if(/pdf/i.test(f.type)){ toast('📄 صوّر صفحة المخطط (أو اعمل لقطة شاشة) وارفعها كصورة.', false, 5000); return; }
+  modal('<h3>🤖 عم يقرا الصورة...</h3><div class="hint">بياخد كم ثانية.</div>');
+  shrink(f, 1600, 0.8).then(function(data){
+    S._aiImg = data;
+    return srv('POST', '/survey/ai-photo', { image: data });
+  }).then(function(r){
+    if(r.status === 409) return modal('<h3>🔑 بدها مفتاح الذكاء الاصطناعي</h3><div class="hint">المالك بيحطه مرة وحدة من أداة عرض السعر (قراءة سكتش الدفتر بالهاندريل).</div><button class="btn" onclick="SV.closeModal()">تمام</button>');
+    if(r.status === 402) return modal('<h3>⚠️ خلص الحد الشهري للذكاء الاصطناعي</h3><button class="btn" onclick="SV.closeModal()">تمام</button>');
+    if(r.status !== 200 || !r.j) return modal('<h3>⚠️ ما قدرت إقرا الصورة</h3><div class="hint">جرّب صورة أوضح.</div><button class="btn" onclick="SV.closeModal()">تمام</button>');
+    S._ai = r.j;
+    var h = '<h3>🤖 ' + (r.j.kind === 'plan' ? 'لقيت بالمخطط' : 'لقيت بالصورة') + ' ' + r.j.openings.length + ' فتحة</h3><div class="hint">نقّي يلي بدك ياه. المقاسات بتنزل بس إذا مكتوبة بالصورة — الباقي لازم ينقاس.</div>';
+    r.j.openings.forEach(function(o, i){ h += '<label class="ai-op"><input type="checkbox" checked data-ai="' + i + '"><div><b>' + esc(o.type) + '</b>' + (o.qty > 1 ? ' ×' + o.qty : '') + ' <span class="hint">' + esc(o.where || '') + '</span><div class="hint" style="direction:ltr;text-align:right">' + (o.w || o.h ? (o.w || '?') + ' × ' + (o.h || '?') + ' mm' : 'بلا مقاس') + '</div>' + (o.note ? '<div class="hint">' + esc(o.note) + '</div>' : '') + '</div></label>'; });
+    if(r.j.notes) h += '<div class="heard">' + esc(r.j.notes) + '</div>';
+    h += '<div class="row" style="margin-top:10px"><button class="btn" onclick="SV.aiUse()">✓ ضيفهن للكشف</button><button class="btn ghost" onclick="SV.closeModal()">إلغاء</button></div>';
+    modal(h);
+  }).catch(function(){ modal('<h3>⚠️ ما في اتصال بالسيرفر</h3><button class="btn" onclick="SV.closeModal()">تمام</button>'); });
+};
+SV.aiUse = function(){
+  var picks = Array.prototype.slice.call(document.querySelectorAll('[data-ai]')).filter(function(c){ return c.checked; }).map(function(c){ return S._ai.openings[+c.getAttribute('data-ai')]; });
+  SV.closeModal(); if(!picks.length) return;
+  var sv = S.cur;
+  Promise.all(picks.map(function(a){ return srv('POST', '/survey/parse', { text: a.type + ' ' + (a.where || '') }).then(function(r){ return r.status === 200 ? r.j : null; }).catch(function(){ return null; }); })).then(function(ps){
+    picks.forEach(function(a, i){ var p = ps[i] || {}; newOpening({ room: p.room || a.where || '', item: p.item ? (findItem(p.item.en) || p.item) : null, itemText: p.item ? '' : a.type, w: a.w, h: a.h, qty: a.qty || 1, note: a.note || '', heard: '🤖 ' + a.type + (a.where ? ' — ' + a.where : ''), photo: picks.length === 1 ? S._aiImg : '' }); });
+    if(S.cur === sv){ render(); } touch(); toast('✅ انضافوا ' + picks.length + ' فتحات — كمّل المقاسات الناقصة.');
+  });
+};
+function modal(h){ $('svModalBox').innerHTML = h; $('svModal').style.display = 'flex'; }
+SV.closeModal = function(){ $('svModal').style.display = 'none'; };
+
+// ---------- 📄 لعرض سعر ----------
+SV.toQuote = function(){
+  var sv = S.cur; if(!sv || !sv.openings.length){ toast('ما في فتحات لسا.', true); return; }
+  var noDim = sv.openings.filter(function(o){ return !o.w; }).length, pend = sv.openings.filter(function(o){ return o.pendingAudio; }).length;
+  if((noDim || pend) && !confirm((noDim ? noDim + ' فتحة بلا مقاس. ' : '') + (pend ? pend + ' تسجيل لسا ما انفهم. ' : '') + 'بدك تكمّل عالعرض هيك؟')) return;
+  var d = { source: 'survey', surveyId: sv.id, branch: sv.branch || '', client: sv.client, phone: sv.phone, location: sv.location, project: sv.location,
+    items: sv.openings.map(function(o){ return { name: o.item ? o.item.en : (o.itemText || 'Item'), w: o.w || '', h: o.h || '', qty: o.qty || 1, price: '', room: o.room || '', note: o.note || '' }; }) };
+  var key = uid('h');
+  try{ localStorage.setItem(HANDOFF_KEY, JSON.stringify({ key: key, at: Date.now(), d: d })); }catch(e){ toast('⚠️ ما قدرت جهّز العرض (مساحة المتصفح).', true); return; }
+  saveNow().then(function(){ syncSoon(); location.href = 'index.html#surveydraft=' + key; });
+};
+
+// ---------- 🖨️ تقرير الكشف ----------
+SV.report = function(){ saveNow().then(function(){ window.print(); }); };
+
+// ---------- ☁️ نسخة للسيرفر ----------
+var syncT = null;
+function syncSoon(){ clearTimeout(syncT); syncT = setTimeout(syncAll, 4000); }
+function slim(sv){ var c = JSON.parse(JSON.stringify(sv)); c.openings.forEach(function(o){ delete o.pendingAudio; }); return c; }
+function thumb(data){ return new Promise(function(res){ if(!data) return res(''); var img = new Image(); img.onload = function(){ var k = Math.min(1, 360 / Math.max(img.width, img.height)); var c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.6)); }; img.onerror = function(){ res(''); }; img.src = data; }); }
+function syncAll(){
+  if(!online()) return;
+  dbAll().then(function(all){
+    all.filter(function(sv){ return !sv.syncedAt || sv.syncedAt < sv.updatedAt; }).forEach(function(sv0){
+      var sv = (S.cur && S.cur.id === sv0.id) ? S.cur : sv0; var c = slim(sv); var stamp = sv.updatedAt;
+      Promise.all(c.openings.map(function(o){ return thumb(o.photo).then(function(t){ o.photo = t; }); })).then(function(){
+        return srv('POST', '/survey/save', { survey: c });
+      }).then(function(r){ if(r && r.status === 200){ sv.syncedAt = stamp; dbPut(sv); if(!S.cur) home(); } }).catch(function(){});
+    });
+  });
+}
+
+// ---------- البداية ----------
+SV.home = function(){ saveNow().then(home); };
+SV.newSurvey = newSurvey; SV.open = open;
+SV._state = S;
+function boot(){ netUI(); loadItems(); var m = /[#&]survey=([a-z0-9-]+)/i.exec(location.hash || ''); if(m) open(m[1]); else home(); setTimeout(function(){ syncAll(); retryPendingVoice(); }, 1500); }
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+// الليزرات يلي بتشتغل «كيبورد» بتكتب الرقم وبعدين Enter ← منقفز للخانة الجاية
+document.addEventListener('keydown', function(e){ if(e.key !== 'Enter') return; var t = e.target; if(!t || !t.getAttribute || !t.getAttribute('data-f')) return; e.preventDefault(); if(t.getAttribute('data-f') === 'w'){ var n = document.querySelector('#op-' + t.getAttribute('data-op') + ' input[data-f="h"]'); if(n) n.focus(); } else t.blur(); });
+})();
+</script>
+<script>
+// 📴 2026-11-22: الصفحة بتفتح بلا نت (بس هالصفحة - ما بتأثر على باقي السيستم)
+if('serviceWorker' in navigator && location.protocol === 'https:'){ try{ navigator.serviceWorker.register('survey-sw.js', { scope: './survey' }).catch(function(){}); }catch(e){} }
+</script>
+<div id="mzBetaRibbon" style="position:fixed;left:8px;bottom:8px;z-index:2147483000;background:#c0392b;color:#fff;font:700 12px/1 sans-serif;padding:6px 10px;border-radius:12px;pointer-events:none;opacity:.9">🧪 نسخة تجريبية</div>
+</body>
+</html>
