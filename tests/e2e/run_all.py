@@ -718,13 +718,12 @@ async def t_techcat(p, b, port):
     fx = os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'three')
     await ctx.route('**/three.min.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'three.min.js'), 'rb').read()))
     await ctx.route('**/OrbitControls.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'OrbitControls.js'), 'rb').read()))
-    nb = await pg.locator('.b3d').count(); check(nb >= 7, 'زر 3D على كل مقطع مرسوم ' + str(nb))
-    for code in ['MZ-HG-03', 'MZ-BL-01', 'MZ-VS-01']:
-        await pg.click('#' + code + ' .b3d'); await pg.wait_for_timeout(1500)
-        v = await pg.evaluate("[window.__v3, !!document.querySelector('#v3c canvas'), getComputedStyle(document.getElementById('v3')).display]")
-        nparts = await pg.evaluate("(function(){ var k = Object.keys(TC.SECTIONS).filter(function(x){ return document.querySelector('#%s .b3d').getAttribute('onclick').indexOf(\"'\" + x + \"'\") > 0; })[0]; return TC.SECTIONS[k].parts.length; })()" % code)
-        check(v[1] and v[2] == 'flex' and v[0]['parts'] == nparts, code + ': المجسّم 3D من نفس أشكال الرسمة (' + str(nparts) + ' قطعة)')
-        await pg.click('#v3 button >> text=➕'); await pg.click('#v3 button >> text=↺ رجّع'); await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
+    nb = await pg.locator('.b3d').count(); check(nb == n, 'كل نظام إلو مقطع ميرزونا مع زر 3D (' + str(nb) + '/' + str(n) + ')')
+    for code in ['MZ-SL-01', 'MZ-SL-05', 'MZ-HG-01', 'MZ-HG-03', 'MZ-FD-01', 'MZ-PV-01', 'MZ-CW-03', 'MZ-CW-05', 'MZ-BL-01', 'MZ-VS-01']:
+        await pg.click('#' + code + ' .b3d'); await pg.wait_for_timeout(1200)
+        v = await pg.evaluate("[window.__v3, !!document.querySelector('#v3c canvas'), getComputedStyle(document.getElementById('v3')).display, TC.SECMAP['%s'].parts.length]" % code)
+        check(v[1] and v[2] == 'flex' and v[0]['parts'] == v[3], code + ': المجسّم 3D من نفس أشكال الرسمة (' + str(v[3]) + ' قطعة)')
+        await pg.click('#v3 button >> text=➕'); await pg.click('#v3 button >> text=↺ رجّع'); await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(150)
     await ctx.close()
     # ⛔ إطفاء/تشغيل الأنظمة
     ctx = await new_ctx(p, b); posted = []; state = {'hidden': ['MZ-SL-01', 'MZ-CW-06']}
