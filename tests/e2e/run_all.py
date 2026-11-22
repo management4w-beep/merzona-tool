@@ -632,6 +632,60 @@ async def t_cutplan(p, b, port):
     await ctx.close()
 
 
+async def t_install_checklist(p, b, port):
+    """✅ قوائم التركيب والتسليم (2026-11-22): خطوات + صور + توقيع + تقرير، بلا نت، ومن الكشف مباشرة"""
+    print('• ✅ قائمة التركيب والتسليم')
+    ctx = await new_ctx(p, b, mobile=True); saved = []
+    async def sv(route):
+        u = route.request.url.split('?')[0]
+        if u.endswith('/survey/save'): saved.append(json.loads(route.request.post_data or '{}'))
+        body = {'status': 'approved'} if '/access/status' in u else ({'items': []} if u.endswith('/quote-items') else {})
+        await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+    await ctx.route(SRV + '/**', sv)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/survey.html'); await pg.wait_for_timeout(2500)
+    # من كشف ← تركيب بنفس بيانات الزبون
+    await pg.click('#svNew'); await pg.wait_for_timeout(400); await pg.fill('#svClient', 'أم خالد'); await pg.fill('#svLoc', 'كفرسوسة')
+    await pg.click('#svMain button >> text=✅ تركيب'); await pg.wait_for_timeout(700)
+    st = await pg.evaluate("[SV._state.cur.type, SV._state.cur.client, SV._state.cur.location, SV._state.cur.steps.length]")
+    check(st[0] == 'install' and st[1] == 'أم خالد' and st[2] == 'كفرسوسة' and st[3] >= 8, 'تركيب من الكشف بنفس بيانات الزبون وخطوات جاهزة ' + str(st))
+    await pg.set_offline(True) if hasattr(pg, 'set_offline') else await ctx.set_offline(True)
+    chks = pg.locator('.st-chk'); await chks.nth(0).check(); await chks.nth(1).check(); await pg.wait_for_timeout(200)
+    check('2 من' in await pg.inner_text('#inProgTxt'), 'التقدّم بيتحدّث (بلا نت كمان)')
+    # صورة لخطوة
+    sid = await pg.evaluate("SV._state.cur.steps[2].id")
+    tmpimg = os.path.join(tempfile.gettempdir(), 'mz-step.png'); open(tmpimg, 'wb').write(PNG)
+    await pg.evaluate(f"SV.stepPhoto('{sid}')"); await pg.set_input_files('#svFile', tmpimg); await pg.wait_for_timeout(800)
+    check(await pg.evaluate("SV._state.cur.steps[2].photos.length") == 1, 'صورة للخطوة')
+    await pg.click('#svMain .btn >> text=نوع') if False else None
+    # خطوة جديدة
+    await pg.click('#svMain button >> text=➕ خطوة'); await pg.wait_for_timeout(300)
+    n = await pg.evaluate("SV._state.cur.steps.length"); check(n == st[3] + 1, 'خطوة جديدة')
+    # توقيع
+    c = pg.locator('#inSig'); bb = await c.bounding_box()
+    await pg.mouse.move(bb['x'] + 20, bb['y'] + 40); await pg.mouse.down(); await pg.mouse.move(bb['x'] + 120, bb['y'] + 90, steps=8); await pg.mouse.move(bb['x'] + 200, bb['y'] + 30, steps=8); await pg.mouse.up()
+    await pg.click('#svMain button >> text=اعتمد التوقيع'); await pg.wait_for_timeout(400)
+    sig = await pg.evaluate("[SV._state.cur.signature.slice(0, 22), !!SV._state.cur.signedAt]")
+    check(sig == ['data:image/png;base64,', True] and await pg.is_visible('#inSigImg'), 'التوقيع انحفظ كصورة ' + str(sig))
+    if os.environ.get('MZ_SHOT'): await pg.screenshot(path=os.environ['MZ_SHOT'] + '/install.png', full_page=True)
+    # بعد إعادة التحميل
+    await pg.wait_for_timeout(500); await ctx.set_offline(False); await pg.reload(); await pg.wait_for_timeout(2500)
+    t = await pg.inner_text('#svMain')
+    check('✅ أم خالد' in t and 'موقّع' in t and '2/' in t, 'بالقائمة: التركيب محفوظ وموقّع ' + t[:160])
+    await pg.wait_for_timeout(4500)
+    ins = [x['survey'] for x in saved if x.get('survey', {}).get('type') == 'install']
+    check(ins and ins[-1]['signature'] and len(ins[-1]['steps'][2]['photos']) == 1, 'نسخة للسيرفر مع الصور والتوقيع')
+    # واتس اب
+    await pg.click('.sv-list .card >> text=✅ أم خالد'); await pg.wait_for_timeout(500)
+    await pg.evaluate("SV.field('phone', '0939 919 670'); window.__opened = []; window.open = function(u){ window.__opened.push(u); }")
+    await pg.click('#svMain button >> text=ابعت للزبون')
+    await pg.wait_for_function("window.__opened && window.__opened.length > 0", timeout=5000); u = await pg.evaluate("window.__opened.filter(function(x){ return x; })[0] || JSON.stringify(window.__opened)")
+    import urllib.parse as _up
+    check(u.startswith('https://wa.me/963939919670?text=') and 'أم خالد' in _up.unquote(u) and '✔️' in _up.unquote(u), 'رسالة واتس اب بالخطوات ' + _up.unquote(u)[:100])
+    check(not errs, 'بلا أخطاء ' + str(errs[:3]))
+    await ctx.close()
+
+
 async def t_design_new_item_confirm(p, b, port):
     """🛠️ M-Q-260224: بند انضاف بالمصمم بالغلط (بيرغولا تانية) ما بيصير بند بعرض السعر بلا سؤال، واسمه مش Plan + Front"""
     print('• المصمم: بند جديد بلا صف ← سؤال قبل ما ينضاف لعرض السعر')
@@ -3129,7 +3183,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
