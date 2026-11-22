@@ -209,6 +209,49 @@ function splitTube(x0, y0, x1, y1, t, tbW){
   const m = (x0 + x1) / 2, hy = Math.min(14, (y1 - y0) * 0.35), cy = (y0 + y1) / 2;
   return [tube(x0, y0, m - tbW / 2, y1, t), solid(m - tbW / 2, cy - hy / 2, m + tbW / 2, cy + hy / 2, 'tb'), tube(m + tbW / 2, y0, x1, y1, t)];
 }
+
+// ---- مقاطع مرسومة من المقاسات المكتوبة على رسومات المصنّع (بالملم) - طلب حمدي: "استفيد من المقاسات المكتوبة لكل بند" ----
+const A = (x0, y0, x1, y1) => solid(x0, y0, x1, y1, 'al');
+const mirrorX = (parts, W) => parts.map(p => Object.assign({}, p, { pts: p.pts.map(([x, y]) => [W - x, y]).reverse(), holes: (p.holes || []).map(h => h.map(([x, y]) => [W - x, y]).reverse()) }));
+const TRACED = {
+  // The Next — فريم 83401: عرض 110، ارتفاع 49.2، عازل 34، جدران 1.5، مسارين 28071
+  next83401: (() => {
+    const half = [tube(0, 6.5, 38, 20.3, 1.5), A(0, 0, 1.5, 6.5), A(1.5, 0, 5, 1.5),
+      A(7.5, 20.3, 9.5, 49.2), A(26.5, 20.3, 28.5, 49.2), A(6.3, 47.4, 16.5, 49.2), A(21.9, 47.4, 31.8, 49.2), A(14.5, 40, 16.5, 47.4), A(21.9, 40, 23.9, 47.4), A(14.5, 40, 23.9, 41.8)];
+    return { parts: half.concat(mirrorX(half, 110), [solid(38, 16.5, 72, 19.5, 'tb'), solid(38, 7, 72, 10, 'tb')]),
+      labels: [[140, 46, 'مسار 28071 (×2)'], [140, 18, 'عازل حراري 34 ملم'], [140, 4, 'فريم 83401']], dims: [[0, 110, -14, '110'], [38, 72, -14, '34']], src: 'فريم 83401' };
+  })(),
+  // Montana — فريم 20512: عرض 120، ارتفاع 50 (69 مع رجل الناموسية)، عازل 16، أنبوبين 17401 / 17402، 5 مسارات
+  montana20512: { parts: [
+      A(0, -19, 2, 50), A(118, 0, 120, 50), A(2, 28.1, 46.5, 30), A(62.7, 28.1, 118, 30),
+      tube(2, 9.4, 44.7, 28.1, 2), tube(64.7, 9.4, 118, 28.1, 2),
+      solid(44.7, 11.3, 64.7, 14.4, 'tb'), solid(44.7, 22, 64.7, 25, 'tb'),
+      A(14.9, 30, 16.4, 48.5), A(34.1, 30, 36, 48.5), A(68.9, 30, 70.4, 48.5), A(86.2, 30, 88.1, 48.5), A(106, 30, 107.8, 48.5),
+      A(2, 5.6, 44.7, 7.5), A(33, 0, 36, 5.6), A(33, 0, 46, 2.5), A(64.7, 5.6, 118, 7.5), A(62, 0, 75, 2.5), A(107, 0, 118, 2.5), A(2, -19, 6, -17)],
+    labels: [[150, 44, '5 مسارات (2 + ناموسية)'], [150, 18, 'أنابيب + عازل 16'], [150, -12, 'رجل الناموسية']], dims: [[0, 120, -32, '120'], [44.7, 64.7, -32, '16']], src: 'فريم 20512' },
+  // TB-600 — فريم باب 20210: عرض 60، ارتفاع 44 (66 مع الحافة)، عازل 18.6، جدار 2.5 / 1.8
+  tb600_20210: { parts: [
+      tube(0, 7, 29.5, 47.7, 2.5), A(7.6, 48.5, 58.8, 50.3), A(7.6, 47.7, 9.4, 50.3),
+      solid(29.5, 3.8, 48.1, 6.5, 'tb'), solid(29.5, 41.8, 48.1, 44.7, 'tb'),
+      tube(48.1, 7, 58.2, 47.7, 1.8), A(58.2, 0, 60, 66), A(54, 62.5, 58.2, 66), A(54, 56, 58.2, 58),
+      A(0, 0, 9, 2), A(18, 0, 25, 2), A(48.1, 0, 55, 2)],
+    labels: [[90, 60, 'حافة 66'], [90, 26, 'عازل حراري 18.6'], [90, 8, 'فريم باب 20210']], dims: [[0, 60, -14, '60'], [29.5, 48.1, -30, '18.6']], src: 'فريم 20210' },
+  // TB-62 — فريم باب 82207: عرض 106، ارتفاع 50 (72 مع الحافة)، عازل 22، أنبوبين 16887 / 16888
+  tb62_82207: { parts: [
+      tube(0, 6.1, 49.7, 44.7, 2), A(43.8, 44.7, 46, 71.7), A(46, 68.5, 49, 71.7),
+      solid(49.7, 9, 73.4, 12, 'tb'), solid(49.7, 41.7, 73.4, 44.6, 'tb'),
+      tube(73.4, 6.1, 106, 44.7, 2), A(104, 44.7, 106, 50), A(80, 44.7, 82, 49), A(90, 44.7, 92, 49),
+      A(0, 0, 2, 6.1), A(2, 0, 7, 1.8), A(44, 0, 49.7, 1.8), A(73.4, 0, 79, 1.8), A(98, 0, 106, 1.8), A(104, 0, 106, 6.1)],
+    labels: [[136, 66, 'حافة 72'], [136, 26, 'عازل حراري 22'], [136, 8, 'فريم باب 82207']], dims: [[0, 106, -14, '106'], [49.7, 73.4, -30, '22']], src: 'فريم 82207' },
+  // سحّاب 10.5 — فريم سفلي 13010: عرض 105، ارتفاع 42 (72 مع الرجل)، جدار 1.8، مسارين + سكة ناموسية
+  s105_13010: { parts: [
+      A(0, -31, 1.8, 42), A(103.2, 0, 105, 42), A(1.8, 19.8, 103.2, 21.6),
+      { mat: 'al', pts: [[1.8, 8.3], [103.2, 5.3], [103.2, 7.1], [1.8, 10.1]] }, A(90, 0, 103.2, 1.8),
+      A(9.5, 21.6, 11.6, 37.8),
+      A(32.5, 21.6, 34.3, 38), A(42.7, 21.6, 44.5, 38), A(30.2, 38, 46.8, 41.5),
+      A(77.7, 21.6, 79.5, 38), A(87.9, 21.6, 89.7, 38), A(75.4, 38, 92, 41.5)],
+    labels: [[135, 40, 'مسارين + سكة ناموسية'], [135, 12, 'عتبة مايلة لتصريف المي'], [135, -20, 'رجل 30']], dims: [[0, 105, -44, '105']], src: 'فريم سفلي 13010' },
+};
 const GEN = {
   // سحّاب: مقطع عند العتبة — فريم بمسارات، درفة لكل مسار، وزجاج
   sliding(o){
@@ -276,6 +319,7 @@ const GEN = {
     return { parts: P, labels: [[D * 2 + 40, 120, 'زجاج مزدوج'], [D * 2 + 40, 35, 'التقاء درفتين ' + D + ' ملم'], [D * 2 + 40, 5, 'مفصلة + غاسكيت']], dims: [[0, D, -14, String(D)]] };
   },
 };
+GEN.traced = (o) => TRACED[o.id];
 const GEN_FIXED = { hinged: SECTIONS.hinged, hingedTB: SECTIONS.hingedTB, hidden: SECTIONS.hidden, guillotine: SECTIONS.guillotine, balustrade: SECTIONS.balustrade, dryglaze: SECTIONS.dryglaze, louver: SECTIONS.louver };
 function sectionFor(s){
   if(!s.model) return null;
@@ -289,12 +333,12 @@ function secSVG(sec){
   const [x0, y0, x1, y1] = secBox(sec);
   const lw = (sec.labels || []).some(l => l[3] !== 'end') ? 260 : 0, pad = 40;
   const W = 420, sc = Math.min((W - lw * 0.55 - pad * 2) / (x1 - x0), 320 / (y1 - y0));
-  const H = Math.round((y1 - y0) * sc + pad * 2 + 16);
+  const H = Math.round((y1 - y0) * sc + pad * 2 + 16 + Math.max(0, (sec.dims || []).length - 1) * 22);
   const X = (x) => (pad + 30 + (x - x0) * sc).toFixed(1), Y = (y) => (pad + (y1 - y) * sc).toFixed(1);
   const path = (pts) => 'M' + pts.map(p => X(p[0]) + ' ' + Y(p[1])).join(' L') + ' Z';
   let b = '';
   sec.parts.forEach(p => { const m = MAT[p.mat]; b += '<path fill-rule="evenodd" d="' + path(p.pts) + (p.holes || []).map(h => ' ' + path(h)).join('') + '" fill="' + m.fill + '" stroke="' + m.stroke + '" stroke-width="1"/>'; });
-  (sec.dims || []).forEach(([a, c, y, t]) => { const yy = Y(y0) * 1 + 18; b += '<line x1="' + X(a) + '" y1="' + yy + '" x2="' + X(c) + '" y2="' + yy + '" stroke="#a77a45" marker-start="url(#ar)" marker-end="url(#ar)"/><text x="' + ((+X(a) + +X(c)) / 2) + '" y="' + (yy + 13) + '" font-size="11" fill="#a77a45" text-anchor="middle">' + t + '</text>'; });
+  (sec.dims || []).forEach(([a, c, y, t], di) => { const yy = Y(y0) * 1 + 18 + di * 22; b += '<line x1="' + X(a) + '" y1="' + yy + '" x2="' + X(c) + '" y2="' + yy + '" stroke="#a77a45" marker-start="url(#ar)" marker-end="url(#ar)"/><text x="' + ((+X(a) + +X(c)) / 2) + '" y="' + (yy + 13) + '" font-size="11" fill="#a77a45" text-anchor="middle">' + t + '</text>'; });
   (sec.labels || []).forEach(([x, y, t, an]) => { const tx = an === 'end' ? +X(x0) - 8 : W - lw * 0.55; b += '<line x1="' + (an === 'end' ? tx + 2 : tx - 4) + '" y1="' + Y(y) + '" x2="' + X(Math.min(Math.max(x, x0), x1)) + '" y2="' + Y(y) + '" stroke="#90a4ae" stroke-dasharray="2 2"/><text x="' + tx + '" y="' + (+Y(y) + 4) + '" font-size="11" fill="#33434d" text-anchor="' + (an === 'end' ? 'end' : 'start') + '">' + t + '</text>'; });
   return '<svg viewBox="0 0 ' + W + ' ' + (H + 14) + '" xmlns="http://www.w3.org/2000/svg" role="img" direction="ltr" style="direction:ltr" font-family="Tajawal,Arial,sans-serif">' +
     '<defs><pattern id="tbh" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#f2e3c9"/><line x1="0" y1="0" x2="0" y2="6" stroke="#a77a45" stroke-width="1.6"/></pattern>' +
@@ -357,7 +401,7 @@ function v3Shot(){ if(!V3) return; const a = document.createElement('a'); a.href
 const FIN = 'باودر كوتينغ (PE-F / SDF / HDF) أو أنودايز (طبيعي، ذهبي، برونزي، سبكترو)';
 const CATS = [
  { id: 'sliding', ar: 'أنظمة السحّاب', en: 'Sliding Systems', intro: 'من السحّاب الاقتصادي غير الحراري لأنظمة الرفع والسحب والأنظمة النحيفة متعددة المسارات بعتبة مخفية.', sys: [
-  { code: 'MZ-SL-01', model: ['sliding', { D: 110, tracks: 2, gl: 28, tb: true, Dlabel: '110 / 125 — 2 مسار' }], ar: 'The Next — سحّاب حراري متعدد المسارات', en: 'The Next — Thermally-broken multi-track sliding', maker: 'AGBS / Gulf Extrusions',
+  { code: 'MZ-SL-01', model: ['traced', { id: 'next83401' }], ar: 'The Next — سحّاب حراري متعدد المسارات', en: 'The Next — Thermally-broken multi-track sliding', maker: 'AGBS / Gulf Extrusions',
     desc: 'نظام سحّاب حراري للنوافذ والأبواب الكبيرة، بفريم ثنائي أو ثلاثي المسار وعتبات متعددة، مناسب للواجهات السكنية والتجارية ذات المتطلبات العالية للعزل والأمان.',
     spec: [['عمق الفريم', 'Frame depth', 'ثنائي المسار: 110 / 125 ملم — ثلاثي المسار: 181 / 196 ملم (حتى 222 ملم)'], ['العزل الحراري', 'Thermal break', 'بولي أميد 34 ملم'], ['التزجيج', 'Glazing', '24 – 40 ملم'],
       ['أقصى درفة', 'Max. sash', 'ارتفاع 3.50 م · عرض 2.00 م · وزن حتى 230 كغ'], ['الأداء', 'Performance', 'تسرب هواء 300–600 Pa · مياه 600 Pa (ساكن/ديناميكي) · رياح تصميمية حتى 2000 Pa · أمان WK2 (DIN ENV 1627)'],
@@ -373,7 +417,7 @@ const CATS = [
     desc: 'نفس عائلة مقاطع Glide (فريم 110 ملم) بحركة سحب أفقية بلا رفع، لفتحات متوسطة وتركيب أبسط.',
     spec: [['الفريم', 'Frame', '110 ملم'], ['التزجيج', 'Glazing', '24 – 34 ملم مزدوج'], ['أقصى وزن للدرفة', 'Max. sash weight', '200 كغ · نسبة الارتفاع/العرض ≤ 2']],
     img: [['glide-slide-overview.jpg', 'التايبولوجي والمقاطع'], ['glide-crosssection-detail1.jpg', 'مقطع أفقي']] },
-  { code: 'MZ-SL-04', model: ['sliding', { D: 120, tracks: 2, gl: 24, tb: true, tbW: 16, Dlabel: '120' }], ar: 'Montana 120 — سحّاب حراري للخدمة الشاقة', en: 'Montana 120 — Heavy-duty thermal sliding', maker: 'Gulf Extrusions',
+  { code: 'MZ-SL-04', model: ['traced', { id: 'montana20512' }], ar: 'Montana 120 — سحّاب حراري للخدمة الشاقة', en: 'Montana 120 — Heavy-duty thermal sliding', maker: 'Gulf Extrusions',
     desc: 'سحّاب أفقي ثقيل 2–4 درفات مع فتحات ثابتة وخيار قوس علوي، مختبَر ومصنّف للخدمة الشاقة.',
     spec: [['عمق الفريم', 'Frame depth', '120 ملم · عمق الدرفة ≈ 76.3 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد PA66 GF25 مقوّى بالفايبرغلاس — 16 ملم'], ['التزجيج', 'Glazing', '24 ملم مزدوج'],
       ['التصنيف', 'Rating', 'H-HC40 (Heavy commercial) — Al Futtaim Bodycote'], ['الأداء', 'Performance', 'تسرب هواء ≤ 5.0 م³/س/م² @ 75 Pa · تسرب مياه: صفر'], ['الأداء الحراري', 'Uw', '3.3 W/m²K (مقابل 5.7 بلا عازل)'], ['التشطيب', 'Finish', FIN]],
@@ -385,17 +429,17 @@ const CATS = [
     feat: ['تركيب تحت الحجر أو تحت الألمنيوم بعتبة مستوية مع الأرضية', 'خيارات زجاج مزدوج/ثلاثي حسب السلسلة', 'طقم هاردوير متكامل'],
     img: [['vetromax-sliding-cutaway-understone.jpg', 'عتبة مخفية تحت الحجر'], ['vetromax-sliding-cutaway-underalum.jpg', 'عتبة مخفية تحت الألمنيوم'], ['vetromax-sliding-cutaway-visibletrack.jpg', 'مسار ظاهر'], ['vetromax-sliding-spec-table.jpg', 'جدول المواصفات VS36 / VS44'],
       ['vetromax-sliding-system-performance.jpg', 'أداء النظام'], ['vetromax-sliding-thermal-performance.jpg', 'الأداء الحراري'], ['vetroslide-glass-thickness-vs36-vs44.jpg', 'سماكات الزجاج'], ['vetroslide-concealed-5track-stone.jpg', '5 مسارات — مخفي']] },
-  { code: 'MZ-SL-06', model: ['sliding', { D: 105, tracks: 2, gl: 6, Dlabel: '105 / 120' }], ar: 'سحّاب 10.5 سم — عادي وحراري', en: 'Sliding 105 mm — standard & thermal (105 / 120)', maker: 'مقاطع تجارية متعددة المصانع',
+  { code: 'MZ-SL-06', model: ['traced', { id: 's105_13010' }], ar: 'سحّاب 10.5 سم — عادي وحراري', en: 'Sliding 105 mm — standard & thermal (105 / 120)', maker: 'مقاطع تجارية متعددة المصانع',
     desc: 'سحّاب اقتصادي غير حراري بعمق 105 ملم للاستعمالات العامة، مع نسخة حرارية بعمق 105 و120 ملم للمشاريع يلي بدها عزل أعلى.',
     spec: [['العمق', 'Depth', 'عادي: 105 ملم — حراري: 105 / 120 ملم'], ['العزل الحراري', 'Thermal break', 'النسخة الحرارية فقط']],
     img: [['nbbm-sliding105.jpg', 'سحّاب 105 — عادي'], ['nbbm-sliding105-tb.jpg', 'سحّاب 105 / 120 — حراري']] },
  ]},
  { id: 'hinged', ar: 'الأنظمة المفصلية', en: 'Casement & Hinged Systems', intro: 'نوافذ وأبواب مفصلية بفتح للداخل أو الخارج وTurn & Tilt، حرارية وغير حرارية، ومنها نظام الدفة المخفية.', sys: [
-  { code: 'MZ-HG-01', model: ['casement', { D: 67, S: 60, gl: 24, tb: true, tbW: 18, Dlabel: '60 – 120', Slabel: '60 / 67' }], ar: 'TB-600 — مفصلي حراري', en: 'TB-600 — Thermally-broken casement', maker: 'Gulf Extrusions',
+  { code: 'MZ-HG-01', model: ['traced', { id: 'tb600_20210' }], ar: 'TB-600 — مفصلي حراري', en: 'TB-600 — Thermally-broken casement', maker: 'Gulf Extrusions',
     desc: 'نافذة وباب مفصلي حراري بفتح للداخل أو الخارج وخيار Turn & Tilt، بثلاث طبقات غاسكيت EPDM.',
     spec: [['عمق الفريم', 'Frame depth', '60 – 120 ملم · الدفة 60 / 67 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد 18.6 ملم'], ['التزجيج', 'Glazing', '18 – 38 ملم'], ['الاختبارات', 'Tested to', 'ASTM E283 / E331 / E330'], ['الأداء الحراري', 'Uw', '≈ 3.0 W/m²K (مقابل 5.7 بلا عازل)'], ['التشطيب', 'Finish', FIN]],
     img: [['tb600-frame.jpg', 'مقاطع TB-600']] },
-  { code: 'MZ-HG-02', model: ['casement', { D: 70, S: 62, gl: 24, tb: true, tbW: 22, Dlabel: '62 – 106', Slabel: '70.5' }], ar: 'TB-62 — مفصلي حراري 62 ملم', en: 'TB-62 — 62 mm thermal casement', maker: 'Gulf Extrusions',
+  { code: 'MZ-HG-02', model: ['traced', { id: 'tb62_82207' }], ar: 'TB-62 — مفصلي حراري 62 ملم', en: 'TB-62 — 62 mm thermal casement', maker: 'Gulf Extrusions',
     desc: 'نظام مفصلي حراري بعمق أساسي 62 ملم وTurn & Tilt، توازن جيد بين العزل والنحافة.',
     spec: [['عمق الفريم', 'Frame depth', '62 – 106 ملم · الدفة 70.5 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد 22 ملم'], ['التزجيج', 'Glazing', '24 ملم مزدوج'], ['التشطيب', 'Finish', FIN]],
     img: [['tb62-frame.jpg', 'مقاطع TB-62']] },
@@ -487,7 +531,7 @@ function sysHTML(s){
   h += '</div><div>';
   if(s.web){ h += '<div class="figs' + (s.web.length === 1 ? ' one' : '') + '" style="margin-bottom:10px">' + s.web.map(x => '<figure class="web"><img loading="lazy" referrerpolicy="no-referrer" src="' + esc(x[0]) + '" alt="' + esc(x[1]) + '" onclick="TC.zoom(this.src)" onerror="this.closest(\'figure\').remove()"><figcaption>' + esc(x[1]) + ' <span style="opacity:.7">— المصدر: ' + esc(new URL(x[0]).hostname.replace(/^www\./, '')) + '</span></figcaption></figure>').join('') + '</div>'; }
   const sec = SECMAP[s.code];
-  if(sec) h += '<div class="figs one" style="margin-bottom:10px"><figure class="sec2d">' + secSVG(sec) + '<button type="button" class="b3d no-print" onclick="TC.open3D(\'' + esc(s.code) + '\')">🧊 شوفه 3D</button><figcaption><span class="sch">مقطع ميرزونا</span> — ' + (s.img ? 'مبني على الأبعاد المنشورة للنظام، والمجسّم 3D بنفس الشكل تماماً. رسومات المصنّع الرسمية تحت.' : 'مقطع نموذجي للنظام، والمجسّم 3D بنفس الشكل تماماً.') + ' الأبعاد النهائية حسب مخططات التصنيع.</figcaption></figure></div>';
+  if(sec) h += '<div class="figs one" style="margin-bottom:10px"><figure class="sec2d">' + secSVG(sec) + '<button type="button" class="b3d no-print" onclick="TC.open3D(\'' + esc(s.code) + '\')">🧊 شوفه 3D</button><figcaption><span class="sch">مقطع ميرزونا</span> — ' + (sec.src ? 'مرسوم من المقاسات المكتوبة لـ' + esc(sec.src) + ' بكتالوج المصنّع، والمجسّم 3D بنفس الشكل تماماً. الرسمة الرسمية تحت.' : s.img ? 'مبني على الأبعاد المنشورة للنظام، والمجسّم 3D بنفس الشكل تماماً. رسومات المصنّع الرسمية تحت.' : 'مقطع نموذجي للنظام، والمجسّم 3D بنفس الشكل تماماً.') + ' الأبعاد النهائية حسب مخططات التصنيع.</figcaption></figure></div>';
   if(s.img){ const n = s.img.length; h += '<div class="figs' + (n === 1 ? ' one' : '') + '">' + s.img.map(x => fig(x[0], x[1])).join('') + '</div>'; }
   return h + '</div></div></section>';
 }
