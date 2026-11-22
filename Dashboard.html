@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.2';
+  var CURRENT_VERSION = '2026-11-22.3';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1765,6 +1765,19 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
       <button type="button" id="catSubPhotos" role="tab" onclick="mzcShowCatalogPane('photos')">🖼️ كتالوج الصور</button>
     </div>
     <div id="catTechPane">
+
+    <!-- 📘 2026-11-22 (حمدي: "الكتالوج الفني... بدي ارسله للزباين المهندسين... بطريقة سلسة وبروفيشنال"): نسخة للزبائن -->
+    <div class="panel" id="techCatPanel">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;">
+        <div><p class="panel-title" style="margin:0;">📘 الكتالوج الفني للمهندسين والاستشاريين</p>
+          <div style="font-size:12.5px;color:var(--muted);">نسخة مرتّبة للزبائن: الأنظمة حسب النوع، المقاطع، الأبعاد، الأداء والتشطيبات — رابط بينبعت أو PDF.</div></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <a class="export-btn" id="techCatOpen" href="techcat.html" target="_blank" rel="noopener" style="text-decoration:none;">👁️ افتح</a>
+          <button type="button" class="export-btn" id="techCatCopy" onclick="(function(){ var u = new URL('techcat.html', location.href).href; try{ navigator.clipboard.writeText(u); alert('انسخ الرابط: ' + u); }catch(e){ prompt('الرابط:', u); } })()">🔗 انسخ الرابط</button>
+          <a class="export-btn" id="techCatWa" href="#" onclick="this.href = 'https://wa.me/?text=' + encodeURIComponent('الكتالوج الفني لأنظمة الألمنيوم والزجاج: ' + new URL('techcat.html', location.href).href); return true;" target="_blank" rel="noopener" style="text-decoration:none;">📤 واتس اب</a>
+        </div>
+      </div>
+    </div>
 
     <div class="panel">
       <p class="panel-title">📚 كتالوجات الأنظمة</p>
