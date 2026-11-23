@@ -121,7 +121,7 @@ section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 <div class="zoom" id="zoom" onclick="if(history.state && history.state.tcModal) history.back(); else this.style.display='none'"><img id="zoomImg" alt=""></div>
 <div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" id="v3x" style="display:none" onclick="TC.v3Explode()">💥 فكّ القطع</button><button type="button" id="v3m" style="display:none" onclick="TC.v3Move()">🚪 افتح</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
 <div id="v3c" class="v3c" style="position:relative"></div><div id="v3i" style="display:none;background:#12324a;color:#fff;padding:6px 10px;font-size:14px"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
-<script src="techcat-sec.js?v=2026-11-23b"></script>
+<script src="techcat-sec.js?v=2026-11-23c"></script>
 <script>
 (function(){
 'use strict';
@@ -153,6 +153,7 @@ const MAT = {
   si:  { fill: '#3a3f44', stroke: '#1b2328', name: 'سيليكون', color: 0x2b3035, metal: 0, rough: 0.6 },
   ss:  { fill: '#4a5560', stroke: '#1b2328', name: 'سيليكون إنشائي', color: 0x3c4650, metal: 0, rough: 0.6 },
   pv:  { fill: '#d8cfbd', stroke: '#8b8172', name: 'PVC', color: 0xcfc6b2, metal: 0, rough: 0.8 },
+  pb:  { fill: '#2a2d30', stroke: '#000', name: 'بلاستيك', color: 0x1f2124, metal: 0, rough: 0.7 },
   rl:  { fill: '#e8742e', stroke: '#8a3d10', name: 'عجل نايلون', color: 0xe06a25, metal: 0, rough: 0.55 },
   pd:  { fill: '#c98a8a', stroke: '#7a3b3b', name: 'قطعة إحكام الالتقاء', color: 0xb97a7a, metal: 0, rough: 0.9 },
   br:  { fill: '#e7cf8a', stroke: '#8b7a45', name: 'حبل حشو (Backer rod)', color: 0xd9c27a, metal: 0, rough: 0.95 },
@@ -402,7 +403,7 @@ function open3D(code){
 }
 function close3D(){ document.getElementById('v3').style.display = 'none'; if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; } }
 function build3D(sec, box){
-  ['v3x', 'v3m', 'v3i'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+  ['v3x', 'v3m', 'v3i', 'v3k'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
   if(sec.cat) return build3Dcat(sec, box);
   if(!sec.noExplode) return build3Dcat(Object.assign({ view: 'flat', normal: 'y' }, sec), box);
   if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; }
@@ -506,9 +507,37 @@ function buildWindow(sec, box){
     const m = tag(new T.Mesh(geo, mat)); g.add(m);
     if(p.mat === 'al') g.add(new T.LineSegments(new T.EdgesGeometry(geo, 30), new T.LineBasicMaterial({ color: 0x33434d, transparent: true, opacity: 0.25 })));
   });
+  // خطاف الالتقاء بين الدرفتين (متعشّقين متل نقشة الفيرزاتشي) + فرشاية + قطعة بلاستيك ماسكة السكة تحت (حمدي 2026-11-23)
+  { const SW = W0.sw || 30, D = Math.max(6, W0.pitch - SW), k = Math.min(1, D / 9.5), zAf = -W0.pitch / 2 + SW / 2, xL = cxs.B - ws / 2, a0 = 6, t = 1.4;
+    const al = matOf({ mat: 'al' }), gk = matOf({ mat: 'gk' }), pb = matOf({ mat: 'pb' });
+    const box = (grp, gx, u0, u1, v0, v1, y0, y1, m, nm) => { const b = new T.Mesh(new T.BoxGeometry(u1 - u0, y1 - y0, v1 - v0), m); b.userData.name = nm;
+      b.position.set(xL + (u0 + u1) / 2 - gx, (y0 + y1) / 2, zAf + (v0 + v1) / 2); grp.add(b); return b; };
+    const yb = -hs / 2 + 40, yt = hs / 2 - 6, nA = 'خطاف الالتقاء — الدرفة الداخلية', nB = 'خطاف الالتقاء — الدرفة الخارجية';
+    // A: رجل من وجهها لجهة B، قدم لليمين، شفة راجعة لجهتها
+    box(groups.A, cxs.A, a0, a0 + t, 0, D - 1.6 * k, yb, yt, al, nA); box(groups.A, cxs.A, a0, a0 + 7, D - 3 * k, D - 1.6 * k, yb, yt, al, nA); box(groups.A, cxs.A, a0 + 5.6, a0 + 7, D - 4.4 * k, D - 1.6 * k, yb, yt, al, nA);
+    // B: رجل من وجهها لجهة A، راس لليسار، شفة راجعة لجهتها — متعشّق بخطاف A
+    box(groups.B, cxs.B, a0 + 8.6, a0 + 10, 1.6 * k, D, yb, yt, al, nB); box(groups.B, cxs.B, a0 + 3, a0 + 10, 1.6 * k, 3 * k, yb, yt, al, nB); box(groups.B, cxs.B, a0 + 3, a0 + 4.4, 1.6 * k, 4.4 * k, yb, yt, al, nB);
+    box(groups.A, cxs.A, a0 + 4.6, a0 + 8.4, 0.15, 1.5 * k, yb, yt, gk, 'فرشاية إحكام الالتقاء');
+    // قطعة البلاستيك تحت الالتقاء: بتسدّ الفراغ بين الدرفتين وبتمسك على السكة
+    const ySill = -H / 2 + ((W0.yTop != null ? W0.yTop : -10) - W0.frameY0) - (-hs / 2 - (-H / 2 + i0));
+    const yB0 = -H / 2 + ((W0.yTop != null ? W0.yTop : -10) - W0.frameY0) + 0.5;
+    const pbm = box(groups.B, cxs.B, 1, W0.overlap - 1, -SW * 0.15, D + SW * 0.15, yB0 - (-H / 2 + i0) - hs / 2 + hs / 2 - (yB0 - (-H / 2 + i0)) + (yB0 - (-hs / 2 + (-H / 2 + i0) + hs / 2)) , 0, pb, 'قطعة بلاستيك سدّ الالتقاء — ماسكة السكة');
+    // (الارتفاع: من سطح العتبة لـ 46 ملم فوقه، بإحداثيات المجموعة)
+    const yLocal0 = yB0, yLocal1 = yB0 + 46; pbm.geometry.dispose(); pbm.geometry = new T.BoxGeometry(W0.overlap - 2, yLocal1 - yLocal0, D + SW * 0.3); pbm.position.y = (yLocal0 + yLocal1) / 2;
+  }
+  // ✂️ قصّ متل العيّنة: من فوق بيبيّن التقاء الدرفتين، ومن الجنب بيبيّن مقطع السكة
+  r.localClippingEnabled = true;
+  const cutY = -H / 2 + H * 0.42, cutX = W / 2 - 70;
+  const clips = [new T.Plane(new T.Vector3(0, -1, 0), cutY), new T.Plane(new T.Vector3(-1, 0, 0), cutX)];
+  let cut = true; const setCut = (v) => { cut = v; r.clippingPlanes = v ? clips : []; const b = document.getElementById('v3k'); if(b) b.textContent = v ? '🪟 الشباك كامل' : '✂️ مقطوع متل العيّنة'; };
+  let kb = document.getElementById('v3k');
+  if(!kb){ kb = document.createElement('button'); kb.type = 'button'; kb.id = 'v3k'; const xb = document.getElementById('v3x'); xb.parentNode.insertBefore(kb, xb); }
+  kb.style.display = ''; kb.onclick = () => setCut(!cut); setCut(true);
   const cam = new T.PerspectiveCamera(35, w / h, 5, 20000); const R = 0.5 * Math.hypot(W, H);
-  cam.position.set(R * 1.05, R * 0.75, R * 1.85 * (w < h ? 1.4 : 1)); 
-  const ctl = new T.OrbitControls(cam, r.domElement); ctl.enableDamping = true; ctl.target.set(0, 0, 0); ctl.autoRotate = false; ctl.update();
+  // الكاميرا على القطعة المقصوصة (من فوق-جنب)، مركّزة على التقاء الدرفتين
+  const tgt = new T.Vector3(W * 0.12, -H / 2 + H * 0.16, 0), R2 = 0.5 * Math.hypot(W, H * 0.42) * (w < h ? 2.1 : 1.35);
+  cam.position.set(tgt.x + R2 * 0.75, tgt.y + R2 * 1.0, tgt.z + R2 * 1.45);
+  const ctl = new T.OrbitControls(cam, r.domElement); ctl.enableDamping = true; ctl.target.copy(tgt); ctl.autoRotate = false; ctl.update();
   const home = cam.position.clone();
   // الكبس على قطعة = اسمها
   const ray = new T.Raycaster(), mv = new T.Vector2(); let downAt = null, sel = null;
@@ -534,7 +563,7 @@ function buildWindow(sec, box){
     ctl.update(); r.render(scene, cam); };
   V3 = { r, cam, ctl, home, scene, raf: 0, explode(v){ goal = v == null ? (goal ? 0 : 1) : (v ? 1 : 0); }, move(v){ mgoal = v == null ? (mgoal ? 0 : 1) : (v ? 1 : 0); } };
   apply(); loop();
-  window.__v3 = { parts: sec.parts.length, meshes: root.children.length, cat: true, win: true, state: () => ({ t, goal, mt, mgoal, sil: [], bx: groups.B.position.x - cxs.B }) };
+  window.__v3 = { parts: sec.parts.length, meshes: root.children.length, cat: true, win: true, state: () => ({ t, goal, mt, mgoal, sil: [], bx: groups.B.position.x - cxs.B, cut }) };
 }
 function build3Dcat(sec, box){
   if(sec.win) return buildWindow(sec, box);
