@@ -769,6 +769,7 @@ async def t_techcat(p, b, port):
     p3 = await ctx.new_page(); await p3.goto(f'http://127.0.0.1:{port}/techcat.html?s=MZ-SL-04'); await p3.wait_for_timeout(1500)
     t3 = await p3.inner_text('#doc')
     check(await p3.locator('section.sys').count() == 1 and await p3.locator('#MZ-SL-04 figure').count() >= 2 and 'Montana' in t3 and 'كل الكتالوج' not in t3 and await p3.locator('a[href="techcat.html"]').count() == 0 and 'Montana' in await p3.title(), 'رابط نظام واحد: النظام بمقاطعه + اللوغو + التواصل، وبلا رابط لباقي الكتالوج')
+    check('+963939919670' in t3 and '+971508471158' in t3 and 'Info@Merzona.ae' in t3 and 'Merzona.com' not in t3, 'التواصل: الرقم الإماراتي + السوري + Info@Merzona.ae')
     await p3.goto(f'http://127.0.0.1:{port}/techcat.html?s=MZ-HG-02'); await p3.wait_for_timeout(1200)
     check(await p3.locator('section.sys').count() == 0 and 'مش متوفر' in await p3.inner_text('#doc'), 'النظام المطفي ما بينفتح برابطه')
     await p3.goto(f'http://127.0.0.1:{port}/techcat.html'); await p3.wait_for_timeout(1200)
