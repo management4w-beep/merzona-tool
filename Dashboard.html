@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-22.5';
+  var CURRENT_VERSION = '2026-11-23.1';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1890,6 +1890,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     <label class="mzc-btn" id="mzc-up-lbl" for="mzc-up" hidden title="بيرفع الصور لمجلد هالكتالوج بجوجل درايف مباشرة">⬆️ رفع صور</label>
     <input type="file" id="mzc-up" accept="image/*" multiple hidden>
     <button type="button" id="mzc-share" title="رابط صفحة الكتالوج للزبائن - تفاعلية، بتنفتح عالموبايل وبتتحدّث لحالها مع درايف">🔗 رابط للزبون</button>
+    <a class="mzc-btn" id="mzc-manage" href="catalog.html?m=1" target="_blank" rel="noopener" style="text-decoration:none" title="خفّي أي قسم أو صورة عن الزبون بدون ما ينمسح شي من الدرايف">⚙️ شغّل / طفّي الصور</a>
     <a class="mzc-btn" id="mzc-drive" target="_blank" rel="noopener">📂 فتح بدرايف</a>
     <button type="button" class="mzc-primary" id="mzc-pdf" hidden>⬇️ تحميل PDF</button>
   </div>
