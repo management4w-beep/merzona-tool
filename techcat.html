@@ -85,6 +85,7 @@ figcaption .sch{color:var(--gold);font-weight:600}
 section.sys.off{opacity:.45}
 section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 .sec2d{position:relative}
+.tc-ed{font:inherit;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 12px;margin-inline-start:8px;cursor:pointer}
 .b3d{position:absolute;top:8px;left:8px;font:inherit;font-size:13px;font-weight:700;border:0;border-radius:99px;padding:6px 12px;background:var(--ink);color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .v3{position:fixed;inset:0;z-index:60;background:rgba(10,20,28,.8);display:none;align-items:center;justify-content:center;padding:12px}
 .v3b{background:#fff;border-radius:12px;width:min(1000px,100%);height:min(720px,100%);display:flex;flex-direction:column;overflow:hidden}
@@ -120,7 +121,7 @@ section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 <div class="zoom" id="zoom" onclick="if(history.state && history.state.tcModal) history.back(); else this.style.display='none'"><img id="zoomImg" alt=""></div>
 <div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" id="v3x" style="display:none" onclick="TC.v3Explode()">💥 فكّ القطع</button><button type="button" id="v3m" style="display:none" onclick="TC.v3Move()">🚪 افتح</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
 <div id="v3c" class="v3c" style="position:relative"></div><div id="v3i" style="display:none;background:#12324a;color:#fff;padding:6px 10px;font-size:14px"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
-<script src="techcat-sec.js?v=2026-11-22a"></script>
+<script src="techcat-sec.js?v=2026-11-23a"></script>
 <script>
 (function(){
 'use strict';
@@ -129,6 +130,9 @@ const SERVER = 'https://merzona-server-production.up.railway.app';
 // 🆕 2026-11-22 (حمدي: "بدي يكون عندي قابلية طفي وشغل البنود بالكتالوج"): الأنظمة المطفية ما بتطلع للزبون.
 // techcat.html#manage = وضع الإدارة (من الداشبورد): مفتاح تشغيل/إطفاء لكل نظام، بينحفظ عالسيرفر.
 let HIDDEN = new Set(); const MANAGE = /[#&]manage\b/.test(location.hash || '');
+/* ✏️ 2026-11-23 (حمدي: "اعمللي مجسمات ثري دي... نزلهم على الكتالوج الفني مشان ضيف مواصفاتهم واسمائهم"):
+   تعديل اسم/مصنّع/وصف/مواصفات أي نظام من وضع الإدارة — بينحفظ بالسيرفر وبيغطّي على النص الأصلي عند الكل. */
+let ITEMS = {}; const ORIG = {};
 // 🆕 2026-11-22 (حمدي: "بدي ابعت بند محدد من الكتالوج الفني متلو متل كتالوج الصور"): techcat.html?s=MZ-SL-01 = صفحة نظام واحد
 const ONE = (new URLSearchParams(location.search).get('s') || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
 function ls(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
@@ -149,6 +153,8 @@ const MAT = {
   si:  { fill: '#3a3f44', stroke: '#1b2328', name: 'سيليكون', color: 0x2b3035, metal: 0, rough: 0.6 },
   ss:  { fill: '#4a5560', stroke: '#1b2328', name: 'سيليكون إنشائي', color: 0x3c4650, metal: 0, rough: 0.6 },
   pv:  { fill: '#d8cfbd', stroke: '#8b8172', name: 'PVC', color: 0xcfc6b2, metal: 0, rough: 0.8 },
+  rl:  { fill: '#e8742e', stroke: '#8a3d10', name: 'عجل نايلون', color: 0xe06a25, metal: 0, rough: 0.55 },
+  pd:  { fill: '#c98a8a', stroke: '#7a3b3b', name: 'قطعة إحكام الالتقاء', color: 0xb97a7a, metal: 0, rough: 0.9 },
   br:  { fill: '#e7cf8a', stroke: '#8b7a45', name: 'حبل حشو (Backer rod)', color: 0xd9c27a, metal: 0, rough: 0.95 },
   tp:  { fill: '#e9e2c0', stroke: '#8b8172', name: 'شريط لاصق فاصل', color: 0xdcd3a8, metal: 0, rough: 0.9 },
 };
@@ -413,6 +419,12 @@ function build3D(sec, box){
   const grp = new T.Group(); const used = new Set();
   sec.parts.forEach(p => {
     const m = MAT[p.mat]; used.add(p.mat);
+    if(p.wheel){ // عجل: أسطوانة محورها عرضي، بتلفّ وهي ماشية
+      const W = p.wheel, cyl = new T.Mesh(new T.CylinderGeometry(W.r, W.r, W.w, 28), mat); cyl.rotation.z = Math.PI / 2;
+      const hub = new T.Mesh(new T.CylinderGeometry(W.r * 0.45, W.r * 0.45, W.w + 0.6, 16), new T.MeshStandardMaterial({ color: 0xb8c0c6, metalness: 0.8, roughness: 0.3 })); hub.rotation.z = Math.PI / 2;
+      const wg = new T.Group(); wg.add(cyl); wg.add(hub); wg.userData.wheel = W.r; g.add(wg);
+      g.position.set(W.cx - cx, W.cy - cy, W.zc * L); root.add(g); items.push({ g, p, i, base: g.position.clone() }); return;
+    }
     const sh = new T.Shape(p.pts.map(([x, y]) => new T.Vector2(x - cx, y - cy)));
     (p.holes || []).forEach(hl => sh.holes.push(new T.Path(hl.map(([x, y]) => new T.Vector2(x - cx, y - cy)))));
     const g = new T.ExtrudeGeometry(sh, { depth: L, bevelEnabled: false, curveSegments: 2 }); g.translate(0, 0, -L / 2);
@@ -474,9 +486,17 @@ function build3Dcat(sec, box){
       for(let k = 0; k < n; k++){ const c = g.clone(); c.position.set(S.c - cx, mid - cy, -L / 2 + L * (k + 0.5) / n); root.add(c); items.push({ g: c, p, i, base: c.position.clone() }); }
       return;
     }
+    if(p.wheel){ // عجل: أسطوانة محورها عرضي، بتلفّ وهي ماشية
+      const W = p.wheel, cyl = new T.Mesh(new T.CylinderGeometry(W.r, W.r, W.w, 28), mat); cyl.rotation.z = Math.PI / 2;
+      const hub = new T.Mesh(new T.CylinderGeometry(W.r * 0.45, W.r * 0.45, W.w + 0.6, 16), new T.MeshStandardMaterial({ color: 0xb8c0c6, metalness: 0.8, roughness: 0.3 })); hub.rotation.z = Math.PI / 2;
+      const wg = new T.Group(); wg.add(cyl); wg.add(hub); wg.userData.wheel = W.r; g.add(wg);
+      g.position.set(W.cx - cx, W.cy - cy, W.zc * L); root.add(g); items.push({ g, p, i, base: g.position.clone() }); return;
+    }
     const sh = new T.Shape(p.pts.map(([x, y]) => new T.Vector2(x - cx, y - cy)));
     (p.holes || []).forEach(hl => sh.holes.push(new T.Path(hl.map(([x, y]) => new T.Vector2(x - cx, y - cy)))));
-    const geo = new T.ExtrudeGeometry(sh, { depth: L, bevelEnabled: false, curveSegments: 2 }); geo.translate(0, 0, -L / 2);
+    // قطع بطول محدود (عجل، عربانة، برغي): p.z = [من، لـ] كنسبة من الطول حوالين النص
+    const z0 = p.z ? p.z[0] * L : -L / 2, z1 = p.z ? p.z[1] * L : L / 2;
+    const geo = new T.ExtrudeGeometry(sh, { depth: z1 - z0, bevelEnabled: false, curveSegments: p.mat === 'rl' || p.mat === 'sc' ? 10 : 2 }); geo.translate(0, 0, z0);
     const mesh = new T.Mesh(geo, mat); g.add(mesh);
     if(!m.glass) g.add(new T.LineSegments(new T.EdgesGeometry(geo, 25), new T.LineBasicMaterial({ color: 0x33434d, transparent: true, opacity: 0.35 })));
     root.add(g); items.push({ g, p, i, base: new T.Vector3() });
@@ -547,7 +567,7 @@ function build3Dcat(sec, box){
     const e = (x) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2, k = e(mt);
     // رفع وسحب: بترتفع الدرفة أول شي (Lift) وبعدين بتنسحب
     const kl = mo.lift ? e(Math.min(1, mt / 0.25)) : 0, ks = mo.lift ? e(Math.max(0, (mt - 0.25) / 0.75)) : k;
-    movers.forEach(it => { if(mo.type === 'slide'){ it.hold.position.set((mo.dx || 0) * ks, (mo.dy || 0) * ks, (mo.lift || 0) * kl); } else { it.hold.rotation.z = (mo.deg || 80) * Math.PI / 180 * k; } });
+    movers.forEach(it => { it.g.traverse(o => { if(o.userData && o.userData.wheel) o.rotation.x = ((mo.dz || 0) * ks) / o.userData.wheel; }); if(mo.type === 'slide'){ it.hold.position.set((mo.dx || 0) * ks, (mo.dy || 0) * ks, (mo.lift || 0) * kl + (mo.dz || 0) * ks); } else { it.hold.rotation.z = (mo.deg || 80) * Math.PI / 180 * k; } });
     const b = document.getElementById('v3m'); if(b) b.textContent = mgoal ? '🚪 سكّر' : '🚪 افتح';
   }
   const loop = () => { V3.raf = requestAnimationFrame(loop);
@@ -602,6 +622,26 @@ const CATS = [
     desc: 'سحّاب اقتصادي غير حراري بعمق 105 ملم للاستعمالات العامة، مع نسخة حرارية بعمق 105 و120 ملم للمشاريع يلي بدها عزل أعلى.',
     spec: [['العمق', 'Depth', 'عادي: 105 ملم — حراري: 105 / 120 ملم'], ['العزل الحراري', 'Thermal break', 'النسخة الحرارية فقط']],
     img: [['nbbm-sliding105.jpg', 'سحّاب 105 — عادي'], ['nbbm-sliding105-tb.jpg', 'سحّاب 105 / 120 — حراري']] },
+  { code: 'MZ-SL-07', model: ['cat', { id: 'x300_ilk' }], more: [{ model: ['cat', { id: 'x300_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'X300S — سحّاب', en: 'X300S — Sliding system', maker: '',
+    desc: 'نظام سحّاب X300S. المقاطع والمجسّم مرسومين من عيّنة النظام بالفيديو.',
+    spec: [],
+    img: [['x300-1.jpg', 'عيّنة X300S'], ['x300-2.jpg', 'التقاء الدرفتين'], ['x300-3.jpg', 'الدرفة على السكة مع العجل']] },
+  { code: 'MZ-SL-08', model: ['cat', { id: 'x500_ilk' }], more: [{ model: ['cat', { id: 'x500_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'X500 — سحّاب', en: 'X500 — Sliding system', maker: '',
+    desc: 'نظام سحّاب X500. المقاطع والمجسّم مرسومين من عيّنة النظام بالفيديو.',
+    spec: [],
+    img: [['x500-1.jpg', 'عيّنة X500'], ['x500-2.jpg', 'زاوية الدرفة'], ['x500-3.jpg', 'مقطع التقاء الدرفتين']] },
+  { code: 'MZ-SL-09', model: ['cat', { id: 'gida_ilk' }], more: [{ model: ['cat', { id: 'gida_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'جيدا — سحّاب بواجهة ديكور', en: 'Gida — Decorative sliding system', maker: '',
+    desc: 'نظام سحّاب جيدا بوجوه ديكور منحنية (برونز). المقاطع والمجسّم مرسومين من العيّنة بالفيديو.',
+    spec: [],
+    img: [['gida-1.jpg', 'عيّنة جيدا — برونز'], ['gida-2.jpg', 'الدرفة والفريم بالوجه المنحني'], ['gida-3.jpg', 'مقطع الدرفة']] },
+  { code: 'MZ-SL-10', model: ['cat', { id: 'hummer_ilk' }], more: [{ model: ['cat', { id: 'hummer_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'همر — سحّاب', en: 'Hummer — Sliding system', maker: '',
+    desc: 'نظام سحّاب همر. المقطع تقريبي من شكل الشباك المركّب.',
+    spec: [],
+    img: [['hummer-1.jpg', 'شباك همر مركّب'], ['hummer-2.jpg', 'الدرفة والمسكة'], ['hummer-3.jpg', 'العتبة والسكة']] },
+  { code: 'MZ-SL-11', model: ['cat', { id: 'thummer_ilk' }], more: [{ model: ['cat', { id: 'thummer_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'تيكنال همر — سحّاب', en: 'Technal Hummer — Sliding system', maker: '',
+    desc: 'نظام سحّاب تيكنال همر. المقطع تقريبي من شكل الشباك المركّب.',
+    spec: [],
+    img: [['thummer-1.jpg', 'شباك تيكنال همر مركّب'], ['thummer-2.jpg', 'الدرفة السودا على الفريم الرمادي'], ['thummer-3.jpg', 'التقاء الدرفتين']] },
  ]},
  { id: 'hinged', ar: 'الأنظمة المفصلية', en: 'Casement & Hinged Systems', intro: 'نوافذ وأبواب مفصلية بفتح للداخل أو الخارج وTurn & Tilt، حرارية وغير حرارية، ومنها نظام الدفة المخفية.', sys: [
   { code: 'MZ-HG-01', model: ['cat', { id: 'tb600_frame' }], ar: 'TB-600 — مفصلي حراري', en: 'TB-600 — Thermally-broken casement', maker: 'Gulf Extrusions',
@@ -686,7 +726,11 @@ const CATS = [
  ]},
 ];
 
-const SECMAP = {}; CATS.forEach(k => k.sys.forEach(x => { try{ const sc = sectionFor(x); if(sc) SECMAP[x.code] = sc; }catch(e){ console.error('[section]', x.code, e); } }));
+CATS.forEach(k => k.sys.forEach(x => { ORIG[x.code] = { ar: x.ar, en: x.en, maker: x.maker, desc: x.desc, spec: x.spec }; }));
+function applyItems(){ CATS.forEach(k => k.sys.forEach(x => { const o = ITEMS[x.code] || {}; Object.assign(x, ORIG[x.code]); ['ar', 'en', 'maker', 'desc'].forEach(f => { if(o[f]) x[f] = o[f]; }); if(Array.isArray(o.spec) && o.spec.length) x.spec = o.spec; if(SECMAP[x.code]) SECMAP[x.code].title = x.ar; })); }
+const SECMAP = {}; CATS.forEach(k => k.sys.forEach(x => { try{ const sc = sectionFor(x); if(sc) SECMAP[x.code] = sc; }catch(e){ console.error('[section]', x.code, e); }
+  // مقاطع إضافية لنفس النظام (مثلاً: التقاء الدرفتين + العتبة والعجل)
+  (x.more || []).forEach((m, i) => { try{ const sc = sectionFor({ model: m.model, ar: x.ar + ' — ' + m.t }); if(sc) SECMAP[x.code + '~' + (i + 1)] = sc; }catch(e){ console.error('[section]', x.code, e); } }); }));
 /* ---------- العرض ---------- */
 function co(){ try{ return (window.MzCompany && MzCompany.get) ? MzCompany.get() : {}; }catch(e){ return {}; } }
 function fig(src, cap){ return '<figure><img loading="lazy" src="' + IMG(src) + '" alt="' + esc(cap) + '" onclick="TC.zoom(this.src)"><figcaption>' + esc(cap) + '</figcaption></figure>'; }
@@ -699,8 +743,10 @@ function sysHTML(s){
   if(s.feat) h += '<ul class="feat">' + s.feat.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>';
   h += '</div><div>';
   if(s.web){ h += '<div class="figs' + (s.web.length === 1 ? ' one' : '') + '" style="margin-bottom:10px">' + s.web.map(x => '<figure class="web"><img loading="lazy" referrerpolicy="no-referrer" src="' + esc(x[0]) + '" alt="' + esc(x[1]) + '" onclick="TC.zoom(this.src)" onerror="this.closest(\'figure\').remove()"><figcaption>' + esc(x[1]) + ' <span style="opacity:.7">— المصدر: ' + esc(new URL(x[0]).hostname.replace(/^www\./, '')) + '</span></figcaption></figure>').join('') + '</div>'; }
+  const secFig = (key, sec, ttl) => '<div class="figs one" style="margin-bottom:10px"><figure class="sec2d">' + (ttl ? '<div style="font-weight:700;margin:2px 0 6px">' + esc(ttl) + '</div>' : '') + secSVG(sec) + '<button type="button" class="b3d no-print" onclick="TC.open3D(\'' + esc(key) + '\')">🧊 شوفه 3D</button><figcaption><span class="sch">مقطع ميرزونا</span> — ' + (sec.video ? esc(sec.src) + '. كل قطعة بالمجسّم 3D لحالها: فيك تفكّ القطع وترجّعها، وتفتح الدرفة، وتكبس على أي قطعة لتعرف اسمها.' : sec.cat ? 'مأخوذ بالملّي من الرسمة الأصلية (' + esc(sec.src) + ')، وكل قطعة بالمجسّم 3D لحالها: فيك تفكّ القطع وترجّعها، وتكبس على أي قطعة لتعرف اسمها ورقمها.' : sec.src ? 'مرسوم من المقاسات المكتوبة لـ' + esc(sec.src) + ' بكتالوج المصنّع، والمجسّم 3D بنفس الشكل تماماً. الرسمة الرسمية تحت.' : s.img ? 'مبني على الأبعاد المنشورة للنظام، والمجسّم 3D بنفس الشكل تماماً. رسومات المصنّع الرسمية تحت.' : 'مقطع نموذجي للنظام، والمجسّم 3D بنفس الشكل تماماً.') + ' الأبعاد النهائية حسب مخططات التصنيع.</figcaption></figure></div>';
   const sec = SECMAP[s.code];
-  if(sec) h += '<div class="figs one" style="margin-bottom:10px"><figure class="sec2d">' + secSVG(sec) + '<button type="button" class="b3d no-print" onclick="TC.open3D(\'' + esc(s.code) + '\')">🧊 شوفه 3D</button><figcaption><span class="sch">مقطع ميرزونا</span> — ' + (sec.cat ? 'مأخوذ بالملّي من الرسمة الأصلية (' + esc(sec.src) + ')، وكل قطعة بالمجسّم 3D لحالها: فيك تفكّ القطع وترجّعها، وتكبس على أي قطعة لتعرف اسمها ورقمها.' : sec.src ? 'مرسوم من المقاسات المكتوبة لـ' + esc(sec.src) + ' بكتالوج المصنّع، والمجسّم 3D بنفس الشكل تماماً. الرسمة الرسمية تحت.' : s.img ? 'مبني على الأبعاد المنشورة للنظام، والمجسّم 3D بنفس الشكل تماماً. رسومات المصنّع الرسمية تحت.' : 'مقطع نموذجي للنظام، والمجسّم 3D بنفس الشكل تماماً.') + ' الأبعاد النهائية حسب مخططات التصنيع.</figcaption></figure></div>';
+  if(sec) h += secFig(s.code, sec, s.more ? (s.secT || 'مقطع التقاء الدرفتين') : '');
+  (s.more || []).forEach((m, i) => { const k = s.code + '~' + (i + 1); if(SECMAP[k]) h += secFig(k, SECMAP[k], m.t); });
   if(s.img){ const n = s.img.length; h += '<div class="figs' + (n === 1 ? ' one' : '') + '">' + s.img.map(x => fig(x[0], x[1])).join('') + '</div>'; }
   return h + '</div></div></section>';
 }
@@ -744,6 +790,8 @@ function render(){
     sw.innerHTML = '<input type="checkbox" ' + (on ? 'checked' : '') + ' data-code="' + esc(code) + '"> <span>' + (on ? '✅ ظاهر للزبائن' : '⛔ مطفي') + '</span>';
     sw.querySelector('input').addEventListener('change', e => TC.toggle(code, e.target.checked));
     sec.querySelector('.sys-h').appendChild(sw); if(!on) sec.classList.add('off');
+    const eb = document.createElement('button'); eb.type = 'button'; eb.className = 'tc-ed no-print'; eb.textContent = '✏️ الاسم والمواصفات';
+    eb.addEventListener('click', () => TC.edit(code)); sec.querySelector('.sys-h').appendChild(eb);
   });
   if(window.MzCompany && MzCompany.applyNode) try{ MzCompany.applyNode(document.getElementById('doc'), true); }catch(e){}
 }
@@ -765,6 +813,39 @@ window.TC = {
     }).catch(() => { if(msg) msg.textContent = '⚠️ ما في اتصال — ما انحفظ'; });
   },
   _hidden: () => Array.from(HIDDEN),
+  _items: () => ITEMS,
+  edit(code){
+    let sys = null; CATS.forEach(k => k.sys.forEach(x => { if(x.code === code) sys = x; })); if(!sys) return;
+    let d = document.getElementById('tcEd'); if(d) d.remove();
+    d = document.createElement('div'); d.id = 'tcEd'; d.className = 'no-print';
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(10,20,30,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:12px';
+    const specTxt = (sys.spec || []).map(r => [r[0], r[1], r[2]].join(' | ')).join('\n');
+    const f = (id, lab, v, ta) => '<label style="display:block;margin:8px 0 3px;font-weight:700">' + lab + '</label>' + (ta ? '<textarea id="' + id + '" rows="' + ta + '" style="width:100%;font:inherit;padding:8px;border:1px solid #cfd6db;border-radius:8px">' + esc(v || '') + '</textarea>' : '<input id="' + id + '" value="' + esc(v || '') + '" style="width:100%;font:inherit;padding:8px;border:1px solid #cfd6db;border-radius:8px">');
+    d.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:16px 18px;direction:rtl">' +
+      '<b style="font-size:17px">✏️ ' + esc(code) + ' — الاسم والمواصفات</b>' +
+      f('edAr', 'الاسم بالعربي', sys.ar) + f('edEn', 'الاسم بالإنجليزي', sys.en) + f('edMk', 'النظام / المصنّع', sys.maker) + f('edDs', 'الوصف', sys.desc, 3) +
+      f('edSp', 'المواصفات — كل سطر: التسمية | بالإنجليزي | القيمة (مثال: العمق | Depth | 70 ملم)', specTxt, 7) +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button type="button" id="edSave" style="background:#1f8f4e;color:#fff;border:0;border-radius:99px;padding:9px 18px;font:inherit;font-weight:700">💾 احفظ</button>' +
+      '<button type="button" id="edReset" style="background:#eef1f3;border:0;border-radius:99px;padding:9px 14px;font:inherit">↺ رجّع النص الأصلي</button>' +
+      '<button type="button" id="edX" style="background:#eef1f3;border:0;border-radius:99px;padding:9px 14px;font:inherit">إلغاء</button><span id="edMsg" style="align-self:center;color:#5b6770"></span></div></div>';
+    document.body.appendChild(d);
+    const close = () => d.remove();
+    d.addEventListener('click', e => { if(e.target === d) close(); }); d.querySelector('#edX').onclick = close;
+    const send = (item) => {
+      const m = d.querySelector('#edMsg'); m.textContent = '⏳ عم احفظ...';
+      const h = { 'Content-Type': 'application/json', 'x-device': ls('merzona-device-token') }; const ss = ls('merzona-session-token'); if(ss) h['x-session'] = ss;
+      return fetch(SERVER + '/techcat-settings', { method: 'POST', headers: h, body: JSON.stringify({ code, item }) }).then(r => r.json().then(j => ({ s: r.status, j }))).then(r => {
+        if(r.s !== 200){ m.textContent = r.s === 403 ? '⚠️ ما عندك صلاحية الكتالوجات' : r.s === 401 ? '⚠️ افتحها من جهاز مسجّل بالسيستم' : '⚠️ ما انحفظ (' + r.s + ')'; return; }
+        ITEMS = (r.j && r.j.items) || {}; applyItems(); close(); render();
+        const msg = document.getElementById('tcMsg'); if(msg) msg.textContent = '✅ انحفظ ' + code;
+      }).catch(() => { m.textContent = '⚠️ ما في اتصال — ما انحفظ'; });
+    };
+    d.querySelector('#edSave').onclick = () => {
+      const spec = d.querySelector('#edSp').value.split('\n').map(l => l.split('|').map(x => x.trim())).filter(r => r.some(Boolean)).map(r => r.length >= 3 ? [r[0], r[1], r.slice(2).join(' | ')] : [r[0] || '', '', r[1] || '']);
+      send({ ar: d.querySelector('#edAr').value.trim(), en: d.querySelector('#edEn').value.trim(), maker: d.querySelector('#edMk').value.trim(), desc: d.querySelector('#edDs').value.trim(), spec });
+    };
+    d.querySelector('#edReset').onclick = () => send({});
+  },
   shareOne(code){
     let sys = null; CATS.forEach(k => k.sys.forEach(x => { if(x.code === code) sys = x; }));
     const u = location.href.split('#')[0].split('?')[0] + '?s=' + encodeURIComponent(code);
@@ -774,7 +855,7 @@ window.TC = {
   },
 };
 render();
-fetch(SERVER + '/public/techcat-settings', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if(j && Array.isArray(j.hidden)){ HIDDEN = new Set(j.hidden); render(); } }).catch(() => {});
+fetch(SERVER + '/public/techcat-settings', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(j => { if(j && Array.isArray(j.hidden)){ HIDDEN = new Set(j.hidden); if(j.items && typeof j.items === 'object'){ ITEMS = j.items; applyItems(); } render(); } }).catch(() => {});
 window.addEventListener('mz-company', render);
 })();
 </script>
