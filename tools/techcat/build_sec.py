@@ -107,6 +107,10 @@ for sid, S in SPECS.items():
     S = dict(S); S['motion'] = mo
     sec = {'parts': parts, 'src': S['src'], 'normal': S.get('normal', 'y'), 'motion': S.get('motion'), 'labels': S.get('labels', []), 'dims': S.get('dims', []), 'view': S.get('view')}
     res[sid] = sec
+# مقاطع مرسومة من فيديوهات العيّنات (video_sec.py)
+try:
+    res.update(json.load(open(os.path.join(HERE, 'video_sections.json'))))
+except FileNotFoundError: pass
 js = '/* مقاطع الكتالوج الفني: متتبّعة من رسومات المصنّعين الأصلية (فيكتور) بالملم. مولّد بـ tools/techcat/build_sec.py — لا تعدّل يدوياً */\nwindow.TCSEC = ' + json.dumps(res, ensure_ascii=False, separators=(',', ':')) + ';\n'
 open(OUT, 'w').write(js)
 print('→', OUT, len(js) // 1024, 'KB')

@@ -718,7 +718,7 @@ async def t_techcat(p, b, port):
     fx = os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'three')
     await ctx.route('**/three.min.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'three.min.js'), 'rb').read()))
     await ctx.route('**/OrbitControls.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'OrbitControls.js'), 'rb').read()))
-    nb = await pg.locator('.b3d').count(); check(nb == n, 'كل نظام إلو مقطع ميرزونا مع زر 3D (' + str(nb) + '/' + str(n) + ')')
+    nb = await pg.evaluate("Array.from(document.querySelectorAll('section.sys')).filter(function(s){ return s.querySelector('.b3d'); }).length"); check(nb == n, 'كل نظام إلو مقطع ميرزونا مع زر 3D (' + str(nb) + '/' + str(n) + ')')
     for code in ['MZ-SL-01', 'MZ-SL-05', 'MZ-HG-01', 'MZ-HG-03', 'MZ-FD-01', 'MZ-PV-01', 'MZ-CW-03', 'MZ-CW-05', 'MZ-BL-01', 'MZ-VS-01']:
         await pg.click('#' + code + ' .b3d'); await pg.wait_for_timeout(1200)
         v = await pg.evaluate("[window.__v3, !!document.querySelector('#v3c canvas'), getComputedStyle(document.getElementById('v3')).display, TC.SECMAP['%s'].parts.length]" % code)
@@ -1251,6 +1251,66 @@ async def t_catalog(p, b, port):
     await pg.click('#backBtn'); await pg.wait_for_timeout(1500)
     check('c=' not in pg.url and 'b=sy' in pg.url, 'زر الأقسام بيرجع لكل الأقسام مع نفس الفرع')
     check(not errs, 'ما في أخطاء جافاسكربت')
+    await ctx.close()
+
+async def t_techcat_video_edit(p, b, port):
+    """🎥✏️ 2026-11-23: أنظمة X300S / X500 / جيدا / همر / تيكنال همر من الفيديوهات + تعديل الاسم والمواصفات من وضع الإدارة"""
+    print('• الكتالوج الفني: أنظمة الفيديو + تعديل الأسماء والمواصفات')
+    ctx = await new_ctx(p, b); errs = []
+    st = {'items': {}, 'hidden': [], 'posts': []}
+    async def fake(route):
+        rq = route.request
+        if rq.method == 'POST':
+            body = json.loads(rq.post_data); st['posts'].append(body)
+            if body.get('code'):
+                it = body.get('item') or {}
+                if any(it.values()): st['items'][body['code']] = it
+                else: st['items'].pop(body['code'], None)
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'hidden': st['hidden'], 'items': st['items']}))
+        return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'hidden': st['hidden'], 'items': st['items']}))
+    await ctx.route(SRV + '/public/techcat-settings', fake); await ctx.route(SRV + '/techcat-settings', fake)
+    def js3(fn):
+        async def h(route): await route.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(ROOT, 'tests/e2e/fixtures/three', fn), 'rb').read())
+        return h
+    for f in ('three.min.js', 'OrbitControls.js'): await ctx.route('**/' + f, js3(f))
+    pg = await ctx.new_page(); pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await pg.goto(f'http://127.0.0.1:{port}/techcat.html#manage'); await pg.wait_for_timeout(2000)
+    for code, nm in [('MZ-SL-07', 'X300S'), ('MZ-SL-08', 'X500'), ('MZ-SL-09', 'جيدا'), ('MZ-SL-10', 'همر'), ('MZ-SL-11', 'تيكنال همر')]:
+        n3 = await pg.evaluate("document.querySelectorAll('#%s .b3d').length" % code)
+        t = await pg.inner_text('#' + code)
+        imgs = await pg.evaluate("Promise.all(Array.from(document.querySelectorAll('#%s figure img')).map(function(i){ return fetch(i.src).then(function(r){ return r.ok && /image/.test(r.headers.get('content-type') || ''); }); })).then(function(a){ return a.filter(Boolean).length; })" % code)
+        check(n3 == 2 and nm in t and imgs >= 3, code + ' ' + nm + ': مقطعين 3D (الالتقاء + العتبة) وصور من الفيديو ' + str((n3, imgs)))
+    # المجسّم: X500 العتبة — فتح الدرفة على الطول + فكّ
+    await pg.click('#MZ-SL-08 .b3d >> nth=1'); await pg.wait_for_timeout(1800)
+    check(await pg.evaluate('window.__v3 && window.__v3.cat') and await pg.is_visible('#v3m') and await pg.is_visible('#v3x'), 'X500 العتبة: 3D مع زر فتح وزر فكّ')
+    await pg.click('#v3m')
+    for _ in range(60):
+        await pg.wait_for_timeout(300)
+        if (await pg.evaluate('window.__v3.state()'))['mt'] == 1: break
+    check((await pg.evaluate('window.__v3.state()'))['mt'] == 1, 'الدرفة انسحبت على السكة')
+    await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
+    await pg.click('#MZ-SL-09 .b3d'); await pg.wait_for_timeout(1500)
+    check(await pg.evaluate('window.__v3.parts') >= 15, 'جيدا: مقطع الالتقاء بوجوه الديكور')
+    await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
+    # التعديل
+    await pg.click('#MZ-SL-07 .tc-ed'); await pg.wait_for_timeout(300)
+    check(await pg.is_visible('#tcEd') and (await pg.input_value('#edAr')).startswith('X300S'), 'نافذة تعديل الاسم والمواصفات')
+    await pg.fill('#edAr', 'X300S — سحّاب اقتصادي'); await pg.fill('#edMk', 'مصنع تجربة')
+    await pg.fill('#edDs', 'وصف تجربة'); await pg.fill('#edSp', 'العمق | Depth | 70 ملم\nالزجاج | Glazing | 6 ملم مفرد\nالعجل || عجل مزدوج')
+    await pg.click('#edSave'); await pg.wait_for_timeout(700)
+    it = st['posts'][-1]
+    check(it['code'] == 'MZ-SL-07' and it['item']['ar'] == 'X300S — سحّاب اقتصادي' and it['item']['spec'] == [['العمق', 'Depth', '70 ملم'], ['الزجاج', 'Glazing', '6 ملم مفرد'], ['العجل', '', 'عجل مزدوج']], 'انحفظ الاسم والمواصفات ' + json.dumps(it, ensure_ascii=False)[:200])
+    t = await pg.inner_text('#MZ-SL-07')
+    check('سحّاب اقتصادي' in t and '70 ملم' in t and 'مصنع تجربة' in t and not await pg.is_visible('#tcEd'), 'الصفحة تحدّثت بالاسم والمواصفات الجديدة')
+    # الزبون بيشوف التعديل
+    pc = await ctx.new_page(); pc.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await pc.goto(f'http://127.0.0.1:{port}/techcat.html?s=MZ-SL-07'); await pc.wait_for_timeout(1800)
+    t = await pc.inner_text('body')
+    check('سحّاب اقتصادي' in t and '6 ملم مفرد' in t and not await pc.evaluate("document.querySelectorAll('.tc-ed').length"), 'الزبون بيشوف الاسم والمواصفات الجديدة (بلا زر تعديل)')
+    # رجّع الأصلي
+    await pg.click('#MZ-SL-07 .tc-ed'); await pg.wait_for_timeout(300); await pg.click('#edReset'); await pg.wait_for_timeout(700)
+    check(st['posts'][-1]['item'] == {} and 'سحّاب اقتصادي' not in await pg.inner_text('#MZ-SL-07'), 'رجّع النص الأصلي')
+    check(not errs, 'بلا أخطاء ' + str(errs[:3]))
     await ctx.close()
 
 async def t_catalog_manage(p, b, port):
@@ -3410,7 +3470,7 @@ async def main():
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
         for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
-                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_catalog_manage, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
+                         (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_catalog_manage, ()), (t_techcat_video_edit, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
         await b.close()
