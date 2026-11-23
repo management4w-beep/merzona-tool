@@ -135,7 +135,9 @@ let HIDDEN = new Set(); const MANAGE = /[#&]manage\b/.test(location.hash || '');
    تعديل اسم/مصنّع/وصف/مواصفات أي نظام من وضع الإدارة — بينحفظ بالسيرفر وبيغطّي على النص الأصلي عند الكل. */
 let ITEMS = {}; const ORIG = {};
 // 🆕 2026-11-22 (حمدي: "بدي ابعت بند محدد من الكتالوج الفني متلو متل كتالوج الصور"): techcat.html?s=MZ-SL-01 = صفحة نظام واحد
-const ONE = (new URLSearchParams(location.search).get('s') || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
+// 📤 2026-11-23 (حمدي: "بدي يكون عندي إمكانية ابعت كتالوج فني محدد مو ابعت رابط عام للكل"): ?s=CODE أو ?s=CODE1,CODE2 = بس الأنظمة المختارة، بلا رابط لباقي الكتالوج
+const PICK = (new URLSearchParams(location.search).get('s') || '').toUpperCase().split(',').map(x => x.replace(/[^A-Z0-9-]/g, '')).filter(Boolean);
+const ONE = PICK.length ? PICK[0] : '';
 function ls(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
 const IMG = (f) => CATALOG_IMAGES_DIR + 'tc/' + f.replace(/\.(png|jpe?g)$/i, '') + '.jpg';
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -933,14 +935,15 @@ function render(){
     '<div><b>الزجاج — Glazing</b>مفرد، مزدوج، أو ثلاثي؛ مقسّى، لامينيت، Low-E، عاكس، أو ملوّن — حسب متطلبات العزل والأمان.</div>' +
     '<div><b>الخدمات — Services</b>رفع مقاسات بالموقع، مخططات تصنيع، تصنيع، تركيب، وصيانة.</div></div>' +
     '<div class="foot" style="margin-top:30px;border-top:1px solid var(--line);padding-top:14px"><span>' + esc(nameAr) + ' — ' + esc(c.fullNameEn || name) + '</span><span dir="ltr">' + esc([c.whatsapp || c.phone, c.email, c.website].filter(Boolean).join(' · ')) + '</span></div></div>';
-  if(ONE){
-    let sys = null, cat = null; CATS.forEach(k => k.sys.forEach(x => { if(x.code === ONE){ sys = x; cat = k; } }));
-    if(sys && HIDDEN.has(ONE) && !MANAGE) sys = null;
+  if(PICK.length){
     const contact = [c.whatsapp || c.phone, c.email, c.website].filter(Boolean);
-    h = '<div class="page one-head"><div class="oh"><img class="logo-s" data-co-logo src="' + esc(c.logo || 'img/logo.png') + '" alt="Merzona logo"><div><b>' + esc(nameAr) + ' — الكتالوج الفني</b><div class="en" style="color:var(--muted);font-size:13px;direction:ltr;text-align:right">' + esc(c.fullNameEn || name) + ' — Technical Catalogue</div></div></div></div>';
-    h += sys ? '<div class="page"><h2 class="cat">' + esc(cat.ar) + ' <span class="en">' + esc(cat.en) + '</span></h2>' + sysHTML(sys) + '</div>' : '<div class="page"><p>هالنظام مش متوفر حالياً.</p></div>';
-    h += '<div class="page"><div class="foot"><span>للاستفسار وعروض الأسعار: ' + esc(nameAr) + '</span><span dir="ltr">' + esc(contact.join(' · ')) + '</span></div><div class="no-print" style="margin-top:12px"><a href="techcat.html">📘 شوف كل الكتالوج الفني (' + total + ' نظام)</a></div></div>';
-    if(sys) document.title = sys.ar + ' — ' + name;
+    const groups = []; let n = 0;
+    CATS.forEach(k => { const ss = PICK.map(code => k.sys.find(x => x.code === code)).filter(x => x && (MANAGE || !HIDDEN.has(x.code))); if(ss.length){ groups.push([k, ss]); n += ss.length; } });
+    h = '<div class="page one-head"><div class="oh"><img class="logo-s" data-co-logo src="' + esc(c.logo || 'img/logo.png') + '" alt="Merzona logo"><div><b>' + esc(nameAr) + ' — الكتالوج الفني</b><div class="en" style="color:var(--muted);font-size:13px;direction:ltr;text-align:right">' + esc(c.fullNameEn || name) + ' — Technical Catalogue</div></div></div>' +
+      (n > 1 ? '<div class="pick-toc" style="margin-top:10px;font-size:14px">' + groups.map(([k, ss]) => ss.map(x => '<a href="#' + esc(x.code) + '" style="display:inline-block;margin:3px 0 3px 10px;border-bottom:1px dashed var(--line)">' + esc(x.ar) + '</a>').join('')).join('') + '</div>' : '') + '</div>';
+    h += n ? groups.map(([k, ss]) => '<div class="page"><h2 class="cat">' + esc(k.ar) + ' <span class="en">' + esc(k.en) + '</span></h2>' + ss.map(sysHTML).join('') + '</div>').join('') : '<div class="page"><p>هالنظام مش متوفر حالياً.</p></div>';
+    h += '<div class="page"><div class="foot"><span>للاستفسار وعروض الأسعار: ' + esc(nameAr) + '</span><span dir="ltr">' + esc(contact.join(' · ')) + '</span></div></div>';
+    if(n === 1) document.title = groups[0][1][0].ar + ' — ' + name; else if(n) document.title = name + ' — الكتالوج الفني (' + n + ' أنظمة)';
   }
   if(MANAGE) h = '<div class="page no-print" id="tcManage" style="border:2px solid var(--accent)"><b>⚙️ وضع الإدارة</b> — طفّي أي نظام ما بدك تعرضه أو وقّفت شغل فيه، وبيختفي فوراً من الرابط يلي عند الزبائن. <span id="tcMsg" style="color:var(--muted)"></span><div style="margin-top:6px;font-size:13px;color:var(--muted)">مطفي هلق: <b id="tcOffN">' + HIDDEN.size + '</b> · <a href="techcat.html" target="_blank">👁️ شوف متل الزبون</a></div></div>' + h;
   document.getElementById('doc').innerHTML = h;
@@ -986,7 +989,30 @@ window.addEventListener('popstate', () => { const z = document.getElementById('z
 const pushModal = () => { try{ history.pushState({ tcModal: 1 }, ''); }catch(e){} };
 window.TC = {
   zoom(src){ document.getElementById('zoomImg').src = src; document.getElementById('zoom').style.display = 'flex'; pushModal(); },
-  share(){ const u = location.href.split('#')[0]; const t = (co().nameEn || 'Merzona') + ' — الكتالوج الفني'; if(navigator.share) navigator.share({ title: t, url: u }).catch(() => {}); else { try{ navigator.clipboard.writeText(u); alert('انسخ الرابط: ' + u); }catch(e){ prompt('الرابط:', u); } } },
+  share(){
+    if(PICK.length && !MANAGE){ TC.sendLink(document.title, location.href.split('#')[0]); return; }   // الزبون: بيشارك نفس يلي عندو بس
+    // قائمة اختيار: شو الأنظمة يلي بدك تبعتها — رابط فيه بس هي
+    let d = document.getElementById('tcPick'); if(d) d.remove();
+    d = document.createElement('div'); d.id = 'tcPick'; d.className = 'no-print';
+    d.style.cssText = 'position:fixed;inset:0;background:rgba(10,20,28,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:12px';
+    const VC = CATS.map(k => Object.assign({}, k, { sys: k.sys.filter(x => !HIDDEN.has(x.code)) })).filter(k => k.sys.length);
+    d.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">' +
+      '<div style="padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px"><b style="flex:1">📤 شو بدك تبعت؟</b><button type="button" id="pkX" class="tc-share" style="margin:0">✕</button></div>' +
+      '<div style="padding:8px 14px;font-size:13px;color:var(--muted)">اختار نظام أو أكتر، والزبون بيشوف بس يلي اخترتو (بلا باقي الكتالوج).</div>' +
+      '<div id="pkL" style="overflow:auto;padding:0 14px 10px">' + VC.map(k => '<div style="margin-top:10px"><label style="font-weight:700;display:flex;gap:6px;align-items:center"><input type="checkbox" data-cat="' + esc(k.id) + '"> ' + esc(k.ar) + '</label>' +
+        k.sys.map(x => '<label style="display:flex;gap:6px;align-items:center;padding:5px 22px 5px 0;font-size:14px"><input type="checkbox" data-code="' + esc(x.code) + '" data-in="' + esc(k.id) + '"> ' + esc(x.ar) + ' <small style="color:var(--muted)">' + esc(x.code) + '</small></label>').join('') + '</div>').join('') + '</div>' +
+      '<div style="padding:10px 14px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="pkGo" class="tc-share" style="margin:0;background:var(--accent,#0b6bcb);color:#fff;border-color:transparent" disabled>📤 ابعت المختار (0)</button>' +
+      '<button type="button" id="pkAll" class="tc-share" style="margin:0">📘 كل الكتالوج</button></div></div>';
+    document.body.appendChild(d);
+    const sel = () => [...d.querySelectorAll('input[data-code]:checked')].map(i => i.dataset.code);
+    const upd = () => { const n = sel().length, b = d.querySelector('#pkGo'); b.disabled = !n; b.textContent = '📤 ابعت المختار (' + n + ')'; };
+    d.querySelectorAll('input[data-cat]').forEach(i => i.addEventListener('change', () => { d.querySelectorAll('input[data-in="' + i.dataset.cat + '"]').forEach(x => x.checked = i.checked); upd(); }));
+    d.querySelectorAll('input[data-code]').forEach(i => i.addEventListener('change', upd));
+    d.querySelector('#pkX').onclick = () => d.remove(); d.addEventListener('click', e => { if(e.target === d) d.remove(); });
+    d.querySelector('#pkGo').onclick = () => { const L = sel(); if(L.length){ TC.shareOne(L.join(',')); d.remove(); } };
+    d.querySelector('#pkAll').onclick = () => { const u = location.href.split('#')[0].split('?')[0]; TC.sendLink((co().nameAr || 'ميرزونا') + ' — الكتالوج الفني', u); d.remove(); };
+  },
+  sendLink(t, u){ window.__tcLastShare = u; if(navigator.share) navigator.share({ title: t, text: t, url: u }).catch(() => {}); else window.open('https://wa.me/?text=' + encodeURIComponent(t + '\n' + u), '_blank'); },
   CATS, SECTIONS, SECMAP, open3D(code){ open3D(code); pushModal(); }, close3D(){ if(history.state && history.state.tcModal) history.back(); else close3D(); }, v3Reset, v3Zoom, v3Shot, v3Explode(v){ if(V3 && V3.explode) V3.explode(v); }, v3Move(v){ if(V3 && V3.move) V3.move(v); },
   toggle(code, on){
     if(on) HIDDEN.delete(code); else HIDDEN.add(code);
@@ -1034,11 +1060,10 @@ window.TC = {
     d.querySelector('#edReset').onclick = () => send({});
   },
   shareOne(code){
-    let sys = null; CATS.forEach(k => k.sys.forEach(x => { if(x.code === code) sys = x; }));
-    const u = location.href.split('#')[0].split('?')[0] + '?s=' + encodeURIComponent(code);
-    const t = (sys ? sys.ar : code) + ' — ' + (co().nameAr || 'ميرزونا');
-    if(navigator.share) navigator.share({ title: t, text: t, url: u }).catch(() => {});
-    else window.open('https://wa.me/?text=' + encodeURIComponent(t + '\n' + u), '_blank');
+    const L = String(code).split(','), names = []; CATS.forEach(k => k.sys.forEach(x => { if(L.includes(x.code)) names.push(x.ar); }));
+    const u = location.href.split('#')[0].split('?')[0] + '?s=' + L.map(encodeURIComponent).join(',');
+    const t = (L.length === 1 ? (names[0] || code) : 'الكتالوج الفني: ' + names.join('، ')) + ' — ' + (co().nameAr || 'ميرزونا');
+    TC.sendLink(t, u);
   },
 };
 render();
