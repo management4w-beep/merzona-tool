@@ -85,6 +85,7 @@ figcaption .sch{color:var(--gold);font-weight:600}
 section.sys.off{opacity:.45}
 section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 .sec2d{position:relative}
+.tgl2d{font:inherit;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 12px;margin:6px 0;cursor:pointer}
 .tc-ed{font:inherit;font-size:13px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:5px 12px;margin-inline-start:8px;cursor:pointer}
 .b3d{position:absolute;top:8px;left:8px;font:inherit;font-size:13px;font-weight:700;border:0;border-radius:99px;padding:6px 12px;background:var(--ink);color:#fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .v3{position:fixed;inset:0;z-index:60;background:rgba(10,20,28,.8);display:none;align-items:center;justify-content:center;padding:12px}
@@ -464,6 +465,22 @@ function ringGeo(T, loops, w, h, s0){
   } });
   const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
 }
+// جهة وحدة من الحلقة (0 تحت، 1 يمين، 2 فوق، 3 يسار) مع وجوه القصّة 45° مسكّرة — حتى بالتفجير تبيّن كل جهة قطعة بروفايل حقيقية
+function ringMember(T, loops, w, h, s0, m){
+  const pos = [];
+  const P = (e, s, z) => m === 0 ? [e * (w / 2 - s), -h / 2 + s, z] : m === 1 ? [w / 2 - s, e * (h / 2 - s), z] : m === 2 ? [e * (w / 2 - s), h / 2 - s, z] : [-w / 2 + s, e * (h / 2 - s), z];
+  loops.forEach(L => { for(let i = 0; i < L.length; i++){
+    const a = L[i], b = L[(i + 1) % L.length], sa = a[1] - s0, sb = b[1] - s0;
+    const A0 = P(-1, sa, a[0]), A1 = P(1, sa, a[0]), B0 = P(-1, sb, b[0]), B1 = P(1, sb, b[0]);
+    pos.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1);
+  } });
+  try{ // وجوه القصّة
+    const c = loops[0].map(q => new T.Vector2(q[0], q[1])), hl = loops.slice(1).map(L => L.map(q => new T.Vector2(q[0], q[1])));
+    const tri = T.ShapeUtils.triangulateShape(c, hl), all = c.concat(...hl);
+    [-1, 1].forEach(e => tri.forEach(t => t.forEach(k => { const q = all[k]; pos.push(...P(e, q.y - s0, q.x)); })));
+  }catch(err){}
+  const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+}
 function buildWindow(sec, box){
   if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; }
   box.innerHTML = '';
@@ -485,33 +502,38 @@ function buildWindow(sec, box){
   Object.values(groups).forEach(g => root.add(g));
   groups.A.position.x = cxs.A; groups.B.position.x = cxs.B;
   const matOf = (p) => { const m = MAT[p.mat] || MAT.al; return new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: !!m.glass, opacity: m.glass ? 0.32 : 1, side: T.DoubleSide, depthWrite: !m.glass }); };
-  const wheels = [];
+  const wheels = [], EXP = [];
+  const exp = (o, x, y, z) => { o.userData.base = o.position.clone(); o.userData.ex = new T.Vector3(x, y, z); EXP.push(o); return o; };
   sec.parts.forEach(p => {
     const role = p.role || 'frame', g = groups[role] || groups.frame, mat = matOf(p);
     const tag = (o) => { o.userData.name = p.name || (MAT[p.mat] || {}).name || ''; return o; };
     const ys = p.pts.map(q => q[1]), xs = p.pts.map(q => q[0]);
     if(p.mat === 'gl'){ // لوح الزجاج جوّا الدرفة
       const gi = W0.glassIn, gw = ws - 2 * gi, gh = hs - 2 * gi, t = Math.max(...xs) - Math.min(...xs), z = (Math.max(...xs) + Math.min(...xs)) / 2;
-      const m = tag(new T.Mesh(new T.BoxGeometry(gw, gh, t), mat)); m.position.set(0, 0, z); g.add(m); return; }
+      const m = tag(new T.Mesh(new T.BoxGeometry(gw, gh, t), mat)); m.position.set(0, 0, z); g.add(m); exp(m, 0, 0, (role === 'A' ? -1 : 1) * 55); return; }
     if(p.wheel){ const Wh = p.wheel;
       [-1, 1].forEach(sd => { const cyl = tag(new T.Mesh(new T.CylinderGeometry(Wh.r, Wh.r, Wh.w, 28), mat)); cyl.rotation.x = Math.PI / 2;
-        const wg = new T.Group(); wg.add(cyl); wg.position.set(sd * ws * 0.33, -hs / 2 + (Wh.cy - W0.sashY0), Wh.cx); g.add(wg); wheels.push({ o: cyl, r: Wh.r, g: role }); }); return; }
+        const wg = new T.Group(); wg.add(cyl); wg.position.set(sd * ws * 0.33, -hs / 2 + (Wh.cy - W0.sashY0), Wh.cx); g.add(wg); exp(wg, 0, -95, 0); wheels.push({ o: cyl, r: Wh.r, g: role }); }); return; }
     if(p.z){ // عربانة: قطعة قصيرة بأسفل الدرفة جنب كل عجل
       const sh = new T.Shape(p.pts.map(([x, y]) => new T.Vector2(-x, y - W0.sashY0)));
       (p.holes || []).forEach(hl => sh.holes.push(new T.Path(hl.map(([x, y]) => new T.Vector2(-x, y - W0.sashY0)))));
       const len = ws * 0.12;
       [-1, 1].forEach(sd => { const geo = new T.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); geo.translate(0, 0, -len / 2);
-        const m = tag(new T.Mesh(geo, mat)); m.rotation.y = Math.PI / 2; m.position.set(sd * ws * 0.33, -hs / 2, 0); g.add(m); }); return; }
+        const m = tag(new T.Mesh(geo, mat)); m.rotation.y = Math.PI / 2; m.position.set(sd * ws * 0.33, -hs / 2, 0); g.add(m); exp(m, 0, -70, 0); }); return; }
     const loops = [p.pts].concat(p.holes || []);
-    const geo = role === 'frame' ? ringGeo(T, loops, W, H, W0.frameY0) : ringGeo(T, loops, ws, hs, W0.sashY0);
-    const m = tag(new T.Mesh(geo, mat)); g.add(m);
-    if(p.mat === 'al') g.add(new T.LineSegments(new T.EdgesGeometry(geo, 30), new T.LineBasicMaterial({ color: 0x33434d, transparent: true, opacity: 0.25 })));
+    // 4 جهات منفصلة — كل جهة بتنفكّ لبرّا بالتفجير
+    const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]], far = role === 'frame' ? 70 : 42, f = p.mat === 'gk' ? 1.7 : p.mat === 'tb' ? 1.25 : (p.name && /ديكور|غطاء/.test(p.name)) ? 1.45 : 1;
+    for(let k = 0; k < 4; k++){
+      const geo = role === 'frame' ? ringMember(T, loops, W, H, W0.frameY0, k) : ringMember(T, loops, ws, hs, W0.sashY0, k);
+      const m = tag(new T.Mesh(geo, mat)); g.add(m); exp(m, DIRS[k][0] * far * f, DIRS[k][1] * far * f, 0);
+      if(p.mat === 'al'){ const ln = new T.LineSegments(new T.EdgesGeometry(geo, 30), new T.LineBasicMaterial({ color: 0x33434d, transparent: true, opacity: 0.25 })); g.add(ln); exp(ln, DIRS[k][0] * far * f, DIRS[k][1] * far * f, 0); }
+    }
   });
   // خطاف الالتقاء بين الدرفتين (متعشّقين متل نقشة الفيرزاتشي) + فرشاية + قطعة بلاستيك ماسكة السكة تحت (حمدي 2026-11-23)
   { const SW = W0.sw || 30, D = Math.max(6, W0.pitch - SW), k = Math.min(1, D / 9.5), zAf = -W0.pitch / 2 + SW / 2, xL = cxs.B - ws / 2, a0 = 6, t = 1.4;
     const al = matOf({ mat: 'al' }), gk = matOf({ mat: 'gk' }), pb = matOf({ mat: 'pb' });
     const box = (grp, gx, u0, u1, v0, v1, y0, y1, m, nm) => { const b = new T.Mesh(new T.BoxGeometry(u1 - u0, y1 - y0, v1 - v0), m); b.userData.name = nm;
-      b.position.set(xL + (u0 + u1) / 2 - gx, (y0 + y1) / 2, zAf + (v0 + v1) / 2); grp.add(b); return b; };
+      b.position.set(xL + (u0 + u1) / 2 - gx, (y0 + y1) / 2, zAf + (v0 + v1) / 2); grp.add(b); exp(b, grp === groups.A ? 34 : -34, 0, 0); return b; };
     const yb = -hs / 2 + 40, yt = hs / 2 - 6, nA = 'خطاف الالتقاء — الدرفة الداخلية', nB = 'خطاف الالتقاء — الدرفة الخارجية';
     // A: رجل من وجهها لجهة B، قدم لليمين، شفة راجعة لجهتها
     box(groups.A, cxs.A, a0, a0 + t, 0, D - 1.6 * k, yb, yt, al, nA); box(groups.A, cxs.A, a0, a0 + 7, D - 3 * k, D - 1.6 * k, yb, yt, al, nA); box(groups.A, cxs.A, a0 + 5.6, a0 + 7, D - 4.4 * k, D - 1.6 * k, yb, yt, al, nA);
@@ -523,14 +545,14 @@ function buildWindow(sec, box){
     const yB0 = -H / 2 + ((W0.yTop != null ? W0.yTop : -10) - W0.frameY0) + 0.5;
     const pbm = box(groups.B, cxs.B, 1, W0.overlap - 1, -SW * 0.15, D + SW * 0.15, yB0 - (-H / 2 + i0) - hs / 2 + hs / 2 - (yB0 - (-H / 2 + i0)) + (yB0 - (-hs / 2 + (-H / 2 + i0) + hs / 2)) , 0, pb, 'قطعة بلاستيك سدّ الالتقاء — ماسكة السكة');
     // (الارتفاع: من سطح العتبة لـ 46 ملم فوقه، بإحداثيات المجموعة)
-    const yLocal0 = yB0, yLocal1 = yB0 + 46; pbm.geometry.dispose(); pbm.geometry = new T.BoxGeometry(W0.overlap - 2, yLocal1 - yLocal0, D + SW * 0.3); pbm.position.y = (yLocal0 + yLocal1) / 2;
+    const yLocal0 = yB0, yLocal1 = yB0 + 46; pbm.geometry.dispose(); pbm.geometry = new T.BoxGeometry(W0.overlap - 2, yLocal1 - yLocal0, D + SW * 0.3); pbm.position.y = (yLocal0 + yLocal1) / 2; pbm.userData.base = pbm.position.clone(); pbm.userData.ex.set(0, -80, 0);
   }
   // غطا الالتقاء على شكل نقطة الدمعة (Technal GX) على درفة الالتقاء الخارجية
   if(W0.tear){ const tw = W0.tear.w, tl = W0.tear.len, sh = new T.Shape(), N = 30;
     for(let i = 0; i <= N; i++){ const a = Math.PI * i / N; sh[i ? 'lineTo' : 'moveTo'](tw / 2 * Math.cos(a), -tl * Math.pow(Math.sin(a), 1.6)); }
     const inner = new T.Path(); for(let i = 0; i <= N; i++){ const a = Math.PI * i / N; inner[i ? 'lineTo' : 'moveTo']((tw / 2 - 1.4) * Math.cos(a), -(tl - 1.4) * Math.pow(Math.sin(a), 1.6) - 0.2); } sh.holes.push(inner);
     const geo = new T.ExtrudeGeometry(sh, { depth: hs - 50, bevelEnabled: false }); const m = new T.Mesh(geo, matOf({ mat: 'al' })); m.userData.name = 'غطاء الالتقاء (شكل الدمعة)';
-    m.rotation.x = -Math.PI / 2; m.position.set((cxs.B - ws / 2) + W0.overlap / 2 - cxs.B, -hs / 2 + 25, W0.pitch / 2 + (W0.sw || 30) / 2 + 2.2); groups.B.add(m); }
+    m.rotation.x = -Math.PI / 2; m.position.set((cxs.B - ws / 2) + W0.overlap / 2 - cxs.B, -hs / 2 + 25, W0.pitch / 2 + (W0.sw || 30) / 2 + 2.2); groups.B.add(m); exp(m, 0, 0, 60); }
   // ✂️ قصّ متل العيّنة: من فوق بيبيّن التقاء الدرفتين، ومن الجنب بيبيّن مقطع السكة
   r.localClippingEnabled = true;
   const cutY = -H / 2 + H * 0.42, cutX = W / 2 - 70;
@@ -560,16 +582,21 @@ function buildWindow(sec, box){
   function apply(){
     const k = e2(t), km = e2(mt);
     groups.A.position.set(cxs.A, 0, -EX * k); groups.B.position.set(cxs.B + slide * km, 0, EX * k);
+    EXP.forEach(o => { o.position.copy(o.userData.base).addScaledVector(o.userData.ex, k); });
     wheels.forEach(wh => { if(wh.g === 'B') wh.o.rotation.y = (slide * km) / wh.r; });
     document.getElementById('v3x').textContent = goal ? '🧩 جمّع' : '💥 فكّ القطع'; document.getElementById('v3m').textContent = mgoal ? '🚪 سكّر' : '🚪 افتح';
   }
   const loop = () => { V3.raf = requestAnimationFrame(loop);
-    if(t !== goal){ t += Math.sign(goal - t) * 0.022; if(Math.abs(goal - t) < 0.025) t = goal; apply(); }
+    if(t !== goal){ const t0 = t; t += Math.sign(goal - t) * 0.022; if(Math.abs(goal - t) < 0.025) t = goal; apply();
+      const zf = (1 + 0.45 * e2(t)) / (1 + 0.45 * e2(t0)); cam.position.sub(ctl.target).multiplyScalar(zf).add(ctl.target); }
     if(mt !== mgoal){ mt += Math.sign(mgoal - mt) * 0.02; if(Math.abs(mgoal - mt) < 0.025) mt = mgoal; apply(); }
     ctl.update(); r.render(scene, cam); };
-  V3 = { r, cam, ctl, home, scene, raf: 0, explode(v){ goal = v == null ? (goal ? 0 : 1) : (v ? 1 : 0); }, move(v){ mgoal = v == null ? (mgoal ? 0 : 1) : (v ? 1 : 0); } };
+  let cutBefore = null;
+  V3 = { r, cam, ctl, home, scene, raf: 0, explode(v){ goal = v == null ? (goal ? 0 : 1) : (v ? 1 : 0);
+      // بالفكّ منبيّن الشباك كامل (كل القطع)، وبالتجميع منرجّع القصّ متل ما كان
+      if(goal){ cutBefore = cut; setCut(false); } else if(cutBefore != null){ setCut(cutBefore); cutBefore = null; } }, move(v){ mgoal = v == null ? (mgoal ? 0 : 1) : (v ? 1 : 0); } };
   apply(); loop();
-  window.__v3 = { parts: sec.parts.length, meshes: root.children.length, cat: true, win: true, state: () => ({ t, goal, mt, mgoal, sil: [], bx: groups.B.position.x - cxs.B, cut }) };
+  window.__v3 = { parts: sec.parts.length, meshes: root.children.length, cat: true, win: true, exploded: () => EXP.length, state: () => ({ t, goal, mt, mgoal, sil: [], bx: groups.B.position.x - cxs.B, cut, exn: EXP.length }) };
 }
 function build3Dcat(sec, box){
   if(sec.win) return buildWindow(sec, box);
@@ -874,7 +901,9 @@ function sysHTML(s){
   if(s.feat) h += '<ul class="feat">' + s.feat.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>';
   h += '</div><div>';
   if(s.web){ h += '<div class="figs' + (s.web.length === 1 ? ' one' : '') + '" style="margin-bottom:10px">' + s.web.map(x => '<figure class="web"><img loading="lazy" referrerpolicy="no-referrer" src="' + esc(x[0]) + '" alt="' + esc(x[1]) + '" onclick="TC.zoom(this.src)" onerror="this.closest(\'figure\').remove()"><figcaption>' + esc(x[1]) + ' <span style="opacity:.7">— المصدر: ' + esc(new URL(x[0]).hostname.replace(/^www\./, '')) + '</span></figcaption></figure>').join('') + '</div>'; }
-  const secFig = (key, sec, ttl) => '<div class="figs one" style="margin-bottom:10px"><figure class="sec2d">' + (ttl ? '<div style="font-weight:700;margin:2px 0 6px">' + esc(ttl) + '</div>' : '') + secSVG(sec) + '<button type="button" class="b3d no-print" onclick="TC.open3D(\'' + esc(key) + '\')">🧊 شوفه 3D</button><figcaption><span class="sch">مقطع ميرزونا</span> — ' + (sec.video ? esc(sec.src) + '. كل قطعة بالمجسّم 3D لحالها: فيك تفكّ القطع وترجّعها، وتفتح الدرفة، وتكبس على أي قطعة لتعرف اسمها.' : sec.cat ? 'مأخوذ بالملّي من الرسمة الأصلية (' + esc(sec.src) + ')، وكل قطعة بالمجسّم 3D لحالها: فيك تفكّ القطع وترجّعها، وتكبس على أي قطعة لتعرف اسمها ورقمها.' : sec.src ? 'مرسوم من المقاسات المكتوبة لـ' + esc(sec.src) + ' بكتالوج المصنّع، والمجسّم 3D بنفس الشكل تماماً. الرسمة الرسمية تحت.' : s.img ? 'مبني على الأبعاد المنشورة للنظام، والمجسّم 3D بنفس الشكل تماماً. رسومات المصنّع الرسمية تحت.' : 'مقطع نموذجي للنظام، والمجسّم 3D بنفس الشكل تماماً.') + ' الأبعاد النهائية حسب مخططات التصنيع.</figcaption></figure></div>';
+  const secFig = (key, sec, ttl) => '<div class="figs one" style="margin-bottom:10px"><figure class="sec2d" data-snap="' + esc(key) + '">' + (ttl ? '<div style="font-weight:700;margin:2px 0 6px">' + esc(ttl) + '</div>' : '') +
+    '<img class="snap3d" alt="" style="display:none;width:100%;border-radius:8px;background:#eef2f5;cursor:pointer" onclick="TC.open3D(\'' + esc(key) + '\')">' +
+    '<button type="button" class="tgl2d no-print" style="display:none" onclick="TC.tgl2d(this)">📐 المقطع بالتفصيل</button><div class="svg2d">' + secSVG(sec) + '</div>' + '<button type="button" class="b3d no-print" onclick="TC.open3D(\'' + esc(key) + '\')">🧊 شوفه 3D</button><figcaption><span class="sch">مقطع ميرزونا</span> — ' + (sec.video ? esc(sec.src) + '. كل قطعة بالمجسّم 3D لحالها: فيك تفكّ القطع وترجّعها، وتفتح الدرفة، وتكبس على أي قطعة لتعرف اسمها.' : sec.cat ? 'مأخوذ بالملّي من الرسمة الأصلية (' + esc(sec.src) + ')، وكل قطعة بالمجسّم 3D لحالها: فيك تفكّ القطع وترجّعها، وتكبس على أي قطعة لتعرف اسمها ورقمها.' : sec.src ? 'مرسوم من المقاسات المكتوبة لـ' + esc(sec.src) + ' بكتالوج المصنّع، والمجسّم 3D بنفس الشكل تماماً. الرسمة الرسمية تحت.' : s.img ? 'مبني على الأبعاد المنشورة للنظام، والمجسّم 3D بنفس الشكل تماماً. رسومات المصنّع الرسمية تحت.' : 'مقطع نموذجي للنظام، والمجسّم 3D بنفس الشكل تماماً.') + ' الأبعاد النهائية حسب مخططات التصنيع.</figcaption></figure></div>';
   const sec = SECMAP[s.code];
   if(sec) h += secFig(s.code, sec, s.more ? (s.secT || 'مقطع التقاء الدرفتين') : '');
   (s.more || []).forEach((m, i) => { const k = s.code + '~' + (i + 1); if(SECMAP[k]) h += secFig(k, SECMAP[k], m.t); });
@@ -925,6 +954,32 @@ function render(){
     eb.addEventListener('click', () => TC.edit(code)); sec.querySelector('.sys-h').appendChild(eb);
   });
   if(window.MzCompany && MzCompany.applyNode) try{ MzCompany.applyNode(document.getElementById('doc'), true); }catch(e){}
+  setTimeout(setupSnaps, 50);
+}
+/* 📸 2026-11-23 (حمدي: "الصورة تبع المقطع... بتلاقيها جزء من المقطع وماعم يتم تعديلها من برا قبل ما نكبس عليها ثري دي"):
+   الصورة برّا = لقطة من نفس المجسّم الثري دي (بتتبدّل لحالها مع أي تعديل)، والرسمة 2D التفصيلية تحت زر «المقطع بالتفصيل». */
+const SNAPQ = [], SNAPPED = new Set(); let snapBusy = false;
+function snapNext(){
+  if(snapBusy || !SNAPQ.length) return;
+  if(document.getElementById('v3').style.display === 'flex'){ setTimeout(snapNext, 1500); return; }   // العارض مفتوح: منستنّى
+  snapBusy = true; const fig = SNAPQ.shift(), key = fig.dataset.snap, sec = SECMAP[key];
+  load3D().then(() => {
+    if(document.getElementById('v3').style.display === 'flex'){ SNAPQ.unshift(fig); snapBusy = false; setTimeout(snapNext, 1500); return; }
+    const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-3000px;top:0;width:720px;height:480px'; document.body.appendChild(box);
+    const keep = window.__v3; let url = '';
+    try{ build3D(sec, box); if(V3){ V3.r.render(V3.scene, V3.cam); url = V3.r.domElement.toDataURL('image/jpeg', 0.86); cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; } }catch(e){ console.warn('[لقطة 3D]', key, e); if(V3){ try{ cancelAnimationFrame(V3.raf); V3.r.dispose(); }catch(_){} V3 = null; } }
+    window.__v3 = keep; box.remove();
+    ['v3x', 'v3m', 'v3k', 'v3i'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
+    if(url && url.length > 2000){ const im = fig.querySelector('img.snap3d'); im.src = url; im.style.display = ''; fig.querySelector('.svg2d').style.display = 'none'; fig.querySelector('.tgl2d').style.display = ''; fig.classList.add('has-snap'); }
+    snapBusy = false; setTimeout(snapNext, 120);
+  }).catch(() => { snapBusy = false; });
+}
+let SNAPIO = null;
+function setupSnaps(){
+  if(!('IntersectionObserver' in window)) return;
+  if(SNAPIO) SNAPIO.disconnect();
+  SNAPIO = new IntersectionObserver(es => es.forEach(e => { if(e.isIntersecting){ const f = e.target; SNAPIO.unobserve(f); if(!SNAPPED.has(f) && SECMAP[f.dataset.snap]){ SNAPPED.add(f); SNAPQ.push(f); snapNext(); } } }), { rootMargin: '300px' });
+  document.querySelectorAll('figure.sec2d[data-snap]').forEach(f => SNAPIO.observe(f));
 }
 // ↩️ 2026-11-22: الرجوع بالموبايل بيسكّر الصورة المكبّرة / الثري دي بدل ما يطلع من الصفحة
 window.addEventListener('popstate', () => { const z = document.getElementById('zoom'); if(z.style.display === 'flex'){ z.style.display = 'none'; return; } if(document.getElementById('v3').style.display === 'flex') close3D(); });
@@ -945,6 +1000,7 @@ window.TC = {
   },
   _hidden: () => Array.from(HIDDEN),
   _items: () => ITEMS,
+  tgl2d(b){ const f = b.closest('figure'), d = f.querySelector('.svg2d'), on = d.style.display === 'none'; d.style.display = on ? '' : 'none'; b.textContent = on ? '🧊 رجّع لصورة الثري دي' : '📐 المقطع بالتفصيل'; f.querySelector('img.snap3d').style.display = on ? 'none' : ''; },
   edit(code){
     let sys = null; CATS.forEach(k => k.sys.forEach(x => { if(x.code === code) sys = x; })); if(!sys) return;
     let d = document.getElementById('tcEd'); if(d) d.remove();

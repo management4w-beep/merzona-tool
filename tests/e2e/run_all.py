@@ -705,7 +705,7 @@ async def t_techcat(p, b, port):
     check(n >= 20, 'كل الأنظمة معروضة ' + str(n))
     txt = await pg.inner_text('#doc')
     check('غير محدد' not in txt and '.pdf' not in txt and 'صفحة)' not in txt and 'الكتالوج بيذكر' not in txt, 'بلا ملاحظات داخلية ولا "غير محدد" ولا أسماء ملفات')
-    srcs = await pg.evaluate("Array.from(document.querySelectorAll('figure:not(.web) img')).map(function(i){ return i.src; })")
+    srcs = await pg.evaluate("Array.from(document.querySelectorAll('figure:not(.web) img:not(.snap3d)')).map(function(i){ return i.src; })")
     bad = []
     for u in srcs:
         r = await pg.request.get(u)
@@ -1294,10 +1294,31 @@ async def t_techcat_video_edit(p, b, port):
     check(await pg.is_visible('#v3k') and (await pg.evaluate('window.__v3.state()'))['cut'], 'مقصوص متل العيّنة (من فوق التقاء الدرفتين ومن الجنب السكة) + زر الشباك كامل')
     await pg.click('#v3k'); await pg.wait_for_timeout(300)
     check(not (await pg.evaluate('window.__v3.state()'))['cut'] and 'مقطوع' in await pg.inner_text('#v3k'), 'زر يرجّع الشباك كامل')
+    await pg.click('#v3k'); await pg.wait_for_timeout(200)
+    await pg.click('#v3x')
+    for _ in range(150):
+        await pg.wait_for_timeout(300)
+        sv = await pg.evaluate('window.__v3.state()')
+        if sv['t'] >= 1: break
+    check(sv['t'] >= 1 and sv['exn'] >= 60 and not sv['cut'], 'فكّ السيستم كلّو: كل جهة من الحلق والدرف والزجاج والعجلات والكاوتشوك بتنفكّ لحالها ' + str(sv))
+    await pg.click('#v3x')
+    for _ in range(150):
+        await pg.wait_for_timeout(300)
+        sv = await pg.evaluate('window.__v3.state()')
+        if sv['t'] <= 0: break
+    check(sv['t'] <= 0 and sv['cut'], 'التركيب رجّع كل شي لمكانو ورجّع القصّ')
     await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
     await pg.click('#MZ-SL-08 .b3d >> nth=1'); await pg.wait_for_timeout(1500)
     check(await pg.evaluate('window.__v3 && window.__v3.cat && !window.__v3.win') and await pg.is_visible('#v3m'), 'X500: مقطع التقاء الدرفتين 3D')
     await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
+    await pg.locator('#MZ-SL-08').scroll_into_view_if_needed()
+    for _ in range(40):
+        await pg.wait_for_timeout(400)
+        nsnap = await pg.evaluate("[...document.querySelectorAll('#MZ-SL-08 img.snap3d')].filter(i => i.src.startsWith('data:image') && i.style.display !== 'none').length")
+        if nsnap >= 2: break
+    check(nsnap >= 2 and await pg.evaluate("!!document.querySelector('#MZ-SL-08 .svg2d svg')"), 'الصورة برّا = لقطة من المجسّم الثري دي نفسه (والمقطع 2D تحت زر التفصيل) ' + str(nsnap))
+    await pg.click('#MZ-SL-08 .tgl2d >> nth=0'); await pg.wait_for_timeout(200)
+    check(await pg.evaluate("document.querySelector('#MZ-SL-08 .svg2d').style.display !== 'none'"), 'زر «المقطع بالتفصيل» بيفتح الرسمة 2D')
     await pg.click('#MZ-SL-09 .b3d'); await pg.wait_for_timeout(1500)
     check(await pg.evaluate('window.__v3.parts') >= 15, 'جيدا: مقطع الالتقاء بوجوه الديكور')
     await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
