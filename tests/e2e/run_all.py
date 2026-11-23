@@ -718,7 +718,7 @@ async def t_techcat(p, b, port):
     fx = os.path.join(ROOT, 'tests', 'e2e', 'fixtures', 'three')
     await ctx.route('**/three.min.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'three.min.js'), 'rb').read()))
     await ctx.route('**/OrbitControls.js', lambda r: r.fulfill(status=200, content_type='application/javascript', body=open(os.path.join(fx, 'OrbitControls.js'), 'rb').read()))
-    nb = await pg.locator('.b3d').count(); check(nb == n, 'كل نظام إلو مقطع ميرزونا مع زر 3D (' + str(nb) + '/' + str(n) + ')')
+    nb = await pg.evaluate("Array.from(document.querySelectorAll('section.sys')).filter(function(s){ return s.querySelector('.b3d'); }).length"); check(nb == n, 'كل نظام إلو مقطع ميرزونا مع زر 3D (' + str(nb) + '/' + str(n) + ')')
     for code in ['MZ-SL-01', 'MZ-SL-05', 'MZ-HG-01', 'MZ-HG-03', 'MZ-FD-01', 'MZ-PV-01', 'MZ-CW-03', 'MZ-CW-05', 'MZ-BL-01', 'MZ-VS-01']:
         await pg.click('#' + code + ' .b3d'); await pg.wait_for_timeout(1200)
         v = await pg.evaluate("[window.__v3, !!document.querySelector('#v3c canvas'), getComputedStyle(document.getElementById('v3')).display, TC.SECMAP['%s'].parts.length]" % code)
