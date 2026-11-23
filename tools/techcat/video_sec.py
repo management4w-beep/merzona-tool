@@ -59,8 +59,9 @@ def interlock(W=46, H=28, P=14, gl=6, gap=6, off=8, hookx=None, pad='gk', sys='X
     # الدرفة الداخلية (فوق)
     a = Prof('al', sys + ' — درفة (مقطع الالتقاء)')
     a.box(P, 0, P + W, H, t, r=5)
-    a.rect(0, H - t, P, H).rect(0, H - 4, t, H)                 # شفة الجيب العليا + حاجز
-    a.rect(2, 0, P, t).rect(2, 0, 2 + t, 3.5)                   # الشفة السفلى
+    # الشفاف لازم تطلع من الجدار المستقيم (بعد تدوير الزاوية) — متصلة بالحجرة مش معلّقة بالهوا
+    a.rect(0, H - t, P + 6.5, H).rect(0, H - 4, t, H)           # شفة الجيب العليا + حاجز
+    a.rect(2, 0, P + 6.5, t).rect(2, 0, 2 + t, 3.5)             # الشفة السفلى
     hx = hookx if hookx is not None else P + W * 0.42
     # خطاف لتحت بيلفّ لليمين (متل نقشة الفيرزاتشي) — بيتعشّق بخطاف الدرفة التانية
     yb_ = -gap - 2
@@ -72,9 +73,9 @@ def interlock(W=46, H=28, P=14, gl=6, gap=6, off=8, hookx=None, pad='gk', sys='X
     y1 = -gap - 2; y0 = y1 - (H + 4)
     b.box(off - 4, y0, off - 4 + W, y1, t, r=6)
     bx = off - 4 + W
-    b.rect(bx, y1 - t, bx + P, y1).rect(bx + P - t, y1 - 4, bx + P, y1)
-    b.rect(bx, y0, bx + P - 2, y0 + t).rect(bx + P - 2 - t, y0, bx + P - 2, y0 + 3.5)
-    b.rect(off - 2, y1, off - 2 + t, y1 + 3.6).rect(off - 2, y1 + 3.6 - t, off + 8, y1 + 3.6)   # شفة لفوق للفرشاية
+    b.rect(bx - 7.5, y1 - t, bx + P, y1).rect(bx + P - t, y1 - 4, bx + P, y1)
+    b.rect(bx - 7.5, y0, bx + P - 2, y0 + t).rect(bx + P - 2 - t, y0, bx + P - 2, y0 + 3.5)
+    b.rect(off + 3, y1 - 0.5, off + 3 + t, y1 + 3.6).rect(off - 2, y1 + 3.6 - t, off + 8, y1 + 3.6)   # شفة لفوق للفرشاية (طالعة من الجدار المستقيم)
     # خطاف لفوق بيلفّ لليسار، راسه فوق رجل خطاف الدرفة الأولى ورجله جوّا قناتها — متعشّقين بفراغ 0.6 ملم
     b.rect(hx + 10 - t, y1, hx + 10, -1.6).rect(hx + 3, -3, hx + 10, -1.6).rect(hx + 3, -4.4, hx + 3 + t, -1.6)
     parts += b.build()
@@ -213,7 +214,7 @@ def window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='X500', deco
         f.poly(bulge_band(half, yb, 16, bulge * 0.55)).poly(bulge_band(half, yb - deep, yb, bulge))
         f.rect(half - 6, yb - t, half, yb)
         f.circ(half - 1.2, 16.2, 2.4).circ(half - 1.2, 16.2, 1.1, sub=True).rect(half - 2.4, 15, half - 1.2, 16.4, sub=True)   # شفة ملفوفة
-        f.rect(half - 3.4, yb - deep + 1.6, half - t + 0.01, yb - deep + 3).rect(half - 3.4, yb - deep + 1.6, half - 2, yb - deep + 4.2)  # كبّاس
+        f.rect(half - 3.4, yb - deep + 1.6, half - t + 0.01, yb - deep + 3).rect(half - 3.4, yb - deep, half - 2, yb - deep + 4.2)  # كبّاس (طالع من القاعدة)
     else:
         f.rect(half - t, yb - t, half, 16).rect(half - 6, 16 - t, half, 16)            # جدار خارجي + شفة
     f.rect(-0.7, yb, 0.7, 2)                                                        # فاصل المسارين

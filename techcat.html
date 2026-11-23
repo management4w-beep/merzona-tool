@@ -122,7 +122,7 @@ section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 <div class="zoom" id="zoom" onclick="if(history.state && history.state.tcModal) history.back(); else this.style.display='none'"><img id="zoomImg" alt=""></div>
 <div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" id="v3x" style="display:none" onclick="TC.v3Explode()">💥 فكّ القطع</button><button type="button" id="v3m" style="display:none" onclick="TC.v3Move()">🚪 افتح</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
 <div id="v3c" class="v3c" style="position:relative"></div><div id="v3i" style="display:none;background:#12324a;color:#fff;padding:6px 10px;font-size:14px"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
-<script src="techcat-sec.js?v=2026-11-23e"></script>
+<script src="techcat-sec.js?v=2026-11-23f"></script>
 <script>
 (function(){
 'use strict';
@@ -144,7 +144,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&
    اقدر اعمله زوم ان و اوت وحركه". كل مقطع معرّف مرة وحدة كأشكال بالملم (نفس الأشكال بتنرسم 2D وبتنبنى 3D)،
    فالرسمة والمجسّم دايماً متطابقين 100%. المجسّم = نفس المقطع مسحوب بطول 400 ملم. */
 const MAT = {
-  al:  { fill: '#cfd8de', stroke: '#33434d', name: 'ألمنيوم', color: 0xc3ccd3, metal: 0.35, rough: 0.42 },
+  al:  { fill: '#cfd8de', stroke: '#33434d', name: 'ألمنيوم', color: 0x939ea7, metal: 0.4, rough: 0.4 },
   tb:  { fill: 'url(#tbh)', stroke: '#33434d', name: 'عازل حراري بولي أميد', color: 0x7a5a2f, metal: 0, rough: 0.7 },
   gl:  { fill: '#d6ecf7', stroke: '#5b94b3', name: 'زجاج', color: 0x9fd3ea, metal: 0, rough: 0.05, glass: true },
   gk:  { fill: '#2d3a42', stroke: '#1b2328', name: 'غاسكيت EPDM', color: 0x1e2428, metal: 0, rough: 0.9 },
@@ -410,7 +410,7 @@ function build3D(sec, box){
   if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; }
   box.innerHTML = '';
   const T = THREE, w = box.clientWidth, h = box.clientHeight;
-  const r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.setSize(w, h); r.setClearColor(0xeef2f5);
+  const r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true }); r.setPixelRatio(Math.min(3, Math.max(1.5, window.devicePixelRatio || 1))); r.setSize(w, h); r.setClearColor(0xeef2f5);
   if(r.outputEncoding !== undefined) r.outputEncoding = T.sRGBEncoding;
   box.appendChild(r.domElement);
   const scene = new T.Scene();
@@ -430,13 +430,13 @@ function build3D(sec, box){
     const sh = new T.Shape(p.pts.map(([x, y]) => new T.Vector2(x - cx, y - cy)));
     (p.holes || []).forEach(hl => sh.holes.push(new T.Path(hl.map(([x, y]) => new T.Vector2(x - cx, y - cy)))));
     const g = new T.ExtrudeGeometry(sh, { depth: L, bevelEnabled: false, curveSegments: 2 }); g.translate(0, 0, -L / 2);
-    const mat = new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: !!m.glass, opacity: m.glass ? 0.38 : 1, side: T.DoubleSide, depthWrite: !m.glass });
+    const mat = new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: !!m.glass, opacity: m.glass ? 0.38 : 1, side: T.DoubleSide, depthWrite: !m.glass, polygonOffset: !m.glass, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     const mesh = new T.Mesh(g, mat); grp.add(mesh);
     if(!m.glass) grp.add(new T.LineSegments(new T.EdgesGeometry(g, 25), new T.LineBasicMaterial({ color: 0x33434d, transparent: true, opacity: 0.35 })));
   });
   scene.add(grp);
   const size = Math.max(x1 - x0, y1 - y0, L), Rb = 0.5 * Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + L * L);
-  const cam = new T.PerspectiveCamera(35, w / h, 1, size * 20); const dist = Rb / Math.sin(35 * Math.PI / 360) * (w < h ? 1.35 : 1.0);
+  const cam = new T.PerspectiveCamera(35, w / h, 0.05, size * 40); const dist = Rb / Math.sin(35 * Math.PI / 360) * (w < h ? 1.35 : 1.0);
   cam.position.copy(new T.Vector3(0.62, 0.38, 0.69).normalize().multiplyScalar(dist));
   const ctl = new T.OrbitControls(cam, r.domElement); ctl.enableDamping = true; ctl.autoRotate = true; ctl.autoRotateSpeed = 1.2; ctl.target.set(0, 0, 0); ctl.update();
   ['pointerdown', 'wheel', 'touchstart'].forEach(ev => r.domElement.addEventListener(ev, () => { ctl.autoRotate = false; }, { passive: true }));
@@ -488,7 +488,7 @@ function buildWindow(sec, box){
   document.getElementById('v3l').innerHTML = used.map(k => '<span><i style="background:' + (MAT[k] || MAT.al).fill + '"></i>' + (MAT[k] || MAT.al).name + '</span>').join('');
   ['v3x', 'v3m'].forEach(id => { document.getElementById(id).style.display = ''; });
   const T = THREE, w = box.clientWidth, h = box.clientHeight;
-  const r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.setSize(w, h); r.setClearColor(0xeef2f5);
+  const r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true }); r.setPixelRatio(Math.min(3, Math.max(1.5, window.devicePixelRatio || 1))); r.setSize(w, h); r.setClearColor(0xeef2f5);
   if(r.outputEncoding !== undefined) r.outputEncoding = T.sRGBEncoding;
   box.appendChild(r.domElement);
   const scene = new T.Scene();
@@ -501,7 +501,7 @@ function buildWindow(sec, box){
   const groups = { frame: new T.Group(), A: new T.Group(), B: new T.Group() };
   Object.values(groups).forEach(g => root.add(g));
   groups.A.position.x = cxs.A; groups.B.position.x = cxs.B;
-  const matOf = (p) => { const m = MAT[p.mat] || MAT.al; return new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: !!m.glass, opacity: m.glass ? 0.32 : 1, side: T.DoubleSide, depthWrite: !m.glass }); };
+  const matOf = (p) => { const m = MAT[p.mat] || MAT.al; return new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: !!m.glass, opacity: m.glass ? 0.32 : 1, side: T.DoubleSide, depthWrite: !m.glass, polygonOffset: !m.glass, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }); };
   const wheels = [], EXP = [];
   const exp = (o, x, y, z) => { o.userData.base = o.position.clone(); o.userData.ex = new T.Vector3(x, y, z); EXP.push(o); return o; };
   sec.parts.forEach(p => {
@@ -526,7 +526,7 @@ function buildWindow(sec, box){
     for(let k = 0; k < 4; k++){
       const geo = role === 'frame' ? ringMember(T, loops, W, H, W0.frameY0, k) : ringMember(T, loops, ws, hs, W0.sashY0, k);
       const m = tag(new T.Mesh(geo, mat)); g.add(m); exp(m, DIRS[k][0] * far * f, DIRS[k][1] * far * f, 0);
-      if(p.mat === 'al'){ const ln = new T.LineSegments(new T.EdgesGeometry(geo, 30), new T.LineBasicMaterial({ color: 0x33434d, transparent: true, opacity: 0.25 })); g.add(ln); exp(ln, DIRS[k][0] * far * f, DIRS[k][1] * far * f, 0); }
+      if(p.mat === 'al'){ const ln = new T.LineSegments(new T.EdgesGeometry(geo, 30), new T.LineBasicMaterial({ color: 0x26323a, transparent: true, opacity: 0.45 })); g.add(ln); exp(ln, DIRS[k][0] * far * f, DIRS[k][1] * far * f, 0); }
     }
   });
   // خطاف الالتقاء بين الدرفتين (متعشّقين متل نقشة الفيرزاتشي) + فرشاية + قطعة بلاستيك ماسكة السكة تحت (حمدي 2026-11-23)
@@ -561,7 +561,7 @@ function buildWindow(sec, box){
   let kb = document.getElementById('v3k');
   if(!kb){ kb = document.createElement('button'); kb.type = 'button'; kb.id = 'v3k'; const xb = document.getElementById('v3x'); xb.parentNode.insertBefore(kb, xb); }
   kb.style.display = ''; kb.onclick = () => setCut(!cut); setCut(true);
-  const cam = new T.PerspectiveCamera(35, w / h, 5, 20000); const R = 0.5 * Math.hypot(W, H);
+  const cam = new T.PerspectiveCamera(35, w / h, 0.2, 40000); const R = 0.5 * Math.hypot(W, H);
   // الكاميرا على القطعة المقصوصة (من فوق-جنب)، مركّزة على التقاء الدرفتين
   const tgt = new T.Vector3(W * 0.12, -H / 2 + H * 0.16, 0), R2 = 0.5 * Math.hypot(W, H * 0.42) * (w < h ? 2.1 : 1.35);
   cam.position.set(tgt.x + R2 * 0.75, tgt.y + R2 * 1.0, tgt.z + R2 * 1.45);
@@ -607,7 +607,7 @@ function build3Dcat(sec, box){
   document.getElementById('v3l').innerHTML = used.map(k => '<span><i style="background:' + (k === 'tb' ? '#c9a46b' : (MAT[k] || MAT.al).fill) + '"></i>' + (MAT[k] || MAT.al).name + '</span>').join('');
   document.getElementById('v3x').style.display = '';
   const T = THREE, w = box.clientWidth, h = box.clientHeight;
-  const r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.setSize(w, h); r.setClearColor(0xeef2f5);
+  const r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true }); r.setPixelRatio(Math.min(3, Math.max(1.5, window.devicePixelRatio || 1))); r.setSize(w, h); r.setClearColor(0xeef2f5);
   if(r.outputEncoding !== undefined) r.outputEncoding = T.sRGBEncoding;
   box.appendChild(r.domElement);
   const scene = new T.Scene();
@@ -625,7 +625,7 @@ function build3Dcat(sec, box){
   const cen = (p) => { let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; p.pts.forEach(([x, y]) => { a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); d = Math.max(d, y); }); return [(a + c) / 2, (b + d) / 2]; };
   sec.parts.forEach((p, i) => {
     const m = MAT[p.mat] || MAT.al, g = new T.Group();
-    const mat = new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: true, opacity: m.glass ? 0.36 : 1, side: T.DoubleSide, depthWrite: !m.glass });
+    const mat = new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: !!m.glass, opacity: m.glass ? 0.36 : 1, side: T.DoubleSide, depthWrite: !m.glass, polygonOffset: !m.glass, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
     if(p.screw){
       const S = p.screw, len = Math.abs(S.b - S.a), rr = S.d / 2;
       const body = new T.Mesh(new T.CylinderGeometry(rr * 0.82, rr * 0.82, len, 20), mat); g.add(body);
@@ -674,7 +674,7 @@ function build3Dcat(sec, box){
   const exC = new T.Vector3(); { let n = 0; items.forEach(it => { exC.add(it.disp.clone().multiplyScalar(0.5)); n++; }); if(n) exC.divideScalar(n); }
   const exR = Math.max(...items.map(it => it.disp.length()), 1); const panT = new T.Vector3();
   const size = Math.max(x1 - x0, y1 - y0, L), Rb = 0.5 * Math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2 + L * L);
-  const cam = new T.PerspectiveCamera(35, w / h, 1, size * 30); const dist = Rb / Math.sin(35 * Math.PI / 360) * (w < h ? 1.45 : 1.08);
+  const cam = new T.PerspectiveCamera(35, w / h, 0.05, size * 60); const dist = Rb / Math.sin(35 * Math.PI / 360) * (w < h ? 1.45 : 1.08);
   const camDir = sec.view !== 'flat' ? new T.Vector3(0.42, 0.95, 0.62) : new T.Vector3(0.5, 0.32, 0.8);
   cam.position.copy(camDir.normalize().multiplyScalar(dist));
   const ctl = new T.OrbitControls(cam, r.domElement); ctl.enableDamping = true; ctl.autoRotate = true; ctl.autoRotateSpeed = 0.8; ctl.target.set(0, 0, 0); ctl.update();
@@ -967,7 +967,7 @@ function snapNext(){
     if(document.getElementById('v3').style.display === 'flex'){ SNAPQ.unshift(fig); snapBusy = false; setTimeout(snapNext, 1500); return; }
     const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-3000px;top:0;width:720px;height:480px'; document.body.appendChild(box);
     const keep = window.__v3; let url = '';
-    try{ build3D(sec, box); if(V3){ V3.r.render(V3.scene, V3.cam); url = V3.r.domElement.toDataURL('image/jpeg', 0.86); cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; } }catch(e){ console.warn('[لقطة 3D]', key, e); if(V3){ try{ cancelAnimationFrame(V3.raf); V3.r.dispose(); }catch(_){} V3 = null; } }
+    try{ build3D(sec, box); if(V3){ V3.r.setPixelRatio(2); V3.r.setSize(720, 480); V3.r.render(V3.scene, V3.cam); url = V3.r.domElement.toDataURL('image/jpeg', 0.86); cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; } }catch(e){ console.warn('[لقطة 3D]', key, e); if(V3){ try{ cancelAnimationFrame(V3.raf); V3.r.dispose(); }catch(_){} V3 = null; } }
     window.__v3 = keep; box.remove();
     ['v3x', 'v3m', 'v3k', 'v3i'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; });
     if(url && url.length > 2000){ const im = fig.querySelector('img.snap3d'); im.src = url; im.style.display = ''; fig.querySelector('.svg2d').style.display = 'none'; fig.querySelector('.tgl2d').style.display = ''; fig.classList.add('has-snap'); }
