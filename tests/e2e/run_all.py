@@ -1280,14 +1280,20 @@ async def t_techcat_video_edit(p, b, port):
         t = await pg.inner_text('#' + code)
         imgs = await pg.evaluate("Promise.all(Array.from(document.querySelectorAll('#%s figure img')).map(function(i){ return fetch(i.src).then(function(r){ return r.ok && /image/.test(r.headers.get('content-type') || ''); }); })).then(function(a){ return a.filter(Boolean).length; })" % code)
         check(n3 == 2 and nm in t and imgs >= 3, code + ' ' + nm + ': مقطعين 3D (الالتقاء + العتبة) وصور من الفيديو ' + str((n3, imgs)))
-    # المجسّم: X500 العتبة — فتح الدرفة على الطول + فكّ
-    await pg.click('#MZ-SL-08 .b3d >> nth=1'); await pg.wait_for_timeout(1800)
-    check(await pg.evaluate('window.__v3 && window.__v3.cat') and await pg.is_visible('#v3m') and await pg.is_visible('#v3x'), 'X500 العتبة: 3D مع زر فتح وزر فكّ')
+    # المجسّم: X500 شباك كامل — درفتين على سكّتين، فتح الدرفة الخارجية ورا الداخلية + فكّ
+    await pg.click('#MZ-SL-08 .b3d >> nth=0'); await pg.wait_for_timeout(1800)
+    check(await pg.evaluate('window.__v3 && window.__v3.win') and await pg.is_visible('#v3m') and await pg.is_visible('#v3x'), 'X500: شباك كامل 3D (درفتين) مع زر فتح وزر فكّ')
     await pg.click('#v3m')
-    for _ in range(60):
+    for _ in range(80):
         await pg.wait_for_timeout(300)
         if (await pg.evaluate('window.__v3.state()'))['mt'] == 1: break
-    check((await pg.evaluate('window.__v3.state()'))['mt'] == 1, 'الدرفة انسحبت على السكة')
+    sv = await pg.evaluate('window.__v3.state()')
+    check(sv['mt'] == 1 and sv['bx'] < -150, 'الدرفة الخارجية انسحبت ورا الداخلية ' + str(sv['bx']))
+    sec = await pg.evaluate("(function(){ var s = TC.SECMAP['MZ-SL-08']; var r = {}; s.parts.forEach(function(p){ if(p.wheel) r[p.role] = p.wheel.cx; }); var rails = s.win.pitch / 2; return [r.A, r.B, rails]; })()")
+    check(abs(sec[0] + sec[2]) < 0.01 and abs(sec[1] - sec[2]) < 0.01, 'كل درفة بنص سكّتها بالظبط ' + str(sec))
+    await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
+    await pg.click('#MZ-SL-08 .b3d >> nth=1'); await pg.wait_for_timeout(1500)
+    check(await pg.evaluate('window.__v3 && window.__v3.cat && !window.__v3.win') and await pg.is_visible('#v3m'), 'X500: مقطع التقاء الدرفتين 3D')
     await pg.click('#v3 button >> text=✕'); await pg.wait_for_timeout(200)
     await pg.click('#MZ-SL-09 .b3d'); await pg.wait_for_timeout(1500)
     check(await pg.evaluate('window.__v3.parts') >= 15, 'جيدا: مقطع الالتقاء بوجوه الديكور')

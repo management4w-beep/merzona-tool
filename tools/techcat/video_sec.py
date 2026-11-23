@@ -161,6 +161,52 @@ def gida_ilk():
     f = Prof('al', 'جيدا — وجه ديكور منحني للدرفة'); f.poly(arc_band(4 + 48 / 2, -41, 19, 9, 180, 360, t=1.5)).rect(8.2, -42.4, 10.4, -40.6).rect(45.6, -42.4, 47.8, -40.6); parts += f.build()
     return parts
 
+def sash_parts(cx, SW, GH, gl, wheel, rail_top, sys, role, name_sfx):
+    """درفة سفلية متمركزة على السكة (cx) — البروفايل + العربانة + العجل + الفرش + الزجاج"""
+    t = 1.4; hs = SW / 2; P = []
+    s = Prof('al', sys + ' — درفة ' + name_sfx)
+    s.rect(cx - hs, 0, cx - hs + t, 33 + GH).rect(cx + hs - t, 0, cx + hs, 33 + GH)
+    s.rect(cx - hs, 32.3, cx + hs, 33.7)
+    s.rect(cx - hs, 0, cx - hs + 3.6, t).rect(cx + hs - 3.6, 0, cx + hs, t)
+    s.rect(cx - hs, 33 + GH - t, cx - hs + 5.5, 33 + GH).rect(cx + hs - 5.5, 33 + GH - t, cx + hs, 33 + GH)
+    s.rect(cx - 3.2, 26.5, cx + 3.2, 32.3).rect(cx - 1.8, 27.9, cx + 1.8, 32.3, sub=True).rect(cx - 0.9, 26.5, cx + 0.9, 28, sub=True)
+    s.rect(cx - hs + t, 17, cx - hs + 3.2, 18.4).rect(cx + hs - 3.2, 17, cx + hs - t, 18.4)
+    P += s.build()
+    cy = rail_top + wheel; ww = 5.0
+    for z in ([-0.4, -0.14], [0.14, 0.4]):
+        c = Prof('al', 'عربانة العجل (Roller carriage)', z=z); c.rect(cx - hs + 3.4, 9, cx + hs - 3.4, cy + wheel + 6).rect(cx - hs + 4.8, 9, cx + hs - 4.8, cy + wheel + 4.6, sub=True); P += c.build()
+        P.append({'mat': 'rl', 'name': 'عجل نايلون على بلي (Roller)', 'pts': [[cx - ww / 2, cy - wheel], [cx + ww / 2, cy - wheel], [cx + ww / 2, cy + wheel], [cx - ww / 2, cy + wheel]], 'holes': [],
+                  'wheel': {'cx': cx, 'cy': cy, 'r': wheel, 'w': ww, 'zc': (z[0] + z[1]) / 2}})
+    for x0 in (cx - hs + 1.6, cx + 3.6):
+        g = Prof('gk', 'فرشاية إحكام (Pile weather strip)'); g.rect(x0, 0.2, x0 + min(6, hs - 5.4), rail_top + 1.2, 0.8); P += g.build()
+    P.append({'mat': 'gl', 'pts': [[cx - gl / 2, 36], [cx + gl / 2, 36], [cx + gl / 2, 110], [cx - gl / 2, 110]], 'holes': [], 'name': 'زجاج'})
+    for xx in (cx - gl / 2 - 2.4, cx + gl / 2):
+        g = Prof('gk', 'غاسكيت تزجيج'); g.rect(xx, 33 + GH - 7, xx + 2.4, 33 + GH + 0.6, 0.7); P += g.build()
+    for q in P: q['role'] = role
+    return P
+
+def window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='X500', deco=False):
+    """مقطع العتبة لشباك سحّاب بمسارين: فريم متناظر، سكتين، وكل درفة بنص سكّتها بالظبط (متل العيّنة)"""
+    t = 1.4; pitch = SW + gapT; half = pitch / 2 + SW / 2 + 5.5; yb = -10; rail_top = 5.2
+    f = Prof('al', sys + ' — فريم (عتبة / راس / جوانب)')
+    f.rect(-half, yb - t, half, yb)
+    for rx in (-pitch / 2, pitch / 2):
+        f.rect(rx - 0.7, yb, rx + 0.7, rail_top - 1.2).rect(rx - 2.6, rail_top - 1.4, rx + 2.6, rail_top, 0.6)
+    f.rect(-half, yb - t, -half + t, 16).rect(-half, 16 - t, -half + 6, 16)        # جدار داخلي + شفة
+    f.rect(half - t, yb - t, half, 16).rect(half - 6, 16 - t, half, 16)            # جدار خارجي + شفة
+    f.rect(-0.7, yb, 0.7, 2)                                                        # فاصل المسارين
+    f.box(-half, yb - deep, half, yb + 0.01, t)                                     # الحجرة السفلية
+    f.rect(-pitch / 2 - 0.7, yb - deep, -pitch / 2 + 0.7, yb).rect(pitch / 2 - 0.7, yb - deep, pitch / 2 + 0.7, yb)
+    parts = f.build()
+    for q in parts: q['role'] = 'frame'
+    parts += sash_parts(-pitch / 2, SW, GH, gl, wheel, rail_top, sys, 'A', 'داخلية')
+    parts += sash_parts(pitch / 2, SW, GH, gl, wheel, rail_top, sys, 'B', 'خارجية')
+    if deco:  # جيدا: وجوه ديكور منحنية عالفريم والدرف
+        d = Prof('al', 'جيدا — غطاء ديكور منحني للفريم'); d.poly(arc_band(half, yb - deep, 18, deep + 26, 0, 90, t=1.6)).rect(half - 1.4, 14.6, half + 1, 16).rect(half - 2, yb - deep, half + 18, yb - deep + 1.6)
+        for q in d.build(): q['role'] = 'frame'; parts.append(q)
+    win = {'W': 640, 'H': 520, 'frameY0': yb - deep, 'sashY0': 0, 'glassIn': 36, 'overlap': 26, 'pitch': pitch}
+    return parts, win
+
 def to_sec(parts, src, normal='y', motion=None, view=None):
     def cen(p):
         xs = [q[0] for q in p['pts']]; ys = [q[1] for q in p['pts']]; return ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)
@@ -172,19 +218,23 @@ def to_sec(parts, src, normal='y', motion=None, view=None):
     d = {'parts': parts, 'src': src, 'normal': normal, 'motion': mo, 'labels': [], 'dims': [], 'view': view, 'video': True}
     return d
 
+def to_win(pw, src):
+    parts, win = pw
+    return {'parts': parts, 'src': src, 'normal': 'x', 'motion': None, 'labels': [], 'dims': [], 'view': 'flat', 'video': True, 'win': win}
+
 SRC300 = 'مرسوم من عيّنة X300S بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)'
 SRC500 = 'مرسوم من عيّنة X500 بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)'
 out = {
     'x300_ilk': to_sec(interlock(W=44, H=28, P=13, gl=6, sys='X300S'), SRC300, motion={'type': 'slide', 'dx': -130, 'box': [-200, -200, 200, -5]}),
-    'x300_sill': to_sec(sill(SW=28, GH=24, gl=6, frameW=60, deep=26, wheel=4.2, sys='X300S'), SRC300, motion={'type': 'slide', 'dz': 120, 'sash_names': True}, view='flat'),
+    'x300_sill': to_win(window_sill(SW=28, GH=24, gl=6, wheel=4.2, gapT=7, deep=22, sys='X300S'), SRC300),
     'x500_ilk': to_sec(interlock(W=52, H=34, P=15, gl=8, gap=7, off=10, pad='pd', sys='X500'), SRC500, motion={'type': 'slide', 'dx': -150, 'box': [-200, -200, 200, -6]}),
-    'x500_sill': to_sec(sill(SW=34, GH=28, gl=8, frameW=70, deep=34, wheel=4.8, sys='X500'), SRC500, motion={'type': 'slide', 'dz': 140, 'sash_names': True}, view='flat'),
+    'x500_sill': to_win(window_sill(SW=34, GH=28, gl=8, wheel=4.8, gapT=9, deep=30, sys='X500'), SRC500),
     'gida_ilk': to_sec(gida_ilk(), 'مرسوم من عيّنة جيدا بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -140, 'box': [-200, -200, 200, -5]}),
-    'gida_sill': to_sec(gida_sill(), 'مرسوم من عيّنة جيدا بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dz': 130, 'sash_names': True}, view='flat'),
+    'gida_sill': to_win(window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='جيدا', deco=True), 'مرسوم من عيّنة جيدا بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)'),
     'hummer_ilk': to_sec(interlock(W=46, H=30, P=14, gl=6, gap=6, off=8, sys='همر'), 'مرسوم تقريبي من شكل شباك همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -140, 'box': [-200, -200, 200, -5]}),
-    'hummer_sill': to_sec(sill(SW=32, GH=26, gl=6, frameW=66, deep=30, wheel=4.6, sys='همر'), 'مرسوم تقريبي من شكل شباك همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dz': 130, 'sash_names': True}, view='flat'),
+    'hummer_sill': to_win(window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='همر'), 'مرسوم تقريبي من شكل شباك همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)'),
     'thummer_ilk': to_sec(interlock(W=38, H=26, P=12, gl=6, gap=5, off=7, sys='تيكنال همر'), 'مرسوم تقريبي من شكل شباك تيكنال همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -130, 'box': [-200, -200, 200, -4]}),
-    'thummer_sill': to_sec(sill(SW=28, GH=24, gl=6, frameW=58, deep=24, wheel=4.2, sys='تيكنال همر'), 'مرسوم تقريبي من شكل شباك تيكنال همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dz': 120, 'sash_names': True}, view='flat'),
+    'thummer_sill': to_win(window_sill(SW=28, GH=24, gl=6, wheel=4.2, gapT=7, deep=22, sys='تيكنال همر'), 'مرسوم تقريبي من شكل شباك تيكنال همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)'),
 }
 json.dump(out, open('/home/claude/cat/video_sections.json', 'w'), ensure_ascii=False)
 for k, v in out.items(): print(k, len(v['parts']), 'motion parts', len((v['motion'] or {}).get('parts', [])))

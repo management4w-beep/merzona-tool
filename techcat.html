@@ -121,7 +121,7 @@ section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 <div class="zoom" id="zoom" onclick="if(history.state && history.state.tcModal) history.back(); else this.style.display='none'"><img id="zoomImg" alt=""></div>
 <div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" id="v3x" style="display:none" onclick="TC.v3Explode()">💥 فكّ القطع</button><button type="button" id="v3m" style="display:none" onclick="TC.v3Move()">🚪 افتح</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
 <div id="v3c" class="v3c" style="position:relative"></div><div id="v3i" style="display:none;background:#12324a;color:#fff;padding:6px 10px;font-size:14px"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
-<script src="techcat-sec.js?v=2026-11-23a"></script>
+<script src="techcat-sec.js?v=2026-11-23b"></script>
 <script>
 (function(){
 'use strict';
@@ -449,7 +449,95 @@ function build3D(sec, box){
    وبيبين كيف تركيب كل قطعة" + "بالستراكشر... لما اعمل اكسبلود بدك تشيل سيليكون، ولما اعمل تجميع ترجع السيليكون"):
    مجسّم من القطع الحقيقية المتتبّعة من رسومات الكتالوج: كل قطعة لحالها، زر فكّ/تجميع متحرّك، البراغي بأسنان، السيليكون
    بيختفي أول الفكّ وبينحط آخر التجميع كأنه عم ينكبس بالمسدس، والكبس على أي قطعة بيطلّع اسمها ورقمها. */
+/* 🪟 2026-11-23 (حمدي: "بدي ياه يكون متل الفيديو درفتين مع بعض و الدرفة تكون بوسط السكة"):
+   شباك سحّاب كامل من بروفايلات المقطع: فريم بزوايا 45° (نفس البروفايل على الأربع جهات)، درفتين كل وحدة بنص سكّتها،
+   زجاج، عجلات بتلفّ لما تنسحب الدرفة، وفكّ القطع (الدرف بتطلع لبرّا ولجوّا). */
+function ringGeo(T, loops, w, h, s0){
+  // loops: [outer, ...holes] بنقاط المقطع [x=العمق, y=الارتفاع]؛ s = y - s0 (البعد عن الوجه الخارجي للحلقة)
+  const pos = [];
+  const P = (m, e, s, z) => m === 0 ? [e * (w / 2 - s), -h / 2 + s, z] : m === 1 ? [w / 2 - s, e * (h / 2 - s), z] : m === 2 ? [e * (w / 2 - s), h / 2 - s, z] : [-w / 2 + s, e * (h / 2 - s), z];
+  loops.forEach(L => { for(let m = 0; m < 4; m++) for(let i = 0; i < L.length; i++){
+    const a = L[i], b = L[(i + 1) % L.length], sa = a[1] - s0, sb = b[1] - s0;
+    const A0 = P(m, -1, sa, a[0]), A1 = P(m, 1, sa, a[0]), B0 = P(m, -1, sb, b[0]), B1 = P(m, 1, sb, b[0]);
+    pos.push(...A0, ...B0, ...B1, ...A0, ...B1, ...A1);
+  } });
+  const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+}
+function buildWindow(sec, box){
+  if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; }
+  box.innerHTML = '';
+  const used = []; sec.parts.forEach(p => { if(!used.includes(p.mat)) used.push(p.mat); });
+  document.getElementById('v3l').innerHTML = used.map(k => '<span><i style="background:' + (MAT[k] || MAT.al).fill + '"></i>' + (MAT[k] || MAT.al).name + '</span>').join('');
+  ['v3x', 'v3m'].forEach(id => { document.getElementById(id).style.display = ''; });
+  const T = THREE, w = box.clientWidth, h = box.clientHeight;
+  const r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); r.setSize(w, h); r.setClearColor(0xeef2f5);
+  if(r.outputEncoding !== undefined) r.outputEncoding = T.sRGBEncoding;
+  box.appendChild(r.domElement);
+  const scene = new T.Scene();
+  scene.add(new T.HemisphereLight(0xffffff, 0x8a9aa5, 0.85));
+  const d1 = new T.DirectionalLight(0xffffff, 0.8); d1.position.set(600, 900, 900); scene.add(d1);
+  const d2 = new T.DirectionalLight(0xdfe9f2, 0.45); d2.position.set(-700, 300, -600); scene.add(d2);
+  const W0 = sec.win, W = W0.W, H = W0.H, i0 = -W0.frameY0, ws = (W - 2 * i0) / 2 + W0.overlap / 2, hs = H - 2 * i0;
+  const cxs = { A: -W / 2 + i0 + ws / 2, B: W / 2 - i0 - ws / 2 };
+  const root = new T.Group(); scene.add(root);
+  const groups = { frame: new T.Group(), A: new T.Group(), B: new T.Group() };
+  Object.values(groups).forEach(g => root.add(g));
+  groups.A.position.x = cxs.A; groups.B.position.x = cxs.B;
+  const matOf = (p) => { const m = MAT[p.mat] || MAT.al; return new T.MeshStandardMaterial({ color: m.color, metalness: m.metal, roughness: m.rough, transparent: !!m.glass, opacity: m.glass ? 0.32 : 1, side: T.DoubleSide, depthWrite: !m.glass }); };
+  const wheels = [];
+  sec.parts.forEach(p => {
+    const role = p.role || 'frame', g = groups[role] || groups.frame, mat = matOf(p);
+    const tag = (o) => { o.userData.name = p.name || (MAT[p.mat] || {}).name || ''; return o; };
+    const ys = p.pts.map(q => q[1]), xs = p.pts.map(q => q[0]);
+    if(p.mat === 'gl'){ // لوح الزجاج جوّا الدرفة
+      const gi = W0.glassIn, gw = ws - 2 * gi, gh = hs - 2 * gi, t = Math.max(...xs) - Math.min(...xs), z = (Math.max(...xs) + Math.min(...xs)) / 2;
+      const m = tag(new T.Mesh(new T.BoxGeometry(gw, gh, t), mat)); m.position.set(0, 0, z); g.add(m); return; }
+    if(p.wheel){ const Wh = p.wheel;
+      [-1, 1].forEach(sd => { const cyl = tag(new T.Mesh(new T.CylinderGeometry(Wh.r, Wh.r, Wh.w, 28), mat)); cyl.rotation.x = Math.PI / 2;
+        const wg = new T.Group(); wg.add(cyl); wg.position.set(sd * ws * 0.33, -hs / 2 + (Wh.cy - W0.sashY0), Wh.cx); g.add(wg); wheels.push({ o: cyl, r: Wh.r, g: role }); }); return; }
+    if(p.z){ // عربانة: قطعة قصيرة بأسفل الدرفة جنب كل عجل
+      const sh = new T.Shape(p.pts.map(([x, y]) => new T.Vector2(-x, y - W0.sashY0)));
+      (p.holes || []).forEach(hl => sh.holes.push(new T.Path(hl.map(([x, y]) => new T.Vector2(-x, y - W0.sashY0)))));
+      const len = ws * 0.12;
+      [-1, 1].forEach(sd => { const geo = new T.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); geo.translate(0, 0, -len / 2);
+        const m = tag(new T.Mesh(geo, mat)); m.rotation.y = Math.PI / 2; m.position.set(sd * ws * 0.33, -hs / 2, 0); g.add(m); }); return; }
+    const loops = [p.pts].concat(p.holes || []);
+    const geo = role === 'frame' ? ringGeo(T, loops, W, H, W0.frameY0) : ringGeo(T, loops, ws, hs, W0.sashY0);
+    const m = tag(new T.Mesh(geo, mat)); g.add(m);
+    if(p.mat === 'al') g.add(new T.LineSegments(new T.EdgesGeometry(geo, 30), new T.LineBasicMaterial({ color: 0x33434d, transparent: true, opacity: 0.25 })));
+  });
+  const cam = new T.PerspectiveCamera(35, w / h, 5, 20000); const R = 0.5 * Math.hypot(W, H);
+  cam.position.set(R * 1.05, R * 0.75, R * 1.85 * (w < h ? 1.4 : 1)); 
+  const ctl = new T.OrbitControls(cam, r.domElement); ctl.enableDamping = true; ctl.target.set(0, 0, 0); ctl.autoRotate = false; ctl.update();
+  const home = cam.position.clone();
+  // الكبس على قطعة = اسمها
+  const ray = new T.Raycaster(), mv = new T.Vector2(); let downAt = null, sel = null;
+  r.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+  r.domElement.addEventListener('pointerup', e => { if(!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+    const rc = r.domElement.getBoundingClientRect(); mv.set((e.clientX - rc.left) / rc.width * 2 - 1, -(e.clientY - rc.top) / rc.height * 2 + 1); ray.setFromCamera(mv, cam);
+    const hits = ray.intersectObjects(root.children, true).filter(x => x.object.isMesh); const hit = hits.find(x => !x.object.material.transparent) || hits[0];
+    if(sel){ sel.material.emissive.setHex(0); sel = null; }
+    const info = document.getElementById('v3i');
+    if(hit){ sel = hit.object; sel.material.emissive.setHex(0x2a5d7a); info.textContent = '🔎 ' + (sel.userData.name || ''); info.style.display = 'block'; } else info.style.display = 'none'; });
+  // فكّ: الدرفة الداخلية لجوّا والخارجية لبرّا، والفريم مكانه — حركة: الخارجية بتنسحب ورا الداخلية والعجلات بتلفّ
+  let t = 0, goal = 0, mt = 0, mgoal = 0; const slide = -(ws - W0.overlap - 40), EX = 170;
+  const e2 = (x) => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  function apply(){
+    const k = e2(t), km = e2(mt);
+    groups.A.position.set(cxs.A, 0, -EX * k); groups.B.position.set(cxs.B + slide * km, 0, EX * k);
+    wheels.forEach(wh => { if(wh.g === 'B') wh.o.rotation.y = (slide * km) / wh.r; });
+    document.getElementById('v3x').textContent = goal ? '🧩 جمّع' : '💥 فكّ القطع'; document.getElementById('v3m').textContent = mgoal ? '🚪 سكّر' : '🚪 افتح';
+  }
+  const loop = () => { V3.raf = requestAnimationFrame(loop);
+    if(t !== goal){ t += Math.sign(goal - t) * 0.022; if(Math.abs(goal - t) < 0.025) t = goal; apply(); }
+    if(mt !== mgoal){ mt += Math.sign(mgoal - mt) * 0.02; if(Math.abs(mgoal - mt) < 0.025) mt = mgoal; apply(); }
+    ctl.update(); r.render(scene, cam); };
+  V3 = { r, cam, ctl, home, scene, raf: 0, explode(v){ goal = v == null ? (goal ? 0 : 1) : (v ? 1 : 0); }, move(v){ mgoal = v == null ? (mgoal ? 0 : 1) : (v ? 1 : 0); } };
+  apply(); loop();
+  window.__v3 = { parts: sec.parts.length, meshes: root.children.length, cat: true, win: true, state: () => ({ t, goal, mt, mgoal, sil: [], bx: groups.B.position.x - cxs.B }) };
+}
 function build3Dcat(sec, box){
+  if(sec.win) return buildWindow(sec, box);
   if(V3){ cancelAnimationFrame(V3.raf); V3.r.dispose(); V3 = null; }
   box.innerHTML = '';
   // الدليل أول شي (قبل قياس مساحة الرسم)
@@ -622,23 +710,23 @@ const CATS = [
     desc: 'سحّاب اقتصادي غير حراري بعمق 105 ملم للاستعمالات العامة، مع نسخة حرارية بعمق 105 و120 ملم للمشاريع يلي بدها عزل أعلى.',
     spec: [['العمق', 'Depth', 'عادي: 105 ملم — حراري: 105 / 120 ملم'], ['العزل الحراري', 'Thermal break', 'النسخة الحرارية فقط']],
     img: [['nbbm-sliding105.jpg', 'سحّاب 105 — عادي'], ['nbbm-sliding105-tb.jpg', 'سحّاب 105 / 120 — حراري']] },
-  { code: 'MZ-SL-07', model: ['cat', { id: 'x300_ilk' }], more: [{ model: ['cat', { id: 'x300_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'X300S — سحّاب', en: 'X300S — Sliding system', maker: '',
+  { code: 'MZ-SL-07', model: ['cat', { id: 'x300_sill' }], secT: 'الشباك كامل — درفتين على سكّتين (مقطع العتبة)', more: [{ model: ['cat', { id: 'x300_ilk' }], t: 'مقطع التقاء الدرفتين' }], ar: 'X300S — سحّاب', en: 'X300S — Sliding system', maker: '',
     desc: 'نظام سحّاب X300S. المقاطع والمجسّم مرسومين من عيّنة النظام بالفيديو.',
     spec: [],
     img: [['x300-1.jpg', 'عيّنة X300S'], ['x300-2.jpg', 'التقاء الدرفتين'], ['x300-3.jpg', 'الدرفة على السكة مع العجل']] },
-  { code: 'MZ-SL-08', model: ['cat', { id: 'x500_ilk' }], more: [{ model: ['cat', { id: 'x500_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'X500 — سحّاب', en: 'X500 — Sliding system', maker: '',
+  { code: 'MZ-SL-08', model: ['cat', { id: 'x500_sill' }], secT: 'الشباك كامل — درفتين على سكّتين (مقطع العتبة)', more: [{ model: ['cat', { id: 'x500_ilk' }], t: 'مقطع التقاء الدرفتين' }], ar: 'X500 — سحّاب', en: 'X500 — Sliding system', maker: '',
     desc: 'نظام سحّاب X500. المقاطع والمجسّم مرسومين من عيّنة النظام بالفيديو.',
     spec: [],
     img: [['x500-1.jpg', 'عيّنة X500'], ['x500-2.jpg', 'زاوية الدرفة'], ['x500-3.jpg', 'مقطع التقاء الدرفتين']] },
-  { code: 'MZ-SL-09', model: ['cat', { id: 'gida_ilk' }], more: [{ model: ['cat', { id: 'gida_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'جيدا — سحّاب بواجهة ديكور', en: 'Gida — Decorative sliding system', maker: '',
+  { code: 'MZ-SL-09', model: ['cat', { id: 'gida_sill' }], secT: 'الشباك كامل — درفتين على سكّتين (مقطع العتبة)', more: [{ model: ['cat', { id: 'gida_ilk' }], t: 'مقطع التقاء الدرفتين' }], ar: 'جيدا — سحّاب بواجهة ديكور', en: 'Gida — Decorative sliding system', maker: '',
     desc: 'نظام سحّاب جيدا بوجوه ديكور منحنية (برونز). المقاطع والمجسّم مرسومين من العيّنة بالفيديو.',
     spec: [],
     img: [['gida-1.jpg', 'عيّنة جيدا — برونز'], ['gida-2.jpg', 'الدرفة والفريم بالوجه المنحني'], ['gida-3.jpg', 'مقطع الدرفة']] },
-  { code: 'MZ-SL-10', model: ['cat', { id: 'hummer_ilk' }], more: [{ model: ['cat', { id: 'hummer_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'همر — سحّاب', en: 'Hummer — Sliding system', maker: '',
+  { code: 'MZ-SL-10', model: ['cat', { id: 'hummer_sill' }], secT: 'الشباك كامل — درفتين على سكّتين (مقطع العتبة)', more: [{ model: ['cat', { id: 'hummer_ilk' }], t: 'مقطع التقاء الدرفتين' }], ar: 'همر — سحّاب', en: 'Hummer — Sliding system', maker: '',
     desc: 'نظام سحّاب همر. المقطع تقريبي من شكل الشباك المركّب.',
     spec: [],
     img: [['hummer-1.jpg', 'شباك همر مركّب'], ['hummer-2.jpg', 'الدرفة والمسكة'], ['hummer-3.jpg', 'العتبة والسكة']] },
-  { code: 'MZ-SL-11', model: ['cat', { id: 'thummer_ilk' }], more: [{ model: ['cat', { id: 'thummer_sill' }], t: 'مقطع العتبة — الدرفة على السكة مع العجل' }], ar: 'تيكنال همر — سحّاب', en: 'Technal Hummer — Sliding system', maker: '',
+  { code: 'MZ-SL-11', model: ['cat', { id: 'thummer_sill' }], secT: 'الشباك كامل — درفتين على سكّتين (مقطع العتبة)', more: [{ model: ['cat', { id: 'thummer_ilk' }], t: 'مقطع التقاء الدرفتين' }], ar: 'تيكنال همر — سحّاب', en: 'Technal Hummer — Sliding system', maker: '',
     desc: 'نظام سحّاب تيكنال همر. المقطع تقريبي من شكل الشباك المركّب.',
     spec: [],
     img: [['thummer-1.jpg', 'شباك تيكنال همر مركّب'], ['thummer-2.jpg', 'الدرفة السودا على الفريم الرمادي'], ['thummer-3.jpg', 'التقاء الدرفتين']] },
