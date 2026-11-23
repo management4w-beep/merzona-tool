@@ -893,6 +893,12 @@ const SECMAP = {}; CATS.forEach(k => k.sys.forEach(x => { try{ const sc = sectio
   (x.more || []).forEach((m, i) => { try{ const sc = sectionFor({ model: m.model, ar: x.ar + ' — ' + m.t }); if(sc) SECMAP[x.code + '~' + (i + 1)] = sc; }catch(e){ console.error('[section]', x.code, e); } }); }));
 /* ---------- العرض ---------- */
 function co(){ try{ return (window.MzCompany && MzCompany.get) ? MzCompany.get() : {}; }catch(e){ return {}; } }
+// ☎ 2026-11-23 (حمدي): ميرزونا = الرقم الإماراتي + السوري، والإيميل Info@Merzona.ae (شركة تانية = أرقامها هي)
+function contactList(c){
+  const mz = /merzona/i.test(c.nameEn || 'Merzona') && /merzona/i.test(c.email || 'merzona');
+  const phones = mz ? ['+971508471158', '+963939919670'] : [c.whatsapp || c.phone].filter(Boolean);
+  return phones.concat([mz ? 'Info@Merzona.ae' : c.email, c.website].filter(Boolean));
+}
 function fig(src, cap){ return '<figure><img loading="lazy" src="' + IMG(src) + '" alt="' + esc(cap) + '" onclick="TC.zoom(this.src)"><figcaption>' + esc(cap) + '</figcaption></figure>'; }
 function sysHTML(s){
   let h = '<section class="sys" id="' + esc(s.code) + '"><div class="sys-h"><span class="code">' + esc(s.code) + '</span><h3>' + esc(s.ar) + '<span class="en">' + esc(s.en) + '</span></h3><button type="button" class="tc-share no-print" onclick="TC.shareOne(\'' + esc(s.code) + '\')">📤 ابعت هالنظام</button></div>';
@@ -921,7 +927,7 @@ function render(){
     '<div><h1>الكتالوج الفني لأنظمة الألمنيوم والزجاج<small>Aluminium & Glass Systems — Technical Catalogue</small></h1>' +
     '<p class="lead">مرجع فني للمهندسين والاستشاريين: ' + total + ' نظاماً مع المقاطع والأبعاد والتزجيج والأداء والتشطيبات، من كتالوجات المصنّعين المعتمدة. للتصميم الأولي واختيار النظام المناسب لكل فتحة.</p>' +
     '<div class="cats">' + VC.map(k => '<span>' + esc(k.ar) + '</span>').join('') + '</div></div>' +
-    '<div class="meta"><span>' + esc(nameAr) + ' · ' + esc(c.fullNameEn || name) + '</span>' + (c.cities ? '<span>📍 ' + esc(c.cities) + '</span>' : '') + (c.phone ? '<span dir="ltr">☎ ' + esc(c.whatsapp || c.phone) + '</span>' : '') + (c.email ? '<span dir="ltr">✉ ' + esc(c.email) + '</span>' : '') + '<span>إصدار ' + new Date().getFullYear() + '</span></div></div>';
+    '<div class="meta"><span>' + esc(nameAr) + ' · ' + esc(c.fullNameEn || name) + '</span>' + (c.cities ? '<span>📍 ' + esc(c.cities) + '</span>' : '') + contactList(c).map(x => '<span dir="ltr">' + (/@/.test(x) ? '✉ ' : /^\+/.test(x) ? '☎ ' : '🌐 ') + esc(x) + '</span>').join('') + '<span>إصدار ' + new Date().getFullYear() + '</span></div></div>';
   h += '<div class="page toc"><h2 class="cat">المحتويات <span class="en">Contents</span></h2><ol>' + VC.map(k => '<li><b>' + esc(k.ar) + '</b> <small>' + esc(k.en) + '</small><ul style="padding-right:16px;margin:2px 0 8px;font-size:13px">' + k.sys.map(s => '<li><a href="#' + esc(s.code) + '">' + esc(s.code) + ' — ' + esc(s.ar) + '</a></li>').join('') + '</ul></li>').join('') + '</ol>' +
     '<h2 class="cat" style="margin-top:26px">مصطلحات ومعايير <span class="en">Glossary & standards</span></h2><div class="gl" style="margin-top:12px">' +
     '<div><b>Uw — معامل الانتقال الحراري للفتحة</b>كل ما قلّ الرقم كان العزل أفضل (W/m²K).</div><div><b>Thermal break — عازل حراري</b>شريط بولي أميد بيفصل الألمنيوم الداخلي عن الخارجي.</div>' +
@@ -934,9 +940,9 @@ function render(){
     '<div><b>أنودايز — Anodizing</b>طبيعي، ذهبي، برونزي، سبكترو — سماكة 5 – 30 ميكرون، بمعايير Qualanod.</div>' +
     '<div><b>الزجاج — Glazing</b>مفرد، مزدوج، أو ثلاثي؛ مقسّى، لامينيت، Low-E، عاكس، أو ملوّن — حسب متطلبات العزل والأمان.</div>' +
     '<div><b>الخدمات — Services</b>رفع مقاسات بالموقع، مخططات تصنيع، تصنيع، تركيب، وصيانة.</div></div>' +
-    '<div class="foot" style="margin-top:30px;border-top:1px solid var(--line);padding-top:14px"><span>' + esc(nameAr) + ' — ' + esc(c.fullNameEn || name) + '</span><span dir="ltr">' + esc([c.whatsapp || c.phone, c.email, c.website].filter(Boolean).join(' · ')) + '</span></div></div>';
+    '<div class="foot" style="margin-top:30px;border-top:1px solid var(--line);padding-top:14px"><span>' + esc(nameAr) + ' — ' + esc(c.fullNameEn || name) + '</span><span dir="ltr">' + esc(contactList(c).join(' · ')) + '</span></div></div>';
   if(PICK.length){
-    const contact = [c.whatsapp || c.phone, c.email, c.website].filter(Boolean);
+    const contact = contactList(c);
     const groups = []; let n = 0;
     CATS.forEach(k => { const ss = PICK.map(code => k.sys.find(x => x.code === code)).filter(x => x && (MANAGE || !HIDDEN.has(x.code))); if(ss.length){ groups.push([k, ss]); n += ss.length; } });
     h = '<div class="page one-head"><div class="oh"><img class="logo-s" data-co-logo src="' + esc(c.logo || 'img/logo.png') + '" alt="Merzona logo"><div><b>' + esc(nameAr) + ' — الكتالوج الفني</b><div class="en" style="color:var(--muted);font-size:13px;direction:ltr;text-align:right">' + esc(c.fullNameEn || name) + ' — Technical Catalogue</div></div></div>' +
