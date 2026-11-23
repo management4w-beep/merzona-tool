@@ -121,7 +121,7 @@ section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 <div class="zoom" id="zoom" onclick="if(history.state && history.state.tcModal) history.back(); else this.style.display='none'"><img id="zoomImg" alt=""></div>
 <div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" id="v3x" style="display:none" onclick="TC.v3Explode()">💥 فكّ القطع</button><button type="button" id="v3m" style="display:none" onclick="TC.v3Move()">🚪 افتح</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
 <div id="v3c" class="v3c" style="position:relative"></div><div id="v3i" style="display:none;background:#12324a;color:#fff;padding:6px 10px;font-size:14px"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
-<script src="techcat-sec.js?v=2026-11-23c"></script>
+<script src="techcat-sec.js?v=2026-11-23e"></script>
 <script>
 (function(){
 'use strict';
@@ -525,6 +525,12 @@ function buildWindow(sec, box){
     // (الارتفاع: من سطح العتبة لـ 46 ملم فوقه، بإحداثيات المجموعة)
     const yLocal0 = yB0, yLocal1 = yB0 + 46; pbm.geometry.dispose(); pbm.geometry = new T.BoxGeometry(W0.overlap - 2, yLocal1 - yLocal0, D + SW * 0.3); pbm.position.y = (yLocal0 + yLocal1) / 2;
   }
+  // غطا الالتقاء على شكل نقطة الدمعة (Technal GX) على درفة الالتقاء الخارجية
+  if(W0.tear){ const tw = W0.tear.w, tl = W0.tear.len, sh = new T.Shape(), N = 30;
+    for(let i = 0; i <= N; i++){ const a = Math.PI * i / N; sh[i ? 'lineTo' : 'moveTo'](tw / 2 * Math.cos(a), -tl * Math.pow(Math.sin(a), 1.6)); }
+    const inner = new T.Path(); for(let i = 0; i <= N; i++){ const a = Math.PI * i / N; inner[i ? 'lineTo' : 'moveTo']((tw / 2 - 1.4) * Math.cos(a), -(tl - 1.4) * Math.pow(Math.sin(a), 1.6) - 0.2); } sh.holes.push(inner);
+    const geo = new T.ExtrudeGeometry(sh, { depth: hs - 50, bevelEnabled: false }); const m = new T.Mesh(geo, matOf({ mat: 'al' })); m.userData.name = 'غطاء الالتقاء (شكل الدمعة)';
+    m.rotation.x = -Math.PI / 2; m.position.set((cxs.B - ws / 2) + W0.overlap / 2 - cxs.B, -hs / 2 + 25, W0.pitch / 2 + (W0.sw || 30) / 2 + 2.2); groups.B.add(m); }
   // ✂️ قصّ متل العيّنة: من فوق بيبيّن التقاء الدرفتين، ومن الجنب بيبيّن مقطع السكة
   r.localClippingEnabled = true;
   const cutY = -H / 2 + H * 0.42, cutX = W / 2 - 70;
@@ -759,6 +765,14 @@ const CATS = [
     desc: 'نظام سحّاب تيكنال همر. المقطع تقريبي من شكل الشباك المركّب.',
     spec: [],
     img: [['thummer-1.jpg', 'شباك تيكنال همر مركّب'], ['thummer-2.jpg', 'الدرفة السودا على الفريم الرمادي'], ['thummer-3.jpg', 'التقاء الدرفتين']] },
+  { code: 'MZ-SL-12', model: ['cat', { id: 'gx_sill' }], secT: 'الشباك كامل — درفتين على سكّتين (مقطع العتبة)', more: [{ model: ['cat', { id: 'gx_ilk' }], t: 'مقطع التقاء الدرفتين — مع غطاء الدمعة' }], ar: 'Technal GX — سحّاب', en: 'Technal GX — Sliding window & balcony door', maker: 'Technal',
+    desc: 'نظام سحّاب Technal GX بموديول 52 ملم، درف بوجوه مدوّرة وغطاء التقاء على شكل نقطة الدمعة. نفس GXi بس بدون عزل حراري.',
+    spec: [['الموديول', 'Module', '52 ملم'], ['التزجيج', 'Glazing', 'زجاج مزدوج 20 – 26 ملم'], ['العزل الحراري', 'Thermal break', 'لا — (الحراري هو GXi)']],
+    img: [['gx-1.jpg', 'Technal GX — زاوية الشباك'], ['gx-2.jpg', 'مقطع أفقي — التقاء الدرفتين وغطاء الدمعة'], ['gx-3.jpg', 'مقاطع النظام'], ['gx-4.jpg', 'درفة الالتقاء']] },
+  { code: 'MZ-SL-13', model: ['cat', { id: 'gxi_sill' }], secT: 'الشباك كامل — درفتين على سكّتين (مقطع العتبة)', more: [{ model: ['cat', { id: 'gxi_ilk' }], t: 'مقطع التقاء الدرفتين — مع غطاء الدمعة' }], ar: 'Technal GXi — سحّاب حراري', en: 'Technal GXi — Thermally-broken sliding window & door', maker: 'Technal',
+    desc: 'نسخة GX الحرارية: نفس المقاطع والشكل، مع عازل حراري بولي أميد بالفريم والدرف.',
+    spec: [['الموديول', 'Module', '52 ملم'], ['التزجيج', 'Glazing', 'زجاج مزدوج 20 – 26 ملم'], ['العزل الحراري', 'Thermal break', 'بولي أميد بالفريم والدرف']],
+    img: [['gx-1.jpg', 'Technal GXi — زاوية الشباك'], ['gx-2.jpg', 'مقطع أفقي — التقاء الدرفتين وغطاء الدمعة'], ['gx-3.jpg', 'مقاطع النظام'], ['gx-4.jpg', 'درفة الالتقاء']] },
  ]},
  { id: 'hinged', ar: 'الأنظمة المفصلية', en: 'Casement & Hinged Systems', intro: 'نوافذ وأبواب مفصلية بفتح للداخل أو الخارج وTurn & Tilt، حرارية وغير حرارية، ومنها نظام الدفة المخفية.', sys: [
   { code: 'MZ-HG-01', model: ['cat', { id: 'tb600_frame' }], ar: 'TB-600 — مفصلي حراري', en: 'TB-600 — Thermally-broken casement', maker: 'Gulf Extrusions',

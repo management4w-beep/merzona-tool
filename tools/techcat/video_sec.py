@@ -83,11 +83,16 @@ def interlock(W=46, H=28, P=14, gl=6, gap=6, off=8, hookx=None, pad='gk', sys='X
         g = Prof(pad, 'فرشاية إحكام (Pile weather strip)' if pad == 'gk' else 'قطعة إحكام الالتقاء'); g.rect(x0, yy0, x1, yy1, 0.6); parts += g.build()
     # الزجاج والغاسكيت
     gy = H / 2
-    parts.append(glass(-90, gy - gl / 2, P - 1, gy + gl / 2))
+    def gl_parts(x0, x1, yc):
+        if gl >= 16:  # زجاج مزدوج: لوحين 5 ملم + فاصل
+            out = [glass(x0, yc - gl / 2, x1, yc - gl / 2 + 5), glass(x0, yc + gl / 2 - 5, x1, yc + gl / 2)]
+            sp = Prof('sp', 'فاصل الزجاج المزدوج'); sp.rect(max(x0, x1) - 8 if x0 < 0 else x0, yc - gl / 2 + 5, max(x0, x1) if x0 < 0 else x0 + 8, yc + gl / 2 - 5); return out + sp.build()
+        return [glass(x0, yc - gl / 2, x1, yc + gl / 2)]
+    parts += gl_parts(-90, P - 1, gy)
     for yy in (gy + gl / 2, gy - gl / 2 - 2.2):
         g = Prof('gk', 'غاسكيت تزجيج'); g.rect(t + 0.2, yy, P - 3, yy + 2.2, 0.6); parts += g.build()
     gy2 = (y0 + y1) / 2
-    parts.append(glass(bx + 1, gy2 - gl / 2, bx + 90, gy2 + gl / 2))
+    parts += gl_parts(bx + 1, bx + 90, gy2)
     for yy in (gy2 + gl / 2, gy2 - gl / 2 - 2.2):
         g = Prof('gk', 'غاسكيت تزجيج'); g.rect(bx + 3, yy, bx + P - t - 0.2, yy + 2.2, 0.6); parts += g.build()
     return parts
@@ -164,11 +169,13 @@ def gida_ilk():
     f = Prof('al', 'جيدا — وجه ديكور منحني للدرفة'); f.poly(arc_band(4 + 48 / 2, -41, 19, 9, 180, 360, t=1.5)).rect(8.2, -42.4, 10.4, -40.6).rect(45.6, -42.4, 47.8, -40.6); parts += f.build()
     return parts
 
-def sash_parts(cx, SW, GH, gl, wheel, rail_top, sys, role, name_sfx):
+def sash_parts(cx, SW, GH, gl, wheel, rail_top, sys, role, name_sfx, bulge=0):
     """درفة سفلية متمركزة على السكة (cx) — البروفايل + العربانة + العجل + الفرش + الزجاج"""
     t = 1.4; hs = SW / 2; P = []
     s = Prof('al', sys + ' — درفة ' + name_sfx)
     s.rect(cx - hs, 0, cx - hs + t, 33 + GH).rect(cx + hs - t, 0, cx + hs, 33 + GH)
+    if bulge:  # X500: وجه خارجي منفوخ لبرّا فوق الجدار، ملزوق فيه من فوق ومن تحت
+        s.poly(bulge_band(cx + hs, 0, 33 + GH, bulge, t=1.3))
     s.rect(cx - hs, 32.3, cx + hs, 33.7)
     s.rect(cx - hs, 0, cx - hs + 3.6, t).rect(cx + hs - 3.6, 0, cx + hs, t)
     s.rect(cx - hs, 33 + GH - t, cx - hs + 5.5, 33 + GH).rect(cx + hs - 5.5, 33 + GH - t, cx + hs, 33 + GH)
@@ -194,9 +201,9 @@ def bulge_band(x0, y0, y1, b, t=1.4, n=24):
     inn = [(x0 - t + b * math.sin(math.pi * i / n), y0 + (y1 - y0) * i / n) for i in range(n, -1, -1)]
     return o + inn
 
-def window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='X500', deco=False, bulge=0):
+def window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='X500', deco=False, bulge=0, sash_bulge=0):
     """مقطع العتبة لشباك سحّاب بمسارين: فريم متناظر، سكتين، وكل درفة بنص سكّتها بالظبط (متل العيّنة)"""
-    t = 1.4; pitch = SW + gapT; half = pitch / 2 + SW / 2 + 5.5; yb = -10; rail_top = 5.2
+    t = 1.4; pitch = SW + gapT; half = pitch / 2 + SW / 2 + 5.5 + sash_bulge; yb = -10; rail_top = 5.2   # مساحة للوجه المنفوخ
     f = Prof('al', sys + ' — فريم (عتبة / راس / جوانب)')
     f.rect(-half, yb - t, half, yb)
     for rx in (-pitch / 2, pitch / 2):
@@ -219,12 +226,59 @@ def window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='X500', deco
         g = Prof('gk', 'فرشاية إحكام (Pile weather strip)'); g.rect(half - 6.6, 14.2, half - 2.2, 19.5, 0.8)
         for q in g.build(): q['role'] = 'frame'; parts.append(q)
     parts += sash_parts(-pitch / 2, SW, GH, gl, wheel, rail_top, sys, 'A', 'داخلية')
-    parts += sash_parts(pitch / 2, SW, GH, gl, wheel, rail_top, sys, 'B', 'خارجية')
+    parts += sash_parts(pitch / 2, SW, GH, gl, wheel, rail_top, sys, 'B', 'خارجية', sash_bulge)
     if deco:  # جيدا: وجوه ديكور منحنية عالفريم والدرف
         d = Prof('al', 'جيدا — غطاء ديكور منحني للفريم'); d.poly(arc_band(half, yb - deep, 18, deep + 26, 0, 90, t=1.6)).rect(half - 1.4, 14.6, half + 1, 16).rect(half - 2, yb - deep, half + 18, yb - deep + 1.6)
         for q in d.build(): q['role'] = 'frame'; parts.append(q)
     win = {'W': 640, 'H': 520, 'frameY0': yb - deep, 'sashY0': 0, 'glassIn': 36, 'overlap': 26, 'pitch': pitch, 'sw': SW, 'yTop': yb, 'midTop': 2}
     return parts, win
+
+def gx_sill(thermal=False):
+    """Technal GX / GXi — شباك سحّاب بمسارين بعمق 52 ملم: درف بوجوه مدوّرة من الجهتين، زجاج مزدوج 24، (GXi: عازل حراري)"""
+    nm = 'Technal GXi' if thermal else 'Technal GX'
+    parts, win = window_sill(SW=32, GH=26, gl=20, wheel=4.4, gapT=6, deep=20, sys=nm)
+    out = []
+    for q in parts:
+        if q['mat'] == 'gl' and q.get('role') in ('A', 'B'):  # زجاج مزدوج: لوحين 6 + فاصل
+            xs = [p[0] for p in q['pts']]; cx = (min(xs) + max(xs)) / 2
+            for a, b in ((cx - 10, cx - 5), (cx + 5, cx + 10)):
+                out.append(dict(q, pts=[[a, 36], [b, 36], [b, 110], [a, 110]]))
+            sp = Prof('sp', 'فاصل الزجاج المزدوج'); sp.rect(cx - 5, 36, cx + 5, 44)
+            for z in sp.build(): z['role'] = q['role']; out.append(z)
+            continue
+        out.append(q)
+    parts = out
+    # وجوه الدرفة المدوّرة (الجهتين) — ملزوقة بالجدران
+    for role, cx in (('A', -win['pitch'] / 2), ('B', win['pitch'] / 2)):
+        hs = 16
+        for sgn in (1, -1):
+            e = Prof('al', nm + ' — وجه مدوّر للدرفة'); e.poly(bulge_band(cx + hs if sgn > 0 else cx - hs + 1.3, 0, 59, 2.2 * sgn, t=1.3))
+            for z in e.build(): z['role'] = role; parts.append(z)
+    if thermal:  # GXi: شرايح بولي أميد بتفصل الألمنيوم الداخلي عن الخارجي
+        for x0 in (-1.6,):
+            tb = Prof('tb', 'عازل حراري بولي أميد (GXi)'); tb.rect(x0, -10 - 20 + 1.4, x0 + 3.2, -10 - 1.4).rect(x0 - 2, -10 - 10, x0 + 5.2, -10 - 8.6)
+            for z in tb.build(): z['role'] = 'frame'; parts.append(z)
+        for role, cx in (('A', -win['pitch'] / 2), ('B', win['pitch'] / 2)):
+            tb = Prof('tb', 'عازل حراري بولي أميد (GXi)'); tb.rect(cx - 1.6, 33.7, cx + 1.6, 36)
+            for z in tb.build(): z['role'] = role; parts.append(z)
+    win['tear'] = {'w': 15, 'len': 34}
+    return parts, win
+
+def gx_ilk(thermal=False):
+    """مقطع التقاء الدرفتين لـ GX: درف بوجوه بيضاوية، زجاج مزدوج، وغطا التقاء على شكل نقطة الدمعة"""
+    nm = 'Technal GXi' if thermal else 'Technal GX'
+    parts = interlock(W=40, H=26, P=24, gl=20, gap=6, off=8, sys=nm)
+    # غطا الالتقاء (نقطة الدمعة) على الدرفة التانية
+    pts = []
+    for i in range(41):
+        a = math.pi * i / 40; pts.append((44 + 9 * math.cos(a), -32 - 30 * math.sin(a) ** 1.6))
+    inner = [(44 + 7.6 * math.cos(math.pi * i / 40), -32 - 28.4 * math.sin(math.pi * i / 40) ** 1.6) for i in range(40, -1, -1)]
+    d = Prof('al', nm + ' — غطاء الالتقاء (شكل الدمعة)'); d.poly(pts + inner).rect(34.4, -33.4, 53.6, -32); parts += d.build()
+    if thermal:
+        # العازل بيقطع جدران الصندوق (فوق وتحت) لكل درفة — مش قطعة طايرة
+        for (x0, ya, yb2) in ((42.5, -0.4, 1.8), (42.5, 24.2, 26.4), (22.5, -38.4, -36.2), (22.5, -9.8, -7.6)):
+            tb = Prof('tb', 'عازل حراري بولي أميد (GXi)'); tb.rect(x0, ya, x0 + 3.2, yb2, 0.4); parts += tb.build()
+    return parts
 
 def to_sec(parts, src, normal='y', motion=None, view=None):
     def cen(p):
@@ -247,13 +301,17 @@ out = {
     'x300_ilk': to_sec(interlock(W=44, H=28, P=13, gl=6, sys='X300S'), SRC300, motion={'type': 'slide', 'dx': -130, 'box': [-200, -200, 200, -5]}),
     'x300_sill': to_win(window_sill(SW=28, GH=24, gl=6, wheel=4.2, gapT=7, deep=22, sys='X300S', bulge=5), SRC300),
     'x500_ilk': to_sec(interlock(W=52, H=34, P=15, gl=8, gap=7, off=10, pad='pd', sys='X500'), SRC500, motion={'type': 'slide', 'dx': -150, 'box': [-200, -200, 200, -6]}),
-    'x500_sill': to_win(window_sill(SW=34, GH=28, gl=8, wheel=4.8, gapT=9, deep=30, sys='X500'), SRC500),
+    'x500_sill': to_win(window_sill(SW=34, GH=28, gl=8, wheel=4.8, gapT=9, deep=30, sys='X500', bulge=6, sash_bulge=3.5), SRC500),
     'gida_ilk': to_sec(gida_ilk(), 'مرسوم من عيّنة جيدا بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -140, 'box': [-200, -200, 200, -5]}),
     'gida_sill': to_win(window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='جيدا', deco=True), 'مرسوم من عيّنة جيدا بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)'),
     'hummer_ilk': to_sec(interlock(W=46, H=30, P=14, gl=6, gap=6, off=8, sys='همر'), 'مرسوم تقريبي من شكل شباك همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -140, 'box': [-200, -200, 200, -5]}),
     'hummer_sill': to_win(window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='همر'), 'مرسوم تقريبي من شكل شباك همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)'),
     'thummer_ilk': to_sec(interlock(W=38, H=26, P=12, gl=6, gap=5, off=7, sys='تيكنال همر'), 'مرسوم تقريبي من شكل شباك تيكنال همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -130, 'box': [-200, -200, 200, -4]}),
     'thummer_sill': to_win(window_sill(SW=28, GH=24, gl=6, wheel=4.2, gapT=7, deep=22, sys='تيكنال همر'), 'مرسوم تقريبي من شكل شباك تيكنال همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)'),
+    'gx_sill': to_win(gx_sill(False), 'Technal GX — مرسوم من صور مقاطع تكنال (تقريبي)'),
+    'gx_ilk': to_sec(gx_ilk(False), 'Technal GX — مرسوم من صور مقاطع تكنال (تقريبي)', motion={'type': 'slide', 'dx': -140, 'box': [-200, -200, 200, -5]}),
+    'gxi_sill': to_win(gx_sill(True), 'Technal GXi (حراري) — مرسوم من صور مقاطع تكنال (تقريبي)'),
+    'gxi_ilk': to_sec(gx_ilk(True), 'Technal GXi (حراري) — مرسوم من صور مقاطع تكنال (تقريبي)', motion={'type': 'slide', 'dx': -140, 'box': [-200, -200, 200, -5]}),
 }
 json.dump(out, open('/home/claude/cat/video_sections.json', 'w'), ensure_ascii=False)
 for k, v in out.items(): print(k, len(v['parts']), 'motion parts', len((v['motion'] or {}).get('parts', [])))
