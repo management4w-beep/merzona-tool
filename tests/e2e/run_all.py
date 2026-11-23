@@ -4,7 +4,7 @@
         python3 tests/e2e/run_all.py --dir beta ← بيفحص نسخة beta/
 كل فحص بيفتح الصفحة بمتصفح حقيقي (Playwright/Chromium) مع سيرفر وهمي، وبيعمل: فتح، تعديل، حفظ، إغلاق، إعادة فتح.
 لازم كلها تطلع PASS قبل أي تنزيل (tools/release.py بيشغّلها لحاله)."""
-import asyncio, json, os, sys, shutil, tempfile, threading, base64, functools, http.server, socketserver
+import asyncio, json, urllib.parse, os, sys, shutil, tempfile, threading, base64, functools, http.server, socketserver
 from playwright.async_api import async_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1317,7 +1317,32 @@ async def t_catalog_manage(p, b, port):
     check(st['posts'][-1] == ['c1', 'c2'], 'زر «اطفي القسم كله» من جوّا القسم ' + str(st['posts'][-1]))
     await pg.click('.mz-secsw'); await pg.wait_for_timeout(500)
     check(st['posts'][-1] == ['c2'], 'وتشغيله من جديد')
-    check(not errs, 'بلا أخطاء ' + str(errs[:3]))
+    # 🖼️ قائمة الكتالوجات بالداشبورد (من الدرايف) بتعلّم المطفي عن الزبون
+    st['hidden'] = {'fold2', 'img3'}
+    async def gset(route):
+        if route.request.method == 'GET': return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'hidden': sorted(st['hidden'])}))
+        await route.fallback()
+    async def gd(route):
+        u = urllib.parse.unquote(route.request.url)
+        if "' in parents" in u:
+            par = u.split("'")[1]
+            if par in ('fold1', 'fold2'):
+                fs = [{'id': ('img1' if par == 'fold1' else 'img3'), 'name': 'a.jpg', 'mimeType': 'image/jpeg'}, {'id': ('img2' if par == 'fold1' else 'img4'), 'name': 'b.jpg', 'mimeType': 'image/jpeg'}]
+            else:
+                fs = [{'id': 'fold1', 'name': 'Showers', 'mimeType': 'application/vnd.google-apps.folder'}, {'id': 'fold2', 'name': 'Pergolas', 'mimeType': 'application/vnd.google-apps.folder'}]
+            return await route.fulfill(status=200, content_type='application/json', body=json.dumps({'files': fs}))
+        return await route.fulfill(status=200, content_type='image/png', body=PNG)
+    await ctx.route(SRV + '/catalog-settings', gset)
+    await ctx.route(SRV + '/gdrive/**', gd); await ctx.route('https://www.googleapis.com/**', gd)
+    pd = await ctx.new_page(); pd.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await pd.goto(f'http://127.0.0.1:{port}/Dashboard.html'); await pd.wait_for_timeout(2500)
+    await pd.evaluate("showCatalogsView(); var t = document.getElementById('catPhotosTabBtn') || Array.from(document.querySelectorAll('button')).find(function(b){ return /كتالوج الصور/.test(b.textContent); }); if(t) t.click(); if(window.openMerzonaCatalogs) openMerzonaCatalogs();")
+    for _ in range(20):
+        await pd.wait_for_timeout(500)
+        if await pd.evaluate("document.querySelectorAll('.mzc-folder').length") >= 2: break
+    fl = await pd.evaluate("Array.from(document.querySelectorAll('.mzc-folder')).map(function(b){ return [b.dataset.open, b.classList.contains('mz-hid'), !!b.querySelector('.mzc-hb')]; })")
+    check(fl == [['fold1', False, False], ['fold2', True, True]], 'قائمة الداشبورد: القسم المطفي معلّم «⛔ مطفي عن الزبون» ' + str(fl))
+    check(not errs, 'بلا أخطاء بالداشبورد ' + str(errs[:3]))
     await ctx.close()
 
 async def t_drive_proxy(p, b, port):

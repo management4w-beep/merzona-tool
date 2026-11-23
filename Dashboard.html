@@ -156,7 +156,7 @@
   // ===== فحص تلقائي لآخر نسخة منشورة (يحل مشكلة "المتصفح عم يعرض نسخة قديمة مخزنة") =====
   // 🔔 لازم تتحدث CURRENT_VERSION هون كل مرة يصير فيها تعديل جديد على هاد الملف، بنفس الوقت يلي
   // بينحدث فيه رقم النسخة تبع "dashboard" جوا ملف version.json (لازم يترفع مع كل تحديث كمان).
-  var CURRENT_VERSION = '2026-11-23.1';
+  var CURRENT_VERSION = '2026-11-23.2';
   window.__mzVersion = CURRENT_VERSION;
   var TOOL_KEY = 'dashboard';
   var VERSION_URL = 'version.json';
@@ -1876,6 +1876,8 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
   .mzc-band .r{height:calc(var(--mm)*.6);width:calc(var(--mm)*28);background:#a77a45}
   .mzc-band .s{font-size:calc(var(--mm)*6);font-weight:700}
   .mzc-band .m{margin-top:auto;padding-bottom:calc(var(--mm)*12);display:flex;justify-content:space-between;font-size:calc(var(--mm)*3.8);color:#b8bfc3}
+  .mzc-folder{position:relative}.mzc-folder.mz-hid .mzc-thumb,.mzc-tile.mz-hid img{opacity:.35;filter:grayscale(1)}
+  .mzc-hb{position:absolute;top:6px;inset-inline-start:6px;z-index:3;background:#b3261e;color:#fff;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:600}
   @media (max-width:560px){.mzc-bar button,.mzc-bar label.mzc-btn,.mzc-bar a.mzc-btn{padding:6px 9px;font-size:13px}.mzc-status{width:100%}}
   @media (prefers-reduced-motion:reduce){.mzc-tile.loading::after{animation:none}}
 </style>
@@ -1919,6 +1921,17 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
   var lsSet = function(k, v){ try{ localStorage.setItem(k, v); }catch(e){} };
 
   var S = { view: 'home', folders: [], folder: null, items: [], sig: '', timer: null, busy: false, imgUrls: {} };
+  /* 🖼️ 2026-11-23 (حمدي: "لطفيتهم ولسا ظاهرين الكتالوجات"): هالقائمة من الدرايف مباشرة، فمنعلّم المطفي عن الزبون بوضوح */
+  var HID = new Set();
+  async function loadHidden(){
+    try{
+      var base = (typeof ACCESS_SERVER_URL !== 'undefined' && ACCESS_SERVER_URL) || 'https://merzona-server-production.up.railway.app';
+      var h = { 'x-device': localStorage.getItem('merzona-device-token') || '' }; var ss = localStorage.getItem('merzona-session-token'); if(ss) h['x-session'] = ss;
+      var r = await fetch(base + '/catalog-settings', { cache: 'no-store', headers: h });
+      if(r.ok){ var j = await r.json(); HID = new Set(j.hidden || []); }
+    }catch(e){}
+  }
+  var hidBadge = function(id){ return HID.has(id) ? '<span class="mzc-hb">⛔ مطفي عن الزبون</span>' : ''; };
 
   /* ---------- جوجل درايف ---------- */
   async function token(){ return await getDashGoogleAccessToken(false); }
@@ -2069,20 +2082,22 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     if(!S.folders.length) main.innerHTML = '<div class="mzc-msg">⏳ عم نقرأ مجلدات الكتالوجات من جوجل درايف…</div>';
     setStatus('عم نحدّث…'); S.busy = true;
     try{
+      var hidP = loadHidden();
       var kids = await listChildren(CATALOG_ROOT);
       var folders = kids.filter(function(f){ return f.mimeType === 'application/vnd.google-apps.folder'; });
       var counted = await Promise.all(folders.map(async function(f){
         try{ var imgs = await listImagesDeep(f.id); return { f: f, n: imgs.length, cover: imgs[0] || null }; }
         catch(e){ return { f: f, n: 0, cover: null }; }
       }));
+      await hidP;
       if(S.view !== 'home') return;
-      var hsig = counted.map(function(c){ return c.f.id + ':' + c.f.name + ':' + c.n + ':' + (c.cover ? c.cover.id + (c.cover.md5Checksum || '') : ''); }).join('|');
+      var hsig = Array.from(HID).sort().join(',') + '#' + counted.map(function(c){ return c.f.id + ':' + c.f.name + ':' + c.n + ':' + (c.cover ? c.cover.id + (c.cover.md5Checksum || '') : ''); }).join('|');
       if(quiet && hsig === S.homeSig && main.querySelector('.mzc-folders')){ setStatus(stamp()); return; }
       S.homeSig = hsig;
       S.folders = counted; S.coverOf = {};
       counted.forEach(function(c){ if(c.cover) S.coverOf[c.cover.id] = c.cover; });
       main.innerHTML = counted.length ? '<div class="mzc-folders">' + counted.map(function(c){
-        return '<button type="button" class="mzc-folder' + (c.n ? '' : ' empty') + '" data-open="' + esc(c.f.id) + '"' + (c.n ? '' : ' disabled') + '>' +
+        return '<button type="button" class="mzc-folder' + (c.n ? '' : ' empty') + (HID.has(c.f.id) ? ' mz-hid' : '') + '" data-open="' + esc(c.f.id) + '"' + (c.n ? '' : ' disabled') + '>' + hidBadge(c.f.id) +
           '<div class="mzc-thumb mzc-tile' + (c.cover ? ' loading' : '') + '">' + (c.cover ? '<img alt="" data-fid="' + esc(c.cover.id) + '">' : '') + '</div>' +
           '<div class="mzc-fi"><b>' + esc(labelOf(c.f)) + '</b><span>' + esc(c.f.name) + '</span><small>' + (c.n ? c.n + ' صورة' : 'المجلد فاضي') + '</small></div></button>';
       }).join('') + '</div>' : '<div class="mzc-msg">ما في مجلدات جوا مجلد الكتالوجات بعد. اعمل مجلد بدرايف وحط فيه صور، ورح يطلع هون.</div>';
@@ -2136,7 +2151,7 @@ table.settlement-sign td b{ display:block; margin-bottom:6px; font-size:13px; }
     for(var p = 0; p < pages; p++){
       h += '<div class="mzc-sw"><div class="mzc-sl">صفحة ' + (p + 2) + '</div><div class="mzc-sheet"><div class="mzc-sh"><b>MERZONA</b><span data-title>' + t + '</span></div><div class="mzc-grid">';
       items.slice(p * PER_PAGE, p * PER_PAGE + PER_PAGE).forEach(function(it){
-        h += '<div class="mzc-tile loading"><img alt="' + esc(it.name) + '" data-fid="' + esc(it.id) + '"><div class="mzc-acts">' +
+        h += '<div class="mzc-tile loading' + (HID.has(it.id) ? ' mz-hid' : '') + '">' + hidBadge(it.id) + '<img alt="' + esc(it.name) + '" data-fid="' + esc(it.id) + '"><div class="mzc-acts">' +
              '<a href="https://drive.google.com/file/d/' + esc(it.id) + '/view" target="_blank" rel="noopener" title="فتح الصورة بدرايف">↗</a>' +
              '<button type="button" data-trash="' + esc(it.id) + '" title="حذف الصورة من درايف (بتنحط بسلة المهملات)">🗑</button></div></div>';
       });

@@ -560,7 +560,7 @@ button{font:inherit;color:inherit}
   function mbar(){
     if(!MANAGE) return; var b = $('mzMbar');
     if(!b){ b = document.createElement('div'); b.id = 'mzMbar'; b.className = 'mz-mbar'; document.body.insertBefore(b, document.body.firstChild); }
-    b.innerHTML = MANAGE_OK ? '⚙️ <span>وضع الإدارة: كبسة عالمفتاح بتخفي القسم أو الصورة عن الزبون (ما بينمسح شي من الدرايف). المطفي هلّق: <b id="mzOffN">' + HID.size + '</b></span><span class="msg" id="mzMsg"></span>'
+    b.innerHTML = MANAGE_OK ? '⚙️ <span>وضع الإدارة: كبسة عالمفتاح بتخفي القسم أو الصورة عن الزبون (ما بينمسح شي من الدرايف). هون بتضل تشوف المطفي باهت لتقدر ترجّعه. المطفي هلّق: <b id="mzOffN">' + HID.size + '</b></span><a href="catalog.html' + bq(true) + '" target="_blank" rel="noopener" style="color:#ffd58a;font-weight:700">👁️ شوف متل الزبون</a><span class="msg" id="mzMsg"></span>'
       : '⚠️ <span>ما فيك تدير الكتالوج من هون: افتحه من الداشبورد على جهاز مسجّل بالسيستم، وبحساب عندو صلاحية الكتالوجات.</span>';
   }
   function saveHidden(){
