@@ -122,7 +122,7 @@ section.sys.off .tc-sw{opacity:1;background:#fdecea;border-color:#f5c2bd}
 <div class="zoom" id="zoom" onclick="if(history.state && history.state.tcModal) history.back(); else this.style.display='none'"><img id="zoomImg" alt=""></div>
 <div class="v3" id="v3"><div class="v3b"><div class="v3h"><b id="v3t">🧊</b><span style="flex:1"></span><button type="button" onclick="TC.v3Zoom(0.8)">➕</button><button type="button" onclick="TC.v3Zoom(1.25)">➖</button><button type="button" id="v3x" style="display:none" onclick="TC.v3Explode()">💥 فكّ القطع</button><button type="button" id="v3m" style="display:none" onclick="TC.v3Move()">🚪 افتح</button><button type="button" onclick="TC.v3Reset()">↺ رجّع</button><button type="button" onclick="TC.v3Shot()">📷 صورة</button><button type="button" onclick="TC.close3D()">✕</button></div>
 <div id="v3c" class="v3c" style="position:relative"></div><div id="v3i" style="display:none;background:#12324a;color:#fff;padding:6px 10px;font-size:14px"></div><div class="v3f"><span id="v3l"></span><span class="hint">اسحب لتدوّر · قرصة أو عجلة الماوس للزوم · إصبعين للتحريك</span></div></div></div>
-<script src="techcat-sec.js?v=2026-11-23f"></script>
+<script src="techcat-sec.js?v=2026-11-23g"></script>
 <script>
 (function(){
 'use strict';
@@ -598,7 +598,7 @@ function buildWindow(sec, box){
       // بالفكّ منبيّن الشباك كامل (كل القطع)، وبالتجميع منرجّع القصّ متل ما كان
       if(goal){ cutBefore = cut; setCut(false); } else if(cutBefore != null){ setCut(cutBefore); cutBefore = null; } }, move(v){ mgoal = v == null ? (mgoal ? 0 : 1) : (v ? 1 : 0); } };
   apply(); loop();
-  window.__v3 = { parts: sec.parts.length, meshes: root.children.length, cat: true, win: true, exploded: () => EXP.length, state: () => ({ t, goal, mt, mgoal, sil: [], bx: groups.B.position.x - cxs.B, cut, exn: EXP.length }) };
+  window.__v3 = { parts: sec.parts.length, meshes: root.children.length, cat: true, win: true, cam, ctl, exploded: () => EXP.length, state: () => ({ t, goal, mt, mgoal, sil: [], bx: groups.B.position.x - cxs.B, cut, exn: EXP.length }) };
 }
 function build3Dcat(sec, box){
   if(sec.win) return buildWindow(sec, box);
