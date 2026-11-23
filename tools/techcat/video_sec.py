@@ -234,6 +234,52 @@ def window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='X500', deco
     win = {'W': 640, 'H': 520, 'frameY0': yb - deep, 'sashY0': 0, 'glassIn': 36, 'overlap': 26, 'pitch': pitch, 'sw': SW, 'yTop': yb, 'midTop': 2}
     return parts, win
 
+def smooth_path(pts, n=10):
+    """مسار ناعم بين نقاط (x,y) — ربع موجة cosine بين كل نقطتين (كسرة ناعمة مش زاوية)"""
+    out = [pts[0]]
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        for i in range(1, n + 1):
+            u = i / n; w = (1 - math.cos(math.pi * u)) / 2
+            out.append((x0 + (x1 - x0) * w, y0 + (y1 - y0) * u))
+    return out
+
+def face_band(path, t=1.5):
+    """شريط بسماكة t ورا مسار وجه (x = عمق، y = ارتفاع) — الوجه لقدّام والسماكة لورا"""
+    return [(x, y) for x, y in path] + [(x - t, y) for x, y in reversed(path)]
+
+def hummer_sill():
+    """همر (حمدي 2026-11-23): الفريم إلو مستويين بوجه الغرفة — شفة عريضة على مستوى الجدار، وبعدين كسرة ناعمة لمستوى بارز قريب من الدرفة.
+    والدرفة إلها وجه مدرّج: سطح بارز، ميلة لتحت، وكعب زجاج بحرف مدوّر."""
+    parts, win = window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='همر')
+    t = 1.5; pitch = win['pitch']; half = pitch / 2 + 16 + 5.5; Y0 = -10 - 26
+    # وجه الفريم: من برّا الفتحة (فوق الجدار) لحد الدرفة
+    W0x = half + 1.5; W1x = half + 11       # مستوى الجدار، والمستوى البارز
+    path = [(W0x, Y0 - 34), (W0x, Y0 + 12), (W1x, Y0 + 24), (W1x, 13)]
+    face = smooth_path(path[:2], 2)[:-1] + smooth_path(path[1:3], 14)[:-1] + smooth_path(path[2:], 2)
+    f = Prof('al', 'همر — فريم (عتبة / راس / جوانب)')
+    f.poly(face_band(face, t))
+    f.circ(W1x - 2.2, 13.2, 2.2)                                  # حرف مدوّر عند الدرفة
+    f.rect(W0x - 4, Y0 - 34, W0x, Y0 - 34 + t)                    # رجل الشفة عالجدار
+    f.rect(half - 0.2, Y0, W0x, Y0 + t).rect(half - 0.2, Y0 + 14, W0x + 2, Y0 + 14 + t)   # وصلات للحجرة
+    f.rect(half - 0.2, 11.6, W1x - 2, 13).rect(half - 0.2, -10 - t, W1x - t, -10)
+    out = [q for q in parts if not (q['mat'] == 'al' and q.get('role') == 'frame' and 'فريم' in q.get('name', ''))]
+    base = [q for q in parts if q['mat'] == 'al' and q.get('role') == 'frame' and 'فريم' in q.get('name', '')]
+    # منوحّد الوجه مع جسم الفريم بقطعة وحدة
+    for q in base: f.poly([tuple(p) for p in q['pts']]); [f.poly([tuple(p) for p in h], sub=True) for h in q['holes']]
+    fr = f.build()
+    for q in fr: q['role'] = 'frame'
+    # الدرف: وجه مدرّج قدّام (سطح بارز ← ميلة ← كعب زجاج مدوّر)
+    for role, cx in (('A', -pitch / 2), ('B', pitch / 2)):
+        x0 = cx + 16
+        sp = [(x0 + 3.2, 0.8), (x0 + 3.2, 30), (x0 + 0.6, 42), (x0 + 0.6, 50), (x0 + 2.4, 54), (x0 + 2.4, 58.2)]
+        path2 = smooth_path(sp[:2], 2)[:-1] + smooth_path(sp[1:3], 10)[:-1] + smooth_path(sp[2:4], 2)[:-1] + smooth_path(sp[3:5], 6)[:-1] + smooth_path(sp[4:], 2)
+        e = Prof('al', 'همر — وجه الدرفة المدرّج')
+        e.poly(face_band(path2, 1.3)).circ(x0 + 2.4 - 1.1, 58.2, 1.1).circ(x0 + 3.2 - 0.9, 0.9, 0.9)
+        e.rect(x0 - 0.2, 0, x0 + 3.2, 1.3).rect(x0 - 0.2, 28, x0 + 2, 29.3)       # وصلات بجدار الدرفة
+        for q in e.build(): q['role'] = role; out.append(q)
+    win['sw'] = 32
+    return fr + out, win
+
 def gx_sill(thermal=False):
     """Technal GX / GXi — شباك سحّاب بمسارين بعمق 52 ملم: درف بوجوه مدوّرة من الجهتين، زجاج مزدوج 24، (GXi: عازل حراري)"""
     nm = 'Technal GXi' if thermal else 'Technal GX'
@@ -306,7 +352,7 @@ out = {
     'gida_ilk': to_sec(gida_ilk(), 'مرسوم من عيّنة جيدا بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -140, 'box': [-200, -200, 200, -5]}),
     'gida_sill': to_win(window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='جيدا', deco=True), 'مرسوم من عيّنة جيدا بفيديو ميرزونا (تقريبي — بيتحدّث برسومات المصنّع)'),
     'hummer_ilk': to_sec(interlock(W=46, H=30, P=14, gl=6, gap=6, off=8, sys='همر'), 'مرسوم تقريبي من شكل شباك همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -140, 'box': [-200, -200, 200, -5]}),
-    'hummer_sill': to_win(window_sill(SW=32, GH=26, gl=6, wheel=4.6, gapT=8, deep=26, sys='همر'), 'مرسوم تقريبي من شكل شباك همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)'),
+    'hummer_sill': to_win(hummer_sill(), 'مرسوم تقريبي من شكل شباك همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)'),
     'thummer_ilk': to_sec(interlock(W=38, H=26, P=12, gl=6, gap=5, off=7, sys='تيكنال همر'), 'مرسوم تقريبي من شكل شباك تيكنال همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)', motion={'type': 'slide', 'dx': -130, 'box': [-200, -200, 200, -4]}),
     'thummer_sill': to_win(window_sill(SW=28, GH=24, gl=6, wheel=4.2, gapT=7, deep=22, sys='تيكنال همر'), 'مرسوم تقريبي من شكل شباك تيكنال همر المركّب بفيديو ميرزونا (المقطع مش مكشوف — بيتحدّث برسومات المصنّع)'),
     'gx_sill': to_win(gx_sill(False), 'Technal GX — مرسوم من صور مقاطع تكنال (تقريبي)'),
