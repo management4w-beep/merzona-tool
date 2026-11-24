@@ -8590,6 +8590,11 @@ window.wdApplyBack = function(results){
             <button type="button" data-g="10" onclick="shSetGlass(10)">10 مم</button>
             <button type="button" data-g="12" onclick="shSetGlass(12)">12 مم</button>
           </div>
+          <label style="margin-top:10px;display:block;">تثبيت الزجاج الثابت</label>
+          <div class="shape-toggle" id="shMountBtns">
+            <button type="button" data-mount="channel" onclick="shSetMount('channel')">مجرى U (تشانل)</button>
+            <button type="button" data-mount="clamps" onclick="shSetMount('clamps')">قطع ستانلس 4×4</button>
+          </div>
           <label style="margin-top:10px;display:block;">عدد المفصلات</label>
           <div class="shape-toggle">
             <button id="btnShowerHinge2" onclick="onShowerHingeCountChange(2)">2</button>
@@ -9519,6 +9524,22 @@ function showerGlassMm(it){
   const m = /(\d{1,2})\s*(ملم|مم|mm)/i.exec(txt); const g = m ? +m[1] : 0;
   return g >= 6 && g <= 19 ? g : 10;
 }
+// 🔩 2026-11-24 (حمدي: "فيه خيار انو التركيب يكون على تشانل... او على قطع ستانلس صغيرة مربعة تقريبا 4 سم ب 4 سم بتمسك الزجاج و بتتثبت ببرغي بالارض او الحيط")
+function showerMount(it){ return it && it.showerMount === 'clamps' ? 'clamps' : 'channel'; }
+function shSetMount(m){ const it = getSelected(); if(!it || !isShowerDoor(it)) return; pushHistory(); it.showerMount = m === 'clamps' ? 'clamps' : 'channel'; shRefreshPanel(it); renderGallery(); }
+window.shSetMount = shSetMount;
+// علامات التثبيت عالرسمة: مجرى U = شريط تحت وفوق اللوح الثابت؛ قطع ستانلس = مربعات 4×4 سم (تنتين بالأرض + تنتين عالحيط إذا الجهة حيط)
+function showerMountSVG(it, x0, w, drawH, scale, wallSide, color){
+  color = color || 'var(--wd-ink)';
+  if(showerMount(it) === 'clamps'){
+    const c = Math.max(6, 40 * scale), out = [];
+    [x0 + Math.min(w * 0.18, 150 * scale), x0 + w - Math.min(w * 0.18, 150 * scale) - c].forEach(cx => out.push(`<rect class="sh-clamp" x="${cx}" y="${drawH - c}" width="${c}" height="${c}" fill="#c9ccd0" stroke="${color}" stroke-width="1.2"/>`));
+    if(wallSide){ const wx = wallSide === 'left' ? x0 : x0 + w - c; [0.22, 0.78].forEach(f => out.push(`<rect class="sh-clamp" x="${wx}" y="${drawH * f - c / 2}" width="${c}" height="${c}" fill="#c9ccd0" stroke="${color}" stroke-width="1.2"/>`)); }
+    return out.join('');
+  }
+  const t = Math.max(3, 25 * scale);
+  return `<rect class="sh-channel" x="${x0}" y="${drawH - t}" width="${w}" height="${t}" fill="#9aa3ab" stroke="${color}" stroke-width="1"/><rect class="sh-channel" x="${x0}" y="0" width="${w}" height="${t}" fill="#9aa3ab" stroke="${color}" stroke-width="1"/>`;
+}
 function shSetGlass(mm){ const it = getSelected(); if(!it || !isShowerDoor(it)) return; pushHistory(); it.showerGlassMm = mm; shRefreshPanel(it); renderGallery(); }
 window.shSetGlass = shSetGlass;
 function showerPanelsW(it){ return (it.showerLeftPanel ? (it.showerLeftWidth || 0) : 0) + (it.showerRightPanel ? (it.showerRightWidth || 0) : 0); }
@@ -9578,6 +9599,7 @@ function shRefreshPanel(it){
   document.getElementById('shDoorRow').style.display = m === 'none' ? 'none' : 'grid';
   const L = it.showerLeftPanel ? it.showerLeftWidth : 0, R = it.showerRightPanel ? it.showerRightWidth : 0;
   const gmm = showerGlassMm(it); document.querySelectorAll('#shGlassBtns [data-g]').forEach(b=> b.classList.toggle('active', +b.dataset.g === gmm));
+  { const mt = showerMount(it); document.querySelectorAll('#shMountBtns [data-mount]').forEach(b=> b.classList.toggle('active', b.dataset.mount === mt)); }
   document.querySelectorAll('#shWallBtns [data-wall]').forEach(b=> b.classList.toggle('active', showerWallSide(it, b.dataset.wall)));
   { const G = showerWallGapMm(it), gi = document.getElementById('shWallGap'); if(gi && document.activeElement !== gi) gi.value = G;
     const nW = (showerWallSide(it, 'left') ? 1 : 0) + (showerWallSide(it, 'right') ? 1 : 0), tt = document.getElementById('shWallGapTot');
@@ -20678,9 +20700,11 @@ function buildItemSVG(it){
       <g style="cursor:pointer;" onclick="shEditDim(${it.id},'${editSide}')"><rect x="${x0+sidePx/2-Math.min(Math.max(sidePx-6,70),130)/2}" y="${drawH+20}" width="${Math.min(Math.max(sidePx-6,70),130)}" height="26" rx="6" fill="var(--wd-amber)" fill-opacity="0.12" stroke="var(--wd-amber)" stroke-opacity="0.5"/><text x="${x0+sidePx/2}" y="${drawH+38}" fill="var(--wd-amber)" font-size="14" font-weight="700" font-family="var(--wd-font-mono)" text-anchor="middle">ثابت ${Math.round(width)}</text></g>`;
   if(hasLeft){
     sidePanelSvg += buildSidePanel(leftSidePx, -leftSidePx-mullionGap, 0, it.showerLeftWidth, 'left');
+    sidePanelSvg += showerMountSVG(it, -leftSidePx-mullionGap, leftSidePx, drawH, leftSidePx / Math.max(1, it.showerLeftWidth), showerWallSide(it, 'left') ? 'left' : null);
   }
   if(hasRight){
     sidePanelSvg += buildSidePanel(rightSidePx, drawW+mullionGap, drawW, it.showerRightWidth, 'right');
+    sidePanelSvg += showerMountSVG(it, drawW+mullionGap, rightSidePx, drawH, rightSidePx / Math.max(1, it.showerRightWidth), showerWallSide(it, 'right') ? 'right' : null);
   }
 
   const maxBox = getScreenMaxDimPx(it) + 130;
@@ -21372,6 +21396,8 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
     cursorX += rightPx;
   }
   const totalDrawW = cursorX;
+  if(hasLeft) glass += showerMountSVG(it, 0, leftPx, drawH, scale, showerWallSide(it, 'left') ? 'left' : null, '#000000');
+  if(hasRight) glass += showerMountSVG(it, rightX, rightPx, drawH, scale, showerWallSide(it, 'right') ? 'right' : null, '#000000');
 
   const hardware = `<g transform="translate(${doorX},0)">${showerDoorHardwareSVG(it, drawW, drawH, '#000000')}</g>`;
 
@@ -22218,7 +22244,7 @@ function mzFixMisguessedHandrail(it, rd){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','showerWallGap','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
+const SAVED_EXTRA_KEYS = ['showerMount','hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','showerWallGap','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
