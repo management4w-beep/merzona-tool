@@ -8595,6 +8595,10 @@ window.wdApplyBack = function(results){
             <button type="button" data-mount="channel" onclick="shSetMount('channel')">مجرى U (تشانل)</button>
             <button type="button" data-mount="clamps" onclick="shSetMount('clamps')">قطع ستانلس 4×4</button>
           </div>
+          <div id="shClampRow" style="display:none;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
+            <label style="font-size:12px;">قطع بالأرض (لكل لوح ثابت)<input type="number" id="shClampFloor" min="0" max="12" step="1" inputmode="numeric" oninput="shSetClampCount('floor', this.value)"></label>
+            <label style="font-size:12px;">قطع عالحيط (لكل جهة حيط)<input type="number" id="shClampWall" min="0" max="12" step="1" inputmode="numeric" oninput="shSetClampCount('wall', this.value)"></label>
+          </div>
           <label style="margin-top:10px;display:block;">عدد المفصلات</label>
           <div class="shape-toggle">
             <button id="btnShowerHinge2" onclick="onShowerHingeCountChange(2)">2</button>
@@ -9528,13 +9532,18 @@ function showerGlassMm(it){
 function showerMount(it){ return it && it.showerMount === 'clamps' ? 'clamps' : 'channel'; }
 function shSetMount(m){ const it = getSelected(); if(!it || !isShowerDoor(it)) return; pushHistory(); it.showerMount = m === 'clamps' ? 'clamps' : 'channel'; shRefreshPanel(it); renderGallery(); }
 window.shSetMount = shSetMount;
+// 🔢 حمدي: "خلي يكون عندي خيار اضافة عدد القطع الستانلس كمان وهالشي ما بيشمل الباب لانه عنده مفصلاته"
+function showerClampCount(it, kind){ const v = kind === 'wall' ? it.showerClampWall : it.showerClampFloor; const n = Math.round(+v); return Number.isFinite(n) && v !== '' && v != null ? Math.max(0, Math.min(12, n)) : 2; }
+function shSetClampCount(kind, v){ const it = getSelected(); if(!it || !isShowerDoor(it)) return; const n = Math.round(+v); if(!Number.isFinite(n) || n < 0) return; pushHistory(); it[kind === 'wall' ? 'showerClampWall' : 'showerClampFloor'] = Math.min(12, n); renderGallery(); }
+window.shSetClampCount = shSetClampCount;
 // علامات التثبيت عالرسمة: مجرى U = شريط تحت وفوق اللوح الثابت؛ قطع ستانلس = مربعات 4×4 سم (تنتين بالأرض + تنتين عالحيط إذا الجهة حيط)
 function showerMountSVG(it, x0, w, drawH, scale, wallSide, color){
   color = color || 'var(--wd-ink)';
   if(showerMount(it) === 'clamps'){
     const c = Math.max(6, 40 * scale), out = [];
-    [x0 + Math.min(w * 0.18, 150 * scale), x0 + w - Math.min(w * 0.18, 150 * scale) - c].forEach(cx => out.push(`<rect class="sh-clamp" x="${cx}" y="${drawH - c}" width="${c}" height="${c}" fill="#c9ccd0" stroke="${color}" stroke-width="1.2"/>`));
-    if(wallSide){ const wx = wallSide === 'left' ? x0 : x0 + w - c; [0.22, 0.78].forEach(f => out.push(`<rect class="sh-clamp" x="${wx}" y="${drawH * f - c / 2}" width="${c}" height="${c}" fill="#c9ccd0" stroke="${color}" stroke-width="1.2"/>`)); }
+    const nF = showerClampCount(it, 'floor'), nW = showerClampCount(it, 'wall'), ins = Math.min(w * 0.18, 150 * scale);
+    for(let i = 0; i < nF; i++){ const cx = nF === 1 ? x0 + w / 2 - c / 2 : x0 + ins + (w - 2 * ins - c) * i / (nF - 1); out.push(`<rect class="sh-clamp" x="${cx}" y="${drawH - c}" width="${c}" height="${c}" fill="#c9ccd0" stroke="${color}" stroke-width="1.2"/>`); }
+    if(wallSide){ const wx = wallSide === 'left' ? x0 : x0 + w - c; for(let i = 0; i < nW; i++){ const f = nW === 1 ? 0.5 : 0.22 + 0.56 * i / (nW - 1); out.push(`<rect class="sh-clamp" x="${wx}" y="${drawH * f - c / 2}" width="${c}" height="${c}" fill="#c9ccd0" stroke="${color}" stroke-width="1.2"/>`); } }
     return out.join('');
   }
   const t = Math.max(3, 25 * scale);
@@ -9599,7 +9608,10 @@ function shRefreshPanel(it){
   document.getElementById('shDoorRow').style.display = m === 'none' ? 'none' : 'grid';
   const L = it.showerLeftPanel ? it.showerLeftWidth : 0, R = it.showerRightPanel ? it.showerRightWidth : 0;
   const gmm = showerGlassMm(it); document.querySelectorAll('#shGlassBtns [data-g]').forEach(b=> b.classList.toggle('active', +b.dataset.g === gmm));
-  { const mt = showerMount(it); document.querySelectorAll('#shMountBtns [data-mount]').forEach(b=> b.classList.toggle('active', b.dataset.mount === mt)); }
+  { const mt = showerMount(it); document.querySelectorAll('#shMountBtns [data-mount]').forEach(b=> b.classList.toggle('active', b.dataset.mount === mt));
+    const row = document.getElementById('shClampRow'); if(row) row.style.display = mt === 'clamps' ? 'grid' : 'none';
+    const f = document.getElementById('shClampFloor'), w = document.getElementById('shClampWall');
+    if(f && document.activeElement !== f) f.value = showerClampCount(it, 'floor'); if(w && document.activeElement !== w) w.value = showerClampCount(it, 'wall'); }
   document.querySelectorAll('#shWallBtns [data-wall]').forEach(b=> b.classList.toggle('active', showerWallSide(it, b.dataset.wall)));
   { const G = showerWallGapMm(it), gi = document.getElementById('shWallGap'); if(gi && document.activeElement !== gi) gi.value = G;
     const nW = (showerWallSide(it, 'left') ? 1 : 0) + (showerWallSide(it, 'right') ? 1 : 0), tt = document.getElementById('shWallGapTot');
@@ -22244,7 +22256,7 @@ function mzFixMisguessedHandrail(it, rd){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['showerMount','hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','showerWallGap','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
+const SAVED_EXTRA_KEYS = ['showerMount','showerClampFloor','showerClampWall','hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','showerWallGap','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,
