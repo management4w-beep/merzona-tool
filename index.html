@@ -6917,9 +6917,15 @@ function designItemsSignature(arr){
   catch(e){ return String(Math.random()); }
 }
 function normalizeRefForCompare(r){ return String(r||'').replace(/\s+/g,'').toUpperCase(); }
+// 🛠️ 2026-11-24 (بلاغ حمدي - S-Q-260010: "طلعلي رسمة لمشروع تاني... مو اول مرة بتطلع هيك رسمة من المشاريع تبع الغرف"):
+// السبب: تصميم غرفة انحفظ بـ30/9 والرقم المرجعي لسا ناقص ("M-Q-260" = البادئة الافتراضية قبل ما يوصل الرقم). كل عرض سعر جديد
+// بيبلش بنفس البادئة لحظة، فـ"آخر تصميم محفوظ لهالرقم" كان يلاقي هداك التصميم ويفتحه لحالو (من 18/11 بلا سؤال) - وينحفظ مع العرض الجديد.
+// هلق: الرقم الناقص ما بيتربط فيه ولا تصميم - لا بالقراءة ولا بالكتابة.
+function mzIsCompleteRef(r){ const m = String(r || '').trim().match(/(\d+)\s*$/); return !!(m && m[1].length >= 5); }
+window.mzIsCompleteRef = mzIsCompleteRef;
 async function fetchLatestSavedDesignForRef(refRaw){
   const refNorm = normalizeRefForCompare(refRaw);
-  if(!refNorm) return null;
+  if(!refNorm || !mzIsCompleteRef(refNorm)) return null;
   let best = null;
   // (أ) نسخة محلية بنفس المتصفح (بتنكتب كل مرة "حفظ التصميم" ينجح) - بتشتغل حتى بدون إنترنت/توكن.
   try{
@@ -6957,7 +6963,7 @@ async function offerNewerSavedDesign(){
   try{
     const refEl = document.getElementById('m-ref');
     const ref = refEl ? (refEl.value || '').trim() : '';
-    if(!ref) return false;
+    if(!ref || !mzIsCompleteRef(ref)) return false;
     const env = await fetchLatestSavedDesignForRef(ref);
     if(!env) return false;
     const exported = window.__getDesignItemsForExport__ ? window.__getDesignItemsForExport__() : { items:[] };
@@ -7052,7 +7058,7 @@ async function saveDesignToDrive(opts){
     };
     await saveJsonToDriveFolder(currentDesignId + '.json', envelope, designsFolderId, token);
     currentDesignSavedAt = envelope.savedAt;
-    if(refRaw){ try{ mzSafeSetItem('merzona-latest-design::' + normalizeRefForCompare(refRaw), JSON.stringify(envelope)); }catch(e){} }
+    if(refRaw && mzIsCompleteRef(refRaw)){ try{ mzSafeSetItem('merzona-latest-design::' + normalizeRefForCompare(refRaw), JSON.stringify(envelope)); }catch(e){} }
     // المسودة المفتوحة (لو في) لازم تحمل نفس التصميم، وإلا فتحها بعدين بيجيب النسخة القديمة المخزنة جواها.
     let draftOk = null;
     if(currentDraftId){ draftOk = await saveDraftToDrive(null, { silent: true }); }
@@ -22269,6 +22275,16 @@ WD.loadFromRows = function(rowData){
       mzHandrailFollowRow(it, rd);
       if(rd.itemName) it.label = rd.itemName;
       it.refCode = rd.refCode || it.refCode || '';
+    } else if(rd.savedDesign && rd.savedDesign.shapeType === 'handrail'){
+      // 🛠️ 2026-11-24 (بلاغ حمدي - عرض 260010: "كبست على ارسم المسقط ام طلعلي رسمة لمشروع تاني"): التصميم
+      // المحفوظ على نوع البند (قالب للمرات الجاية) كان ينسخ مسقط الهاندريل وأضلاعه وزواياه من المشروع القديم.
+      // هلق من القالب منوخد بس النوع/التركيب/الارتفاع/المواد/الألوان، والمسقط والأطوال بتبلش من مقاس الصف هون.
+      const tpl = rd.savedDesign, ex = tpl.extra || {};
+      it = makeItem('handrail');
+      ['hrKind', 'hrMount', 'hrGlassHeight', 'r3dColor', 'r3dGlass', 'r3dBg'].forEach(k => { if(ex[k] !== undefined) it[k] = JSON.parse(JSON.stringify(ex[k])); });
+      if(Array.isArray(tpl.materialIds) && tpl.materialIds.length) it.materialIds = tpl.materialIds.slice();
+      it.sourceRowUid = rd.uid; it.label = rd.itemName || it.label; it.refCode = rd.refCode || '';
+      mzInitHandrailFromRow(it, rd);
     } else if(rd.savedDesign){
       it = buildItemFromSavedDesign(rd.savedDesign, rd.uid, rd.itemName);
       mzFixMisguessedHandrail(it, rd);
