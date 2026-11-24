@@ -1125,6 +1125,26 @@ async def t_shower_mount(p, b, port):
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
+async def t_wd_header_toggle(p, b, port):
+    """🔼 حمدي: "زر اخفاء الترويسة التغى" - لازم يبين بالمصمم بكل الأوضاع (حتى الشاشة العريضة / وضع الكمبيوتر)"""
+    print('• المصمم: زر إخفاء/إظهار الترويسة')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[1200, 1400, 'Hinged Window']])
+    for mode in ('desktop', 'mobile'):
+        await pg.evaluate("(m) => { document.body.classList.toggle('mode-mobile', m === 'mobile'); }", mode)
+        await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(800)
+        vis = await pg.is_visible('#wdHeaderToggleBtn')
+        await pg.evaluate("(function(){ var o = document.getElementById('wdOverlay'); if(o.classList.contains('wd-header-collapsed')) toggleWdHeader(); })()"); await pg.wait_for_timeout(150)
+        shown = await pg.is_visible('#wdOverlay header.wd-top .print-controls')
+        await pg.click('#wdHeaderToggleBtn'); await pg.wait_for_timeout(200)
+        hidden = not await pg.is_visible('#wdOverlay header.wd-top .print-controls')
+        await pg.click('#wdHeaderToggleBtn'); await pg.wait_for_timeout(200)
+        back = await pg.is_visible('#wdOverlay header.wd-top .print-controls')
+        check(vis and shown and hidden and back, 'زر الترويسة ظاهر وشغّال بوضع ' + mode + ' ' + str([vis, shown, hidden, back]))
+        await pg.evaluate("document.getElementById('wdOverlay').style.display='none'")
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
 async def t_handrail_template(p, b, port):
     """📐 عرض 260010: مسقط هاندريل مشروع قديم كان يطلع ببند الهاندريل بعرض سعر جديد (قالب البند)"""
     print('• الهاندريل: قالب البند ما بينقل مسقط مشروع تاني')
@@ -3600,7 +3620,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
-        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_shower_mount, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
+        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_wd_header_toggle, ()), (t_shower_mount, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
                          (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_catalog_manage, ()), (t_techcat_video_edit, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)

@@ -1345,19 +1345,19 @@
   .print-controls select{ width:auto; padding:8px 10px; font-size:12px; }
 
   /* زر طي/فرد ترويسة رسّام النوافذ والأبواب - يظهر بوضعية الموبايل بس، حتى مساحة الرسم تكبر */
-  #wdOverlay .wd-header-toggle{ display:none; width:100%; justify-content:center; order:99; }
-  body.mode-mobile #wdOverlay .wd-header-toggle{ display:flex; }
+  /* 🛠️ 2026-11-24 (حمدي: "زر اخفاء الترويسة التغى"): كان يبين بوضع الموبايل بس - على شاشة عريضة (الفولد مفتوح / وضع كمبيوتر) كان يختفي. هلق بكل الأوضاع. */
+  #wdOverlay .wd-header-toggle{ display:flex; width:100%; justify-content:center; order:99; }
   #wdOverlay .wd-header-toggle button{
     background: var(--wd-panel); border:1px solid var(--wd-line-soft); color: var(--wd-cyan);
     border-radius:20px; padding:5px 18px; font-size:12px; cursor:pointer;
     font-family: var(--wd-font-ui); font-weight:700;
   }
-  body.mode-mobile #wdOverlay.wd-header-collapsed header.wd-top .title-wrap,
-  body.mode-mobile #wdOverlay.wd-header-collapsed header.wd-top .wd-action-controls,
-  body.mode-mobile #wdOverlay.wd-header-collapsed header.wd-top .print-controls{
+  #wdOverlay.wd-header-collapsed header.wd-top .title-wrap,
+  #wdOverlay.wd-header-collapsed header.wd-top .wd-action-controls,
+  #wdOverlay.wd-header-collapsed header.wd-top .print-controls{
     display:none !important;
   }
-  body.mode-mobile #wdOverlay.wd-header-collapsed header.wd-top{
+  #wdOverlay.wd-header-collapsed header.wd-top{
     padding:4px 0 6px; margin-bottom:8px;
   }
 
@@ -7091,7 +7091,7 @@ function openDesignerWithImportedItems(designItems, designNextId){
     try{ pref = localStorage.getItem('merzona-wd-header-collapsed'); }catch(e){}
     setWdHeaderCollapsed(pref === null ? true : pref === '1');
   } else {
-    setWdHeaderCollapsed(false);
+    setWdHeaderCollapsed((function(){ try{ return localStorage.getItem('merzona-wd-header-collapsed') === '1'; }catch(e){ return false; } })());
   }
   if(window.__applyDesignItemsImport__) window.__applyDesignItemsImport__(designItems, designNextId);
 }
@@ -8327,7 +8327,7 @@ function openDesignerFromToolbar(){
     const collapsed = pref === null ? true : pref === '1';
     setWdHeaderCollapsed(collapsed);
   } else {
-    setWdHeaderCollapsed(false);
+    setWdHeaderCollapsed((function(){ try{ return localStorage.getItem('merzona-wd-header-collapsed') === '1'; }catch(e){ return false; } })());
   }
   window.scrollTo(0,0);
 }
@@ -19970,7 +19970,7 @@ function designRoomSideSegment(itemId, sideId, segId){
       const collapsed = pref === null ? true : pref === '1';
       setWdHeaderCollapsed(collapsed);
     } else {
-      setWdHeaderCollapsed(false);
+      setWdHeaderCollapsed((function(){ try{ return localStorage.getItem('merzona-wd-header-collapsed') === '1'; }catch(e){ return false; } })());
     }
     window.scrollTo(0,0);
   }
@@ -22456,7 +22456,7 @@ function resetAllItemDesignsFromQuotationTable(){
     const collapsed = pref === null ? true : pref === '1';
     setWdHeaderCollapsed(collapsed);
   } else {
-    setWdHeaderCollapsed(false);
+    setWdHeaderCollapsed((function(){ try{ return localStorage.getItem('merzona-wd-header-collapsed') === '1'; }catch(e){ return false; } })());
   }
   window.scrollTo(0,0);
   if(typeof scheduleDesignSave === 'function') scheduleDesignSave();
