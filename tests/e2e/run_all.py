@@ -1061,6 +1061,48 @@ async def t_handrail_plan(p, b, port):
     check(not errs, 'ما في أخطاء جافاسكربت ' + str(errs[:2]))
     await ctx.close()
 
+async def t_design_partial_ref(p, b, port):
+    """🏠 عرض S-Q-260010: تصميم غرفة محفوظ برقم ناقص (M-Q-260) كان ينفتح لحالو بأي عرض سعر جديد"""
+    print('• التصميم: الرقم المرجعي الناقص ما بيجيب تصميم مشروع تاني')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await pg.goto(f'http://127.0.0.1:{port}/index.html'); await pg.wait_for_timeout(2500)
+    room = {'id': 4, 'shapeType': 'room', 'label': 'غرفة/مجلس 1', 'width': 1200, 'height': 1400, 'roomSides': [{'id': 1, 'length': 700}, {'id': 2, 'length': 3560}]}
+    env = {'schema': 'merzona-design-v1', 'designId': 'oldroom', 'label': 'M-Q-260', 'ref': 'M-Q-260', 'branch': 'uae', 'savedAt': 4102444800000, 'designItems': [room], 'designNextId': 26}
+    await pg.evaluate("(e) => { localStorage.setItem('merzona-latest-design::M-Q-260', JSON.stringify(e)); localStorage.setItem('merzona-latest-design::S-Q-260010', JSON.stringify(Object.assign({}, e, {ref:'S-Q-260010', designId:'mine'}))); }", env)
+    await pg.evaluate("() => { window.getGoogleAccessToken = async function(){ throw new Error('no token in test'); }; }")
+    for ref in ('M-Q-260', 'S-Q-260', ''):
+        await pg.evaluate("(r) => { document.getElementById('m-ref').value = r; }", ref)
+        r = await pg.evaluate("(async () => { const ok = await offerNewerSavedDesign(); const env = await fetchLatestSavedDesignForRef(document.getElementById('m-ref').value); return { ok, env: !!env, n: window.__getDesignItemsForExport__().items.filter(i => i.shapeType === 'room').length }; })()")
+        check(not r['ok'] and not r['env'] and r['n'] == 0, 'رقم ناقص «' + ref + '»: ما انفتح تصميم الغرفة القديم ' + str(r))
+    await pg.evaluate("document.getElementById('m-ref').value = 'S-Q-260010'")
+    r = await pg.evaluate("(async () => { const env = await fetchLatestSavedDesignForRef('S-Q-260010'); return env && env.designId; })()")
+    check(r == 'mine', 'الرقم الكامل لسا بيجيب آخر تصميم إلو هو ' + str(r))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+async def t_handrail_template(p, b, port):
+    """📐 عرض 260010: مسقط هاندريل مشروع قديم كان يطلع ببند الهاندريل بعرض سعر جديد (قالب البند)"""
+    print('• الهاندريل: قالب البند ما بينقل مسقط مشروع تاني')
+    ctx = await new_ctx(p, b); await ctx.add_init_script(THREE_STUB)
+    pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[7230, 1100, 'Glass Handrail for Balcony']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    iid = await pg.evaluate("WD.__t.items()[0].id"); await pg.evaluate(f"WD.__t.sel({iid})"); await pg.wait_for_timeout(300)
+    await pg.click('#btnHrPlanStart'); await pg.wait_for_timeout(400)
+    segs = await pg.evaluate("WD.__t.items()[0].hrSegments.map(function(s){return s.id})")
+    await pg.evaluate(f"onHrSegField({iid},'{segs[0]}','totalLength',6040); onHrSegField({iid},'{segs[1]}','totalLength',1190)")
+    await pg.evaluate("wdSaveAndClose()"); await pg.wait_for_timeout(1000)
+    tpl = await pg.evaluate("(function(){var i=findItemIndexByName('Glass Handrail for Balcony'); var d=i>=0&&ITEMS[i].design; return d ? !!(d.extra && d.extra.hrPlan) : null})()")
+    check(tpl is True, 'القالب على نوع البند فيه مسقط المشروع الأول (متل الحالة عند حمدي)')
+    # مشروع تاني: صف جديد بنفس البند ومقاس تاني
+    await pg.evaluate("document.getElementById('qty-rows').innerHTML=''; if(window.__applyDesignItemsImport__) window.__applyDesignItemsImport__([], 1)")
+    await pg.evaluate(ADD % json.dumps([[3000, 1000, 'Glass Handrail for Balcony']]))
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    it = await pg.evaluate("(function(){var it=WD.__t.items()[0]; return {t:it.shapeType, plan:!!it.hrPlan, segs:(it.hrSegments||[]).length, w:it.width, total:it.hrTotalLength, h:it.hrGlassHeight}})()")
+    check(it['t'] == 'handrail' and not it['plan'] and it['segs'] == 1 and it['total'] == 3000 and it['h'] == 1000, 'المشروع التاني بيبلش بلا مسقط القديم وبمقاس صفه هو ' + str(it))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
 async def t_handrail_draw(p, b, port, mobile):
     """✏️ محرر المسقط: أرقام وأسهم، رسم بالإصبع، صورة الدفتر."""
     print('• محرر مسقط الهاندريل ' + ('(موبايل)' if mobile else '(كمبيوتر)'))
@@ -3513,7 +3555,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
-        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
+        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
                          (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_catalog_manage, ()), (t_techcat_video_edit, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
