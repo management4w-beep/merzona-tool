@@ -347,8 +347,9 @@ function buildOpening(it, M, H){
       }
     } else {
       const zf = z + SD/2;
-      if(type === 'tri_up') leverHandle(x + w/2, y + lw/2 + 0.02, zf, false);
-      else if(type === 'tri_down') leverHandle(x + w/2, y + h - lw/2 - 0.02, zf, false);
+      // المشهد هون Y لفوق: tri_up = المسكة فوق (متل الرسمة)، tri_down = تحت
+      if(type === 'tri_up') leverHandle(x + w/2, y + h - lw/2 - 0.02, zf, false);
+      else if(type === 'tri_down') leverHandle(x + w/2, y + lw/2 + 0.02, zf, false);
       else if(side) leverHandle(side === 'right' ? x + w - lw/2 : x + lw/2, y + h/2, zf, true);
     }
   }
@@ -376,21 +377,23 @@ function buildOpening(it, M, H){
     const slideKid = (k)=> k && k.node && k.node.kind === 'leaf' && /^slide_/.test(k.node.type || '');
     kids.forEach((ch, i)=>{
       const size = ch.frac / 100 * total;
-      const cx = row ? x + cum : x, cy = row ? y : y + cum;
+      // 🛠️ 2026-11-24 (حمدي - عرض 260009: "بالثري دي عم تتغير التقسيمة... الايد من تحت وبالتصميم من فوق"): التقسيم العمودي
+      // بالتصميم بيبلش من فوق، والمشهد هون Y لفوق - فأول قسم لازم ينحط فوق مش تحت.
+      const cx = row ? x + cum : x, cy = row ? y : y + h - cum - size;
       const cw = row ? size : w, chh = row ? h : size;
       const slideL = row && i > 0 && slideKid(kids[i-1]) && slideKid(ch);
       const slideR = row && i < kids.length - 1 && slideKid(kids[i+1]) && slideKid(ch);
       const L = row ? (i === 0 ? eL : (slideL ? 'slide' : 'in')) : eL;
       const R = row ? (i === kids.length - 1 ? eR : (slideR ? 'slide' : 'in')) : eR;
-      const B = row ? eB : (i === 0 ? eB : 'in');
-      const Tt = row ? eT : (i === kids.length - 1 ? eT : 'in');
+      const B = row ? eB : (i === kids.length - 1 ? eB : 'in');
+      const Tt = row ? eT : (i === 0 ? eT : 'in');
       walk(ch.node, cx, cy, cw, chh, L, R, B, Tt);
       cum += size;
       if(i < kids.length - 1 && !(row && slideKid(ch) && slideKid(kids[i+1]))){
         const lo = row ? Math.max(y, inner.y0) : Math.max(x, inner.x0);
         const hi = row ? Math.min(y + h, inner.y1) : Math.min(x + w, inner.x1);
         if(row) bar(x + cum, (lo + hi)/2, mbw, hi - lo, D * 0.96, 0, M.alu);
-        else bar((lo + hi)/2, y + cum, hi - lo, mbw, D * 0.96, 0, M.alu);
+        else bar((lo + hi)/2, y + h - cum, hi - lo, mbw, D * 0.96, 0, M.alu);
       }
     });
   }
