@@ -359,7 +359,8 @@ function buildOpening(it, M, H){
 
   if(shower){
     // زجاج سيكوريت 10 ملم بلا إطار: جناب ثابتة بمجرى U تحت وفوق + باب على مفصلات زجاج-زجاج + مسكة
-    const GT = 0.010, gap = 0.004, lP = shL/1000, rP = shR/1000, dW = it.width/1000;
+    const GT = Math.max(6, Math.min(15, +it.showerGlassMm || 10))/1000, gap = 0.004, lP = shL/1000, rP = shR/1000, dW = it.width/1000;
+    const clamps = it.showerMount === 'clamps';
     const type = (it.layout && it.layout.type) || 'shwr_lv';
     const hingeLeft = type.indexOf('_l') !== -1, horizInside = /h$/.test(type);
     const frosted = new THREE.MeshPhysicalMaterial({ color:0xf3f6f8, transparent:true, opacity:0.82, roughness:0.85, metalness:0, side:THREE.DoubleSide, depthWrite:false });
@@ -373,13 +374,21 @@ function buildOpening(it, M, H){
       else if(pattern === 'bandStriped'){ const a0 = Math.max(y0, botZ), a1 = Math.min(y1, Hh - topZ); for(let yy = a0; yy < a1; yy += 0.06) add(yy, Math.min(a1, yy + 0.035)); }
       else add(y0, y1);
     }
-    const uCh = (x, w)=>{ bar(x + w/2, 0.012, w, 0.024, 0.03, 0, M.alu); bar(x + w/2, Hh - 0.012, w, 0.024, 0.03, 0, M.alu); };
+    // تثبيت الثابت: مجرى U تحت وفوق، أو قطع ستانلس 4×4 سم ماسكة الزجاج من الوجهين (بالأرض، وعالحيط إذا الجهة حيط)
+    const uCh = (x, w, wallSide)=>{
+      if(!clamps){ bar(x + w/2, 0.012, w, 0.024, 0.03, 0, M.alu); bar(x + w/2, Hh - 0.012, w, 0.024, 0.03, 0, M.alu); return; }
+      const c = 0.04, cz = GT/2 + 0.006;
+      const pair = (cx, cy)=>{ [1, -1].forEach(sg=> bar(cx, cy, c, c, 0.012, sg*cz, M.steel)); };
+      [x + Math.min(w*0.18, 0.15) + c/2, x + w - Math.min(w*0.18, 0.15) - c/2].forEach(cx=> pair(cx, c/2));
+      if(wallSide){ const wx = wallSide === 'left' ? x + c/2 : x + w - c/2; [0.22, 0.78].forEach(f=> pair(wx, Hh*f)); }
+    };
+    const fixY0 = clamps ? 0.008 : 0.024, fixY1 = clamps ? Hh - 0.006 : Hh - 0.024;
     let cx = 0;
-    if(lP > 0){ pane(cx, lP - gap/2, 0.024, Hh - 0.024); uCh(cx, lP - gap/2); cx += lP; }
+    if(lP > 0){ pane(cx, lP - gap/2, fixY0, fixY1); uCh(cx, lP - gap/2, it.showerWallL !== false ? 'left' : null); cx += lP; }
     const dx0 = cx + (lP > 0 ? gap/2 : 0), dx1 = cx + dW - (rP > 0 ? gap/2 : 0);
     pane(dx0, dx1 - dx0, 0.008, Hh - 0.006);
     cx += dW;
-    if(rP > 0){ pane(cx + gap/2, rP - gap/2, 0.024, Hh - 0.024); uCh(cx + gap/2, rP - gap/2); }
+    if(rP > 0){ pane(cx + gap/2, rP - gap/2, fixY0, fixY1); uCh(cx + gap/2, rP - gap/2, it.showerWallR !== false ? 'right' : null); }
     // مفصلات (مواقعها متل الرسمة: 2 = فوق وتحت، 3 = تنتين فوق وحدة تحت)
     const hx = hingeLeft ? dx0 : dx1;
     const ys = (it.showerHingeCount === 2) ? [0.90, 0.10] : [0.94, 0.80, 0.10];

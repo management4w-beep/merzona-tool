@@ -305,6 +305,12 @@ async def t_real3d(p, b, port):
       var op = MzReal3D._buildOpening(it, M, H), n = 0; op.group.traverse(function(o){ if(o.isMesh) n++; });
       return { can: MzReal3D.canRender(it, H), W: +op.W.toFixed(3), door: op.door, n: n, img: (MzReal3D.renderImage(it, H) || '').slice(0, 15) }; })()""")
     check(sh['can'] and sh['W'] == 1.67 and sh['door'] and sh['n'] > 15 and sh['img'].startswith('data:image'), 'الفاصل الزجاجي (باب + جنب ثابت): ثري دي واقعي بعرضه الكامل 1670 ' + str(sh))
+    # 🔩 تثبيت الثابت: مجرى U أو قطع ستانلس 4×4 (تنتين بالأرض + تنتين عالحيط، من الوجهين)
+    mt = await pg.evaluate("""(function(){ var H = window.MZ_R3D_HELPERS, T = THREE, mat = new T.MeshBasicMaterial(), M = new Proxy({}, { get: function(){ return mat; } });
+      var base = {id:3, shapeType:'showerGlassDoor', width:800, height:2437, showerLeftPanel:true, showerLeftWidth:870, layout:{id:'n',kind:'leaf',type:'shwr_lv'}};
+      function cnt(it){ var op = MzReal3D._buildOpening(it, M, H), c = 0, u = 0; op.group.traverse(function(o){ if(!o.isMesh || !o.geometry) return; o.geometry.computeBoundingBox(); var b = o.geometry.boundingBox, w = b.max.x - b.min.x, h = b.max.y - b.min.y; if(Math.abs(w - 0.04) < 0.003 && Math.abs(h - 0.04) < 0.003) c++; if(h > 0.02 && h < 0.03 && w > 0.8) u++; }); return [c, u]; }
+      return { ch: cnt(base), cl: cnt(Object.assign({}, base, {showerMount:'clamps'})), clNoWall: cnt(Object.assign({}, base, {showerMount:'clamps', showerWallL:false})) }; })()""")
+    check(mt['ch'] == [0, 2] and mt['cl'] == [8, 0] and mt['clNoWall'] == [4, 0], 'تثبيت الثابت: مجرى U (تحت وفوق) أو قطع ستانلس 4×4 (أرض + حيط) ' + str(mt))
     # زر الرسمة بيرجّع الرسمة
     await pg.click('#threeDGrid .threeD-card >> nth=0 >> [data-r3d="sketch"]'); await pg.wait_for_timeout(200)
     check(await pg.evaluate("(function(){ var c = document.querySelectorAll('#threeDGrid .threeD-card')[0]; return c.querySelector('.threeD-sketch svg') && c.querySelector('img.threeD-real').style.display == 'none'; })()"), 'زر ✏️ الرسمة بيبدّل للرسمة')
@@ -1093,6 +1099,24 @@ async def t_design_partial_ref(p, b, port):
     await pg.evaluate("document.getElementById('m-ref').value = 'S-Q-260010'")
     r = await pg.evaluate("(async () => { const env = await fetchLatestSavedDesignForRef('S-Q-260010'); return env && env.designId; })()")
     check(r == 'mine', 'الرقم الكامل لسا بيجيب آخر تصميم إلو هو ' + str(r))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
+async def t_shower_mount(p, b, port):
+    """🔩 حمدي: تثبيت الزجاج الثابت على مجرى U أو قطع ستانلس 4×4"""
+    print('• الشاور/الفاصل: خيار التثبيت (مجرى U / قطع ستانلس)')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[800, 2437, 'Shower Glass Door']])
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    await pg.evaluate("(function(){ var it = WD.__t.items()[0]; it.shapeType = 'showerGlassDoor'; it.layout = {id:'z1',kind:'leaf',type:'shwr_lv'}; it.showerLeftPanel = true; it.showerLeftWidth = 870; WD.__t.sel(it.id); })()"); await pg.wait_for_timeout(400)
+    iid = await pg.evaluate("WD.__t.items()[0].id")
+    check(await pg.evaluate("!!document.querySelector('#shMountBtns [data-mount=\"channel\"].active')"), 'الافتراضي مجرى U')
+    n0 = await pg.evaluate(f"document.querySelectorAll('#card-{iid} .sh-channel').length")
+    await pg.click('#shMountBtns [data-mount="clamps"]'); await pg.wait_for_timeout(300)
+    st = await pg.evaluate(f"(function(){{ return {{ m: WD.__t.items()[0].showerMount, cl: document.querySelectorAll('#card-{iid} .sh-clamp').length, ch: document.querySelectorAll('#card-{iid} .sh-channel').length, act: !!document.querySelector('#shMountBtns [data-mount=\"clamps\"].active') }}; }})()")
+    check(n0 == 2 and st['m'] == 'clamps' and st['cl'] == 4 and st['ch'] == 0 and st['act'], 'قطع ستانلس: 2 بالأرض + 2 عالحيط بالرسمة ' + str([n0, st]))
+    await reopen(pg)
+    check(await pg.evaluate("WD.__t.items()[0].showerMount") == 'clamps', 'الخيار بينحفظ مع البند')
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
@@ -3571,7 +3595,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
-        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
+        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_shower_mount, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
                          (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_catalog_manage, ()), (t_techcat_video_edit, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
