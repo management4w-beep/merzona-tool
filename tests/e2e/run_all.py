@@ -309,8 +309,8 @@ async def t_real3d(p, b, port):
     mt = await pg.evaluate("""(function(){ var H = window.MZ_R3D_HELPERS, T = THREE, mat = new T.MeshBasicMaterial(), M = new Proxy({}, { get: function(){ return mat; } });
       var base = {id:3, shapeType:'showerGlassDoor', width:800, height:2437, showerLeftPanel:true, showerLeftWidth:870, layout:{id:'n',kind:'leaf',type:'shwr_lv'}};
       function cnt(it){ var op = MzReal3D._buildOpening(it, M, H), c = 0, u = 0; op.group.traverse(function(o){ if(!o.isMesh || !o.geometry) return; o.geometry.computeBoundingBox(); var b = o.geometry.boundingBox, w = b.max.x - b.min.x, h = b.max.y - b.min.y; if(Math.abs(w - 0.04) < 0.003 && Math.abs(h - 0.04) < 0.003) c++; if(h > 0.02 && h < 0.03 && w > 0.8) u++; }); return [c, u]; }
-      return { ch: cnt(base), cl: cnt(Object.assign({}, base, {showerMount:'clamps'})), clNoWall: cnt(Object.assign({}, base, {showerMount:'clamps', showerWallL:false})) }; })()""")
-    check(mt['ch'] == [0, 2] and mt['cl'] == [8, 0] and mt['clNoWall'] == [4, 0], 'تثبيت الثابت: مجرى U (تحت وفوق) أو قطع ستانلس 4×4 (أرض + حيط) ' + str(mt))
+      return { ch: cnt(base), cl: cnt(Object.assign({}, base, {showerMount:'clamps'})), clNoWall: cnt(Object.assign({}, base, {showerMount:'clamps', showerWallL:false})), cl35: cnt(Object.assign({}, base, {showerMount:'clamps', showerClampFloor:3, showerClampWall:5})) }; })()""")
+    check(mt['ch'] == [0, 2] and mt['cl'] == [8, 0] and mt['clNoWall'] == [4, 0] and mt['cl35'] == [16, 0], 'تثبيت الثابت: مجرى U (تحت وفوق) أو قطع ستانلس 4×4 (أرض + حيط) ' + str(mt))
     # زر الرسمة بيرجّع الرسمة
     await pg.click('#threeDGrid .threeD-card >> nth=0 >> [data-r3d="sketch"]'); await pg.wait_for_timeout(200)
     check(await pg.evaluate("(function(){ var c = document.querySelectorAll('#threeDGrid .threeD-card')[0]; return c.querySelector('.threeD-sketch svg') && c.querySelector('img.threeD-real').style.display == 'none'; })()"), 'زر ✏️ الرسمة بيبدّل للرسمة')
@@ -1115,8 +1115,13 @@ async def t_shower_mount(p, b, port):
     await pg.click('#shMountBtns [data-mount="clamps"]'); await pg.wait_for_timeout(300)
     st = await pg.evaluate(f"(function(){{ return {{ m: WD.__t.items()[0].showerMount, cl: document.querySelectorAll('#card-{iid} .sh-clamp').length, ch: document.querySelectorAll('#card-{iid} .sh-channel').length, act: !!document.querySelector('#shMountBtns [data-mount=\"clamps\"].active') }}; }})()")
     check(n0 == 2 and st['m'] == 'clamps' and st['cl'] == 4 and st['ch'] == 0 and st['act'], 'قطع ستانلس: 2 بالأرض + 2 عالحيط بالرسمة ' + str([n0, st]))
+    check(await pg.is_visible('#shClampFloor') and await pg.input_value('#shClampFloor') == '2' and await pg.input_value('#shClampWall') == '2', 'خانات عدد القطع ظاهرة (افتراضي 2 و2)')
+    await pg.fill('#shClampFloor', '3'); await pg.fill('#shClampWall', '4'); await pg.wait_for_timeout(300)
+    cl = await pg.evaluate(f"document.querySelectorAll('#card-{iid} .sh-clamp').length")
+    check(cl == 7, 'عدد القطع: 3 بالأرض + 4 عالحيط (والباب ما إلو قطع) ' + str(cl))
     await reopen(pg)
-    check(await pg.evaluate("WD.__t.items()[0].showerMount") == 'clamps', 'الخيار بينحفظ مع البند')
+    sv = await pg.evaluate("(function(){ var it = WD.__t.items()[0]; return [it.showerMount, it.showerClampFloor, it.showerClampWall]; })()")
+    check(sv == ['clamps', 3, 4], 'الخيار والعدد بينحفظوا مع البند ' + str(sv))
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 

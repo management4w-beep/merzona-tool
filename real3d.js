@@ -379,8 +379,10 @@ function buildOpening(it, M, H){
       if(!clamps){ bar(x + w/2, 0.012, w, 0.024, 0.03, 0, M.alu); bar(x + w/2, Hh - 0.012, w, 0.024, 0.03, 0, M.alu); return; }
       const c = 0.04, cz = GT/2 + 0.006;
       const pair = (cx, cy)=>{ [1, -1].forEach(sg=> bar(cx, cy, c, c, 0.012, sg*cz, M.steel)); };
-      [x + Math.min(w*0.18, 0.15) + c/2, x + w - Math.min(w*0.18, 0.15) - c/2].forEach(cx=> pair(cx, c/2));
-      if(wallSide){ const wx = wallSide === 'left' ? x + c/2 : x + w - c/2; [0.22, 0.78].forEach(f=> pair(wx, Hh*f)); }
+      const cnt = (v)=>{ const n = Math.round(+v); return (v === '' || v == null || !Number.isFinite(n)) ? 2 : Math.max(0, Math.min(12, n)); };
+      const nF = cnt(it.showerClampFloor), nW = cnt(it.showerClampWall), ins = Math.min(w*0.18, 0.15);
+      for(let i = 0; i < nF; i++) pair(nF === 1 ? x + w/2 : x + ins + c/2 + (w - 2*ins - c) * i / (nF - 1), c/2);
+      if(wallSide){ const wx = wallSide === 'left' ? x + c/2 : x + w - c/2; for(let i = 0; i < nW; i++) pair(wx, Hh * (nW === 1 ? 0.5 : 0.22 + 0.56 * i / (nW - 1))); }
     };
     const fixY0 = clamps ? 0.008 : 0.024, fixY1 = clamps ? Hh - 0.006 : Hh - 0.024;
     let cx = 0;
