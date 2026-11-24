@@ -299,6 +299,12 @@ async def t_real3d(p, b, port):
       return { H: H, mul: mul, lev: lev }; })()""")
     ok = bool(lay) and len(lay['mul']) >= 1 and all(abs(m - lay['H'] * 0.3872) < 0.05 for m in lay['mul']) and len(lay['lev']) == 1 and lay['lev'][0][1] > lay['H'] * 0.85 and lay['lev'][0][0] > 1.1
     check(ok, 'ثري دي 260009: القسم الكبير فوق (القاطع على 39% من تحت) والمسكة فوق يمين متل الرسمة ' + str(lay))
+    # 🚿 عرض 260009: فاصل زجاج (باب شاور 800 + جنب ثابت 870، مسنفر) لازم يطلع ثري دي واقعي
+    sh = await pg.evaluate("""(function(){ var it = {id:3, shapeType:'showerGlassDoor', width:800, height:2437, showerLeftPanel:true, showerLeftWidth:870, showerRightPanel:false, showerHingeCount:3, frostedOverlay:true, frostPattern:'full', layout:{id:'n231',kind:'leaf',type:'shwr_lv'}};
+      var H = window.MZ_R3D_HELPERS, T = THREE, mat = new T.MeshBasicMaterial(), M = new Proxy({}, { get: function(){ return mat; } });
+      var op = MzReal3D._buildOpening(it, M, H), n = 0; op.group.traverse(function(o){ if(o.isMesh) n++; });
+      return { can: MzReal3D.canRender(it, H), W: +op.W.toFixed(3), door: op.door, n: n, img: (MzReal3D.renderImage(it, H) || '').slice(0, 15) }; })()""")
+    check(sh['can'] and sh['W'] == 1.67 and sh['door'] and sh['n'] > 15 and sh['img'].startswith('data:image'), 'الفاصل الزجاجي (باب + جنب ثابت): ثري دي واقعي بعرضه الكامل 1670 ' + str(sh))
     # زر الرسمة بيرجّع الرسمة
     await pg.click('#threeDGrid .threeD-card >> nth=0 >> [data-r3d="sketch"]'); await pg.wait_for_timeout(200)
     check(await pg.evaluate("(function(){ var c = document.querySelectorAll('#threeDGrid .threeD-card')[0]; return c.querySelector('.threeD-sketch svg') && c.querySelector('img.threeD-real').style.display == 'none'; })()"), 'زر ✏️ الرسمة بيبدّل للرسمة')

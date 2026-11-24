@@ -227,7 +227,7 @@ function bevelBoxGeo(w, h, d, b){
 
 function isOpeningSupported(it, H){
   if(!it || !(it.width > 0) || !(it.height > 0) || !it.layout) return false;
-  if(H.isHandrail(it) || H.isMirror(it) || H.isShowerDoor(it) || H.isRoom(it) || H.isPergola(it) || H.isGableRoof(it)) return false;
+  if(H.isHandrail(it) || H.isMirror(it) || H.isRoom(it) || H.isPergola(it) || H.isGableRoof(it)) return false;
   if(it.archTop) return false;
   return true;
 }
@@ -235,9 +235,12 @@ function isOpeningSupported(it, H){
 // بيبني الشباك/الباب (مجموعة بمركزها تحت-يسار = 0,0، الوجه الخارجي باتجاه +Z)
 function buildOpening(it, M, H){
   const THREE = T();
-  const W = it.width/1000, Hh = it.height/1000;
+  // 🚿 2026-11-24 (حمدي - عرض 260009: "ليش ماعم تعمل ثري دي للبارتشن الازاز؟"): باب شاور/فاصل زجاج = عرض الباب + الجناب الثابتة
+  const shower = !!(H.isShowerDoor && H.isShowerDoor(it));
+  const shL = shower && it.showerLeftPanel ? Math.max(0, +it.showerLeftWidth || 0) : 0, shR = shower && it.showerRightPanel ? Math.max(0, +it.showerRightWidth || 0) : 0;
+  const W = (it.width + shL + shR)/1000, Hh = it.height/1000;
   const g = new THREE.Group();
-  const door = H.isDoorLike(it), sliding = H.isSlidingType(it);
+  const door = shower || H.isDoorLike(it), sliding = !shower && H.isSlidingType(it);
   const mm = v => Math.max(0, +v || 0) / 1000;
   const ofw = Math.max(0.025, sliding ? mm(it.frameThickness ?? H.DEFAULT_FRAME_THICKNESS) : mm(it.profileThickness || 50));
   const lw  = Math.max(0.03, sliding ? mm(it.leafThickness ?? H.DEFAULT_LEAF_THICKNESS) * 0.62 : ofw * 0.95);
@@ -354,6 +357,40 @@ function buildOpening(it, M, H){
     }
   }
 
+  if(shower){
+    // زجاج سيكوريت 10 ملم بلا إطار: جناب ثابتة بمجرى U تحت وفوق + باب على مفصلات زجاج-زجاج + مسكة
+    const GT = 0.010, gap = 0.004, lP = shL/1000, rP = shR/1000, dW = it.width/1000;
+    const type = (it.layout && it.layout.type) || 'shwr_lv';
+    const hingeLeft = type.indexOf('_l') !== -1, horizInside = /h$/.test(type);
+    const frosted = new THREE.MeshPhysicalMaterial({ color:0xf3f6f8, transparent:true, opacity:0.82, roughness:0.85, metalness:0, side:THREE.DoubleSide, depthWrite:false });
+    const pattern = it.frostPattern || 'full', topZ = (it.frostTopClearH || 700)/1000, botZ = (it.frostBottomClearH || 500)/1000;
+    function pane(x, w, y0, y1){
+      glassPane(x, y0, w, y1 - y0, 0);
+      if(!it.frostedOverlay) return;
+      const fz = GT/2 + 0.0012;
+      const add = (fy0, fy1)=>{ if(fy1 - fy0 < 0.01) return; const m = new THREE.Mesh(new THREE.PlaneGeometry(w, fy1 - fy0), frosted); m.position.set(x + w/2, (fy0 + fy1)/2, fz); m.renderOrder = 4; g.add(m); };
+      if(pattern === 'bandClear') add(Math.max(y0, botZ), Math.min(y1, Hh - topZ));
+      else if(pattern === 'bandStriped'){ const a0 = Math.max(y0, botZ), a1 = Math.min(y1, Hh - topZ); for(let yy = a0; yy < a1; yy += 0.06) add(yy, Math.min(a1, yy + 0.035)); }
+      else add(y0, y1);
+    }
+    const uCh = (x, w)=>{ bar(x + w/2, 0.012, w, 0.024, 0.03, 0, M.alu); bar(x + w/2, Hh - 0.012, w, 0.024, 0.03, 0, M.alu); };
+    let cx = 0;
+    if(lP > 0){ pane(cx, lP - gap/2, 0.024, Hh - 0.024); uCh(cx, lP - gap/2); cx += lP; }
+    const dx0 = cx + (lP > 0 ? gap/2 : 0), dx1 = cx + dW - (rP > 0 ? gap/2 : 0);
+    pane(dx0, dx1 - dx0, 0.008, Hh - 0.006);
+    cx += dW;
+    if(rP > 0){ pane(cx + gap/2, rP - gap/2, 0.024, Hh - 0.024); uCh(cx + gap/2, rP - gap/2); }
+    // مفصلات (مواقعها متل الرسمة: 2 = فوق وتحت، 3 = تنتين فوق وحدة تحت)
+    const hx = hingeLeft ? dx0 : dx1;
+    const ys = (it.showerHingeCount === 2) ? [0.90, 0.10] : [0.94, 0.80, 0.10];
+    ys.forEach(f=>{ const y = Hh * f; [1, -1].forEach(sg=>{ bar(hx, y, 0.055, 0.09, 0.008, sg*(GT/2 + 0.005), M.steel); }); });
+    // مسكة: عمودية من الجهتين (أو من جوا أفقية على شكل L)
+    const hX = hingeLeft ? dx0 + (dx1 - dx0)*0.65 : dx0 + (dx1 - dx0)*0.35, hY = Math.min(Hh*0.5, 1.05);
+    pullHandle(hX, hY, Hh, GT/2, 1);
+    if(horizInside){ const r = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.36, 20), M.steel); r.rotation.z = Math.PI/2; r.position.set(hX + (hingeLeft ? -0.18 : 0.18), hY - 0.12, -(GT/2 + 0.054)); g.add(r); }
+    else pullHandle(hX, hY, Hh, -GT/2, -1);
+    return { group: g, W, H: Hh, D: 0.03, door: true };
+  }
   const inner = { x0: ofw, y0: ofw, x1: W - ofw, y1: Hh - ofw };
   const EPS = 1e-6;
   let slideCounter = 0;
