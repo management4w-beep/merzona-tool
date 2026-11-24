@@ -9986,7 +9986,9 @@ try{
   // نفسه ولا بمفتاحه الجديد) - ممكن يكون عنده تصميم ضايع بالمفتاح العالمي القديم (قبل هالإصلاح) من
   // جلسة سابقة. منعرضه كخيار استرجاع واضح (مش فرض تلقائي) مرة وحدة بس بكل جلسة متصفح، حتى ما نزعج
   // حمدي بنفس السؤال كل مرة يفتح فيها عرض سعر فاضي عمدًا (عرض سعر جديد فعلًا بدون أي تصميم).
-  if(!items.length && !window.__mzViewMode){
+  // 🛠️ 2026-11-24 (حمدي: "وهي دائما بتطلع شو القصة؟"): سؤال استرجاع التصميم القديم (مفتاح عالمي قبل 2/10) كان يطلع بكل عرض سعر جديد،
+  // ولو انكبس OK بيدخل تصميم مشروع تاني عالعرض. انلغى نهائيًا - التصاميم القديمة موجودة بسجل "المسودات والتصاميم".
+  if(false && !items.length && !window.__mzViewMode){
     const legacyRaw = localStorage.getItem('merzona-design-items');
     const recoveryOfferedKey = 'merzona-design-legacy-recovery-offered';
     if(legacyRaw && !sessionStorage.getItem(recoveryOfferedKey)){
@@ -17967,7 +17969,8 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM, doorOpen3D){
     (node.children||[]).forEach((ch,i)=>{
       const size = ch.frac/100*total;
       const cx = node.direction==='row' ? x+cum : x;
-      const cy = node.direction==='row' ? y : y+cum;
+      // 🛠️ 2026-11-24 (عرض 260009): التقسيم العمودي بالتصميم بيبلش من فوق، والمشهد Y لفوق - أول قسم فوق
+      const cy = node.direction==='row' ? y : y+h-cum-size;
       const cw = node.direction==='row' ? size : w;
       const chh = node.direction==='row' ? h : size;
       walk(ch.node, cx, cy, cw, chh);
@@ -17975,7 +17978,7 @@ function buildRealWindowGroup3D(item, wMM, hMM, thicknessM, doorOpen3D){
       if(i < node.children.length-1){
         const barW = Math.max(0.05, frameW*1.3);
         if(node.direction==='row') box(x+cum, y+h/2, barW, h, FRAME_DEPTH, frameMat);
-        else box(x+w/2, y+cum, w, barW, FRAME_DEPTH, frameMat);
+        else box(x+w/2, y+h-cum, w, barW, FRAME_DEPTH, frameMat);
       }
     });
   }
@@ -24451,6 +24454,7 @@ function open3DPreview(){
    كل بطاقة شباك/باب بتنعرض صورة واقعية (WebGL - real3d.js) بدل الرسمة، مع زر "🔍 دوّر وشوف" (عارض تفاعلي + لون الألمنيوم
    ونوع الزجاج + تنزيل صورة). إذا الجهاز ما بيدعم أو صار أي خطأ ← بتضل الرسمة القديمة متل ما هي. */
 const MZ_R3D_HELPERS = { pgCalc, pgPostLayout, isDoorLike, isSlidingType, isShowerDoor, isHandrail, isMirror, isRoom, isPergola, isGableRoof, DEFAULT_FRAME_THICKNESS, DEFAULT_LEAF_THICKNESS };
+window.MZ_R3D_HELPERS = MZ_R3D_HELPERS; // للفحوصات
 let mzR3dPromise = null;
 function mzR3dLoad(){
   if(window.MzReal3D) return Promise.resolve(window.MzReal3D);

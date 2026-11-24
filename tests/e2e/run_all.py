@@ -289,6 +289,16 @@ async def t_real3d(p, b, port):
         for i, nm in enumerate(['slide', 'win', 'door']):
             u = await pg.evaluate("document.querySelectorAll('#threeDGrid img.threeD-real')[%d].src" % i)
             import base64; open(os.environ['MZ_SHOT'] + '/r3d_%s.png' % nm, 'wb').write(base64.b64decode(u.split(',')[1]))
+    # 🛠️ عرض 260009: تقسيم عمودي (فوق 61% / تحت 39%) + مفصلي tri_up فوق يمين: بالثري دي لازم يضل الكبير فوق والمسكة فوق
+    lay = await pg.evaluate("""(function(){ if(!window.MzReal3D) return null; var T = THREE, mat = new T.MeshBasicMaterial(), M = new Proxy({}, { get: function(){ return mat; } });
+      var it = { width: 2311, height: 2583, shapeType: 'window', layout: {id:'n92',kind:'split',direction:'col',children:[{frac:61.28,node:{id:'n135',kind:'split',direction:'row',children:[{frac:50,node:{id:'n137',kind:'leaf',type:'plain'}},{frac:50,node:{id:'n138',kind:'leaf',type:'tri_up'}}]}},{frac:38.72,node:{id:'n136',kind:'split',direction:'row',children:[{frac:50,node:{id:'n139',kind:'leaf',type:'plain'}},{frac:50,node:{id:'n140',kind:'leaf',type:'plain'}}]}}]} };
+      var op = MzReal3D._buildOpening(it, M, window.MZ_R3D_HELPERS); var H = op.H, bars = [];
+      op.group.traverse(function(o){ if(o.isMesh && o.geometry){ o.geometry.computeBoundingBox(); var bb = o.geometry.boundingBox; bars.push([o.position.x, o.position.y, bb.max.x - bb.min.x, bb.max.y - bb.min.y]); } });
+      var mul = bars.filter(function(b){ return b[2] > 1.5 && b[3] < 0.1 && b[1] > 0.2 && b[1] < H - 0.2; }).map(function(b){ return +b[1].toFixed(3); });
+      var lev = bars.filter(function(b){ return Math.abs(b[2] - 0.11) < 0.003 && Math.abs(b[3] - 0.016) < 0.003; }).map(function(b){ return [+b[0].toFixed(3), +b[1].toFixed(3)]; });
+      return { H: H, mul: mul, lev: lev }; })()""")
+    ok = bool(lay) and len(lay['mul']) >= 1 and all(abs(m - lay['H'] * 0.3872) < 0.05 for m in lay['mul']) and len(lay['lev']) == 1 and lay['lev'][0][1] > lay['H'] * 0.85 and lay['lev'][0][0] > 1.1
+    check(ok, 'ثري دي 260009: القسم الكبير فوق (القاطع على 39% من تحت) والمسكة فوق يمين متل الرسمة ' + str(lay))
     # زر الرسمة بيرجّع الرسمة
     await pg.click('#threeDGrid .threeD-card >> nth=0 >> [data-r3d="sketch"]'); await pg.wait_for_timeout(200)
     check(await pg.evaluate("(function(){ var c = document.querySelectorAll('#threeDGrid .threeD-card')[0]; return c.querySelector('.threeD-sketch svg') && c.querySelector('img.threeD-real').style.display == 'none'; })()"), 'زر ✏️ الرسمة بيبدّل للرسمة')
