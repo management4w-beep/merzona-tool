@@ -11820,16 +11820,16 @@ function mzItemDisplayName(it){
   return nm;
 }
 // مسقط البند (planSides) كرسمة صغيرة تحت بطاقة البند
-function mzPlanSvg(it, maxW, maxH){
+function mzPlanSvg(it, maxW, maxH, print){
   const sd = Array.isArray(it && it.planSides) ? it.planSides : []; if(!sd.length) return '';
   const pts = [[0, 0]]; let x = 0, y = 0; sd.forEach(s => { const a = s.dir*Math.PI/180; x += Math.cos(a)*s.len; y += Math.sin(a)*s.len; pts.push([x, y]); });
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
   const pad = 26, sc = Math.min((maxW - 2*pad) / Math.max(1, x1 - x0), (maxH - 2*pad) / Math.max(1, y1 - y0));
   const P = p => [pad + (p[0] - x0)*sc, pad + (y1 - p[1])*sc], W = (x1 - x0)*sc + 2*pad, H = (y1 - y0)*sc + 2*pad;
-  let g = '<polyline points="' + pts.map(p => P(p).map(v => v.toFixed(1)).join(',')).join(' ') + '" fill="none" stroke="var(--wd-cyan, #1e88e5)" stroke-width="3" stroke-linejoin="round"/>';
-  pts.forEach(p => { const q = P(p); g += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.5" fill="var(--wd-cyan, #1e88e5)"/>'; });
+  let g = '<polyline points="' + pts.map(p => P(p).map(v => v.toFixed(1)).join(',')).join(' ') + '" fill="none" stroke="' + (print ? '#000' : 'var(--wd-cyan, #1e88e5)') + '" stroke-width="3" stroke-linejoin="round"/>';
+  pts.forEach(p => { const q = P(p); g += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.5" fill="' + (print ? '#000' : 'var(--wd-cyan, #1e88e5)') + '"/>'; });
   sd.forEach((s, i) => { const a = P(pts[i]), b = P(pts[i+1]), L = Math.max(1e-6, Math.hypot(b[0]-a[0], b[1]-a[1])), ux = (b[0]-a[0])/L, uy = (b[1]-a[1])/L;
-    g += '<text x="' + ((a[0]+b[0])/2 + uy*13).toFixed(1) + '" y="' + ((a[1]+b[1])/2 - ux*13 + 4).toFixed(1) + '" text-anchor="middle" font-size="12" font-weight="700" fill="var(--wd-amber, #e65100)">' + Math.round(s.len) + '</text>'; });
+    g += '<text x="' + ((a[0]+b[0])/2 + uy*13).toFixed(1) + '" y="' + ((a[1]+b[1])/2 - ux*13 + 4).toFixed(1) + '" text-anchor="middle" font-size="12" font-weight="700" fill="' + (print ? '#000' : 'var(--wd-amber, #e65100)') + '">' + Math.round(s.len) + '</text>'; });
   return '<svg class="mz-plan-svg" viewBox="0 0 ' + W.toFixed(0) + ' ' + H.toFixed(0) + '" width="' + W.toFixed(0) + '" height="' + H.toFixed(0) + '" style="max-width:100%;height:auto;display:block;margin:6px auto 0">' + g + '</svg>';
 }
 window.mzPlanSvg = mzPlanSvg;
@@ -21556,7 +21556,24 @@ function buildShowerDoorPrintSVG(it, pageItemCount){
   </svg>`;
 }
 
+// 🖨️ 2026-11-25 (حمدي: "عند الطباعة ماعم يظهر المسقط"): مسقط البند (planSides) فوق الواجهة بنفس الخانة - متل صفحة الهاندريل
 function buildPrintSVG(it, pageItemCount){
+  const base = buildPrintSVGCore(it, pageItemCount);
+  if(!it || isHandrail(it) || isRoom(it) || !Array.isArray(it.planSides) || !it.planSides.length) return base;
+  const { availW, availH } = getPrintAvailPx(pageItemCount, true);
+  const planH = Math.max(80, availH * 0.34), viewH = Math.max(110, availH - planH - 34);
+  const tot = it.planSides.reduce((a, x) => a + x.len, 0);
+  const plan = '<div class="mz-print-plan" style="margin-bottom:6px;text-align:center;"><div style="font-weight:700;font-size:12px;color:#000;">المسقط (Plan) — ' + (tot/1000).toFixed(2) + ' م.ط</div>' + mzPlanSvg(it, availW, planH, true) + '</div>';
+  // الواجهة بتصغر لتساع تحت المسقط: منعدّل width/height تبع أول svg (الـ viewBox بيضل نفسه فالرسمة بتصغر متناسقة)
+  const fitted = String(base || '').replace(/<svg\b([^>]*)>/, (m, attrs) => {
+    const w = parseFloat((attrs.match(/\swidth="([\d.]+)"/) || [])[1]), h = parseFloat((attrs.match(/\sheight="([\d.]+)"/) || [])[1]);
+    if(!(w > 0 && h > 0)) return m;
+    const k = Math.min(1, viewH / h, availW / w);
+    return '<svg' + attrs.replace(/\swidth="[\d.]+"/, ' width="' + (w*k).toFixed(1) + '"').replace(/\sheight="[\d.]+"/, ' height="' + (h*k).toFixed(1) + '"') + '>';
+  });
+  return plan + fitted;
+}
+function buildPrintSVGCore(it, pageItemCount){
   if(isPergola(it)) return buildPergolaSVG(it, pageItemCount);
   if(isHandrail(it)){
     if(hrHasPlan(it)){

@@ -1168,6 +1168,8 @@ async def t_plan_any_item(p, b, port):
     await pg.evaluate("hpeClose(true)"); await pg.wait_for_timeout(400)
     ps = await pg.evaluate(f"(function(){{ var it = WD.__t.items().filter(function(i){{ return i.id === {cab}; }})[0]; return {{ sides: (it.planSides || []).map(function(x){{ return [x.dir, x.len]; }}), card: document.querySelectorAll('#card-{cab} .mz-item-plan svg').length }}; }})()")
     check(ps['sides'] == [[180, 3000], [-90, 2500], [0, 1200]] and ps['card'] == 1, 'المسقط بينحفظ عالبند وبيبين ببطاقتو ' + str(ps))
+    pr = await pg.evaluate(f"(function(){{ var it = WD.__t.items().filter(function(i){{ return i.id === {cab}; }})[0]; var h = buildPrintSVG(it, 4); return {{ plan: h.indexOf('mz-print-plan') >= 0 && h.indexOf('6.70 م.ط') >= 0, svgs: (h.match(/<svg /g) || []).length }}; }})()")
+    check(pr['plan'] and pr['svgs'] == 2, 'الطباعة: المسقط فوق الواجهة بنفس الخانة ' + str(pr))
     await reopen(pg)
     ps2 = await pg.evaluate(f"(function(){{ var it = WD.__t.items().filter(function(i){{ return i.id === {cab}; }})[0]; return (it && it.planSides || []).length; }})()")
     check(ps2 == 3, 'المسقط بيضل بعد الحفظ والفتح ' + str(ps2))
