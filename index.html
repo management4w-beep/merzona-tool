@@ -4647,6 +4647,7 @@ function applyFullQuotationData(data){
   // 🆕 2026-09-24: أي لقطة كاملة منطبّقها (فتح مسودة قديمة، تراجع، استرجاع مسودة محلية) لازم ترجع
   // تربط currentDraftId بنفس القيمة المحفوظة فيها - هيك "حفظ كمسودة" التالي بيحدّث نفس ملف الـJSON
   // عالدرايف بدل ما ينشئ ملف تاني مكرر.
+  try{ mzStripLeakedDesign(data); }catch(e){ console.warn('[تنظيف تصميم دخيل]', e); }
   currentDraftId = data.draftId || null;
   window.__mzDraftBoundRef = (data.fields && data.fields['m-ref']) ? String(data.fields['m-ref']).replace(/\s+/g,'').toUpperCase() : null;
   window.__mzDesignBoundRef = window.__mzDraftBoundRef;
@@ -6921,6 +6922,27 @@ function normalizeRefForCompare(r){ return String(r||'').replace(/\s+/g,'').toUp
 // السبب: تصميم غرفة انحفظ بـ30/9 والرقم المرجعي لسا ناقص ("M-Q-260" = البادئة الافتراضية قبل ما يوصل الرقم). كل عرض سعر جديد
 // بيبلش بنفس البادئة لحظة، فـ"آخر تصميم محفوظ لهالرقم" كان يلاقي هداك التصميم ويفتحه لحالو (من 18/11 بلا سؤال) - وينحفظ مع العرض الجديد.
 // هلق: الرقم الناقص ما بيتربط فيه ولا تصميم - لا بالقراءة ولا بالكتابة.
+// 🧹 2026-11-25 (حمدي - S-Q-260010: "ما بدي اخلص من ام هالقصة بقا... كل ما بكبس ارسم المسقط بيطلعلي غرفة تبع المشروع يللي فيه الجملون"):
+// الغرفة الدخيلة (تصميم gmun7eldu3f0p6c المحفوظ بالرقم الناقص M-Q-260 بـ30/9) انحفظت جوّا العرض قبل التصليح.
+// عند فتح أي عرض سعر غير صاحبها: منشيل الغرفة وحيطانها ("غرفة/مجلس 1 - ضلع ...") ومنفك ربط سجل التصميم الدخيل.
+// بأول "حفظ" بعدها بتنحفظ النسخة النظيفة.
+const MZ_LEAK_DESIGN_ID = 'gmun7eldu3f0p6c';
+const MZ_LEAK_ROOM_SIDES = '700,3560,5200,2360,650,1060,880,1070,1070,600,1900,1620';
+function mzStripLeakedDesign(data){
+  if(!data || !Array.isArray(data.designItems)) return 0;
+  const ref = String((data.fields && data.fields['m-ref']) || '').replace(/\s+/g, '').toUpperCase();
+  if(ref === 'M-Q-260') return 0;
+  const leakRooms = data.designItems.filter(it => it && it.shapeType === 'room' && (data.currentDesignId === MZ_LEAK_DESIGN_ID || (it.roomSides || []).map(x => Math.round(x.length)).join(',') === MZ_LEAK_ROOM_SIDES));
+  if(!leakRooms.length) return 0;
+  const labels = leakRooms.map(r => String(r.label || ''));
+  const before = data.designItems.length;
+  data.designItems = data.designItems.filter(it => !leakRooms.includes(it) && !labels.some(l => l && String(it.label || '').indexOf(l + ' - ضلع') === 0));
+  if(data.currentDesignId === MZ_LEAK_DESIGN_ID){ data.currentDesignId = null; data.currentDesignName = null; data.designSavedAt = 0; }
+  const n = before - data.designItems.length;
+  if(n) console.info('[تنظيف] شلنا ' + n + ' بند تصميم دخيل (غرفة مشروع تاني) من ' + ref);
+  return n;
+}
+window.mzStripLeakedDesign = mzStripLeakedDesign;
 function mzIsCompleteRef(r){ const m = String(r || '').trim().match(/(\d+)\s*$/); return !!(m && m[1].length >= 5); }
 window.mzIsCompleteRef = mzIsCompleteRef;
 async function fetchLatestSavedDesignForRef(refRaw){
@@ -10010,6 +10032,10 @@ try{
     // 🛠️ 2026-10-04.9: لو الملف المحفوظ (HTML) انخبز بعد آخر حفظ تلقائي محلي، التصميم المخبوز أحدث - ما منكتب فوقه
     // بنسخة محلية قديمة (كانت تغلب تصميم الملف بصمت).
     const bakedNewerThanAutosave = DESIGN_ITEMS_DEFAULT.length && Number(DESIGN_BAKED_AT_DEFAULT) > 0 && parsedDesign && parsedDesign.savedAt && Number(DESIGN_BAKED_AT_DEFAULT) > Date.parse(parsedDesign.savedAt);
+    if(!bakedNewerThanAutosave && parsedDesign && Array.isArray(parsedDesign.items) && parsedDesign.items.length){
+      // 🧹 الحفظ التلقائي المحلي كمان ممكن يكون فيه الغرفة الدخيلة (S-Q-260010) - منشيلها هون كمان
+      try{ if(window.mzStripLeakedDesign){ const __rf = document.getElementById('m-ref'); const __o = { designItems: parsedDesign.items, fields: { 'm-ref': __rf ? __rf.value : '' } }; if(window.mzStripLeakedDesign(__o)) parsedDesign.items = __o.designItems; } }catch(e){}
+    }
     if(!bakedNewerThanAutosave && parsedDesign && Array.isArray(parsedDesign.items) && parsedDesign.items.length){
       items = parsedDesign.items;
       nextId = parsedDesign.nextId || (items.reduce((m,i)=>Math.max(m, i.id||0), 0) + 1);
@@ -18640,12 +18666,39 @@ function quickOpenRoom3DFromToolbar(){
 }
 window.quickOpenRoom3DFromToolbar = quickOpenRoom3DFromToolbar;
 function quickStartRoomFloorDrawFromToolbar(){
-  if(!ensureRoomSelectedForQuickAction()) return;
+  // 🛠️ 2026-11-25 (حمدي: "عملت اني ارسم المسقط تبع الهاندريل... ليش هالتخبيص"): إذا البند المختار هاندريل (أو ما في غرف وفي هاندريل)
+  // زر "ارسم المسقط" بيفتح مسقط الهاندريل نفسه - مش أول غرفة بالتصميم.
+  // 🆕 (حمدي: "عم ارسم كباين مطبخ فموضوع رسم المسقط ضروري وخلي قصة رسم المسقط لجميع البنود متاح"): أي بند تاني مختار
+  // (كباين، شباك، باب...) بيفتحلو مسقط خاص فيه (غرفة/مسقط مربوطة بالبند) - بيتعمل فاضي أول مرة، وبيرجع نفسه بالمرات الجاية.
+  // ما في أي حالة بيفتح فيها غرفة مش إلها علاقة بالبند المختار.
+  const cur = getSelected();
+  if(cur && isHandrail(cur)){ openHandrailPlanEditor(); return; }
+  let room = (cur && isRoom(cur)) ? cur : null;
+  if(!room && cur) room = items.find(r => isRoom(r) && r.planForItemId === cur.id) || null;
+  if(!room && !cur){
+    const hr = items.find(isHandrail), rooms = items.filter(isRoom);
+    if(rooms.length === 1) room = rooms[0];
+    else if(!rooms.length && hr){ selectItem(hr.id); openHandrailPlanEditor(); return; }
+  }
+  if(!room){
+    pushHistory(true);
+    room = makeItem('room');
+    room.roomSides = [];
+    if(cur){
+      let nm = cur.label || 'بند';
+      try{ const tr = cur.sourceRowUid && document.querySelector('#qty-rows tr[data-row-uid="' + cur.sourceRowUid + '"]'); const inp = tr && tr.querySelector('.item-input'); if(inp && inp.value.trim()) nm = inp.value.trim(); }catch(e){}
+      room.planForItemId = cur.id; room.label = 'مسقط — ' + nm;
+    }
+    else room.label = 'مسقط ' + (items.filter(isRoom).length + 1);
+    items.push(room); selectedId = room.id; renderChips(); loadSelectedIntoControls(); renderGallery();
+  } else if(selectedId !== room.id) selectItem(room.id);
   toggleRoomFreehandDraw();
   const wrap = document.getElementById('roomDrawWrap');
   if(wrap) wrap.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 window.quickStartRoomFloorDrawFromToolbar = quickStartRoomFloorDrawFromToolbar;
+window.__roomDrawState = function(){ return { active: !!roomDraw.active, itemId: roomDraw.itemId, pts: (roomDraw.points || []).length }; }; // للفحوصات
+window.__roomDrawCancel = function(){ if(roomDraw.active) cancelRoomFreehandDraw(); };
 function quickStartCeilingDrawFromToolbar(){
   if(!ensureRoomSelectedForQuickAction()) return;
   toggleCeilingFreehandDraw();
@@ -22256,7 +22309,7 @@ function mzFixMisguessedHandrail(it, rd){
 }
 
 // حقول إضافية (هاندريل / شاور / فورست / مراوح) كانت ما تنحفظ مع التصميم فترجع للقيم الافتراضية بعد إعادة البناء
-const SAVED_EXTRA_KEYS = ['showerMount','showerClampFloor','showerClampWall','hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','showerWallGap','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
+const SAVED_EXTRA_KEYS = ['planForItemId','showerMount','showerClampFloor','showerClampWall','hrDimMode','hrFlatBackup','hrFlatSegs','hrPlan','hrGlassHeight','hrKind','hrMount','hrPanelCount','hrPanelWidth','hrSegments','hrStandoffPairs','hrTotalLength','showerLeftPanel','showerRightPanel','showerLeftWidth','showerRightWidth','showerTotalMode','showerGlassMm','showerWallL','showerWallR','showerWallGap','frostPattern','frostTopClearH','frostBottomClearH','exhaustFans','pgHeight','pgMount','pgPostsPerRow','pgPost','pgBeam','pgSlat','pgSlatGap','pgRoof','pgMaterial','pgPostStyle','pgDblGap','pgCornerF','pgCornerS','pgInfill','pgInfillGap','pgInfillCount','pgInfillDir','pgPostCustom','r3dColor','r3dGlass','r3dBg'];
 function buildItemFromSavedDesign(design, uid, label){
   const _it = {
     id: nextId++,

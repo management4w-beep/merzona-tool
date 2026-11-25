@@ -1145,6 +1145,31 @@ async def t_wd_header_toggle(p, b, port):
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
+async def t_plan_any_item(p, b, port):
+    """📐 S-Q-260010: (1) الغرفة الدخيلة بتنشال عند الفتح (2) «ارسم المسقط» بيفتح مسقط البند المختار (كباين/هاندريل)، مش غرفة غريبة"""
+    print('• ارسم المسقط: لكل بند + تنظيف الغرفة الدخيلة')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200])); pg.on('dialog', lambda d: asyncio.ensure_future(d.accept()))
+    await open_tool(pg, port, [[3000, 900, 'Kitchen Cabinets'], [4000, 1100, 'Glass Handrail for Balcony']])
+    leak = json.load(open(os.path.join(os.path.dirname(__file__), 'fixtures', 'leak260010.json'), encoding='utf-8'))
+    r = await pg.evaluate("""(d) => { const c = JSON.parse(JSON.stringify(d)); const n = mzStripLeakedDesign(c); return { n, left: c.designItems.length, did: c.currentDesignId }; }""", leak)
+    check(r == {'n': 9, 'left': 0, 'did': None}, 'عرض 260010: الغرفة الدخيلة وحيطانها الـ8 بينشالو والربط بسجل التصميم الدخيل بينفك ' + str(r))
+    r2 = await pg.evaluate("""(d) => { const c = JSON.parse(JSON.stringify(d)); c.fields['m-ref'] = 'M-Q-260'; return mzStripLeakedDesign(c); }""", leak)
+    check(r2 == 0, 'صاحب التصميم الأصلي ما بينلمس')
+    await pg.evaluate("openDesignerFromToolbar()"); await pg.wait_for_timeout(1200)
+    ids = await pg.evaluate("WD.__t.items().map(function(i){ return [i.id, i.shapeType]; })")
+    cab = [i for i, t in ids if t != 'handrail'][0]; hr = [i for i, t in ids if t == 'handrail'][0]
+    await pg.evaluate(f"WD.__t.sel({cab})"); await pg.evaluate("quickStartRoomFloorDrawFromToolbar()"); await pg.wait_for_timeout(400)
+    st = await pg.evaluate(f"(function(){{ var rs = WD.__t.items().filter(function(i){{ return i.shapeType === 'room'; }}); return {{ n: rs.length, forId: rs[0] && rs[0].planForItemId, label: rs[0] && rs[0].label, active: __roomDrawState().active, pts: __roomDrawState().pts }}; }})()")
+    check(st['n'] == 1 and st['forId'] == cab and st['label'].startswith('مسقط') and st['active'] and st['pts'] == 0, 'الكباين: مسقط جديد فاضي مربوط بالبند ' + str(st))
+    await pg.evaluate("__roomDrawCancel()"); await pg.evaluate(f"WD.__t.sel({cab})"); await pg.evaluate("quickStartRoomFloorDrawFromToolbar()"); await pg.wait_for_timeout(300)
+    n = await pg.evaluate("WD.__t.items().filter(function(i){ return i.shapeType === 'room'; }).length")
+    check(n == 1, 'المرة التانية بيرجع نفس مسقط البند (ما بيعمل واحد جديد) ' + str(n))
+    await pg.evaluate("__roomDrawCancel()"); await pg.evaluate(f"WD.__t.sel({hr})"); await pg.evaluate("quickStartRoomFloorDrawFromToolbar()"); await pg.wait_for_timeout(400)
+    h = await pg.evaluate("(function(){ var o = document.getElementById('hpeOverlay') || document.querySelector('[id^=hpe]'); return { vis: !!(o && o.style.display === 'flex'), active: __roomDrawState().active }; })()")
+    check(h['vis'] and not h['active'], 'الهاندريل: «ارسم المسقط» بيفتح مسقط الهاندريل نفسه مش الغرفة ' + str(h))
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
 async def t_handrail_template(p, b, port):
     """📐 عرض 260010: مسقط هاندريل مشروع قديم كان يطلع ببند الهاندريل بعرض سعر جديد (قالب البند)"""
     print('• الهاندريل: قالب البند ما بينقل مسقط مشروع تاني')
@@ -3620,7 +3645,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
-        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_wd_header_toggle, ()), (t_shower_mount, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
+        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_plan_any_item, ()), (t_wd_header_toggle, ()), (t_shower_mount, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
                          (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_catalog_manage, ()), (t_techcat_video_edit, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
