@@ -11764,7 +11764,7 @@ function hpeEnsureOverlay(){
   }
   pad += '<button type="button" onclick="hpeKey(\'.\')">.</button><button type="button" onclick="hpeKey(\'0\')">0</button><button type="button" onclick="hpeKey(\'del\')">⌫</button><span></span>' +
     '<button type="button" class="sp" disabled></button><button type="button" class="sp" disabled></button><button type="button" class="sp" disabled></button>';
-  ov.innerHTML = '<div class="hpe-top"><b>📐 رسم مسقط الهاندريل</b>' +
+  ov.innerHTML = '<div class="hpe-top"><b id="hpeTitle">📐 رسم مسقط الهاندريل</b>' +
     '<button type="button" class="tb" onclick="hpeUndo()">↶ تراجع</button><button type="button" class="tb" onclick="hpeRedo()">↷ إعادة</button>' +
     '<button type="button" class="tb" onclick="hpeClear()">🗑 من جديد</button><button type="button" class="tb" onclick="hpePhoto()">📷 من صورة الدفتر</button>' +
     '<button type="button" class="tb" onclick="hpeClose(false)">✕</button><button type="button" class="tb ok" onclick="hpeClose(true)">✓ تم</button></div>' +
@@ -11798,9 +11798,45 @@ function hpeEnsureOverlay(){
   });
   return ov;
 }
+// 📐 2026-11-25 (حمدي - "المسقط بيشتغل نفس طريقة مسقط الهاندريل؟ ... خلص موافق"): نفس محرّر الهاندريل (أرقام + أسهم/زوايا،
+// أو رسم بالإصبع) لأي بند مش غرفة ولا هاندريل (كباين، شباك، باب...). المسقط بينحفظ على البند نفسه (planSides) بلا ألواح.
+function openItemPlanEditor(){
+  const it = getSelected(); if(!it || isRoom(it)) return;
+  if(isHandrail(it)) return openHandrailPlanEditor();
+  const ov = hpeEnsureOverlay();
+  hpe.generic = true; hpe.itemId = it.id;
+  hpe.sides = (Array.isArray(it.planSides) ? it.planSides : []).map(x => ({ dir: hpeNormDir(x.dir), len: Math.max(1, Math.round(x.len)), n: 1, nAuto: false }));
+  hpe.buf = ''; hpe.undo = []; hpe.redo = []; hpe.sel = -1; hpe.view = null; hpe.drawing = null; hpe.userView = false; hpe.ptrs.clear(); hpe._pinch = null; hpe._down = null;
+  try{ hpe.unit = localStorage.getItem('mz-hpe-unit') || 'cm'; }catch(e){}
+  const t = document.getElementById('hpeTitle'); if(t) t.textContent = '📐 رسم المسقط — ' + mzItemDisplayName(it);
+  ov.style.display = 'flex';
+  hpeSetMode(hpe.sides.length ? 'keys' : (hpe.mode || 'keys'));
+  document.getElementById('hpeAi').style.display = 'none';
+}
+window.openItemPlanEditor = openItemPlanEditor;
+function mzItemDisplayName(it){
+  let nm = it.label || 'بند';
+  try{ const tr = it.sourceRowUid && document.querySelector('#qty-rows tr[data-row-uid="' + it.sourceRowUid + '"]'); const inp = tr && tr.querySelector('.item-input'); if(inp && inp.value.trim()) nm = inp.value.trim(); }catch(e){}
+  return nm;
+}
+// مسقط البند (planSides) كرسمة صغيرة تحت بطاقة البند
+function mzPlanSvg(it, maxW, maxH){
+  const sd = Array.isArray(it && it.planSides) ? it.planSides : []; if(!sd.length) return '';
+  const pts = [[0, 0]]; let x = 0, y = 0; sd.forEach(s => { const a = s.dir*Math.PI/180; x += Math.cos(a)*s.len; y += Math.sin(a)*s.len; pts.push([x, y]); });
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const pad = 26, sc = Math.min((maxW - 2*pad) / Math.max(1, x1 - x0), (maxH - 2*pad) / Math.max(1, y1 - y0));
+  const P = p => [pad + (p[0] - x0)*sc, pad + (y1 - p[1])*sc], W = (x1 - x0)*sc + 2*pad, H = (y1 - y0)*sc + 2*pad;
+  let g = '<polyline points="' + pts.map(p => P(p).map(v => v.toFixed(1)).join(',')).join(' ') + '" fill="none" stroke="var(--wd-cyan, #1e88e5)" stroke-width="3" stroke-linejoin="round"/>';
+  pts.forEach(p => { const q = P(p); g += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.5" fill="var(--wd-cyan, #1e88e5)"/>'; });
+  sd.forEach((s, i) => { const a = P(pts[i]), b = P(pts[i+1]), L = Math.max(1e-6, Math.hypot(b[0]-a[0], b[1]-a[1])), ux = (b[0]-a[0])/L, uy = (b[1]-a[1])/L;
+    g += '<text x="' + ((a[0]+b[0])/2 + uy*13).toFixed(1) + '" y="' + ((a[1]+b[1])/2 - ux*13 + 4).toFixed(1) + '" text-anchor="middle" font-size="12" font-weight="700" fill="var(--wd-amber, #e65100)">' + Math.round(s.len) + '</text>'; });
+  return '<svg class="mz-plan-svg" viewBox="0 0 ' + W.toFixed(0) + ' ' + H.toFixed(0) + '" width="' + W.toFixed(0) + '" height="' + H.toFixed(0) + '" style="max-width:100%;height:auto;display:block;margin:6px auto 0">' + g + '</svg>';
+}
+window.mzPlanSvg = mzPlanSvg;
 function openHandrailPlanEditor(){
   const it = getSelected(); if(!it || !isHandrail(it)) return;
   const ov = hpeEnsureOverlay();
+  hpe.generic = false; { const t = document.getElementById('hpeTitle'); if(t) t.textContent = '📐 رسم مسقط الهاندريل'; }
   hpe.itemId = it.id; hpe.sides = hpeFromItem(it); hpe.buf = ''; hpe.undo = []; hpe.redo = []; hpe.sel = -1; hpe.view = null; hpe.drawing = null; hpe.userView = false; hpe.ptrs.clear(); hpe._pinch = null; hpe._down = null;
   try{ hpe.unit = localStorage.getItem('mz-hpe-unit') || 'cm'; }catch(e){}
   ov.style.display = 'flex';
@@ -11809,6 +11845,14 @@ function openHandrailPlanEditor(){
 }
 function hpeClose(save){
   const ov = document.getElementById('hpeOverlay');
+  if(save && hpe.generic){
+    const it = items.find(i => i.id === hpe.itemId);
+    if(it){
+      if(!hpe.sides.length && !(Array.isArray(it.planSides) && it.planSides.length)){ if(!confirm('ما رسمت ولا ضلع. تسكّر بدون ما تغيّر شي؟')) return; }
+      else { pushHistory(true); it.planSides = hpe.sides.map(x => ({ dir: hpeNormDir(x.dir), len: Math.round(x.len) })); if(!it.planSides.length) delete it.planSides; renderGallery(); try{ saveDesignItemsToStorage(); }catch(e){} }
+    }
+    if(ov) ov.style.display = 'none'; return;
+  }
   if(save){
     const it = items.find(i => i.id === hpe.itemId);
     if(it && hpe.sides.length){
@@ -11908,7 +11952,7 @@ function hpeRender(){
     g += '<line x1="' + ax.toFixed(1) + '" y1="' + ay.toFixed(1) + '" x2="' + bx.toFixed(1) + '" y2="' + by.toFixed(1) + '" stroke="' + (sel ? '#ff9800' : '#2f86b5') + '" stroke-width="' + (sel ? 7 : 5) + '" stroke-linecap="round" pointer-events="none"/>';
     // تقسيم الألواح
     const pw = (sd.len - (sd.n-1)*HANDRAIL_GAP_MM)/sd.n, ux = (bx-ax)/Math.max(1e-6, Math.hypot(bx-ax, by-ay)), uy = (by-ay)/Math.max(1e-6, Math.hypot(bx-ax, by-ay));
-    for(let k = 1; k < sd.n; k++){ const t = k*(pw + HANDRAIL_GAP_MM)*v.s; const px = ax + ux*t, py = ay + uy*t; g += '<line x1="' + (px - uy*7).toFixed(1) + '" y1="' + (py + ux*7).toFixed(1) + '" x2="' + (px + uy*7).toFixed(1) + '" y2="' + (py - ux*7).toFixed(1) + '" stroke="#12324a" stroke-width="1.5" pointer-events="none"/>'; }
+    for(let k = 1; k < (hpe.generic ? 1 : sd.n); k++){ const t = k*(pw + HANDRAIL_GAP_MM)*v.s; const px = ax + ux*t, py = ay + uy*t; g += '<line x1="' + (px - uy*7).toFixed(1) + '" y1="' + (py + ux*7).toFixed(1) + '" x2="' + (px + uy*7).toFixed(1) + '" y2="' + (py - ux*7).toFixed(1) + '" stroke="#12324a" stroke-width="1.5" pointer-events="none"/>'; }
     const mx = (ax+bx)/2 + uy*16, my = (ay+by)/2 - ux*16;
     g += '<text x="' + mx.toFixed(1) + '" y="' + my.toFixed(1) + '" font-size="13" font-weight="700" fill="' + (sel ? '#e65100' : '#0d47a1') + '" text-anchor="middle" dominant-baseline="middle" pointer-events="none" style="paint-order:stroke;stroke:#fff;stroke-width:4px">' + hpeFmt(sd.len) + '</text>' +
       '<text x="' + (mx + uy*(13 + 24*Math.abs(uy))).toFixed(1) + '" y="' + (my - ux*(13 + 24*Math.abs(uy))).toFixed(1) + '" font-size="10.5" fill="#607d8b" text-anchor="middle" dominant-baseline="middle" pointer-events="none" style="paint-order:stroke;stroke:#fff;stroke-width:3px" direction="rtl">' + sd.n + ' لوح</text>';
@@ -11929,7 +11973,7 @@ function hpeRender(){
   // النص فوق + الحاسبة
   const tot = hpe.sides.reduce((s, x) => s + x.len, 0), np = hpe.sides.reduce((s, x) => s + x.n, 0);
   const info = document.getElementById('hpeInfo');
-  if(info) info.innerHTML = hpe.sides.length ? 'المجموع: <b>' + hpeFmt(tot) + (hpe.unit === 'cm' ? ' سم' : ' مم') + '</b> (' + (tot/1000).toFixed(2) + ' م.ط) · ' + hpe.sides.length + ' ضلع · ' + np + ' لوح' : (hpe.mode === 'keys' ? 'اكتب أول طول وكبّس السهم 👇' : 'ارسم بإصبعك هون ✍️');
+  if(info) info.innerHTML = hpe.sides.length ? 'المجموع: <b>' + hpeFmt(tot) + (hpe.unit === 'cm' ? ' سم' : ' مم') + '</b> (' + (tot/1000).toFixed(2) + ' م.ط) · ' + hpe.sides.length + ' ضلع' + (hpe.generic ? '' : ' · ' + np + ' لوح') : (hpe.mode === 'keys' ? 'اكتب أول طول وكبّس السهم 👇' : 'ارسم بإصبعك هون ✍️');
   const b = document.getElementById('hpeBuf'); if(b) b.textContent = hpe.buf || '—';
   const bm = document.getElementById('hpeBufMm'); if(bm) bm.textContent = hpeBufMm() ? (hpe.unit === 'cm' ? '= ' + hpeBufMm() + ' مم' : '') : '';
   const u = document.getElementById('hpeUnit'); if(u) u.textContent = hpe.unit === 'cm' ? 'بالسانتي' : 'بالميلي';
@@ -11941,7 +11985,7 @@ function hpeRenderEdit(){
   if(!sd){ box.style.display = 'none'; box.innerHTML = ''; return; }
   box.style.display = 'flex';
   box.innerHTML = '<b>ضلع ' + (hpe.sel+1) + ':</b> الطول <input id="hpeEdLen" type="number" inputmode="decimal" value="' + hpeFmt(sd.len) + '" onchange="hpeEditSide(\'len\',this.value)"> ' + (hpe.unit === 'cm' ? 'سم' : 'مم') +
-    ' · ألواح <input id="hpeEdN" data-stepper type="number" inputmode="numeric" min="1" max="200" style="width:56px" value="' + sd.n + '" onchange="hpeEditSide(\'n\',this.value)">' +
+    (hpe.generic ? '' : ' · ألواح <input id="hpeEdN" data-stepper type="number" inputmode="numeric" min="1" max="200" style="width:56px" value="' + sd.n + '" onchange="hpeEditSide(\'n\',this.value)">') +
     '<button type="button" onclick="hpeSplitSide()">✂ قسّمه لنصين</button><button type="button" class="del" onclick="hpeDeleteSide()">🗑 احذف</button><button type="button" onclick="hpe.sel=-1;hpeRender()">تم</button>' +
     '<span class="hint" style="width:100%">لتغيّر اتجاهه: كبّس سهم وخانة الطول فاضية.</span>';
 }
@@ -18673,6 +18717,8 @@ function quickStartRoomFloorDrawFromToolbar(){
   // ما في أي حالة بيفتح فيها غرفة مش إلها علاقة بالبند المختار.
   const cur = getSelected();
   if(cur && isHandrail(cur)){ openHandrailPlanEditor(); return; }
+  // أي بند تاني (مش غرفة): محرّر المسقط تبع الهاندريل - أرقام وزوايا (حمدي وافق 2026-11-25). مسقط غرفة قديم مربوط بالبند بيضل يفتح هو.
+  if(cur && !isRoom(cur) && !items.some(r => isRoom(r) && r.planForItemId === cur.id)){ openItemPlanEditor(); return; }
   let room = (cur && isRoom(cur)) ? cur : null;
   if(!room && cur) room = items.find(r => isRoom(r) && r.planForItemId === cur.id) || null;
   if(!room && !cur){
@@ -21885,6 +21931,15 @@ function renderGallery(){
       <div class="card-classify">${cls.en} <span class="wd-ar">(${cls.ar})</span></div>`;
     card.appendChild(head);
     card.appendChild(canvasDiv);
+    // 📐 مسقط البند (محرّر الأرقام والزوايا) تحت الرسمة بنفس البطاقة
+    if(!isHandrail(it) && !isRoom(it) && Array.isArray(it.planSides) && it.planSides.length){
+      const pd = document.createElement('div'); pd.className = 'mz-item-plan';
+      pd.style.cssText = 'background:#fff;border-radius:8px;padding:6px 8px;margin:8px 0 4px;color:#12324a;text-align:center;cursor:pointer';
+      pd.title = 'كبّس لتعدّل المسقط';
+      pd.innerHTML = '<div style="font-weight:700;font-size:13px;">📐 المسقط <span style="font-weight:400;opacity:.7">(' + it.planSides.reduce((a, x) => a + x.len, 0) / 1000 + ' م.ط · ' + it.planSides.length + ' ضلع)</span></div>' + mzPlanSvg(it, 340, 240);
+      pd.onclick = (e) => { e.stopPropagation(); if(selectedId !== it.id) selectItem(it.id); openItemPlanEditor(); };
+      card.appendChild(pd);
+    }
     card.appendChild(caption);
     gallery.appendChild(card);
   });
