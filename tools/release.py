@@ -63,7 +63,7 @@ window.MZ_TENANT='sufiya';}catch(e){}})();</script>"""
 
 # صور ميرزونا المزروعة جوّا الصفحات (منعرفها من بصمة الصورة) ← بديل صوفيه
 # 2635fe75 ختم عرض السعر · fa0c9f00 ختم التسويات/المخالصات · a78697f0 لوغو ترويسة الطباعة
-MERZONA_IMAGES = {'2635fe75': 'stamp', 'fa0c9f00': 'stamp', 'a78697f0': 'logo'}
+MERZONA_IMAGES = {'2635fe75': 'stamp', 'fa0c9f00': 'stamp', 'a78697f0': 'logo', 'c677617d': 'logo'}  # c677617d = لوغو ميرزونا الجديد (2026-11-26)
 
 def _data_url(path):
     import base64
