@@ -1403,6 +1403,11 @@
   body.mode-mobile #wdOverlay .panel.controls #itemChips{ display:none; }
   body.mode-mobile #wdOverlay.mz-sheet-open .item-card.selected .card-canvas svg{ max-height:30vh; width:100%; }
   @media print{ #mzEdBar, #mzEdFab{ display:none !important; } }
+  /* 🛠️ 2026-11-27 (حمدي - سكتش S-Q-260011: "شوف كيف رسائل السيستم عم تظهر بالسكتش"): إشعارات النظام العائمة
+     (انحفظ العرض/عم يرفع للدرايف، لاحظنا بطء، التنبيهات) كانت تنطبع بالـPDF والطباعة. منخفيها بكل أنواع الطباعة. */
+  @media print{ [data-mz-transient], .no-print, #mzDriveStatus, #mzSaveLock, #merzonaToast, .mz-lag-bar{ display:none !important; } }
+  body.pdf-capturing [data-mz-transient], body.pdf-capturing .no-print, body.pdf-capturing #mzDriveStatus, body.pdf-capturing #merzonaToast, body.pdf-capturing .mz-lag-bar,
+  body.wd-printing [data-mz-transient], body.wd-printing .no-print, body.wd-printing #mzDriveStatus, body.wd-printing #merzonaToast, body.wd-printing .mz-lag-bar{ display:none !important; }
   .layout{
     display: grid;
     grid-template-columns: 340px 1fr;
@@ -4863,9 +4868,16 @@ try{ mzStorageSweep({}); }catch(e){}
     try{ o.mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + 'MB' : null; }catch(e){}
     return o;
   }
+  // 🛠️ 2026-11-27 (تقرير حمدي 18 ميغا): الوقت يلي بتكون فيه رسالة تأكيد/سؤال مفتوحة (confirm/prompt/alert) مش بطء -
+  // كانت تنحسب "علقة" (مثلاً زر الحذف بيسأل "بدك تحذف؟"). ومسار الصورة (data:...) كان ينحفظ كامل بالتقرير.
+  var dlgUntil = 0, dlgFrom = 0;
+  ['confirm', 'prompt', 'alert'].forEach(function(k){ var o = window[k]; if(typeof o !== 'function' || o.__mzDlg) return;
+    var w = function(){ dlgFrom = performance.now(); try{ return o.apply(window, arguments); } finally { dlgUntil = performance.now(); } }; w.__mzDlg = true; try{ window[k] = w; }catch(e){} });
+  function cut(x){ x = String(x || ''); return x.replace(/data:[^"')\s]*/g, 'data:…').slice(0, 120); }
   function record(e){
+    if(dlgUntil && e.startTime <= dlgUntil + 50 && (e.startTime + e.duration) >= dlgFrom - 50) return; // إطار فيه رسالة مفتوحة - مش بطء
     var rec = { t: new Date().toISOString(), ms: Math.round(e.duration), blocking: Math.round(e.blockingDuration || 0), scripts: [], act: window.__mzLastAct || null };
-    try{ (e.scripts || []).forEach(function(sc){ rec.scripts.push({ fn: sc.sourceFunctionName || '', inv: sc.invoker || '', type: sc.invokerType || '', url: String(sc.sourceURL || '').slice(-60), line: sc.sourceCharPosition, ms: Math.round(sc.duration), forced: Math.round(sc.forcedStyleAndLayoutDuration || 0) }); }); }catch(x){}
+    try{ (e.scripts || []).forEach(function(sc){ rec.scripts.push({ fn: cut(sc.sourceFunctionName), inv: cut(sc.invoker), type: sc.invokerType || '', url: String(sc.sourceURL || '').slice(-60), line: sc.sourceCharPosition, ms: Math.round(sc.duration), forced: Math.round(sc.forcedStyleAndLayoutDuration || 0) }); }); }catch(x){}
     rec.render = Math.round((e.renderStart && e.startTime) ? (e.styleAndLayoutStart ? (e.startTime + e.duration - e.styleAndLayoutStart) : 0) : 0);
     LOG.push(rec); if(LOG.length > 60) LOG.shift();
     var now = Date.now(); recentSlow.push(now); recentSlow = recentSlow.filter(function(t){ return now - t < 90000; });
@@ -4880,7 +4892,7 @@ try{ mzStorageSweep({}); }catch(e){}
   function showBar(){
     shown = true;
     try{
-      var d = document.createElement('div'); d.className = 'no-print'; d.dir = 'rtl';
+      var d = document.createElement('div'); d.className = 'no-print mz-lag-bar'; d.setAttribute('data-mz-transient', '1'); d.dir = 'rtl';
       d.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:100000;background:#1d2b3a;color:#fff;padding:8px 12px;border-radius:10px;font-size:12.5px;display:flex;gap:8px;align-items:center;box-shadow:0 4px 18px rgba(0,0,0,.3);';
       d.innerHTML = '<span>🐢 لاحظنا بطء بالصفحة</span><button style="cursor:pointer;border:0;border-radius:6px;padding:4px 8px;">⬇ تنزيل تقرير البطء</button><button style="cursor:pointer;border:0;background:transparent;color:#fff;">✕</button>';
       d.children[1].onclick = download; d.children[2].onclick = function(){ d.remove(); };
@@ -4888,7 +4900,7 @@ try{ mzStorageSweep({}); }catch(e){}
     }catch(e){}
   }
   ['pointerdown', 'keydown', 'input', 'change'].forEach(function(ev){
-    document.addEventListener(ev, function(e){ try{ var t = e.target || {}; window.__mzLastAct = ev + ' ' + (t.id ? '#' + t.id : (t.className && String(t.className).slice ? String(t.className).slice(0, 40) : (t.tagName || ''))); }catch(x){} }, true);
+    document.addEventListener(ev, function(e){ try{ var t = e.target || {}; window.__mzLastAct = ev + ' ' + (t.id ? '#' + t.id : ((t.getAttribute && t.getAttribute('class')) ? (t.tagName || '') + '.' + String(t.getAttribute('class')).slice(0, 40) : (t.tagName || ''))); }catch(x){} }, true);
   });
   try{
     var po = new PerformanceObserver(function(list){ list.getEntries().forEach(function(e){ if(e.duration >= 350) record(e); }); });
