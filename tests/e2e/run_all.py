@@ -1183,6 +1183,27 @@ async def t_plan_any_item(p, b, port):
     check(not errs, 'بلا أخطاء ' + str(errs[:2]))
     await ctx.close()
 
+async def t_print_hides_toasts(p, b, port):
+    """🖨️ سكتش S-Q-260011: إشعارات النظام (انحفظ/عم يرفع للدرايف، لاحظنا بطء) ما لازم تنطبع"""
+    print('• الطباعة: إشعارات النظام ما بتنطبع')
+    ctx = await new_ctx(p, b); pg = await ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
+    await open_tool(pg, port, [[1200, 1400, 'Hinged Window']])
+    await pg.evaluate("mzDriveStatus('busy', '✅ انحفظ العرض - ⏳ عم يرفعه لجوجل درايف بالخلفية...')")
+    await pg.evaluate("(function(){ var d = document.createElement('div'); d.className = 'no-print mz-lag-bar'; d.textContent = '🐢 لاحظنا بطء بالصفحة'; d.style.cssText = 'position:fixed;bottom:0;right:0'; document.body.appendChild(d); })()")
+    v0 = await pg.evaluate("[document.getElementById('mzDriveStatus').offsetParent !== null || getComputedStyle(document.getElementById('mzDriveStatus')).display !== 'none', getComputedStyle(document.querySelector('.mz-lag-bar')).display !== 'none']")
+    await pg.emulate_media(media='print')
+    v1 = await pg.evaluate("[getComputedStyle(document.getElementById('mzDriveStatus')).display, getComputedStyle(document.querySelector('.mz-lag-bar')).display]")
+    await pg.emulate_media(media='screen')
+    await pg.evaluate("document.body.classList.add('wd-printing')")
+    v2 = await pg.evaluate("getComputedStyle(document.getElementById('mzDriveStatus')).display")
+    await pg.evaluate("document.body.classList.remove('wd-printing'); document.body.classList.add('pdf-capturing')")
+    v3 = await pg.evaluate("getComputedStyle(document.getElementById('mzDriveStatus')).display")
+    await pg.evaluate("document.body.classList.remove('pdf-capturing')")
+    check(v0 == [True, True] and v1 == ['none', 'none'] and v2 == 'none' and v3 == 'none', 'الإشعارات بتبين عالشاشة وبتختفي بالطباعة وطباعة المصمم والـPDF ' + str([v0, v1, v2, v3]))
+    check(await pg.evaluate("!!(window.confirm && window.confirm.__mzDlg)"), 'مسجّل البطء ما بيحسب وقت رسائل التأكيد بطء')
+    check(not errs, 'بلا أخطاء ' + str(errs[:2]))
+    await ctx.close()
+
 async def t_handrail_template(p, b, port):
     """📐 عرض 260010: مسقط هاندريل مشروع قديم كان يطلع ببند الهاندريل بعرض سعر جديد (قالب البند)"""
     print('• الهاندريل: قالب البند ما بينقل مسقط مشروع تاني')
@@ -3658,7 +3679,7 @@ async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch()
         only = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else None
-        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_plan_any_item, ()), (t_wd_header_toggle, ()), (t_shower_mount, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
+        for fn, args in [(t_types_and_roundtrip, ()), (t_old_misguessed, ()), (t_handrail_plan, ()), (t_handrail_template, ()), (t_print_hides_toasts, ()), (t_plan_any_item, ()), (t_wd_header_toggle, ()), (t_shower_mount, ()), (t_design_partial_ref, ()), (t_handrail_draw, (False,)), (t_handrail_draw, (True,)), (t_edit_panel, (False,)), (t_edit_panel, (True,)), (t_catalog, ()), (t_drive_proxy, ()),
                          (t_share_pdf, ()), (t_cad_import, ()), (t_quotes_server, ()), (t_company, ()), (t_fx_bar, ()), (t_acct_ai, ()), (t_acct_en, ()), (t_dash_en, ()), (t_auth_headers, ()), (t_payroll_auto, ()), (t_warranty_template, ()), (t_hr3d_toolbar, ()), (t_print_titles, ()), (t_dash_accountant, ()), (t_quote_status, ()), (t_tickets, ()), (t_sliding_ids, ()), (t_view_version, ()), (t_shower_wall, ()), (t_camera_quad, ()), (t_real3d, ()), (t_real3d_pergola, ()), (t_pergola_posts, ()), (t_hr_sizes_steppers, ()), (t_survey, ()), (t_cutplan, ()), (t_install_checklist, ()), (t_techcat, ()), (t_catalog_manage, ()), (t_techcat_video_edit, ()), (t_back_button, ()), (t_design_new_item_confirm, ()), (t_mobile_delete_item, ()), (t_refresh_restore, ()), (t_items_sync, ()), (t_proc_products, ()), (t_collections, ()), (t_acct_statement_wa, ()), (t_acct_syp_invoice, ()), (t_owner_stale_session, ()), (t_dash_seed_load, ()), (t_users_columns, ()), (t_save_speed, ()), (t_fast_save, ()), (t_fast_save_real_pdf, ()), (t_wa_quote_draft, ()), (t_wa_pdf, ()), (t_price_sync, ()), (t_sufiya_site, (tmp,))]:
             if only and fn.__name__ not in only: continue
             await fn(p, b, port, *args)
