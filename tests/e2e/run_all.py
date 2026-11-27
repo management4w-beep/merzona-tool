@@ -311,6 +311,19 @@ async def t_real3d(p, b, port):
       function cnt(it){ var op = MzReal3D._buildOpening(it, M, H), c = 0, u = 0; op.group.traverse(function(o){ if(!o.isMesh || !o.geometry) return; o.geometry.computeBoundingBox(); var b = o.geometry.boundingBox, w = b.max.x - b.min.x, h = b.max.y - b.min.y; if(Math.abs(w - 0.04) < 0.003 && Math.abs(h - 0.04) < 0.003) c++; if(h > 0.02 && h < 0.03 && w > 0.8) u++; }); return [c, u]; }
       return { ch: cnt(base), cl: cnt(Object.assign({}, base, {showerMount:'clamps'})), clNoWall: cnt(Object.assign({}, base, {showerMount:'clamps', showerWallL:false})), cl35: cnt(Object.assign({}, base, {showerMount:'clamps', showerClampFloor:3, showerClampWall:5})) }; })()""")
     check(mt['ch'] == [0, 2] and mt['cl'] == [8, 0] and mt['clNoWall'] == [4, 0] and mt['cl35'] == [16, 0], 'تثبيت الثابت: مجرى U (تحت وفوق) أو قطع ستانلس 4×4 (أرض + حيط) ' + str(mt))
+    # 🪟 S-Q-260011: تلسكوبي وفولدينغ نحيف - بروفايل نحيف، كل درفة على سكة، والفتح (جنب/من النص) بيحرّك الدرف
+    sl = await pg.evaluate("""(function(){ var H = window.MZ_R3D_HELPERS, T = THREE, mat = new T.MeshBasicMaterial(), M = new Proxy({}, { get: function(){ return mat; } });
+      function row(t, n){ var c = []; for(var i = 0; i < n; i++) c.push({ frac: 100/n, node: { id: 'x' + i, kind: 'leaf', type: t[i] || t[0] } }); return { id: 'r', kind: 'split', direction: 'row', children: c }; }
+      var tele = { id: 1, shapeType: 'slidingDoor', label: 'Telescopic Door Sliding System', width: 3800, height: 2800, layout: row(['plain', 'slide_left', 'slide_left', 'slide_left', 'slide_left'], 5) };
+      var fold = { id: 3, shapeType: 'foldingDoor', label: 'Slim Folding System', width: 3240, height: 2400, layout: row(['fold'], 5) };
+      function xs(it, o, mode){ var c = Object.assign({}, it, { __r3dOpen: o, r3dOpenMode: mode }); var op = MzReal3D._buildOpening(c, M, H), zs = {}, gx = [];
+        op.group.children.forEach(function(ch){ if(ch.isGroup){ gx.push(+ch.position.x.toFixed(2)); zs[ch.position.z.toFixed(3)] = 1; } }); return { gx: gx, tracks: Object.keys(zs).length, D: +op.D.toFixed(3) }; }
+      return { st: MzReal3D._slimSystemOf(tele).kind + '/' + MzReal3D._slimSystemOf(fold).kind, thick: MzReal3D._slimSystemOf(Object.assign({}, fold, { label: 'Folding Door' })),
+        tc: xs(tele, 0, 'left'), to: xs(tele, 1, 'left'), tm: xs(tele, 1, 'center'), fc: xs(fold, 0, 'left'), fo: xs(fold, 0.8, 'left') }; })()""")
+    ok = (sl['st'] == 'tele/fold' and sl['thick'] is None and sl['tc']['tracks'] == 5
+          and max(sl['to']['gx']) < 0.1 and max(sl['tm']['gx']) > 2.5
+          and max(sl['fo']['gx']) < max(sl['fc']['gx']))
+    check(ok, 'تلسكوبي/فولدينغ نحيف: 5 سكك، الدرف بتتكدّس ورا بعض (جنب أو من النص)، والفولدينغ بينطوي ' + str({k: sl[k] for k in ('st', 'tc', 'to', 'tm')}))
     # زر الرسمة بيرجّع الرسمة
     await pg.click('#threeDGrid .threeD-card >> nth=0 >> [data-r3d="sketch"]'); await pg.wait_for_timeout(200)
     check(await pg.evaluate("(function(){ var c = document.querySelectorAll('#threeDGrid .threeD-card')[0]; return c.querySelector('.threeD-sketch svg') && c.querySelector('img.threeD-real').style.display == 'none'; })()"), 'زر ✏️ الرسمة بيبدّل للرسمة')

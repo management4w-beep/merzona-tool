@@ -233,6 +233,21 @@ function isOpeningSupported(it, H){
 }
 
 // بيبني الشباك/الباب (مجموعة بمركزها تحت-يسار = 0,0، الوجه الخارجي باتجاه +Z)
+// نظام نحيف (تلسكوبي/فولدينغ): صف واحد من الدرف بالتصميم
+function slimSystemOf(it){
+  if(!it || !it.layout) return null;
+  const L = it.layout, kids = L.kind === 'split' && L.direction === 'row' ? L.children : null;
+  if(!kids || kids.length < 2 || !kids.every(k => k.node && k.node.kind === 'leaf')) return null;
+  const types = kids.map(k => k.node.type || 'plain'), fracs = kids.map(k => +k.frac || (100 / kids.length));
+  const name = String(it.label || '') + ' ' + String(it.systemName || '');
+  const fold = it.shapeType === 'foldingDoor' && types.every(t => t === 'fold');
+  const tele = it.shapeType === 'slidingDoor' && types.every(t => t === 'plain' || /^slide_/.test(t)) && (/telescop|تلسكوب/i.test(name) || types.filter(t => /^slide_/.test(t)).length >= 3);
+  if(!fold && !tele) return null;
+  if(fold && !/slim|سليم|نحيف/i.test(name) && it.r3dSlim !== true) return null;
+  let mode = it.r3dOpenMode;
+  if(mode !== 'left' && mode !== 'right' && mode !== 'center') mode = tele ? (types.some(t => t === 'slide_right') && !types.some(t => t === 'slide_left') ? 'right' : 'left') : 'left';
+  return { kind: fold ? 'fold' : 'tele', types, fracs, mode };
+}
 function buildOpening(it, M, H){
   const THREE = T();
   // 🚿 2026-11-24 (حمدي - عرض 260009: "ليش ماعم تعمل ثري دي للبارتشن الازاز؟"): باب شاور/فاصل زجاج = عرض الباب + الجناب الثابتة
@@ -401,6 +416,77 @@ function buildOpening(it, M, H){
     if(horizInside){ const r = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.36, 20), M.steel); r.rotation.z = Math.PI/2; r.position.set(hX + (hingeLeft ? -0.18 : 0.18), hY - 0.12, -(GT/2 + 0.054)); g.add(r); }
     else pullHandle(hX, hY, Hh, -GT/2, -1);
     return { group: g, W, H: Hh, D: 0.03, door: true };
+  }
+  // 🪟 2026-11-27 (حمدي: "ضفت Telescopic Sliding System و Slim Folding System... عالثري دي عم يبين كانه باب مو نحيف
+  //  ... طريقة الفتح مثلا اما كل باب خلف اخوه او فتح من الوسط"): أنظمة نحيفة بشكلها الحقيقي + الفتح
+  const sys = slimSystemOf(it);
+  if(sys){
+    const open = Math.max(0, Math.min(1, +it.__r3dOpen || 0));
+    const mode = sys.mode;
+    const pf = 0.034, pd = 0.03, gap = 0.003;            // عرض وجه البروفايل النحيف، عمقه
+    const fw = 0.03;                                       // إطار خارجي نحيف (سكة فوق + جوانب)
+    const n = sys.types.length, fr = sys.fracs;
+    const x0 = fw, x1 = W - fw, iw = x1 - x0, y0 = 0.012, y1 = Hh - fw;
+    const widths = fr.map(f => iw * f / 100);
+    const starts = []; widths.reduce((acc, w, i) => { starts[i] = acc; return acc + w; }, x0);
+    function slimPanel(parent, lx, w, h, withHandle, hx){
+      const pg = new THREE.Group(); parent.add(pg);
+      frame(lx, 0, w, h, pf, pd, 0, pg);
+      glassPane(lx + pf, pf, w - 2*pf, h - 2*pf, 0, pg);
+      if(withHandle){ const k = bar(hx, h*0.45, 0.018, 0.22, 0.02, pd/2 + 0.01, M.alu, pg); }
+      return pg;
+    }
+    const ph = y1 - y0;
+    if(sys.kind === 'tele'){
+      const tracks = n, td = tracks * 0.034 + 0.012;
+      // سكة فوق عريضة (كل درفة إلها مجرى) + جوانب نحيفة + مجرى أرضي رفيع
+      bar(W/2, Hh - fw/2, W, fw, td, 0, M.alu);
+      bar(fw/2, Hh/2, fw, Hh, td, 0, M.alu); bar(W - fw/2, Hh/2, fw, Hh, td, 0, M.alu);
+      bar(W/2, 0.006, W, 0.012, td, 0, M.alu);
+      for(let t = 0; t < tracks; t++) bar(W/2, Hh - fw - 0.004, W - 2*fw, 0.008, 0.004, (t - (tracks - 1)/2) * 0.034, M.steel);
+      // وين بتتكدّس الدرف: جنب واحد (left/right) أو من النص
+      const movers = sys.types.map((t, i) => t !== 'plain');
+      sys.types.forEach((t, i) => {
+        const w = widths[i];
+        let tx = starts[i];
+        if(movers[i]){
+          let side = mode === 'center' ? (starts[i] + w/2 < W/2 ? 'left' : 'right') : mode;
+          tx = side === 'left' ? x0 : x1 - w;
+        }
+        const x = starts[i] + (tx - starts[i]) * open;
+        const z = (i - (n - 1)/2) * 0.034 * (mode === 'right' ? -1 : 1);
+        const pnl = slimPanel(g, 0, w + (i < n - 1 ? 0.03 : 0), ph, movers[i] && (i === n - 1 || (mode === 'center' && i === Math.floor(n/2))), (mode === 'left' ? w - pf/2 : pf/2));
+        pnl.position.set(x, y0, z);
+      });
+      return { group: g, W, H: Hh, D: td, door: true };
+    }
+    // فولدينغ: درف مربوطة بمفصلات، بتنطوي متل الأكورديون - من جنب واحد أو من النص
+    const td = 0.06;
+    bar(W/2, Hh - fw/2, W, fw, td, 0, M.alu);
+    bar(fw/2, Hh/2, fw, Hh, td * 0.8, 0, M.alu); bar(W - fw/2, Hh/2, fw, Hh, td * 0.8, 0, M.alu);
+    bar(W/2, 0.006, W, 0.012, td * 0.8, 0, M.alu);
+    const a = open * 1.35;                                 // زاوية الطي (لحد ~77°)
+    function chain(idxs, startX, sgn){
+      let px = startX, pz = 0;
+      idxs.forEach((i, k) => {
+        const w = widths[i] - gap, dir = (k % 2 === 0) ? 1 : -1;
+        const dx = sgn * Math.cos(a) * w, dz = dir * Math.sin(a) * w;
+        const holder = new THREE.Group(); g.add(holder);
+        holder.position.set(px, y0, pz); holder.rotation.y = Math.atan2(-dz, dx);
+        slimPanel(holder, 0, w, ph, k === idxs.length - 1, w - pf/2);
+        // مفصلات عند الطرف
+        [0.12, 0.5, 0.88].forEach(f => { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.07, 12), M.steel); c.position.set(px, y0 + ph*f, pz + pd/2 + 0.004); g.add(c); });
+        px += dx; pz += dz;
+      });
+    }
+    const all = sys.types.map((_, i) => i);
+    if(mode === 'center'){
+      const h = Math.ceil(n/2);
+      chain(all.slice(0, h), x0, 1);
+      chain(all.slice(h).reverse(), x1, -1);
+    } else if(mode === 'right') chain(all.slice().reverse(), x1, -1);
+    else chain(all, x0, 1);
+    return { group: g, W, H: Hh, D: td, door: true };
   }
   const inner = { x0: ofw, y0: ofw, x1: W - ofw, y1: Hh - ofw };
   const EPS = 1e-6;
@@ -674,6 +760,7 @@ function openViewer(it, H, onSave){
   ov.style.cssText = 'position:fixed;inset:0;z-index:10700;background:#111;display:flex;flex-direction:column;direction:rtl;font-family:Tajawal,Tahoma,Arial,sans-serif;';
   const chip = (k, v, ar, cur, extra)=> `<button data-k="${k}" data-v="${v}" style="font:inherit;font-size:13px;padding:6px 10px;border-radius:16px;cursor:pointer;border:1px solid ${cur ? '#00B8D4' : '#556'};background:${cur ? '#00B8D4' : 'rgba(255,255,255,0.06)'};color:#fff;display:inline-flex;gap:6px;align-items:center;">${extra || ''}${ar}</button>`;
   const opts = optsFor(it);
+  const slim = slimSystemOf(it); it.__r3dOpen = 0;
   const sw = (hex)=> `<span style="width:14px;height:14px;border-radius:50%;background:#${hex.toString(16).padStart(6,'0')};border:1px solid #999;display:inline-block"></span>`;
   ov.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#1b1f24;color:#fff;flex-wrap:wrap;">
@@ -689,6 +776,8 @@ function openViewer(it, H, onSave){
       ${isPg ? `<span style="margin-inline-start:10px">السقف:</span>${Object.keys(PG_ROOFS).map(k=> chip('roof', k, PG_ROOFS[k], (it.pgRoof || 'slats') === k)).join('')}` : ''}
       <span style="margin-inline-start:10px">الزجاج:</span>${Object.keys(GLASS).map(k=> chip('glass', k, GLASS[k].ar, opts.glass === k)).join('')}
       <span style="margin-inline-start:10px">الخلفية:</span>${chip('bg', 'facade', 'واجهة', opts.bg === 'facade')}${chip('bg', 'studio', 'استوديو', opts.bg === 'studio')}
+      ${slim ? `<span style="flex-basis:100%;height:0"></span><span>طريقة الفتح:</span>${chip('omode', 'left', slim.kind === 'tele' ? '⟵ الدرف ورا بعض لليسار' : '⟵ طي لليسار', slim.mode === 'left')}${chip('omode', 'right', slim.kind === 'tele' ? 'الدرف ورا بعض لليمين ⟶' : 'طي لليمين ⟶', slim.mode === 'right')}${chip('omode', 'center', '⟷ فتح من النص', slim.mode === 'center')}
+        <label style="display:flex;align-items:center;gap:6px;margin-inline-start:10px">🚪 فتح <input id="mzR3dOpen" type="range" min="0" max="100" value="0" style="width:160px"></label>` : ''}
     </div>`;
   document.body.appendChild(ov);
   const stage = ov.querySelector('#mzR3dStage');
@@ -726,19 +815,20 @@ function openViewer(it, H, onSave){
   window.addEventListener('resize', onResize);
   ov.querySelector('#mzR3dBar').addEventListener('click', (e)=>{
     const b = e.target.closest('button[data-k]'); if(!b) return;
-    if(b.dataset.k === 'roof'){ it.pgRoof = b.dataset.v; } else opts[b.dataset.k] = b.dataset.v;
+    if(b.dataset.k === 'roof'){ it.pgRoof = b.dataset.v; } else if(b.dataset.k === 'omode'){ it.r3dOpenMode = b.dataset.v; if(!(+it.__r3dOpen > 0)){ it.__r3dOpen = 0.7; const rg = ov.querySelector('#mzR3dOpen'); if(rg) rg.value = 70; } } else opts[b.dataset.k] = b.dataset.v;
     ov.querySelectorAll(`button[data-k="${b.dataset.k}"]`).forEach(x=>{ const on = x.dataset.v === b.dataset.v; x.style.background = on ? '#00B8D4' : 'rgba(255,255,255,0.06)'; x.style.borderColor = on ? '#00B8D4' : '#556'; });
     it.r3dColor = opts.color; it.r3dGlass = opts.glass; it.r3dBg = opts.bg;
     try{ if(onSave) onSave(it); }catch(err){}
     rebuild(true);
   });
+  { const rg = ov.querySelector('#mzR3dOpen'); if(rg) rg.addEventListener('input', ()=>{ it.__r3dOpen = (+rg.value || 0) / 100; rebuild(true); }); }
   ov.querySelector('#mzR3dShot').addEventListener('click', ()=>{
     r.render(info.scene, cam);
     const a = document.createElement('a'); a.href = r.domElement.toDataURL('image/png');
     a.download = (String(it.label || 'design').replace(/[\\/:*?"<>|]+/g, '_')) + ' - 3D.png'; document.body.appendChild(a); a.click(); a.remove();
   });
   ov.querySelector('#mzR3dClose').addEventListener('click', closeViewer);
-  VW = { ov, stop(){ cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); if(controls) controls.dispose(); if(info) disposeScene(info.scene); } };
+  VW = { ov, stop(){ try{ delete it.__r3dOpen; }catch(e){} cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); if(controls) controls.dispose(); if(info) disposeScene(info.scene); } };
   return true;
 }
 function closeViewer(){
@@ -748,5 +838,5 @@ function closeViewer(){
   VW = null;
 }
 
-window.MzReal3D = { _state: ()=> getState(), supported, canRender, isPergolaSupported, PG_ROOFS, isOpeningSupported, renderImage, openViewer, closeViewer, COLORS, GLASS, _buildOpening: buildOpening };
+window.MzReal3D = { _slimSystemOf: slimSystemOf, _state: ()=> getState(), supported, canRender, isPergolaSupported, PG_ROOFS, isOpeningSupported, renderImage, openViewer, closeViewer, COLORS, GLASS, _buildOpening: buildOpening };
 })();
